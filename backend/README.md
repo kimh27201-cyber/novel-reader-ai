@@ -1,6 +1,6 @@
 # 小说解码 App 后端
 
-这是小说解码 App 的 Python 后端：FastAPI + SQLAlchemy + SQLite + JWT。当前已实现健康检查、用户注册登录、书架、章节和阅读记录接口，后续阶段再接入书源解析和 AI 功能。
+这是小说解码 App 的 Python 后端：FastAPI + SQLAlchemy + SQLite + JWT。当前已实现健康检查、用户注册登录、书架、章节、阅读记录、书源导入和动态解析接口，后续阶段再接入 AI 功能。
 
 ## 目录
 
@@ -18,6 +18,7 @@ backend/
   tests/
     test_auth.py     # 鉴权接口测试
     test_library.py  # 书架、章节、阅读记录接口测试
+    test_sources.py  # 书源导入和解析接口测试
 ```
 
 ## 启动
@@ -112,7 +113,7 @@ sqlite:///./data/novel_reader.db
 - `ai_summaries`
 - `chat_records`
 
-当前阶段已开放 `users`、`books`、`chapters`、`reading_history` 相关接口，书源解析和 AI 表为后续阶段预留。
+当前阶段已开放 `users`、`books`、`chapters`、`reading_history`、`book_sources` 相关接口，AI 表为后续阶段预留。
 
 ## 书架与章节接口
 
@@ -186,3 +187,74 @@ Authorization: Bearer <access_token>
 ### GET /api/reading-history?book_id=1
 
 读取指定书籍的阅读进度。
+
+## 书源接口
+
+所有接口都需要请求头：
+
+```text
+Authorization: Bearer <access_token>
+```
+
+### POST /api/sources/import
+
+导入 JSON 书源。`content` 可以是单个书源对象、书源数组，或包含 `sources` 数组的对象。
+
+```json
+{
+  "content": "{\"bookSourceName\":\"测试小说源\",\"bookSourceUrl\":\"https://example.com\",\"searchUrl\":\"https://example.com/search?q={{key}}\",\"ruleSearch\":{\"bookList\":\".result-list li\",\"name\":\"h3 a@text\",\"author\":\".author@text\",\"bookUrl\":\"h3 a@href\"},\"ruleToc\":{\"chapterList\":\".chapter-list a\",\"chapterName\":\"@text\",\"chapterUrl\":\"@href\"},\"ruleContent\":{\"content\":\"#content@text\"}}"
+}
+```
+
+### GET /api/sources
+
+获取当前用户导入的书源列表。
+
+### POST /api/sources/{source_id}/search
+
+根据书源规则搜索小说。
+
+```json
+{
+  "keyword": "星轨",
+  "page": 1
+}
+```
+
+### POST /api/sources/{source_id}/toc
+
+根据书源目录规则解析章节列表。
+
+```json
+{
+  "book_url": "https://example.com/book/1",
+  "toc_url": "https://example.com/book/1/catalog"
+}
+```
+
+### POST /api/sources/{source_id}/content
+
+根据书源正文规则解析章节正文。
+
+```json
+{
+  "chapter_url": "https://example.com/book/1/0"
+}
+```
+
+## 书源规则支持范围
+
+当前后端解析器支持：
+
+- `searchUrl`
+- `ruleSearch.bookList/name/author/bookUrl`
+- `ruleToc.chapterList/chapterName/chapterUrl`
+- `ruleContent.content`
+- 基础 CSS 选择器，如 `.list a`、`#content`
+- `@text`、`@html`、`@href`、`@src`
+- `||` 兜底规则
+- `##regex##replace` 正则替换
+- `{{key}}`、`{{keyword}}`、`{{page}}` 模板
+- 基础 JSONPath，如 `$.data.books[*]`
+
+暂不执行 JS、Cookie、登录、WebView 或付费绕过规则。导入这类规则时会标记为不兼容。
