@@ -1,0 +1,83 @@
+{
+  "pages": [
+    {
+      "path": "pages/bookshelf/bookshelf",
+      "style": {
+        "navigationBarTitleText": "解码书架",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/library/library",
+      "style": {
+        "navigationBarTitleText": "导入",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/search/search",
+      "style": {
+        "navigationBarTitleText": "发现源",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/profile/profile",
+      "style": {
+        "navigationBarTitleText": "我的",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/trackDetail/trackDetail",
+      "style": {
+        "navigationBarTitleText": "追书详情",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/sourceBook/sourceBook",
+      "style": {
+        "navigationBarTitleText": "书源详情",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/reader/reader",
+      "style": {
+        "navigationBarTitleText": "阅读",
+        "navigationStyle": "custom"
+      }
+    }
+  ],
+  "tabBar": {
+    "color": "#ffffff",
+    "selectedColor": "#d85a3a",
+    "backgroundColor": "#2f302d",
+    "borderStyle": "black",
+    "list": [
+      {
+        "pagePath": "pages/bookshelf/bookshelf",
+        "text": "书架"
+      },
+      {
+        "pagePath": "pages/library/library",
+        "text": "导入"
+      },
+      {
+        "pagePath": "pages/search/search",
+        "text": "发现"
+      },
+      {
+        "pagePath": "pages/profile/profile",
+        "text": "我的"
+      }
+    ]
+  },
+  "globalStyle": {
+    "navigationBarTextStyle": "white",
+    "navigationBarTitleText": "解码阅读",
+    "navigationBarBackgroundColor": "#60757d",
+    "backgroundColor": "#20211f"
+  }
+}

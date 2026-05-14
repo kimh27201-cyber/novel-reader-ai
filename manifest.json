@@ -1,0 +1,48 @@
+{
+  "name": "解码阅读",
+  "appid": "__UNI__NOVELREADER",
+  "description": "阅读书源解码、本地 TXT 导入与在线阅读 App",
+  "versionName": "0.1.0",
+  "versionCode": "100",
+  "transformPx": false,
+  "app-plus": {
+    "usingComponents": true,
+    "nvueStyleCompiler": "uni-app",
+    "compilerVersion": 3,
+    "splashscreen": {
+      "alwaysShowBeforeRender": false,
+      "waiting": true,
+      "autoclose": true,
+      "delay": 0
+    },
+    "modules": {},
+    "distribute": {
+      "android": {
+        "permissions": []
+      }
+    }
+  },
+  "quickapp": {},
+  "h5": {
+    "devServer": {
+      "proxy": {
+        "/yckceo-proxy": {
+          "target": "https://www.yckceo.com",
+          "changeOrigin": true,
+          "secure": true,
+          "pathRewrite": {
+            "^/yckceo-proxy": ""
+          }
+        }
+      }
+    }
+  },
+  "mp-weixin": {
+    "appid": "",
+    "setting": {
+      "urlCheck": false
+    },
+    "usingComponents": true
+  },
+  "vueVersion": "2"
+}

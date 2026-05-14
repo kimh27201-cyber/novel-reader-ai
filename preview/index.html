@@ -1,0 +1,807 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>追风书城 APP 模板预览</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      color: #252822;
+      font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+      background: #20251f;
+    }
+    button, input, textarea {
+      border: 0;
+      outline: 0;
+      font: inherit;
+    }
+    button { cursor: pointer; }
+    .stage {
+      display: grid;
+      place-items: center;
+      min-height: 100vh;
+      padding: 24px;
+    }
+    .phone {
+      position: relative;
+      width: min(430px, 100%);
+      height: min(880px, calc(100vh - 48px));
+      min-height: 720px;
+      overflow: hidden;
+      border: 10px solid #1f2528;
+      border-radius: 34px;
+      background: linear-gradient(180deg, #f7f0e2 0%, #ece7d7 42%, #dfe9e3 100%);
+      box-shadow: 0 26px 70px rgba(28, 36, 36, .28);
+    }
+    .screen {
+      display: none;
+      height: 100%;
+      overflow: hidden;
+      padding: 30px 20px 88px;
+    }
+    .search-screen {
+      padding-top: 38px;
+    }
+    .screen.active { display: block; }
+    .reader-screen {
+      position: relative;
+      padding: 78px 24px 54px;
+      background: #f7f0df;
+      color: #2b251d;
+    }
+    .top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .eyebrow {
+      color: #7d806f;
+      font-size: 12px;
+      font-weight: 800;
+    }
+    .title {
+      margin-top: 3px;
+      color: #1f251f;
+      font-size: 31px;
+      font-weight: 900;
+      line-height: 36px;
+    }
+    .circle {
+      display: grid;
+      place-items: center;
+      width: 44px;
+      height: 44px;
+      flex: 0 0 auto;
+      border-radius: 999px;
+      color: #24342f;
+      font-size: 22px;
+      background: rgba(255,255,255,.88);
+      box-shadow: 0 10px 24px rgba(45,52,45,.12);
+    }
+    .search-entry, .search-box {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      height: 52px;
+      padding: 0 16px;
+      margin-top: 18px;
+      border: 1px solid rgba(80,71,55,.06);
+      border-radius: 16px;
+      background: rgba(255,255,255,.88);
+      box-shadow: 0 12px 28px rgba(63,58,44,.10);
+    }
+    .search-box input {
+      flex: 1;
+      height: 100%;
+      background: transparent;
+    }
+    .tabs, .scope {
+      display: flex;
+      gap: 10px;
+      margin-top: 15px;
+    }
+    .scope {
+      gap: 6px;
+      padding: 5px;
+      border-radius: 999px;
+      background: rgba(255,255,255,.62);
+    }
+    .tabs button, .scope button {
+      height: 36px;
+      padding: 0 13px;
+      border-radius: 999px;
+      color: #718078;
+      background: rgba(255,255,255,.66);
+    }
+    .scope button {
+      flex: 1;
+      background: transparent;
+    }
+    .tabs .active, .scope .active {
+      color: #fff;
+      background: #31584f;
+    }
+    .feature, .summary {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      min-height: 100px;
+      padding: 14px;
+      margin-top: 16px;
+      border-radius: 20px;
+      color: #f8f0df;
+      background: linear-gradient(135deg, #263c36 0%, #517469 100%);
+      box-shadow: 0 16px 36px rgba(36,59,55,.24);
+    }
+    .feature small, .summary small { color: rgba(248,240,223,.74); }
+    .feature h2, .summary h2 {
+      margin: 4px 0 6px;
+      font-size: 22px;
+      line-height: 28px;
+    }
+    .mini-cover, .cover {
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      color: white;
+      font-weight: 900;
+      text-align: center;
+      box-shadow: inset 8px 0 0 rgba(255,255,255,.13), 0 12px 22px rgba(0,0,0,.16);
+    }
+    .mini-cover {
+      width: 56px;
+      height: 76px;
+      flex: 0 0 auto;
+      padding: 8px 6px;
+      border-radius: 8px;
+      font-size: 14px;
+      line-height: 18px;
+    }
+    .section {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      margin-top: 17px;
+    }
+    .section h3 {
+      margin: 0;
+      color: #222821;
+      font-size: 20px;
+      line-height: 26px;
+    }
+    .section p {
+      margin: 2px 0 0;
+      color: #77827a;
+      font-size: 12px;
+    }
+    .rail {
+      width: calc(100% + 40px);
+      margin: 12px -20px 0;
+      overflow-x: auto;
+      overflow-y: hidden;
+      white-space: nowrap;
+      scroll-snap-type: x mandatory;
+      scrollbar-width: none;
+    }
+    .rail::-webkit-scrollbar { display: none; }
+    .rail-inner {
+      display: inline-flex;
+      gap: 14px;
+      padding: 0 20px;
+    }
+    .book-card {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      width: 350px;
+      height: 178px;
+      padding: 14px;
+      border: 1px solid rgba(80,71,55,.06);
+      border-radius: 22px;
+      background: rgba(255,255,255,.88);
+      box-shadow: 0 14px 34px rgba(48,58,48,.10);
+      scroll-snap-align: center;
+      white-space: normal;
+    }
+    .rank {
+      position: absolute;
+      top: 10px;
+      right: 14px;
+      color: #9a6c55;
+      font-size: 12px;
+      font-weight: 900;
+    }
+    .cover {
+      width: 90px;
+      height: 126px;
+      flex: 0 0 auto;
+      padding: 12px 8px;
+      border-radius: 10px;
+      font-size: 18px;
+      line-height: 23px;
+    }
+    .info {
+      min-width: 0;
+      flex: 1;
+      margin-left: 14px;
+    }
+    .info h3 {
+      overflow: hidden;
+      margin: 0;
+      font-size: 21px;
+      line-height: 26px;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .info p {
+      margin: 7px 0 0;
+      color: #757970;
+      font-size: 13px;
+      line-height: 19px;
+    }
+    .bar {
+      height: 5px;
+      margin-top: 10px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: #e3ded4;
+    }
+    .bar span {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: #45695f;
+    }
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .stat {
+      padding: 10px 4px;
+      border-radius: 14px;
+      text-align: center;
+      background: rgba(255,255,255,.70);
+    }
+    .stat strong { display: block; font-size: 19px; }
+    .stat span { color: #728078; font-size: 12px; }
+    .source, .setting-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 14px;
+      margin-top: 12px;
+      border-radius: 16px;
+      background: rgba(255,255,255,.72);
+    }
+    .source {
+      border: 1px dashed rgba(74,98,89,.28);
+    }
+    .source-dot, .avatar {
+      display: grid;
+      place-items: center;
+      width: 42px;
+      height: 42px;
+      flex: 0 0 auto;
+      border-radius: 13px;
+      color: white;
+      font-weight: 900;
+      background: #45695f;
+    }
+    .source p, .setting-item small {
+      margin: 2px 0 0;
+      color: #737d76;
+      font-size: 12px;
+      line-height: 17px;
+    }
+    .reader-top {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 4;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 68px;
+      padding: 14px 14px 8px;
+      background: rgba(255,255,255,.84);
+      box-shadow: 0 8px 22px rgba(40,32,22,.08);
+    }
+    .reader-action {
+      display: flex;
+      flex: 1;
+      min-width: 0;
+      flex-direction: column;
+      align-items: center;
+      color: #555b55;
+      font-size: 11px;
+    }
+    .reader-action.active {
+      color: #31584f;
+      font-weight: 900;
+    }
+    .reader-action b {
+      display: grid;
+      place-items: center;
+      width: 24px;
+      height: 24px;
+      margin-bottom: 2px;
+      border-radius: 8px;
+      background: rgba(49,88,79,.08);
+      font-size: 12px;
+    }
+    .page-surface {
+      height: 100%;
+      overflow: hidden;
+    }
+    .page-surface.scroll {
+      overflow-y: auto;
+      padding-bottom: 120px;
+    }
+    .chapter-kicker {
+      margin-bottom: 8px;
+      color: rgba(116,107,94,.78);
+      font-size: 12px;
+    }
+    .chapter-title {
+      margin: 0 0 20px;
+      font-size: 26px;
+      line-height: 34px;
+    }
+    .content {
+      max-height: calc(100% - 86px);
+      overflow: hidden;
+      white-space: pre-wrap;
+    }
+    .page-surface.scroll .content {
+      max-height: none;
+      overflow: visible;
+    }
+    .footer {
+      position: absolute;
+      left: 24px;
+      right: 24px;
+      bottom: 16px;
+      display: flex;
+      justify-content: space-between;
+      color: rgba(116,107,94,.82);
+      font-size: 12px;
+    }
+    .settings, .more {
+      position: absolute;
+      z-index: 5;
+      border-radius: 18px;
+      background: rgba(255,255,255,.97);
+      box-shadow: 0 14px 34px rgba(33,28,22,.18);
+    }
+    .settings {
+      left: 14px;
+      right: 14px;
+      bottom: 44px;
+      padding: 16px;
+    }
+    .more {
+      top: 76px;
+      right: 14px;
+      width: 132px;
+      padding: 8px;
+    }
+    .more button {
+      width: 100%;
+      height: 38px;
+      margin-top: 5px;
+      border-radius: 10px;
+      color: #33433e;
+      background: #edf2ee;
+    }
+    .more button:first-child { margin-top: 0; }
+    .settings h3 {
+      margin: 0 0 12px;
+      font-size: 17px;
+    }
+    .mode-row, .row, .themes {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .mode-row button {
+      flex: 1;
+      height: 38px;
+      border-radius: 10px;
+      color: #607068;
+      background: #edf2ee;
+    }
+    .mode-row .active {
+      color: white;
+      background: #31584f;
+    }
+    .row { align-items: center; }
+    .step {
+      width: 38px;
+      height: 34px;
+      border-radius: 9px;
+      color: #283d38;
+      background: #e7eee9;
+    }
+    .themes {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+    }
+    .theme {
+      height: 38px;
+      border: 2px solid transparent;
+      border-radius: 10px;
+      font-size: 12px;
+    }
+    .theme.active { border-color: #31584f; }
+    .range { flex: 1; accent-color: #607c73; }
+    .tip {
+      position: absolute;
+      left: 50%;
+      bottom: 50px;
+      z-index: 4;
+      transform: translateX(-50%);
+      padding: 6px 12px;
+      border-radius: 999px;
+      color: #6f766e;
+      font-size: 12px;
+      background: rgba(255,255,255,.62);
+    }
+    .tabbar {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 8;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      height: 66px;
+      padding: 6px 10px 8px;
+      background: rgba(251,250,244,.96);
+      box-shadow: 0 -10px 28px rgba(34,40,34,.08);
+    }
+    .tabbar button {
+      border-radius: 14px;
+      color: #7c847d;
+      background: transparent;
+      font-size: 12px;
+    }
+    .tabbar b {
+      display: block;
+      font-size: 18px;
+      line-height: 22px;
+    }
+    .tabbar .active {
+      color: #31584f;
+      background: #edf2ee;
+    }
+    @media (max-width: 460px) {
+      .stage { padding: 0; }
+      .phone {
+        width: 100vw;
+        height: 100vh;
+        min-height: 100vh;
+        border: 0;
+        border-radius: 0;
+      }
+    }
+    /* Neon preview override */
+    body { background: #050712; color: #eaf7ff; }
+    .phone {
+      border-color: #080d1e;
+      background:
+        linear-gradient(132deg, rgba(57,215,255,.12), transparent 34%),
+        linear-gradient(226deg, rgba(157,108,255,.18), transparent 38%),
+        linear-gradient(180deg, #050712 0%, #090d1c 50%, #061119 100%);
+      box-shadow: 0 0 70px rgba(57,215,255,.18), 0 26px 70px rgba(0,0,0,.48);
+    }
+    .reader-screen { background: #090b12; color: #d8e2f1; }
+    .eyebrow, .search-icon, .circle { color: #67fff2; }
+    .title, .section h3, .book-card h3, .panel-title, .chapter-title { color: #f4f9ff; }
+    .section p, .book-card p, .muted, .chapter-subtitle { color: #8ba0c2; }
+    .circle, .search-entry, .search-box, .tabs button, .scope, .book-card, .stat, .source-card, .setting-card, .modal {
+      border: 1px solid rgba(103,255,242,.16);
+      background: rgba(15,23,44,.76);
+      box-shadow: 0 18px 50px rgba(0,0,0,.28), inset 0 1px 0 rgba(255,255,255,.08);
+    }
+    .tabs .active, .scope .active, .primary, .progress {
+      color: #061019;
+      background: linear-gradient(135deg, #67fff2 0%, #39d7ff 50%, #9d6cff 100%);
+      box-shadow: 0 0 30px rgba(57,215,255,.26);
+    }
+    .feature, .summary {
+      border: 1px solid rgba(103,255,242,.24);
+      background: linear-gradient(135deg, rgba(16,33,63,.94) 0%, rgba(49,25,90,.92) 100%);
+      box-shadow: 0 26px 70px rgba(57,215,255,.16), inset 0 1px 0 rgba(255,255,255,.10);
+    }
+    .cover, .mini-cover {
+      background: linear-gradient(155deg, #111b3f 0%, #226dff 44%, #9d55ff 100%) !important;
+      box-shadow: inset 8px 0 0 rgba(255,255,255,.13), 0 0 28px rgba(57,215,255,.24);
+    }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <section class="phone">
+      <div id="bookstore" class="screen active"></div>
+      <div id="library" class="screen"></div>
+      <div id="search" class="screen search-screen"></div>
+      <div id="profile" class="screen"></div>
+      <div id="sources" class="screen"></div>
+      <div id="reader" class="screen reader-screen"></div>
+      <nav id="tabbar" class="tabbar">
+        <button data-tab="bookstore" class="active" onclick="showTab('bookstore')"><b>⌂</b>书城</button>
+        <button data-tab="library" onclick="showTab('library')"><b>□</b>书架</button>
+        <button data-tab="search" onclick="showTab('search')"><b>⌕</b>搜索</button>
+        <button data-tab="profile" onclick="showTab('profile')"><b>○</b>我的</button>
+      </nav>
+    </section>
+  </main>
+
+  <script>
+    const books = [
+      {
+        id: 'mountain',
+        title: '山月照归人',
+        author: '公开示例',
+        category: '古风短篇',
+        coverColor: '#8a9b78',
+        description: '山寺、旧信与归途，一篇用于演示的公开短篇。',
+        chapters: [
+          { title: '第一章 山路', content: '山路入云，月色照在青石阶上。\n\n沈知遥背着旧书箱，一步一步往山门走。风从松林里穿过，像有人翻动一卷很久没有打开的书。\n\n他此行不是为了求名，也不是为了避世，而是为了找到十年前那封没有寄出的信。\n\n山门后的灯火很低，石阶上的水痕却很亮。沈知遥在风里停了一会儿，忽然觉得这一路并不是回来，而是终于肯走向那个一直等他的答案。' },
+          { title: '第二章 灯火', content: '山寺半夜仍有灯火。\n\n老僧把一盏茶推到沈知遥面前，说信不在寺里，在每一个还记得归途的人心里。\n\n沈知遥没有立刻回答。他望着窗外，忽然明白自己找的并不是信，而是当年没有勇气面对的告别。' }
+        ]
+      },
+      {
+        id: 'river',
+        title: '河岸图书室',
+        author: '公开示例',
+        category: '现实短篇',
+        coverColor: '#7693a0',
+        description: '小镇河岸边的旧图书室，保存着无人认领的借书卡。',
+        chapters: [
+          { title: '第一章 借书卡', content: '河岸图书室只在雨天开放。\n\n许南第一次进去时，柜台上的借书卡正好翻到他的名字。管理员说，每个人都会在某个雨天借走一本尚未写完的书。' },
+          { title: '第二章 雨声', content: '雨声落在铁皮屋檐上，像一台很慢的打字机。\n\n许南翻开那本没有书名的册子，第一页写着：如果你愿意继续读下去，故事就会承认你也是它的一部分。' }
+        ]
+      },
+      {
+        id: 'star',
+        title: '星轨图书馆',
+        author: '示例作者',
+        category: '轻科幻',
+        coverColor: '#6e7f9f',
+        description: '漂浮在近地轨道上的图书馆，保存着人类忘记的梦。',
+        chapters: [
+          { title: '第一章 失重借阅证', content: '凌晨四点，星轨图书馆经过城市上空。\n\n安禾第一次看见它时，以为那只是一颗移动得过慢的星星。直到手机里弹出一张借阅证，证件照的位置是一片透明的夜空。' }
+        ]
+      }
+    ];
+
+    const themes = {
+      paper: { name: '纸页', background: '#f7f0df', text: '#2b251d' },
+      green: { name: '浅绿', background: '#eaf3e6', text: '#1f2a20' },
+      night: { name: '夜读', background: '#181a1f', text: '#d8d4ca' },
+      rose: { name: '暖粉', background: '#f6e8e5', text: '#2c2220' }
+    };
+
+    const state = {
+      tab: 'bookstore',
+      storeMode: 'featured',
+      bookId: 'mountain',
+      chapterIndex: 0,
+      pageIndex: 0,
+      settings: false,
+      more: false,
+      voted: false,
+      downloaded: false,
+      prefs: JSON.parse(localStorage.getItem('zzPrefs') || '{"fontSize":20,"theme":"paper","brightness":88,"readingMode":"page"}')
+    };
+
+    const $ = id => document.getElementById(id);
+    const findBook = id => books.find(item => item.id === id) || books[0];
+    const savePrefs = () => localStorage.setItem('zzPrefs', JSON.stringify(state.prefs));
+    const split = text => {
+      const size = Math.max(330, Math.floor(760 - (state.prefs.fontSize - 16) * 30));
+      const pages = [];
+      for (let i = 0; i < text.length; i += size) pages.push(text.slice(i, i + size).trim());
+      return pages.length ? pages : [''];
+    };
+
+    function setTabVisible(name) {
+      document.querySelectorAll('.screen').forEach(el => el.classList.toggle('active', el.id === name));
+      document.querySelectorAll('.tabbar button').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === name));
+      $('tabbar').style.display = name === 'reader' ? 'none' : 'grid';
+    }
+
+    function showTab(name) {
+      state.tab = name;
+      setTabVisible(name);
+      render();
+    }
+
+    function openReader(id) {
+      state.bookId = id;
+      state.settings = false;
+      state.more = false;
+      setTabVisible('reader');
+      renderReader();
+    }
+
+    function closeReader() {
+      setTabVisible(state.tab);
+      render();
+    }
+
+    function storeTab(mode) {
+      if (mode === 'library') return showTab('library');
+      if (mode === 'sources') return showTab('sources');
+      state.storeMode = mode;
+      renderBookstore();
+    }
+
+    function renderBookstore() {
+      const latest = books[0];
+      const list = state.storeMode === 'ranking' ? [...books].reverse() : books;
+      $('bookstore').innerHTML = `
+        <div class="top"><div><div class="eyebrow">ZHUIFENG READER</div><div class="title">追风书城</div></div><button class="circle" onclick="showTab('search')">⌕</button></div>
+        <div class="search-entry" onclick="showTab('search')"><span>⌕</span><span style="color:#7c847d">搜索书名、作者、章节或正文</span></div>
+        <div class="tabs">
+          <button class="${state.storeMode === 'featured' ? 'active' : ''}" onclick="storeTab('featured')">精选</button>
+          <button onclick="storeTab('library')">书架</button>
+          <button class="${state.storeMode === 'ranking' ? 'active' : ''}" onclick="storeTab('ranking')">排行</button>
+          <button onclick="storeTab('sources')">公开书源</button>
+        </div>
+        <div class="feature" onclick="openReader('${latest.id}')"><div><small>继续阅读</small><h2>${latest.title}</h2><small>${latest.chapters[0].title} · 第 1 页</small></div><div class="mini-cover" style="background:${latest.coverColor}">${latest.title.slice(0,4)}</div></div>
+        <div class="section"><div><h3>${state.storeMode === 'ranking' ? '阅读排行' : '横滑选书'}</h3><p>${state.storeMode === 'ranking' ? '按阅读热度预览排序' : '左右滑动浏览本地与缓存书籍'}</p></div><p>${books.length} 本</p></div>
+        <div class="rail"><div class="rail-inner">${bookCards(list)}</div></div>
+        <div class="stats"><div class="stat"><strong>${books.length}</strong><span>本地书籍</span></div><div class="stat"><strong>5</strong><span>章节</span></div><div class="stat"><strong>1</strong><span>合法书源</span></div></div>
+        <div class="source" onclick="showTab('library')"><div class="source-dot">追</div><div style="flex:1"><strong>正版阅读入口</strong><p>保存正版平台链接，点击后跳转到官方页面继续阅读。</p></div><strong>›</strong></div>
+      `;
+    }
+
+    function bookCards(list) {
+      return list.map((item, index) => `<article class="book-card" onclick="openReader('${item.id}')">${state.storeMode === 'ranking' ? `<div class="rank">NO.${index + 1}</div>` : ''}<div class="cover" style="background:${item.coverColor}">${item.title.slice(0,4)}</div><div class="info"><h3>${item.title}</h3><p>${item.author} · ${item.category}</p><p>${item.description}</p><div class="bar"><span style="width:${index === 0 ? 78 : 33}%"></span></div><p>读到：${item.chapters[0].title} · ${index === 0 ? 78 : 33}%</p></div></article>`).join('');
+    }
+
+    function renderLibrary() {
+      $('library').innerHTML = `
+        <div class="top"><div><div class="eyebrow">MY LIBRARY</div><div class="title">我的书架</div></div><button class="circle" onclick="showTab('search')">⌕</button></div>
+        <div class="summary"><div><small>已收藏</small><h2>${books.length} 本书</h2><small>本地离线保存，后续会接入合法书源缓存</small></div></div>
+        <div class="section"><div><h3>书架横滑</h3><p>点击书封进入阅读</p></div></div>
+        <div class="rail"><div class="rail-inner">${bookCards(books)}</div></div>
+      `;
+    }
+
+    function renderSearch() {
+      $('search').innerHTML = `
+        <div class="top"><div style="flex:1"><div class="eyebrow">SEARCH</div><div class="title">小说搜索</div></div><button class="circle" onclick="showTab('sources')" style="font-size:15px;font-weight:900">源</button></div>
+        <div class="search-box"><span>⌕</span><input id="kw" placeholder="输入关键词" oninput="searchNow(this.value)"><button class="circle" style="width:30px;height:30px;font-size:18px" onclick="renderSearch()">×</button></div>
+        <div class="scope"><button class="active">追书</button><button>本地</button></div>
+        <div class="section"><div><h3 id="searchTitle">推荐关键词</h3><p id="searchCount">左右滑动选择</p></div></div>
+        <div id="searchRail" class="rail"><div class="rail-inner">${['山月','河岸','图书室','星轨','归人','公开'].map(x => `<button class="source" onclick="useHint('${x}')">${x}</button>`).join('')}</div></div>
+      `;
+    }
+
+    function searchNow(keyword) {
+      const word = keyword.trim().toLowerCase();
+      const results = word ? books.filter(item => `${item.title} ${item.author} ${item.category} ${item.description}`.toLowerCase().includes(word)) : [];
+      $('searchTitle').textContent = '搜索结果';
+      $('searchCount').textContent = `找到 ${results.length} 条本地结果`;
+      $('searchRail').innerHTML = `<div class="rail-inner">${results.map(item => `<article class="book-card" onclick="openReader('${item.id}')"><div class="cover" style="background:${item.coverColor}">${item.title.slice(0,4)}</div><div class="info"><h3>${item.title}</h3><p>${item.author} · ${item.category}</p><p>${item.description}</p></div></article>`).join('') || '<article class="book-card"><div class="info"><h3>没有找到内容</h3><p>换个关键词再试试。</p></div></article>'}</div>`;
+    }
+
+    function useHint(text) {
+      $('kw').value = text;
+      searchNow(text);
+    }
+
+    function renderProfile() {
+      $('profile').innerHTML = `
+        <div class="eyebrow">PROFILE</div><div class="title">我的</div>
+        <div class="source" style="margin-top:18px"><div class="avatar">追</div><div><strong>追风书城</strong><p>自用阅读 App 项目，数据优先保存在本机。</p></div></div>
+        ${['阅读偏好：字号 / 背景 / 模式','合法书源：只接入公开版权或授权内容','本地缓存：加入书架后可离线阅读','项目展示：后续整理 README 上传 GitHub'].map(x => `<div class="setting-item"><strong>${x.split('：')[0]}</strong><small>${x.split('：')[1]}</small></div>`).join('')}
+      `;
+    }
+
+    function renderSources() {
+      $('sources').innerHTML = `
+        <div class="top"><button class="circle" onclick="showTab('bookstore')">‹</button><div style="flex:1"><div class="eyebrow">TRACKING</div><div class="title">追书说明</div></div></div>
+        <div class="source"><div class="source-dot">法</div><div><strong>版权边界</strong><p>只保存正版阅读链接和本地记录，不抓取平台小说正文。</p></div></div>
+        <div class="source"><div class="source-dot">追</div><div><strong>追书管理</strong><p>记录书名、平台、读到章节、状态、评分和备注。</p></div></div>
+        <div class="source"><div class="source-dot">本</div><div><strong>本地阅读</strong><p>支持用户自己导入合法 TXT 文件进行本地阅读。</p></div></div>
+      `;
+    }
+
+    function renderReader() {
+      const item = findBook(state.bookId);
+      const chapter = item.chapters[state.chapterIndex] || item.chapters[0];
+      const pages = split(chapter.content);
+      state.pageIndex = Math.max(0, Math.min(state.pageIndex, pages.length - 1));
+      const theme = themes[state.prefs.theme] || themes.paper;
+      const isScroll = state.prefs.readingMode === 'scroll';
+      $('reader').style.background = theme.background;
+      $('reader').style.color = theme.text;
+      $('reader').innerHTML = `
+        <div class="reader-top">
+          <button class="circle" onclick="closeReader()">‹</button>
+          <div class="reader-action ${state.voted ? 'active' : ''}" onclick="vote()"><b>票</b>投票</div>
+          <div class="reader-action active" onclick="toast('已在书架')"><b>书</b>书架</div>
+          <div class="reader-action ${state.downloaded ? 'active' : ''}" onclick="downloadBook()"><b>↓</b>${state.downloaded ? '已缓存' : '下载'}</div>
+          <div class="reader-action" onclick="comment()"><b>评</b>点评</div>
+          <button class="circle" onclick="toggleMore()">•••</button>
+        </div>
+        <div class="page-surface ${isScroll ? 'scroll' : ''}" ontouchstart="touchStart(event)" ontouchend="touchEnd(event)">
+          <div class="chapter-kicker">Chapter ${state.chapterIndex + 1}</div><h1 class="chapter-title">${chapter.title}</h1><div class="content" style="font-size:${state.prefs.fontSize}px;line-height:${Math.round(state.prefs.fontSize * 1.82)}px">${isScroll ? chapter.content : pages[state.pageIndex]}</div>
+        </div>
+        ${state.more ? `<div class="more"><button onclick="${isScroll ? 'prevChapter()' : 'prevPage()'}">上一${isScroll ? '章' : '页'}</button><button onclick="${isScroll ? 'nextChapter()' : 'nextPage()'}">下一${isScroll ? '章' : '页'}</button><button onclick="toggleSettings()">阅读设置</button></div>` : ''}
+        ${state.settings ? settingsHtml() : ''}
+        <div class="footer"><span>${item.title}</span><span>${state.chapterIndex + 1}/${item.chapters.length} · ${isScroll ? '上下滑动' : `${state.pageIndex + 1}/${pages.length}`}</span></div>
+        <div class="tip">${isScroll ? '上下滑动阅读，更多里可切章' : '左右滑动翻页，更多里可手动翻页'}</div>
+      `;
+    }
+
+    function settingsHtml() {
+      return `<div class="settings"><h3>阅读设置</h3><div class="mode-row"><button class="${state.prefs.readingMode !== 'scroll' ? 'active' : ''}" onclick="setMode('page')">左右翻页</button><button class="${state.prefs.readingMode === 'scroll' ? 'active' : ''}" onclick="setMode('scroll')">上下滑动</button></div><div class="row"><span>字号</span><button class="step" onclick="font(-1)">−</button><strong>${state.prefs.fontSize}</strong><button class="step" onclick="font(1)">+</button></div><div class="themes">${Object.entries(themes).map(([id,t]) => `<button class="theme ${state.prefs.theme === id ? 'active' : ''}" style="background:${t.background};color:${t.text}" onclick="theme('${id}')">${t.name}</button>`).join('')}</div><div class="row"><span>亮度</span><input class="range" type="range" min="40" max="100" value="${state.prefs.brightness}" oninput="brightness(this.value)"><strong>${state.prefs.brightness}%</strong></div></div>`;
+    }
+
+    let sx = 0, sy = 0;
+    function touchStart(event) { sx = event.changedTouches[0].clientX; sy = event.changedTouches[0].clientY; }
+    function touchEnd(event) {
+      if (state.prefs.readingMode === 'scroll') return;
+      const dx = event.changedTouches[0].clientX - sx;
+      const dy = event.changedTouches[0].clientY - sy;
+      if (Math.abs(dx) < 42 || Math.abs(dx) < Math.abs(dy) * 1.2) return;
+      dx < 0 ? nextPage() : prevPage();
+    }
+    function nextPage() {
+      const pages = split(findBook(state.bookId).chapters[state.chapterIndex].content);
+      if (state.pageIndex < pages.length - 1) state.pageIndex += 1;
+      else nextChapter();
+      renderReader();
+    }
+    function prevPage() {
+      if (state.pageIndex > 0) state.pageIndex -= 1;
+      else prevChapter(true);
+      renderReader();
+    }
+    function nextChapter() {
+      const item = findBook(state.bookId);
+      if (state.chapterIndex < item.chapters.length - 1) { state.chapterIndex += 1; state.pageIndex = 0; }
+      renderReader();
+    }
+    function prevChapter(last) {
+      if (state.chapterIndex > 0) {
+        state.chapterIndex -= 1;
+        if (last) state.pageIndex = split(findBook(state.bookId).chapters[state.chapterIndex].content).length - 1;
+      }
+      renderReader();
+    }
+    function toggleMore() { state.more = !state.more; state.settings = false; renderReader(); }
+    function toggleSettings() { state.settings = !state.settings; state.more = false; renderReader(); }
+    function setMode(mode) { state.prefs.readingMode = mode; savePrefs(); state.settings = false; renderReader(); }
+    function font(delta) { state.prefs.fontSize = Math.max(16, Math.min(30, state.prefs.fontSize + delta)); savePrefs(); renderReader(); }
+    function theme(id) { state.prefs.theme = id; savePrefs(); renderReader(); }
+    function brightness(value) { state.prefs.brightness = Number(value); savePrefs(); renderReader(); }
+    function vote() { state.voted = !state.voted; toast(state.voted ? '已投推荐票' : '已取消投票'); renderReader(); }
+    function downloadBook() { state.downloaded = true; toast('已缓存到本地'); renderReader(); }
+    function comment() { const text = prompt('写一句读后感：'); if (text) toast('点评已保存'); }
+    function toast(text) { setTimeout(() => alert(text), 20); }
+
+    function render() {
+      renderBookstore();
+      renderLibrary();
+      renderSearch();
+      renderProfile();
+      renderSources();
+    }
+    render();
+  </script>
+</body>
+</html>

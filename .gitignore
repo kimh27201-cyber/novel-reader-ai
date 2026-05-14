@@ -1,0 +1,16 @@
+# Python backend
+backend/.venv/
+backend/data/
+backend/.env
+backend/.pytest_cache/
+backend/**/__pycache__/
+backend/**/*.pyc
+
+# uni-app / editor output
+unpackage/
+.hbuilderx/
+.idea/
+
+# OS
+Thumbs.db
+.DS_Store
