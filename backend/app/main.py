@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.ai import router as ai_router
 from app.api.auth import router as auth_router
@@ -16,6 +17,15 @@ app = FastAPI(
     version=settings.app_version,
     description="AI 阅读助手后端服务",
     swagger_ui_parameters={"persistAuthorization": True},
+)
+
+cors_origins = [origin.strip() for origin in settings.cors_allow_origins.split(",") if origin.strip()]
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=cors_origins or ["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 

@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     ai_base_url: str = ""
     ai_model: str = ""
     ai_timeout_seconds: float = 30.0
+    cors_allow_origins: str = "*"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
