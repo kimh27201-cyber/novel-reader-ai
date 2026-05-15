@@ -14,6 +14,7 @@ app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
     description="AI 阅读助手后端服务",
+    swagger_ui_parameters={"persistAuthorization": True},
 )
 
 
