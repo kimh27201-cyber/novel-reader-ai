@@ -71,6 +71,23 @@ async def create_ai_summary(
     return summary_to_response(record)
 
 
+@router.get("/summaries", response_model=list[AISummaryResponse])
+def list_ai_summaries(
+    book_id: int | None = None,
+    chapter_id: int | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[AISummaryResponse]:
+    validate_ai_scope(book_id, chapter_id, current_user.id, db)
+    query = db.query(AiSummary).filter(AiSummary.user_id == current_user.id)
+    if book_id is not None:
+        query = query.filter(AiSummary.book_id == book_id)
+    if chapter_id is not None:
+        query = query.filter(AiSummary.chapter_id == chapter_id)
+    records = query.order_by(AiSummary.created_at.desc(), AiSummary.id.desc()).all()
+    return [summary_to_response(record) for record in records]
+
+
 @router.post("/chat", response_model=AIChatResponse, status_code=status.HTTP_201_CREATED)
 async def create_ai_chat(
     payload: AIChatRequest,
@@ -96,3 +113,19 @@ async def create_ai_chat(
     db.commit()
     db.refresh(record)
     return record
+
+
+@router.get("/chats", response_model=list[AIChatResponse])
+def list_ai_chats(
+    book_id: int | None = None,
+    chapter_id: int | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[ChatRecord]:
+    validate_ai_scope(book_id, chapter_id, current_user.id, db)
+    query = db.query(ChatRecord).filter(ChatRecord.user_id == current_user.id)
+    if book_id is not None:
+        query = query.filter(ChatRecord.book_id == book_id)
+    if chapter_id is not None:
+        query = query.filter(ChatRecord.chapter_id == chapter_id)
+    return query.order_by(ChatRecord.created_at.desc(), ChatRecord.id.desc()).all()

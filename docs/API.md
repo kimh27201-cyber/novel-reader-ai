@@ -1,0 +1,150 @@
+# API 使用说明
+
+后端启动后打开 Swagger：
+
+```text
+http://127.0.0.1:8000/docs
+```
+
+## 1. 登录鉴权
+
+### 注册
+
+`POST /api/auth/register`
+
+```json
+{
+  "username": "student",
+  "email": "student@example.com",
+  "password": "secret123"
+}
+```
+
+### 登录
+
+`POST /api/auth/login`
+
+```json
+{
+  "username": "student",
+  "password": "secret123"
+}
+```
+
+复制返回的 `access_token`，点击 Swagger 右上角 `Authorize`，只粘贴 token 本身，不要手动加 `Bearer`。
+
+## 2. 本地演示书源
+
+### 导入演示书源
+
+`POST /api/sources/import-demo`
+
+返回结果中的 `sources[0].id` 是后续接口的 `source_id`。
+
+### 搜索小说
+
+`POST /api/sources/{source_id}/search`
+
+```json
+{
+  "keyword": "星轨",
+  "page": 1
+}
+```
+
+### 解析目录
+
+`POST /api/sources/{source_id}/toc`
+
+```json
+{
+  "book_url": "http://127.0.0.1:8000/demo-source/books/star-library/catalog",
+  "toc_url": "http://127.0.0.1:8000/demo-source/books/star-library/catalog"
+}
+```
+
+### 解析正文
+
+`POST /api/sources/{source_id}/content`
+
+```json
+{
+  "chapter_url": "http://127.0.0.1:8000/demo-source/books/star-library/chapters/1"
+}
+```
+
+## 3. AI 阅读助手
+
+默认 mock 模式可以直接运行，不需要 API Key。
+
+### 章节总结
+
+`POST /api/ai/summary`
+
+```json
+{
+  "chapter_text": "凌晨四点，星轨图书馆经过城市上空。安禾第一次看见它时，以为那只是一颗移动得过慢的星星。",
+  "book_id": null,
+  "chapter_id": null
+}
+```
+
+返回字段：
+
+- `summary`: 简洁总结
+- `characters`: 人物或关键对象
+- `key_points`: 剧情关键点
+- `provider`: `mock`、`deepseek` 或 `openai`
+
+### 总结历史
+
+`GET /api/ai/summaries`
+
+可选筛选：
+
+```text
+GET /api/ai/summaries?book_id=1
+GET /api/ai/summaries?chapter_id=1
+```
+
+### 小说问答
+
+`POST /api/ai/chat`
+
+```json
+{
+  "question": "安禾看到了什么？",
+  "context": "凌晨四点，星轨图书馆经过城市上空。安禾第一次看见它时，以为那只是一颗移动得过慢的星星。",
+  "book_id": null,
+  "chapter_id": null
+}
+```
+
+### 问答历史
+
+`GET /api/ai/chats`
+
+可选筛选：
+
+```text
+GET /api/ai/chats?book_id=1
+GET /api/ai/chats?chapter_id=1
+```
+
+## 4. 数据库查看
+
+SQLite 文件位置：
+
+```text
+D:\Codex\novel-reader-uniapp\backend\data\novel_reader.db
+```
+
+可以用 VS Code 的 SQLite Viewer 查看：
+
+- `users`
+- `books`
+- `chapters`
+- `book_sources`
+- `reading_history`
+- `ai_summaries`
+- `chat_records`

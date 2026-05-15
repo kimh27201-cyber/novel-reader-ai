@@ -117,6 +117,67 @@ def test_create_ai_chat_with_mock_provider():
         assert db.query(ChatRecord).count() == 1
 
 
+def test_list_ai_summaries_for_current_user_only():
+    first_headers = auth_headers()
+    second_headers = auth_headers("otherai", "otherai@example.com")
+    book, chapter = create_book_and_chapter(first_headers)
+    client.post(
+        "/api/ai/summary",
+        headers=first_headers,
+        json={
+            "book_id": book["id"],
+            "chapter_id": chapter["id"],
+            "chapter_text": chapter["content"],
+        },
+    )
+
+    first_list = client.get(f"/api/ai/summaries?book_id={book['id']}", headers=first_headers)
+    second_list = client.get("/api/ai/summaries", headers=second_headers)
+
+    assert first_list.status_code == 200
+    assert len(first_list.json()) == 1
+    assert first_list.json()[0]["chapter_id"] == chapter["id"]
+    assert second_list.status_code == 200
+    assert second_list.json() == []
+
+
+def test_list_ai_chats_for_current_user_only():
+    first_headers = auth_headers()
+    second_headers = auth_headers("otherai", "otherai@example.com")
+    book, chapter = create_book_and_chapter(first_headers)
+    client.post(
+        "/api/ai/chat",
+        headers=first_headers,
+        json={
+            "book_id": book["id"],
+            "chapter_id": chapter["id"],
+            "question": "安禾看到了什么？",
+            "context": chapter["content"],
+        },
+    )
+
+    first_list = client.get(f"/api/ai/chats?chapter_id={chapter['id']}", headers=first_headers)
+    second_list = client.get("/api/ai/chats", headers=second_headers)
+
+    assert first_list.status_code == 200
+    assert len(first_list.json()) == 1
+    assert first_list.json()[0]["question"] == "安禾看到了什么？"
+    assert second_list.status_code == 200
+    assert second_list.json() == []
+
+
+def test_ai_history_filter_requires_current_user_ownership():
+    first_headers = auth_headers()
+    second_headers = auth_headers("otherai", "otherai@example.com")
+    book, chapter = create_book_and_chapter(first_headers)
+
+    summaries = client.get(f"/api/ai/summaries?book_id={book['id']}", headers=second_headers)
+    chats = client.get(f"/api/ai/chats?chapter_id={chapter['id']}", headers=second_headers)
+
+    assert summaries.status_code == 404
+    assert chats.status_code == 404
+
+
 def test_ai_summary_requires_current_user_ownership():
     first_headers = auth_headers()
     second_headers = auth_headers("otherai", "otherai@example.com")

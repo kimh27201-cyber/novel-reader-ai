@@ -314,6 +314,17 @@ AI_MODEL=gpt-4o-mini
 
 `book_id` 和 `chapter_id` 可以不传；如果传了，后端会校验它们属于当前登录用户。
 
+### GET /api/ai/summaries
+
+读取当前用户的 AI 总结历史。
+
+可选筛选：
+
+```text
+GET /api/ai/summaries?book_id=1
+GET /api/ai/summaries?chapter_id=1
+```
+
 ### POST /api/ai/chat
 
 基于当前上下文进行小说问答，并保存到 `chat_records` 表。
@@ -325,6 +336,17 @@ AI_MODEL=gpt-4o-mini
   "book_id": 1,
   "chapter_id": 1
 }
+```
+
+### GET /api/ai/chats
+
+读取当前用户的 AI 问答历史。
+
+可选筛选：
+
+```text
+GET /api/ai/chats?book_id=1
+GET /api/ai/chats?chapter_id=1
 ```
 
 ## Swagger 可视化演示流程

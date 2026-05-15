@@ -1,29 +1,157 @@
-# 解码阅读
+# 小说解码 AI 阅读助手
 
-一个基于 uni-app 的阅读书源解码 + 本地 TXT 阅读 + 在线章节缓存 App 原型。
+一个面向学习和求职展示的阅读助手项目。项目保留原有 uni-app 客户端，同时新增 Python FastAPI 后端，把核心能力逐步迁移到后端：用户系统、书架管理、阅读记录、动态书源解析、AI 章节总结和 AI 问答。
 
 ## 项目定位
 
-解码阅读不是小说资源站。它的定位是：
+这个项目不是小说资源站，也不内置盗版书源。它的定位是一个“阅读工具 + AI 应用后端”：
 
-- 管理、导入和启用用户选择的阅读书源
-- 在兼容规则范围内解码搜索、详情、目录和正文
-- 支持用户导入自己本机的 TXT 文件进行本地阅读
-- 保留本地示例书、TXT 解析和阅读器体验
+- uni-app 客户端负责页面展示和本地阅读体验
+- FastAPI 后端负责用户、数据、书源解析和 AI 能力
+- SQLite 方便本地开发，后续可切换 PostgreSQL
+- AI 功能默认支持 mock 模式，没有 API Key 也能运行和测试
+
+## 技术栈
+
+后端：
+
+- Python
+- FastAPI
+- SQLAlchemy
+- SQLite
+- JWT
+- Pydantic
+- httpx
+- python-dotenv
+- pytest
+
+客户端：
+
+- uni-app
+- Vue 2
+- 本地 TXT 阅读
+- 本地书源解析原型
 
 ## 当前功能
 
-- 解码书架：展示在线书源书籍、TXT 和内置示例书
-- 发现源：筛选书源、跨源搜索并进入在线书籍详情
-- 导入中心：书源 JSON/URL 导入、TXT 导入、后续净化/字典规则入口
-- 设置中心：书源管理、TXT 目录规则、主题、备份和 Web 服务预留
-- 本地 TXT：选择 `.txt` 文件导入，支持删除本地导入书籍
-- TXT 处理：基础编码读取、排版清洗、章节识别和导入预览
-- 本地搜索：搜索本地书名、作者、章节和正文；旧版追书链接仍可兼容
-- 书源搜索：启用内置或导入书源后，跨源搜索、解析详情、目录和正文
-- 在线书架：在线小说加入书架后保存目录，章节正文按需加载并缓存在本机
-- 阅读器：左右翻页、阅读进度记忆、目录、字号、背景、亮度和夜间模式
-- 数据备份：导出和恢复本机记录 JSON
+后端已实现：
+
+- 用户注册、登录、JWT 鉴权
+- 书架管理
+- 章节管理
+- 阅读记录管理
+- JSON 书源导入
+- 动态书源搜索、目录、正文解析
+- 本地演示书源，方便 Swagger 直接测试
+- AI 章节总结
+- AI 小说问答
+- AI 总结和问答历史记录查询
+- 自动化测试
+
+客户端已保留：
+
+- 书架页面
+- 搜索页面
+- 阅读器页面
+- 书源管理页面
+- TXT 本地阅读相关原型
+
+## 项目结构
+
+```text
+novel-reader-uniapp/
+  backend/       # Python FastAPI 后端
+  common/        # uni-app 公共逻辑
+  pages/         # uni-app 页面
+  preview/       # 浏览器预览页面
+  static/        # 静态测试文件
+  tests/         # 前端书源引擎测试
+  docs/          # 项目文档
+```
+
+## 后端启动
+
+```powershell
+cd D:\Codex\novel-reader-uniapp\backend
+.\.venv\Scripts\Activate.ps1
+uvicorn app.main:app --reload --port 8000
+```
+
+打开：
+
+- Swagger: http://127.0.0.1:8000/docs
+- 健康检查: http://127.0.0.1:8000/api/health
+
+## 后端测试
+
+```powershell
+cd D:\Codex\novel-reader-uniapp\backend
+.\.venv\Scripts\Activate.ps1
+pytest
+```
+
+前端书源引擎测试：
+
+```powershell
+cd D:\Codex\novel-reader-uniapp
+node tests/sourceEngine.test.mjs
+```
+
+## 重要接口
+
+鉴权：
+
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+- `GET /api/auth/me`
+
+书架与阅读：
+
+- `GET /api/books`
+- `POST /api/books`
+- `GET /api/books/{book_id}/chapters`
+- `POST /api/books/{book_id}/chapters`
+- `GET /api/chapters/{chapter_id}`
+- `POST /api/reading-history`
+- `GET /api/reading-history`
+
+书源解析：
+
+- `POST /api/sources/import`
+- `POST /api/sources/import-demo`
+- `GET /api/sources`
+- `POST /api/sources/{source_id}/search`
+- `POST /api/sources/{source_id}/toc`
+- `POST /api/sources/{source_id}/content`
+
+AI：
+
+- `POST /api/ai/summary`
+- `GET /api/ai/summaries`
+- `POST /api/ai/chat`
+- `GET /api/ai/chats`
+
+更详细接口说明见 [docs/API.md](docs/API.md)。
+
+## AI 配置
+
+默认使用 mock 模式，不需要花钱：
+
+```env
+AI_PROVIDER=mock
+AI_API_KEY=
+```
+
+如果后续要接 DeepSeek：
+
+```env
+AI_PROVIDER=deepseek
+AI_API_KEY=你的 DeepSeek Key
+AI_BASE_URL=https://api.deepseek.com
+AI_MODEL=deepseek-chat
+```
+
+真实 `.env` 不要提交到 GitHub。
 
 ## 合规边界
 
@@ -34,33 +162,13 @@
 - 不绕过登录、会员、广告或版权限制
 - 不在仓库内放置未经授权的小说正文
 
-用户启用或导入的第三方书源由用户自行选择和承担；用户添加的链接应指向正版平台或其有权使用的内容。用户导入的 TXT 文件应来自用户自己合法持有的文本。
-
-## 书源 v1 支持范围
-
-- 支持常见 `searchUrl`、`ruleSearch`、`ruleBookInfo`、`ruleToc`、`ruleContent`
-- 支持基础 JSONPath、基础 HTML 选择器、`@text/@html/@href/@src`、`||` 兜底、`##regex##replace`、`{{key}}/{{page}}` 模板
-- 支持粘贴 JSON 导入，或粘贴 JSON 直链 / yckceo 书源页面 URL 导入
-- 暂不兼容 JS 规则、登录态、Cookie、复杂反爬、付费章节和需要浏览器执行的规则
-
-## 打开方式
-
-1. 打开 HBuilderX
-2. 选择“文件 -> 打开目录”
-3. 打开 `D:\Codex\novel-reader-uniapp`
-4. 运行到浏览器预览，或后续运行到 Android 真机测试
-
-## V0.1 目标
-
-- 完成四个主 Tab 的基础体验
-- 完成书源导入、在线解码、TXT 导入和本地阅读
-- 保持无服务器、无后端、纯本地存储
-- 整理项目说明，方便后续上传 GitHub 展示
+用户导入的第三方书源和 TXT 文件应来自用户自己有权使用的内容。
 
 ## 后续方向
 
-- Android 真机运行和打包测试
-- TXT 编码识别增强：UTF-8、GBK、GB18030、Big5
-- 文本清洗增强：乱码修复、空行整理、广告行提示
-- 章节识别优化和导入前预览
-- 最近阅读排序和解码任务状态
+- uni-app 客户端调用后端 API
+- App 端扫码导入书源
+- AI 总结和问答展示页
+- 书源规则兼容性检测
+- PostgreSQL 迁移
+- Docker 本地部署
