@@ -55,6 +55,8 @@
 - 阅读器页面
 - 书源管理页面
 - TXT 本地阅读相关原型
+- 我的页面后端登录入口
+- 阅读器内 AI 总结和问答入口
 
 ## 项目结构
 
@@ -95,6 +97,13 @@ pytest
 ```powershell
 cd D:\Codex\novel-reader-uniapp
 node tests/sourceEngine.test.mjs
+```
+
+前端后端 API client 测试：
+
+```powershell
+cd D:\Codex\novel-reader-uniapp
+node tests/apiClient.test.mjs
 ```
 
 ## 重要接口
@@ -166,7 +175,7 @@ AI_MODEL=deepseek-chat
 
 ## 后续方向
 
-- uni-app 客户端调用后端 API
+- 更多 uni-app 页面接入后端 API
 - App 端扫码导入书源
 - AI 总结和问答展示页
 - 书源规则兼容性检测

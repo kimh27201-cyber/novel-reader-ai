@@ -53,6 +53,8 @@
     </view>
 
     <view class="more-menu" v-if="moreVisible">
+      <button class="more-item" @tap.stop="aiSummarizeChapter">AI 总结本章</button>
+      <button class="more-item" @tap.stop="aiAskChapter">AI 问答本章</button>
       <button class="more-item" @tap.stop="copyProgress">复制进度</button>
       <button class="more-item" @tap.stop="retryChapter">重新解码本章</button>
       <button class="more-item" @tap.stop="showCacheState">缓存状态</button>
@@ -171,6 +173,7 @@ import { getBook } from '../../common/books.js'
 import { addOnlineBookToShelf, loadOnlineChapter } from '../../common/bookSources.js'
 import { getPrefs, getProgress, getTheme, savePrefs, saveProgress, splitChapter, themes } from '../../common/reader.js'
 import { getAppThemeId, getAppThemeStyle } from '../../common/appTheme.js'
+import apiClient from '../../common/apiClient.js'
 
 export default {
   data() {
@@ -475,6 +478,96 @@ export default {
       }
       this.moreVisible = false
       this.rebuildPages()
+    },
+    getCurrentChapterText() {
+      return (this.chapter && this.chapter.content) || this.pageContent || ''
+    },
+    ensureBackendReady() {
+      if (!apiClient.getToken()) {
+        uni.showModal({
+          title: '需要后端登录',
+          content: '请先到“我的”页面登录 FastAPI 后端。',
+          showCancel: false
+        })
+        return false
+      }
+      return true
+    },
+    async aiSummarizeChapter() {
+      if (!this.ensureBackendReady()) return
+      const chapterText = this.getCurrentChapterText()
+      if (!chapterText.trim()) {
+        uni.showToast({ title: '当前章节没有正文', icon: 'none' })
+        return
+      }
+      this.moreVisible = false
+      uni.showLoading({ title: 'AI 总结中...' })
+      try {
+        const result = await apiClient.summarizeChapter({ chapterText })
+        const content = [
+          result.summary,
+          '',
+          `人物：${(result.characters || []).join('、') || '无'}`,
+          `关键点：${(result.key_points || []).join('；') || '无'}`
+        ].join('\n')
+        uni.showModal({
+          title: 'AI 总结',
+          content,
+          showCancel: true,
+          cancelText: '关闭',
+          confirmText: '复制',
+          success: modal => {
+            if (modal.confirm) {
+              uni.setClipboardData({ data: content })
+            }
+          }
+        })
+      } catch (error) {
+        uni.showModal({ title: 'AI 总结失败', content: error.message || '请检查后端服务', showCancel: false })
+      } finally {
+        uni.hideLoading()
+      }
+    },
+    aiAskChapter() {
+      if (!this.ensureBackendReady()) return
+      const chapterText = this.getCurrentChapterText()
+      if (!chapterText.trim()) {
+        uni.showToast({ title: '当前章节没有正文', icon: 'none' })
+        return
+      }
+      uni.showModal({
+        title: 'AI 问答',
+        content: '使用默认问题“本章发生了什么？”进行提问。',
+        confirmText: '提问',
+        success: modal => {
+          if (modal.confirm) {
+            this.sendAIQuestion('本章发生了什么？', chapterText)
+          }
+        }
+      })
+    },
+    async sendAIQuestion(question, context) {
+      this.moreVisible = false
+      uni.showLoading({ title: 'AI 回答中...' })
+      try {
+        const result = await apiClient.chatWithAI({ question, context })
+        uni.showModal({
+          title: 'AI 回答',
+          content: result.answer,
+          showCancel: true,
+          cancelText: '关闭',
+          confirmText: '复制',
+          success: modal => {
+            if (modal.confirm) {
+              uni.setClipboardData({ data: result.answer })
+            }
+          }
+        })
+      } catch (error) {
+        uni.showModal({ title: 'AI 问答失败', content: error.message || '请检查后端服务', showCancel: false })
+      } finally {
+        uni.hideLoading()
+      }
     },
     toggleMore() {
       this.moreVisible = !this.moreVisible

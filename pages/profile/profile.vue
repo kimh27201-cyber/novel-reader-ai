@@ -8,6 +8,28 @@
       <button class="help-button" @tap="showHelp">?</button>
     </view>
 
+    <view class="backend-card">
+      <view class="backend-head">
+        <view>
+          <view class="backend-title">后端连接</view>
+          <text class="backend-desc">{{ backendStatusDesc }}</text>
+        </view>
+        <text class="backend-status" :class="{ online: backend.user }">{{ backend.user ? 'ONLINE' : 'OFFLINE' }}</text>
+      </view>
+
+      <input class="backend-input" v-model="backend.baseUrl" placeholder="后端地址" />
+      <view class="backend-grid">
+        <input class="backend-input" v-model="backend.username" placeholder="用户名" />
+        <input class="backend-input" v-model="backend.password" password placeholder="密码" />
+      </view>
+      <text class="backend-error" v-if="backend.error">{{ backend.error }}</text>
+      <view class="backend-actions">
+        <button class="backend-button primary" :loading="backend.loading" @tap="loginBackend">登录后端</button>
+        <button class="backend-button" :loading="backend.loading" @tap="refreshBackendMe">刷新状态</button>
+        <button class="backend-button ghost" @tap="logoutBackend">退出</button>
+      </view>
+    </view>
+
     <view class="settings-list">
       <view class="setting-item" v-for="item in mainItems" :key="item.id" @tap="openItem(item.id)">
         <text class="setting-icon">{{ item.icon }}</text>
@@ -63,6 +85,7 @@
 <script>
 import { exportTrackedBooks } from '../../common/tracking.js'
 import { appThemes, getAppThemeId, saveAppTheme } from '../../common/appTheme.js'
+import apiClient from '../../common/apiClient.js'
 
 export default {
   data() {
@@ -71,6 +94,14 @@ export default {
       themes: appThemes,
       themeVisible: false,
       webEnabled: false,
+      backend: {
+        baseUrl: '',
+        username: 'student',
+        password: 'secret123',
+        user: null,
+        loading: false,
+        error: ''
+      },
       mainItems: [
         { id: 'source', icon: '▤', title: '书源管理', desc: '新建、导入、编辑或管理书源' },
         { id: 'txt', icon: '▤', title: 'TXT 目录规则', desc: '配置 TXT 目录规则' },
@@ -84,12 +115,67 @@ export default {
   computed: {
     activeThemeName() {
       return (this.themes.find(theme => theme.id === this.themeId) || this.themes[0]).name
+    },
+    backendStatusDesc() {
+      return this.backend.user
+        ? `已登录：${this.backend.user.username}`
+        : '连接 FastAPI 后端，启用 AI 总结和问答'
     }
   },
   onShow() {
     this.themeId = getAppThemeId()
+    this.loadBackendState()
   },
   methods: {
+    loadBackendState() {
+      this.backend.baseUrl = apiClient.getBaseUrl()
+      if (apiClient.getToken()) {
+        this.refreshBackendMe({ silent: true })
+      } else {
+        this.backend.user = null
+      }
+    },
+    async loginBackend() {
+      this.backend.loading = true
+      this.backend.error = ''
+      try {
+        apiClient.setBaseUrl(this.backend.baseUrl)
+        await apiClient.login(this.backend.username.trim(), this.backend.password)
+        await this.refreshBackendMe({ silent: true })
+        uni.showToast({ title: '后端登录成功', icon: 'none' })
+      } catch (error) {
+        this.backend.user = null
+        this.backend.error = error.message || '登录失败'
+        uni.showToast({ title: this.backend.error, icon: 'none' })
+      } finally {
+        this.backend.loading = false
+      }
+    },
+    async refreshBackendMe(options = {}) {
+      this.backend.loading = true
+      this.backend.error = ''
+      try {
+        apiClient.setBaseUrl(this.backend.baseUrl)
+        this.backend.user = await apiClient.getMe()
+        if (!options.silent) {
+          uni.showToast({ title: '后端状态正常', icon: 'none' })
+        }
+      } catch (error) {
+        this.backend.user = null
+        this.backend.error = error.message || '后端未连接'
+        if (!options.silent) {
+          uni.showToast({ title: this.backend.error, icon: 'none' })
+        }
+      } finally {
+        this.backend.loading = false
+      }
+    },
+    logoutBackend() {
+      apiClient.clearToken()
+      this.backend.user = null
+      this.backend.error = ''
+      uni.showToast({ title: '已退出后端登录', icon: 'none' })
+    },
     openItem(id) {
       if (id === 'source' || id === 'txt') {
         uni.switchTab({ url: '/pages/library/library' })
@@ -180,6 +266,105 @@ button::after {
   font-size: 44rpx;
   line-height: 1;
   background: transparent;
+}
+
+.backend-card {
+  padding: 28rpx;
+  margin-bottom: 28rpx;
+  border: 1rpx solid rgba(255, 255, 255, 0.06);
+  border-radius: 22rpx;
+  background: rgba(47, 48, 45, 0.94);
+  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.04);
+}
+
+.backend-head,
+.backend-actions,
+.backend-grid {
+  display: flex;
+  align-items: center;
+}
+
+.backend-head {
+  justify-content: space-between;
+  gap: 18rpx;
+  margin-bottom: 20rpx;
+}
+
+.backend-title {
+  color: #ffffff;
+  font-size: 32rpx;
+  font-weight: 900;
+}
+
+.backend-desc,
+.backend-error {
+  display: block;
+  margin-top: 8rpx;
+  color: #a9aaa4;
+  font-size: 23rpx;
+  line-height: 34rpx;
+}
+
+.backend-error {
+  color: #ff9d86;
+}
+
+.backend-status {
+  flex-shrink: 0;
+  padding: 8rpx 14rpx;
+  border-radius: 999rpx;
+  color: #a9aaa4;
+  font-size: 20rpx;
+  font-weight: 900;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.backend-status.online {
+  color: #ffffff;
+  background: rgba(216, 90, 58, 0.72);
+}
+
+.backend-grid {
+  gap: 14rpx;
+  margin-top: 14rpx;
+}
+
+.backend-grid .backend-input {
+  flex: 1;
+}
+
+.backend-input {
+  height: 70rpx;
+  padding: 0 20rpx;
+  border-radius: 16rpx;
+  color: #ffffff;
+  font-size: 24rpx;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.backend-actions {
+  gap: 12rpx;
+  margin-top: 20rpx;
+}
+
+.backend-button {
+  flex: 1;
+  height: 62rpx;
+  border-radius: 16rpx;
+  color: #f4f0e8;
+  font-size: 23rpx;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.backend-button.primary {
+  color: #ffffff;
+  background: #d85a3a;
+}
+
+.backend-button.ghost {
+  flex: 0.65;
+  color: #a9aaa4;
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .setting-item {
