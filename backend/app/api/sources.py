@@ -1,6 +1,6 @@
 import json
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.auth import get_current_user
@@ -17,6 +17,7 @@ from app.schemas.sources import (
     SourceTocRequest,
     SourceTocResponse,
 )
+from app.services.demo_source import build_demo_source_content
 from app.services.source_parser import SourceParseError, load_content, load_toc, parse_source_json, search_source
 
 
@@ -40,17 +41,7 @@ def source_to_parser_dict(source: BookSource) -> dict:
     }
 
 
-@router.post("/import", response_model=SourceImportResponse, status_code=status.HTTP_201_CREATED)
-def import_sources(
-    payload: SourceImportRequest,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-) -> SourceImportResponse:
-    try:
-        configs = parse_source_json(payload.content)
-    except SourceParseError as exc:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-
+def save_source_configs(configs: list[dict], db: Session, current_user: User) -> list[BookSource]:
     imported: list[BookSource] = []
     for config in configs:
         existing = (
@@ -76,6 +67,37 @@ def import_sources(
     db.commit()
     for source in imported:
         db.refresh(source)
+    return imported
+
+
+@router.post("/import", response_model=SourceImportResponse, status_code=status.HTTP_201_CREATED)
+def import_sources(
+    payload: SourceImportRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> SourceImportResponse:
+    try:
+        configs = parse_source_json(payload.content)
+    except SourceParseError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    imported = save_source_configs(configs, db, current_user)
+    return SourceImportResponse(imported_count=len(imported), sources=imported)
+
+
+@router.post("/import-demo", response_model=SourceImportResponse, status_code=status.HTTP_201_CREATED)
+def import_demo_source(
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> SourceImportResponse:
+    base_url = str(request.base_url).rstrip("/")
+    try:
+        configs = parse_source_json(build_demo_source_content(base_url))
+    except SourceParseError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    imported = save_source_configs(configs, db, current_user)
     return SourceImportResponse(imported_count=len(imported), sources=imported)
 
 

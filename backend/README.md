@@ -1,6 +1,6 @@
 # 小说解码 App 后端
 
-这是小说解码 App 的 Python 后端：FastAPI + SQLAlchemy + SQLite + JWT。当前已实现健康检查、用户注册登录、书架、章节、阅读记录、书源导入和动态解析接口，后续阶段再接入 AI 功能。
+这是小说解码 App 的 Python 后端：FastAPI + SQLAlchemy + SQLite + JWT。当前已实现健康检查、用户注册登录、书架、章节、阅读记录、书源导入、动态解析接口和本地演示书源，后续阶段再接入 AI 功能。
 
 ## 目录
 
@@ -12,12 +12,14 @@ backend/
     db/           # 数据库连接
     models/       # SQLAlchemy Model
     schemas/      # Pydantic Schema
+    services/     # 书源解析、演示书源等业务服务
     main.py       # FastAPI 入口
   scripts/
     init_db.py    # 初始化 SQLite 表
   tests/
     test_auth.py     # 鉴权接口测试
     test_library.py  # 书架、章节、阅读记录接口测试
+    test_demo_source.py # 本地演示书源测试
     test_sources.py  # 书源导入和解析接口测试
 ```
 
@@ -206,6 +208,12 @@ Authorization: Bearer <access_token>
 }
 ```
 
+### POST /api/sources/import-demo
+
+导入内置的本地演示书源。这个接口适合在 Swagger 里快速展示“搜索、目录、正文解析”的完整流程，不依赖外部小说网站。
+
+响应里的 `sources[0].id` 就是后面接口要用的 `source_id`。
+
 ### GET /api/sources
 
 获取当前用户导入的书源列表。
@@ -258,3 +266,37 @@ Authorization: Bearer <access_token>
 - 基础 JSONPath，如 `$.data.books[*]`
 
 暂不执行 JS、Cookie、登录、WebView 或付费绕过规则。导入这类规则时会标记为不兼容。
+
+## Swagger 可视化演示流程
+
+先启动后端并打开 `http://127.0.0.1:8000/docs`，然后按顺序操作：
+
+1. `POST /api/auth/register` 注册用户。
+2. `POST /api/auth/login` 登录，复制返回的 `access_token`。
+3. 点击 Swagger 右上角 `Authorize`，只粘贴 token 本身，不要手动加 `Bearer`。
+4. `POST /api/sources/import-demo` 导入本地演示书源，记住返回的 `id`。
+5. `POST /api/sources/{source_id}/search` 搜索：
+
+```json
+{
+  "keyword": "星轨",
+  "page": 1
+}
+```
+
+6. 把搜索结果里的 `book_url` 填到 `POST /api/sources/{source_id}/toc`：
+
+```json
+{
+  "book_url": "http://127.0.0.1:8000/demo-source/books/star-library/catalog",
+  "toc_url": "http://127.0.0.1:8000/demo-source/books/star-library/catalog"
+}
+```
+
+7. 把目录结果里的第一章 `url` 填到 `POST /api/sources/{source_id}/content`：
+
+```json
+{
+  "chapter_url": "http://127.0.0.1:8000/demo-source/books/star-library/chapters/1"
+}
+```
