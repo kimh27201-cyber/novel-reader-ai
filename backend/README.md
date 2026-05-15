@@ -1,6 +1,6 @@
 # 小说解码 App 后端
 
-这是小说解码 App 的 Python 后端：FastAPI + SQLAlchemy + SQLite + JWT。当前已实现健康检查、用户注册登录、书架、章节、阅读记录、书源导入、动态解析接口和本地演示书源，后续阶段再接入 AI 功能。
+这是小说解码 App 的 Python 后端：FastAPI + SQLAlchemy + SQLite + JWT。当前已实现健康检查、用户注册登录、书架、章节、阅读记录、书源导入、动态解析、本地演示书源、AI 章节总结和 AI 问答。
 
 ## 目录
 
@@ -19,6 +19,7 @@ backend/
   tests/
     test_auth.py     # 鉴权接口测试
     test_library.py  # 书架、章节、阅读记录接口测试
+    test_ai.py       # AI 总结和问答接口测试
     test_demo_source.py # 本地演示书源测试
     test_sources.py  # 书源导入和解析接口测试
 ```
@@ -115,7 +116,7 @@ sqlite:///./data/novel_reader.db
 - `ai_summaries`
 - `chat_records`
 
-当前阶段已开放 `users`、`books`、`chapters`、`reading_history`、`book_sources` 相关接口，AI 表为后续阶段预留。
+当前阶段已开放 `users`、`books`、`chapters`、`reading_history`、`book_sources`、`ai_summaries`、`chat_records` 相关接口。
 
 ## 书架与章节接口
 
@@ -267,6 +268,65 @@ Authorization: Bearer <access_token>
 
 暂不执行 JS、Cookie、登录、WebView 或付费绕过规则。导入这类规则时会标记为不兼容。
 
+## AI 接口
+
+AI 接口需要登录。默认 `AI_PROVIDER=mock`，不配置 API Key 也能在 Swagger 里跑通。配置 DeepSeek 或 OpenAI 后，会调用真实模型。
+
+`.env` 示例：
+
+```env
+AI_PROVIDER=mock
+AI_API_KEY=
+AI_BASE_URL=
+AI_MODEL=
+AI_TIMEOUT_SECONDS=30
+```
+
+DeepSeek 示例：
+
+```env
+AI_PROVIDER=deepseek
+AI_API_KEY=你的 DeepSeek Key
+AI_BASE_URL=https://api.deepseek.com
+AI_MODEL=deepseek-chat
+```
+
+OpenAI 示例：
+
+```env
+AI_PROVIDER=openai
+AI_API_KEY=你的 OpenAI Key
+AI_BASE_URL=https://api.openai.com/v1
+AI_MODEL=gpt-4o-mini
+```
+
+### POST /api/ai/summary
+
+生成章节总结，并保存到 `ai_summaries` 表。
+
+```json
+{
+  "chapter_text": "凌晨四点，星轨图书馆经过城市上空。安禾第一次看见它时，以为那只是一颗移动得过慢的星星。",
+  "book_id": 1,
+  "chapter_id": 1
+}
+```
+
+`book_id` 和 `chapter_id` 可以不传；如果传了，后端会校验它们属于当前登录用户。
+
+### POST /api/ai/chat
+
+基于当前上下文进行小说问答，并保存到 `chat_records` 表。
+
+```json
+{
+  "question": "安禾看到了什么？",
+  "context": "凌晨四点，星轨图书馆经过城市上空。安禾第一次看见它时，以为那只是一颗移动得过慢的星星。",
+  "book_id": 1,
+  "chapter_id": 1
+}
+```
+
 ## Swagger 可视化演示流程
 
 先启动后端并打开 `http://127.0.0.1:8000/docs`，然后按顺序操作：
@@ -300,3 +360,6 @@ Authorization: Bearer <access_token>
   "chapter_url": "http://127.0.0.1:8000/demo-source/books/star-library/chapters/1"
 }
 ```
+
+8. 把正文结果里的 `content` 复制到 `POST /api/ai/summary` 的 `chapter_text`，测试 AI 总结。
+9. 再把正文作为 `POST /api/ai/chat` 的 `context`，输入一个问题，测试 AI 问答。

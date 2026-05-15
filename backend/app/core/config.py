@@ -10,6 +10,11 @@ class Settings(BaseSettings):
     jwt_secret_key: str = "change-me-in-local-dev"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 1440
+    ai_provider: str = "mock"
+    ai_api_key: str = ""
+    ai_base_url: str = ""
+    ai_model: str = ""
+    ai_timeout_seconds: float = 30.0
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
