@@ -106,6 +106,57 @@ cd D:\Codex\novel-reader-uniapp
 node tests/apiClient.test.mjs
 ```
 
+AI 历史和后端适配层测试：
+
+```powershell
+cd D:\Codex\novel-reader-uniapp
+node tests/backendLibrary.test.mjs
+node tests/aiHistory.test.mjs
+```
+
+## Docker 本地部署
+
+项目根目录提供 `docker-compose.yml`，用于一键启动 FastAPI 后端和 PostgreSQL：
+
+```powershell
+cd D:\Codex\novel-reader-uniapp
+docker compose up --build
+```
+
+启动后打开：
+
+- Swagger: http://127.0.0.1:8000/docs
+- 健康检查: http://127.0.0.1:8000/api/health
+
+Docker 使用的环境变量示例在：
+
+```text
+backend\.env.docker.example
+```
+
+默认 Docker 配置使用 PostgreSQL：
+
+```env
+DATABASE_URL=postgresql+psycopg://novel_reader:novel_reader_password@db:5432/novel_reader
+AI_PROVIDER=mock
+```
+
+如果要接入真实 AI 服务，请复制并修改环境变量，不要提交真实 API Key。
+
+## 演示流程
+
+适合面试或项目展示的完整流程：
+
+1. 启动后端，打开 Swagger。
+2. 注册并登录用户，复制 JWT。
+3. 导入演示书源：`POST /api/sources/import-demo`。
+4. 使用书源搜索、目录解析和正文解析接口。
+5. 在 uni-app “我的”页面登录后端。
+6. 在“导入”页刷新后端书源或导入演示源。
+7. 在“发现”页搜索书籍，加入云端书架。
+8. 进入阅读器，验证章节解析、阅读进度保存、AI 总结和 AI 问答。
+9. 回到“我的”页打开“AI 记录”，查看总结和问答历史。
+
 ## 重要接口
 
 鉴权：

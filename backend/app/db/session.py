@@ -19,10 +19,16 @@ def _ensure_sqlite_parent(database_url: str) -> None:
     Path(raw_path).expanduser().parent.mkdir(parents=True, exist_ok=True)
 
 
+def get_engine_connect_args(database_url: str) -> dict[str, bool]:
+    if database_url.startswith("sqlite"):
+        return {"check_same_thread": False}
+    return {}
+
+
 settings = get_settings()
 _ensure_sqlite_parent(settings.database_url)
 
-connect_args = {"check_same_thread": False} if settings.database_url.startswith("sqlite") else {}
+connect_args = get_engine_connect_args(settings.database_url)
 engine = create_engine(settings.database_url, connect_args=connect_args)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
