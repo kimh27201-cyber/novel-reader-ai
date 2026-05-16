@@ -535,16 +535,18 @@ export default {
         uni.showToast({ title: '当前章节没有正文', icon: 'none' })
         return
       }
-      uni.showModal({
-        title: 'AI 问答',
-        content: '使用默认问题“本章发生了什么？”进行提问。',
-        confirmText: '提问',
-        success: modal => {
-          if (modal.confirm) {
-            this.sendAIQuestion('本章发生了什么？', chapterText)
-          }
-        }
-      })
+      const question = this.askAIQuestionText()
+      if (!question) return
+      this.sendAIQuestion(question, chapterText)
+    },
+    askAIQuestionText() {
+      const fallback = '本章发生了什么？'
+      if (typeof window !== 'undefined' && typeof window.prompt === 'function') {
+        const value = window.prompt('请输入你想问本章的问题', fallback)
+        return String(value || '').trim()
+      }
+      uni.showToast({ title: `将使用默认问题：${fallback}`, icon: 'none' })
+      return fallback
     },
     async sendAIQuestion(question, context) {
       this.moreVisible = false
