@@ -54,6 +54,8 @@
 import { searchBooks } from '../../common/books.js'
 import { getSourceConfigs, saveOnlineBookDraft, searchOnlineBooks } from '../../common/bookSources.js'
 import { getTrackedBook, openTrackedBook, searchTrackedBooks } from '../../common/tracking.js'
+import apiClient from '../../common/apiClient.js'
+import { searchBackendBooks } from '../../common/backendLibrary.js'
 
 export default {
   data() {
@@ -104,7 +106,9 @@ export default {
       if (this.mode === 'online') {
         this.loading = true
         try {
-          const results = await searchOnlineBooks(word)
+          const results = apiClient.getToken()
+            ? await searchBackendBooks(word)
+            : await searchOnlineBooks(word)
           if (this.searchToken === token) this.results = results
         } catch (error) {
           if (this.searchToken === token) {
@@ -120,8 +124,8 @@ export default {
       this.results = this.mode === 'local' ? searchBooks(word) : searchTrackedBooks(word)
     },
     openResult(item) {
-      if (item.type === 'online') {
-        saveOnlineBookDraft(item.book)
+      if (item.type === 'online' || item.type === 'backend-online') {
+        saveOnlineBookDraft(item.type === 'backend-online' ? item : item.book)
         uni.navigateTo({ url: '/pages/sourceBook/sourceBook' })
         return
       }
@@ -144,6 +148,7 @@ export default {
       })
     },
     resultTypeLabel(item) {
+      if (item.type === 'backend-online') return '云端'
       if (item.type === 'online') return '解码'
       if (item.type === 'source-error') return '失败'
       if (item.type === 'tracking') return '链接'

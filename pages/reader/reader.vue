@@ -174,6 +174,15 @@ import { addOnlineBookToShelf, loadOnlineChapter } from '../../common/bookSource
 import { getPrefs, getProgress, getTheme, savePrefs, saveProgress, splitChapter, themes } from '../../common/reader.js'
 import { getAppThemeId, getAppThemeStyle } from '../../common/appTheme.js'
 import apiClient from '../../common/apiClient.js'
+import {
+  backendBookId,
+  backendChapterId,
+  isBackendBookId,
+  loadBackendBook,
+  loadBackendReadingHistory,
+  loadBackendSourceContent,
+  saveBackendReadingHistory
+} from '../../common/backendLibrary.js'
 
 export default {
   data() {
@@ -242,6 +251,7 @@ export default {
       return Math.round(((this.prefs.fontSize - 16) / 14) * 100)
     },
     sourceLabel() {
+      if (this.book.source === 'backend') return this.book.sourceName || '云端书架'
       if (this.book.source === 'online') return this.book.sourceName || '在线书源'
       if (this.book.source === 'local') return '本地 TXT'
       return '内置示例'
@@ -250,15 +260,33 @@ export default {
   onLoad(options) {
     this.appThemeId = getAppThemeId()
     this.bookId = options.bookId || 'wind-city'
-    this.book = getBook(this.bookId)
-    const progress = getProgress(this.bookId)
-    this.chapterIndex = Number(options.chapterIndex !== undefined ? options.chapterIndex : progress.chapterIndex) || 0
-    this.pageIndex = Number(options.pageIndex !== undefined ? options.pageIndex : progress.pageIndex) || 0
     this.prefs.readingMode = 'page'
     savePrefs(this.prefs)
-    this.rebuildPages()
+    this.loadInitialBook(options)
   },
   methods: {
+    async loadInitialBook(options) {
+      try {
+        if (isBackendBookId(this.bookId)) {
+          this.book = await loadBackendBook(this.bookId)
+          const backendProgress = await loadBackendReadingHistory(this.bookId)
+          const fallbackProgress = getProgress(this.bookId)
+          this.chapterIndex = Number(options.chapterIndex !== undefined ? options.chapterIndex : (backendProgress && backendProgress.chapter_index !== undefined ? backendProgress.chapter_index : fallbackProgress.chapterIndex)) || 0
+          this.pageIndex = Number(options.pageIndex !== undefined ? options.pageIndex : (backendProgress && backendProgress.page_index !== undefined ? backendProgress.page_index : fallbackProgress.pageIndex)) || 0
+        } else {
+          this.book = getBook(this.bookId)
+          const progress = getProgress(this.bookId)
+          this.chapterIndex = Number(options.chapterIndex !== undefined ? options.chapterIndex : progress.chapterIndex) || 0
+          this.pageIndex = Number(options.pageIndex !== undefined ? options.pageIndex : progress.pageIndex) || 0
+        }
+      } catch (error) {
+        this.book = getBook('wind-city')
+        this.chapterIndex = 0
+        this.pageIndex = 0
+        uni.showToast({ title: error.message || '云端书籍加载失败', icon: 'none' })
+      }
+      this.rebuildPages()
+    },
     async rebuildPages() {
       const token = Date.now()
       this.chapterLoadToken = token
@@ -287,6 +315,31 @@ export default {
         return
       }
 
+      if (this.book.source === 'backend' && currentChapter && !currentChapter.content) {
+        this.loadingChapter = true
+        this.loadingText = '正在从后端解析章节...'
+        this.pages = ['请稍候，正在从后端书源解析这一章。']
+        try {
+          const content = await loadBackendSourceContent(this.book, currentChapter)
+          if (this.chapterLoadToken !== token) return
+          this.book.chapters.splice(this.chapterIndex, 1, {
+            ...currentChapter,
+            content,
+            isCached: !!content
+          })
+          this.pages = splitChapter(content, this.prefs.fontSize)
+          this.loadingChapter = false
+        } catch (error) {
+          if (this.chapterLoadToken !== token) return
+          this.loadingChapter = false
+          this.chapterLoadError = error.message || '后端章节解析失败'
+          this.pages = ['这一章暂时没有解析成功。你可以重试，或回到目录换一章。']
+        }
+        this.pageIndex = Math.max(0, Math.min(this.pageIndex, this.pages.length - 1))
+        this.persist()
+        return
+      }
+
       this.loadingChapter = false
       this.chapterLoadError = ''
       this.pages = splitChapter(currentChapter.content, this.prefs.fontSize)
@@ -299,6 +352,15 @@ export default {
         pageIndex: this.pageIndex,
         scrollTop: 0
       })
+      if (this.book.source === 'backend') {
+        saveBackendReadingHistory({
+          book: this.book,
+          chapter: this.chapter,
+          chapterIndex: this.chapterIndex,
+          pageIndex: this.pageIndex,
+          progressPercent: this.progressPercent
+        }).catch(() => {})
+      }
     },
     onTouchStart(event) {
       const touch = event.changedTouches[0]
@@ -476,6 +538,12 @@ export default {
           content: ''
         }
       }
+      if (this.book.source === 'backend' && this.book.chapters[this.chapterIndex]) {
+        this.book.chapters[this.chapterIndex] = {
+          ...this.book.chapters[this.chapterIndex],
+          content: ''
+        }
+      }
       this.moreVisible = false
       this.rebuildPages()
     },
@@ -503,7 +571,11 @@ export default {
       this.moreVisible = false
       uni.showLoading({ title: 'AI 总结中...' })
       try {
-        const result = await apiClient.summarizeChapter({ chapterText })
+        const result = await apiClient.summarizeChapter({
+          chapterText,
+          bookId: backendBookId(this.book) || null,
+          chapterId: backendChapterId(this.chapter) || null
+        })
         const content = [
           result.summary,
           '',
@@ -552,7 +624,12 @@ export default {
       this.moreVisible = false
       uni.showLoading({ title: 'AI 回答中...' })
       try {
-        const result = await apiClient.chatWithAI({ question, context })
+        const result = await apiClient.chatWithAI({
+          question,
+          context,
+          bookId: backendBookId(this.book) || null,
+          chapterId: backendChapterId(this.chapter) || null
+        })
         uni.showModal({
           title: 'AI 回答',
           content: result.answer,

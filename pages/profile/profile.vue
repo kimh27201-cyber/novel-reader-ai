@@ -107,6 +107,7 @@ export default {
         { id: 'txt', icon: '▤', title: 'TXT 目录规则', desc: '配置 TXT 目录规则' },
         { id: 'clean', icon: 'A↔B', title: '替换净化', desc: '配置替换净化规则' },
         { id: 'dict', icon: '文A', title: '字典规则', desc: '配置字典规则' },
+        { id: 'aiHistory', icon: 'AI', title: 'AI 记录', desc: '查看后端保存的总结和问答历史' },
         { id: 'theme', icon: '♜', title: '主题模式', desc: '选择主题模式' },
         { id: 'web', icon: '◎', title: 'Web 服务', desc: '用浏览器写源或看书' }
       ]
@@ -183,6 +184,10 @@ export default {
       }
       if (id === 'theme') {
         this.openThemePanel()
+        return
+      }
+      if (id === 'aiHistory') {
+        uni.navigateTo({ url: '/pages/aiHistory/aiHistory' })
         return
       }
       if (id !== 'web') {

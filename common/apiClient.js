@@ -141,6 +141,74 @@ export function createApiClient(deps = {}) {
     getMe() {
       return request('/api/auth/me')
     },
+    listBooks() {
+      return request('/api/books')
+    },
+    createBook(payload) {
+      return request('/api/books', {
+        method: 'POST',
+        data: payload
+      })
+    },
+    getBook(bookId) {
+      return request(`/api/books/${bookId}`)
+    },
+    listChapters(bookId) {
+      return request(`/api/books/${bookId}/chapters`)
+    },
+    createChapter(bookId, payload) {
+      return request(`/api/books/${bookId}/chapters`, {
+        method: 'POST',
+        data: payload
+      })
+    },
+    getChapter(chapterId) {
+      return request(`/api/chapters/${chapterId}`)
+    },
+    saveReadingHistory(payload) {
+      return request('/api/reading-history', {
+        method: 'POST',
+        data: payload
+      })
+    },
+    getReadingHistory(bookId) {
+      return request(`/api/reading-history${buildQuery({ book_id: bookId })}`)
+    },
+    listSources() {
+      return request('/api/sources')
+    },
+    importDemoSource() {
+      return request('/api/sources/import-demo', {
+        method: 'POST'
+      })
+    },
+    importSources(content) {
+      return request('/api/sources/import', {
+        method: 'POST',
+        data: { content }
+      })
+    },
+    searchSource(sourceId, { keyword, page = 1 }) {
+      return request(`/api/sources/${sourceId}/search`, {
+        method: 'POST',
+        data: { keyword, page }
+      })
+    },
+    loadSourceToc(sourceId, { bookUrl, tocUrl = null }) {
+      return request(`/api/sources/${sourceId}/toc`, {
+        method: 'POST',
+        data: {
+          book_url: bookUrl,
+          toc_url: tocUrl
+        }
+      })
+    },
+    loadSourceContent(sourceId, { chapterUrl }) {
+      return request(`/api/sources/${sourceId}/content`, {
+        method: 'POST',
+        data: { chapter_url: chapterUrl }
+      })
+    },
     summarizeChapter({ chapterText, bookId = null, chapterId = null }) {
       return request('/api/ai/summary', {
         method: 'POST',

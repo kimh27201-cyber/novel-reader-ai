@@ -66,6 +66,8 @@ import { getBooks } from '../../common/books.js'
 import { getProgress } from '../../common/reader.js'
 import { getSourceConfigs } from '../../common/bookSources.js'
 import { getAppThemeId, getAppThemeStyle } from '../../common/appTheme.js'
+import apiClient from '../../common/apiClient.js'
+import { listBackendBooks } from '../../common/backendLibrary.js'
 
 export default {
   data() {
@@ -89,10 +91,21 @@ export default {
   },
   onShow() {
     this.themeId = getAppThemeId()
-    this.books = getBooks()
+    this.refreshBooks()
     this.sources = getSourceConfigs()
   },
   methods: {
+    async refreshBooks() {
+      const localBooks = getBooks()
+      this.books = localBooks
+      if (!apiClient.getToken()) return
+      try {
+        const backendBooks = await listBackendBooks()
+        this.books = [...backendBooks, ...localBooks]
+      } catch (error) {
+        uni.showToast({ title: error.message || '云端书架加载失败', icon: 'none' })
+      }
+    },
     shortTitle(title) {
       return String(title || '').slice(0, 4)
     },

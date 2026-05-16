@@ -48,6 +48,13 @@
         "navigationBarTitleText": "阅读",
         "navigationStyle": "custom"
       }
+    },
+    {
+      "path": "pages/aiHistory/aiHistory",
+      "style": {
+        "navigationBarTitleText": "AI 记录",
+        "navigationStyle": "custom"
+      }
     }
   ],
   "tabBar": {

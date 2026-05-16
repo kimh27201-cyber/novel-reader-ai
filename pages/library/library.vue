@@ -87,7 +87,19 @@
       />
       <button class="submit-button" @tap="submitSourceImport">导入书源</button>
 
+      <view class="mode-row">
+        <button class="mode" :loading="backendLoading" @tap="importBackendDemo">导入后端演示源</button>
+        <button class="mode" :loading="backendLoading" @tap="refreshBackendSources">刷新后端源</button>
+      </view>
+
       <scroll-view class="source-list" scroll-y :show-scrollbar="false">
+        <view class="source-item" v-for="source in backendSources" :key="source.id">
+          <view class="source-main">
+            <view class="source-name">{{ source.name }}</view>
+            <text class="source-desc">后端 · {{ source.group }} · {{ source.compatibility }}</text>
+          </view>
+          <button class="source-toggle active">云端</button>
+        </view>
         <view class="source-item" v-for="source in sources" :key="source.id">
           <view class="source-main">
             <view class="source-name">{{ source.name }}</view>
@@ -132,6 +144,10 @@ import {
   importSourcesFromUrl,
   setSourceEnabled
 } from '../../common/bookSources.js'
+import {
+  importBackendDemoSource,
+  listBackendSources
+} from '../../common/backendLibrary.js'
 
 export default {
   data() {
@@ -142,6 +158,8 @@ export default {
       sourceImportMode: 'json',
       sourceImportText: '',
       sourceImportUrl: '',
+      backendSources: [],
+      backendLoading: false,
       importTitle: '',
       importAuthor: '',
       importFileName: '',
@@ -165,6 +183,7 @@ export default {
       this.sources = getSourceConfigs()
       this.sourceVisible = true
       this.txtVisible = false
+      this.refreshBackendSources({ silent: true })
     },
     openTxtPanel() {
       this.txtVisible = true
@@ -187,6 +206,34 @@ export default {
         uni.showToast({ title: `已导入 ${count} 个书源`, icon: 'none' })
       } catch (error) {
         uni.showToast({ title: error.message || '导入书源失败', icon: 'none' })
+      }
+    },
+    async refreshBackendSources(options = {}) {
+      this.backendLoading = true
+      try {
+        this.backendSources = await listBackendSources()
+        if (!options.silent) {
+          uni.showToast({ title: `后端书源 ${this.backendSources.length} 个`, icon: 'none' })
+        }
+      } catch (error) {
+        this.backendSources = []
+        if (!options.silent) {
+          uni.showToast({ title: error.message || '请先登录后端', icon: 'none' })
+        }
+      } finally {
+        this.backendLoading = false
+      }
+    },
+    async importBackendDemo() {
+      this.backendLoading = true
+      try {
+        const result = await importBackendDemoSource()
+        this.backendSources = result.sources
+        uni.showToast({ title: `已导入后端演示源 ${result.importedCount} 个`, icon: 'none' })
+      } catch (error) {
+        uni.showToast({ title: error.message || '导入后端演示源失败', icon: 'none' })
+      } finally {
+        this.backendLoading = false
       }
     },
     toggleSource(source) {

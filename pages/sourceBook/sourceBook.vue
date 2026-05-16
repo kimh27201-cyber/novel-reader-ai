@@ -52,6 +52,10 @@ import {
   loadOnlineToc
 } from '../../common/bookSources.js'
 import { getAppThemeId, getAppThemeStyle } from '../../common/appTheme.js'
+import {
+  addBackendBookWithChapters,
+  loadBackendSourceToc
+} from '../../common/backendLibrary.js'
 
 export default {
   data() {
@@ -86,6 +90,10 @@ export default {
       this.loading = true
       this.errorMessage = ''
       try {
+        if (this.book.type === 'backend-online') {
+          this.chapters = await loadBackendSourceToc(this.book)
+          return
+        }
         const info = await loadOnlineBookInfo(this.book)
         const chapters = await loadOnlineToc(info)
         this.book = {
@@ -99,16 +107,22 @@ export default {
         this.loading = false
       }
     },
-    addAndRead(chapterIndex = 0) {
+    async addAndRead(chapterIndex = 0) {
       if (!this.book || !this.chapters.length) return
-      const book = addOnlineBookToShelf({
-        ...this.book,
-        chapters: this.chapters
-      })
-      uni.showToast({ title: '已加入书架', icon: 'none' })
-      uni.navigateTo({
-        url: `/pages/reader/reader?bookId=${book.id}&chapterIndex=${Number(chapterIndex) || 0}&pageIndex=0`
-      })
+      try {
+        const book = this.book.type === 'backend-online'
+          ? await addBackendBookWithChapters(this.book, this.chapters)
+          : addOnlineBookToShelf({
+              ...this.book,
+              chapters: this.chapters
+            })
+        uni.showToast({ title: '已加入书架', icon: 'none' })
+        uni.navigateTo({
+          url: `/pages/reader/reader?bookId=${book.id}&chapterIndex=${Number(chapterIndex) || 0}&pageIndex=0`
+        })
+      } catch (error) {
+        uni.showToast({ title: error.message || '加入书架失败', icon: 'none' })
+      }
     },
     goBack() {
       uni.navigateBack()
