@@ -42,6 +42,29 @@ uvicorn app.main:app --reload --port 8000
 - Swagger 文档：http://127.0.0.1:8000/docs
 - 健康检查：http://127.0.0.1:8000/api/health
 
+## 数据库迁移
+
+项目已经接入 Alembic。开发环境可以继续使用 `python scripts/init_db.py` 快速建表；正式演示、Docker 或 PostgreSQL 环境建议使用迁移：
+
+```powershell
+cd D:\Codex\novel-reader-uniapp\backend
+.\.venv\Scripts\Activate.ps1
+alembic upgrade head
+```
+
+如果本地 SQLite 已经用 `python scripts/init_db.py` 建过表，第一次接入 Alembic 时先执行：
+
+```powershell
+alembic stamp head
+alembic upgrade head
+```
+
+当前初始迁移文件：
+
+```text
+migrations\versions\0001_initial_schema.py
+```
+
 ## 测试
 
 ```powershell

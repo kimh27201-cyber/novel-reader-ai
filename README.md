@@ -84,6 +84,21 @@ uvicorn app.main:app --reload --port 8000
 - Swagger: http://127.0.0.1:8000/docs
 - 健康检查: http://127.0.0.1:8000/api/health
 
+正式数据库迁移流程：
+
+```powershell
+cd D:\Codex\novel-reader-uniapp\backend
+.\.venv\Scripts\Activate.ps1
+alembic upgrade head
+```
+
+如果本地 SQLite 已经用 `python scripts/init_db.py` 建过表，第一次接入 Alembic 时不要直接升级，先标记当前库已经处在初始版本：
+
+```powershell
+alembic stamp head
+alembic upgrade head
+```
+
 ## 后端测试
 
 ```powershell
@@ -139,6 +154,12 @@ backend\.env.docker.example
 ```env
 DATABASE_URL=postgresql+psycopg://novel_reader:novel_reader_password@db:5432/novel_reader
 AI_PROVIDER=mock
+```
+
+容器启动时会自动执行：
+
+```text
+alembic upgrade head
 ```
 
 如果要接入真实 AI 服务，请复制并修改环境变量，不要提交真实 API Key。
