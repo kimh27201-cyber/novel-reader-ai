@@ -32,16 +32,16 @@ jobs:
       - name: Run Alembic migration check
         run: python -m alembic upgrade head
         env:
-          DATABASE_URL: sqlite:///:memory:
-          SECRET_KEY: ci-secret-key
-          AI_PROVIDER: mock
+          DATABASE_URL: "sqlite:///:memory:"
+          SECRET_KEY: "ci-secret-key"
+          AI_PROVIDER: "mock"
 
       - name: Run backend tests
         run: python -m pytest
         env:
-          DATABASE_URL: sqlite:///:memory:
-          SECRET_KEY: ci-secret-key
-          AI_PROVIDER: mock
+          DATABASE_URL: "sqlite:///:memory:"
+          SECRET_KEY: "ci-secret-key"
+          AI_PROVIDER: "mock"
 
   frontend-tools:
     name: Frontend utility tests
