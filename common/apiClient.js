@@ -31,6 +31,19 @@ function defaultRequest(options) {
   return uniApi.request(options)
 }
 
+function getErrorMessage(data, fallback) {
+  if (data && data.error && data.error.message) {
+    return data.error.message
+  }
+  if (data && data.detail) {
+    return typeof data.detail === 'string' ? data.detail : fallback
+  }
+  if (data && data.message) {
+    return data.message
+  }
+  return fallback
+}
+
 function storageGetter(deps, methodName) {
   const uniApi = getUni()
   return deps[methodName] || (uniApi && uniApi[methodName] ? uniApi[methodName].bind(uniApi) : null)
@@ -93,8 +106,7 @@ export function createApiClient(deps = {}) {
           if (statusCode === 401) {
             clearToken()
           }
-          const detail = response.data && (response.data.detail || response.data.message)
-          reject(new ApiError(detail || `请求失败：${statusCode}`, statusCode, response.data))
+          reject(new ApiError(getErrorMessage(response.data, `请求失败：${statusCode}`), statusCode, response.data))
         },
         fail(error) {
           reject(new ApiError(error.errMsg || '网络请求失败', 0, error))
@@ -110,8 +122,7 @@ export function createApiClient(deps = {}) {
           if (statusCode === 401) {
             clearToken()
           }
-          const detail = response.data && (response.data.detail || response.data.message)
-          reject(new ApiError(detail || `请求失败：${statusCode}`, statusCode, response.data))
+          reject(new ApiError(getErrorMessage(response.data, `请求失败：${statusCode}`), statusCode, response.data))
         }).catch(error => {
           reject(error instanceof ApiError ? error : new ApiError(error.message || '网络请求失败', 0, error))
         })

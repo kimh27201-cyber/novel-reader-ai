@@ -46,6 +46,7 @@
 - AI 章节总结
 - AI 小说问答
 - AI 总结和问答历史记录查询
+- 统一错误响应、`X-Request-ID` 和请求日志
 - 自动化测试
 
 客户端已保留：
@@ -136,6 +137,23 @@ node tests/aiHistory.test.mjs
 - 后端依赖安装、Alembic 迁移检查、`pytest`
 - `pages.json` 解析检查
 - 前端工具测试：`sourceEngine`、`apiClient`、`backendLibrary`、`aiHistory`
+
+## 错误响应与排查
+
+后端所有请求都会返回 `X-Request-ID` 响应头。客户端也可以传入 `X-Request-ID`，方便把前端报错、Swagger 调试和后端日志对应起来。
+
+错误响应会保留 FastAPI 兼容字段 `detail`，并额外提供统一的 `error` 对象：
+
+```json
+{
+  "error": {
+    "code": "validation_error",
+    "message": "Request validation failed",
+    "request_id": "example-request-id"
+  },
+  "detail": []
+}
+```
 
 ## Docker 本地部署
 

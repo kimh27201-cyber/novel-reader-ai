@@ -165,6 +165,22 @@ async function testUnauthorizedClearsToken() {
   assert.equal(client.getToken(), '')
 }
 
+async function testUnifiedErrorMessageIsPreferred() {
+  const { client } = createClient(() => ({
+    statusCode: 400,
+    data: {
+      detail: 'legacy detail',
+      error: {
+        code: 'bad_request',
+        message: '统一错误消息',
+        request_id: 'request-1'
+      }
+    }
+  }))
+
+  await assert.rejects(() => client.listBooks(), /统一错误消息/)
+}
+
 async function testPromiseRequestAdapterIsSupported() {
   const storage = createStorage()
   const client = createApiClient({
@@ -189,6 +205,7 @@ await testAIHistoryRoutesUseFilters()
 await testLibraryAndReadingHistoryRoutes()
 await testSourceRoutes()
 await testUnauthorizedClearsToken()
+await testUnifiedErrorMessageIsPreferred()
 await testPromiseRequestAdapterIsSupported()
 
 console.log('apiClient tests passed')

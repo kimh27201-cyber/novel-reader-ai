@@ -1,4 +1,6 @@
 from fastapi import FastAPI
+from fastapi import HTTPException
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.ai import router as ai_router
@@ -7,6 +9,11 @@ from app.api.demo import router as demo_router
 from app.api.library import router as library_router
 from app.api.sources import router as sources_router
 from app.core.config import get_settings
+from app.core.observability import (
+    http_exception_handler,
+    request_observability_middleware,
+    validation_exception_handler,
+)
 from app.models import models  # noqa: F401
 
 
@@ -27,6 +34,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.middleware("http")(request_observability_middleware)
+app.add_exception_handler(HTTPException, http_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
 
 
 @app.get("/api/health")
