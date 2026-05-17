@@ -1,6 +1,14 @@
 # 小说解码 AI 阅读助手
 
+![CI](https://github.com/kimh27201-cyber/novel-reader-ai/actions/workflows/ci.yml/badge.svg)
+
 一个面向学习和求职展示的阅读助手项目。项目保留原有 uni-app 客户端，同时新增 Python FastAPI 后端，把核心能力逐步迁移到后端：用户系统、书架管理、阅读记录、动态书源解析、AI 章节总结和 AI 问答。
+
+## 求职展示入口
+
+- [项目演示脚本](docs/DEMO_GUIDE.md)：面试或录屏时按步骤展示 Swagger、登录鉴权、书源、阅读器和 AI 功能。
+- [简历与面试讲解稿](docs/INTERVIEW_NOTES.md)：可直接改写到简历里的项目描述、亮点和常见追问答案。
+- [接口文档](docs/API.md)：后端主要 API、请求示例和演示顺序。
 
 ## 项目定位
 
