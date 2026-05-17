@@ -129,6 +129,14 @@ node tests/backendLibrary.test.mjs
 node tests/aiHistory.test.mjs
 ```
 
+## GitHub Actions CI
+
+仓库已提供 `.github/workflows/ci.yml`，推送到 `main` 或提交 Pull Request 时会自动执行：
+
+- 后端依赖安装、Alembic 迁移检查、`pytest`
+- `pages.json` 解析检查
+- 前端工具测试：`sourceEngine`、`apiClient`、`backendLibrary`、`aiHistory`
+
 ## Docker 本地部署
 
 项目根目录提供 `docker-compose.yml`，用于一键启动 FastAPI 后端和 PostgreSQL：
