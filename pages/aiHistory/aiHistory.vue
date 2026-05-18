@@ -13,6 +13,7 @@
       <button class="filter" :class="{ active: filter === 'all' }" @tap="setFilter('all')">全部</button>
       <button class="filter" :class="{ active: filter === 'summary' }" @tap="setFilter('summary')">总结</button>
       <button class="filter" :class="{ active: filter === 'chat' }" @tap="setFilter('chat')">问答</button>
+      <button class="filter" :class="{ active: filter === 'call' }" @tap="setFilter('call')">调用</button>
     </view>
 
     <view class="status-card" v-if="errorMessage">
@@ -29,7 +30,7 @@
     <scroll-view class="history-list" scroll-y :show-scrollbar="false" v-else-if="visibleItems.length">
       <view class="history-item" v-for="item in visibleItems" :key="item.id" @tap="copyItem(item)">
         <view class="item-head">
-          <text class="type-badge" :class="item.type">{{ item.type === 'summary' ? '总结' : '问答' }}</text>
+          <text class="type-badge" :class="item.type">{{ typeLabel(item) }}</text>
           <text class="time-text">{{ item.displayTime }}</text>
         </view>
         <view class="item-title">{{ item.title }}</view>
@@ -43,7 +44,7 @@
 
     <view class="empty-card" v-else>
       <view class="status-title">还没有 AI 记录</view>
-      <text class="status-desc">在阅读器里使用 AI 总结或 AI 问答后，这里会显示历史记录。</text>
+      <text class="status-desc">在阅读器里使用 AI 总结或 AI 问答后，这里会显示历史记录和调用日志。</text>
     </view>
   </view>
 </template>
@@ -84,6 +85,11 @@ export default {
     },
     setFilter(filter) {
       this.filter = filter
+    },
+    typeLabel(item) {
+      if (item.type === 'summary') return '总结'
+      if (item.type === 'chat') return '问答'
+      return '调用'
     },
     copyItem(item) {
       uni.setClipboardData({
@@ -154,7 +160,7 @@ button::after {
 
 .filter-row {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 12rpx;
   margin-top: 30rpx;
 }
@@ -206,6 +212,11 @@ button::after {
 
 .type-badge.chat {
   background: #f1bd70;
+}
+
+.type-badge.call {
+  color: #ffffff;
+  background: #6374d8;
 }
 
 .time-text,

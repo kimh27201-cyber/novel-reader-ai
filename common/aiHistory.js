@@ -53,18 +53,46 @@ export function mapChatRecord(record) {
   }
 }
 
-export function buildAIHistoryItems(summaries = [], chats = []) {
+function callTypeLabel(value) {
+  return value === 'summary' ? '总结' : value === 'chat' ? '问答' : '未知'
+}
+
+export function mapCallLogRecord(record) {
+  const success = record.status === 'success'
+  return {
+    id: `call:${record.id}`,
+    rawId: record.id,
+    type: 'call',
+    title: `AI 调用：${callTypeLabel(record.call_type)}`,
+    content: success ? '调用成功' : (record.error_message || '调用失败'),
+    provider: record.provider || 'unknown',
+    bookId: record.book_id,
+    chapterId: record.chapter_id,
+    createdAt: record.created_at,
+    displayTime: formatHistoryTime(record.created_at),
+    tags: [
+      record.status ? `状态：${record.status}` : '',
+      record.model ? `模型：${record.model}` : '',
+      record.duration_ms !== undefined && record.duration_ms !== null ? `耗时：${record.duration_ms}ms` : '',
+      record.error_code ? `错误：${record.error_code}` : ''
+    ].filter(Boolean)
+  }
+}
+
+export function buildAIHistoryItems(summaries = [], chats = [], callLogs = []) {
   return [
     ...summaries.map(mapSummaryRecord),
-    ...chats.map(mapChatRecord)
+    ...chats.map(mapChatRecord),
+    ...callLogs.map(mapCallLogRecord)
   ].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
 }
 
 export async function loadAIHistory(client = apiClient, filters = {}) {
   ensureBackendToken(client)
-  const [summaries, chats] = await Promise.all([
+  const [summaries, chats, callLogs] = await Promise.all([
     client.listSummaries(filters),
-    client.listChats(filters)
+    client.listChats(filters),
+    client.listAiCalls(filters)
   ])
-  return buildAIHistoryItems(summaries || [], chats || [])
+  return buildAIHistoryItems(summaries || [], chats || [], callLogs || [])
 }

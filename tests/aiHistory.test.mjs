@@ -3,6 +3,7 @@ import {
   buildAIHistoryItems,
   formatHistoryTime,
   loadAIHistory,
+  mapCallLogRecord,
   mapChatRecord,
   mapSummaryRecord
 } from '../common/aiHistory.js'
@@ -28,6 +29,20 @@ const chat = {
   created_at: '2026-05-16T10:35:00'
 }
 
+const callLog = {
+  id: 3,
+  book_id: 12,
+  chapter_id: 34,
+  call_type: 'summary',
+  provider: 'mock',
+  model: 'mock',
+  status: 'success',
+  error_code: '',
+  error_message: '',
+  duration_ms: 8,
+  created_at: '2026-05-16T10:36:00'
+}
+
 function testMappingRecords() {
   const mappedSummary = mapSummaryRecord(summary)
   assert.equal(mappedSummary.id, 'summary:1')
@@ -44,11 +59,19 @@ function testMappingRecords() {
   assert.equal(mappedChat.title, chat.question)
   assert.equal(mappedChat.content, chat.answer)
   assert.equal(mappedChat.provider, 'mock')
+
+  const mappedCallLog = mapCallLogRecord(callLog)
+  assert.equal(mappedCallLog.id, 'call:3')
+  assert.equal(mappedCallLog.type, 'call')
+  assert.equal(mappedCallLog.title, 'AI 调用：总结')
+  assert.equal(mappedCallLog.content, '调用成功')
+  assert.equal(mappedCallLog.provider, 'mock')
+  assert.deepEqual(mappedCallLog.tags, ['状态：success', '模型：mock', '耗时：8ms'])
 }
 
 function testBuildHistoryItemsSortsNewestFirst() {
-  const items = buildAIHistoryItems([summary], [chat])
-  assert.deepEqual(items.map(item => item.id), ['chat:2', 'summary:1'])
+  const items = buildAIHistoryItems([summary], [chat], [callLog])
+  assert.deepEqual(items.map(item => item.id), ['call:3', 'chat:2', 'summary:1'])
 }
 
 function testFormatHistoryTime() {
@@ -67,6 +90,10 @@ async function testLoadAIHistoryUsesBackendClient() {
     listChats(params) {
       calls.push(['chats', params])
       return Promise.resolve([chat])
+    },
+    listAiCalls(params) {
+      calls.push(['calls', params])
+      return Promise.resolve([callLog])
     }
   }
 
@@ -74,9 +101,10 @@ async function testLoadAIHistoryUsesBackendClient() {
 
   assert.deepEqual(calls, [
     ['summaries', { book_id: 12 }],
-    ['chats', { book_id: 12 }]
+    ['chats', { book_id: 12 }],
+    ['calls', { book_id: 12 }]
   ])
-  assert.deepEqual(items.map(item => item.id), ['chat:2', 'summary:1'])
+  assert.deepEqual(items.map(item => item.id), ['call:3', 'chat:2', 'summary:1'])
 }
 
 testMappingRecords()
