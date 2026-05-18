@@ -20,13 +20,13 @@
       <button class="mode" :class="{ active: mode === 'local' }" @tap="setMode('local')">本地</button>
     </view>
 
-    <view class="loading-line" v-if="loading">正在让启用书源解码...</view>
+      <view class="loading-line" v-if="loading">正在按书名搜索启用书源...</view>
 
-    <scroll-view class="content" scroll-y :show-scrollbar="false">
-      <view v-if="mode === 'source'">
-        <view class="source-card" v-for="source in filteredSources" :key="source.id">
+      <scroll-view class="content" scroll-y :show-scrollbar="false">
+        <view v-if="mode === 'source'">
+        <view class="source-card" v-for="source in filteredSources" :key="source.id" @tap="useSource(source)">
           <view class="source-name">{{ source.name }}</view>
-          <text class="source-desc">{{ source.group }} · {{ source.enabled ? '已启用' : '已停用' }} · {{ source.compatibility }}</text>
+          <text class="source-desc">{{ source.group }} · {{ source.enabled ? '已启用' : '点击启用' }} · {{ source.compatibility }}</text>
           <text class="source-arrow">›</text>
         </view>
       </view>
@@ -40,8 +40,13 @@
         </view>
       </view>
 
+      <view class="empty-state" v-else-if="loading">
+        <view class="empty-title">正在搜索</view>
+        <text class="empty-desc">请等待书源返回结果；演示优先搜索“星轨图书馆”。</text>
+      </view>
+
       <view class="source-list" v-else>
-        <view class="source-entry" v-for="entry in starterSources" :key="entry" @tap="useStarter(entry)">
+        <view class="source-entry" v-for="entry in starterKeywords" :key="entry" @tap="useStarter(entry)">
           <text>{{ entry }}</text>
           <text class="source-arrow">›</text>
         </view>
@@ -52,10 +57,11 @@
 
 <script>
 import { searchBooks } from '../../common/books.js'
-import { getSourceConfigs, saveOnlineBookDraft, searchOnlineBooks } from '../../common/bookSources.js'
+import { getSourceConfigs, saveOnlineBookDraft, searchOnlineBooks, setSourceEnabled } from '../../common/bookSources.js'
 import { getTrackedBook, openTrackedBook, searchTrackedBooks } from '../../common/tracking.js'
 import apiClient from '../../common/apiClient.js'
 import { searchBackendBooks } from '../../common/backendLibrary.js'
+import { buildSourceSelectState, demoSearchKeywords, sanitizeSearchKeyword } from '../../common/searchHelpers.js'
 
 export default {
   data() {
@@ -66,7 +72,7 @@ export default {
       sources: [],
       loading: false,
       searchToken: 0,
-      starterSources: ['笔趣阁', '第一版主', 'QQ阅读器柳树', '爱去小说', '八叉书库', '书山聚合', '木里阅读公益版', '乐乐', '订阅源', '晋江文学', 'UAA小说', '365小说网']
+      starterKeywords: demoSearchKeywords
     }
   },
   computed: {
@@ -91,8 +97,20 @@ export default {
       this.setMode(this.mode === 'source' ? 'online' : 'source')
     },
     useStarter(keyword) {
-      this.keyword = keyword.replace(/^[^\u4e00-\u9fa5A-Za-z0-9]+/, '')
+      this.keyword = sanitizeSearchKeyword(keyword)
       this.setMode('online')
+    },
+    useSource(source) {
+      const state = buildSourceSelectState(source, this.keyword)
+      if (state.sourceId) {
+        setSourceEnabled(state.sourceId, true)
+        this.sources = getSourceConfigs()
+      }
+      this.mode = 'online'
+      this.keyword = state.keyword
+      this.results = []
+      uni.showToast({ title: state.toast, icon: 'none' })
+      if (state.shouldSearch) this.runSearch()
     },
     async runSearch() {
       const word = String(this.keyword || '').trim()
@@ -267,6 +285,27 @@ button::after {
   background: #2d2d2d;
 }
 
+.empty-state {
+  padding: 44rpx 28rpx;
+  border-radius: 18rpx;
+  text-align: center;
+  background: rgba(47, 48, 45, 0.92);
+}
+
+.empty-title {
+  color: #ffffff;
+  font-size: 30rpx;
+  font-weight: 900;
+}
+
+.empty-desc {
+  display: block;
+  margin-top: 12rpx;
+  color: #a9aaa4;
+  font-size: 24rpx;
+  line-height: 36rpx;
+}
+
 .source-entry {
   display: flex;
   align-items: center;
@@ -340,7 +379,8 @@ button::after {
 .mode,
 .source-card,
 .source-entry,
-.result-card {
+.result-card,
+.empty-state {
   border: 1rpx solid rgba(255, 255, 255, 0.05);
   background: rgba(47, 48, 45, 0.92);
   box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.035);
@@ -354,13 +394,15 @@ button::after {
 .source-name,
 .source-entry,
 .result-title,
+.empty-title,
 .search-input {
   font-family: "KaiTi", "STKaiti", "FZKai-Z03", "PingFang SC", cursive;
 }
 
 .source-desc,
 .result-subtitle,
-.result-snippet {
+.result-snippet,
+.empty-desc {
   color: #a9aaa4;
 }
 </style>
