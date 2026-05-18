@@ -1,54 +1,88 @@
 <template>
   <view class="discover-page">
     <view class="top-zone">
+      <view>
+        <text class="eyebrow">DISCOVER</text>
+        <view class="title">发现阅读</view>
+      </view>
+      <text class="top-note">{{ modeHint }}</text>
+    </view>
+
+    <view class="search-panel">
       <view class="search-pill">
         <text class="search-icon">⌕</text>
         <input
           class="search-input"
           v-model="keyword"
-          placeholder="筛选发现源 / 搜索书名"
+          :placeholder="searchPlaceholder"
           confirm-type="search"
           @confirm="runSearch"
         />
       </view>
-      <button class="filter-button" @tap="toggleMode">⌘</button>
+      <button class="search-button" @tap="runSearch">搜索</button>
     </view>
 
     <view class="mode-row">
-      <button class="mode" :class="{ active: mode === 'online' }" @tap="setMode('online')">在线解码</button>
-      <button class="mode" :class="{ active: mode === 'source' }" @tap="setMode('source')">发现源</button>
+      <button class="mode" :class="{ active: mode === 'cloud' }" @tap="setMode('cloud')">云端</button>
+      <button class="mode" :class="{ active: mode === 'source' }" @tap="setMode('source')">书源</button>
       <button class="mode" :class="{ active: mode === 'local' }" @tap="setMode('local')">本地</button>
     </view>
 
-      <view class="loading-line" v-if="loading">正在按书名搜索启用书源...</view>
+    <view class="tip-card" v-if="mode === 'cloud'">
+      <view class="tip-title">优先搜索后端演示源</view>
+      <text class="tip-desc">登录后走 FastAPI 后端书源；未登录时只搜索最多 3 个启用外部源，避免长时间等待。</text>
+    </view>
 
-      <scroll-view class="content" scroll-y :show-scrollbar="false">
-        <view v-if="mode === 'source'">
-        <view class="source-card" v-for="source in filteredSources" :key="source.id" @tap="useSource(source)">
-          <view class="source-name">{{ source.name }}</view>
-          <text class="source-desc">{{ source.group }} · {{ source.enabled ? '已启用' : '点击启用' }} · {{ source.compatibility }}</text>
-          <text class="source-arrow">›</text>
+    <scroll-view class="content" scroll-y :show-scrollbar="false">
+      <view v-if="mode === 'source'">
+        <view class="section-head">
+          <view>
+            <view class="section-title">书源管理</view>
+            <text class="section-desc">点击按钮启用或停用书源，不会自动跳转搜索。</text>
+          </view>
+          <text class="source-count">{{ enabledSourceCount }}/{{ sources.length }} 已启用</text>
+        </view>
+
+        <view class="source-card" v-for="source in filteredSources" :key="source.id">
+          <view class="source-main">
+            <view class="source-name">{{ source.name }}</view>
+            <text class="source-desc">{{ source.group }} · {{ source.compatibility }}</text>
+          </view>
+          <button class="source-action" :class="{ active: source.enabled }" @tap.stop="toggleSource(source)">
+            {{ source.enabled ? '停用' : '启用' }}
+          </button>
         </view>
       </view>
 
-      <view v-else-if="results.length">
-        <view class="result-card" v-for="item in results" :key="`${item.type}-${item.bookId}-${item.title}`" @tap="openResult(item)">
-          <view class="result-type">{{ resultTypeLabel(item) }}</view>
-          <view class="result-title">{{ item.title }}</view>
-          <text class="result-subtitle">{{ item.subtitle }}</text>
-          <text class="result-snippet">{{ item.snippet }}</text>
+      <view v-else>
+        <view class="loading-card" v-if="loading">
+          <view class="loading-dot"></view>
+          <view>
+            <view class="loading-title">{{ mode === 'cloud' ? '正在搜索云端书源' : '正在搜索本地书架' }}</view>
+            <text class="loading-desc">{{ mode === 'cloud' ? '演示建议搜索“星轨图书馆”，外部源最多等待 5 秒。' : '本地搜索只查已加入书架的 TXT 和云端书籍缓存。' }}</text>
+          </view>
         </view>
-      </view>
 
-      <view class="empty-state" v-else-if="loading">
-        <view class="empty-title">正在搜索</view>
-        <text class="empty-desc">请等待书源返回结果；演示优先搜索“星轨图书馆”。</text>
-      </view>
+        <view v-if="results.length">
+          <view class="result-card" v-for="item in results" :key="`${item.type}-${item.bookId}-${item.title}`" @tap="openResult(item)">
+            <view class="result-top">
+              <view class="result-type">{{ resultTypeLabel(item) }}</view>
+              <text class="result-action">查看</text>
+            </view>
+            <view class="result-title">{{ item.title }}</view>
+            <text class="result-subtitle">{{ item.subtitle }}</text>
+            <text class="result-snippet">{{ item.snippet }}</text>
+          </view>
+        </view>
 
-      <view class="source-list" v-else>
-        <view class="source-entry" v-for="entry in starterKeywords" :key="entry" @tap="useStarter(entry)">
-          <text>{{ entry }}</text>
-          <text class="source-arrow">›</text>
+        <view class="empty-state" v-else-if="!loading">
+          <view class="empty-title">{{ mode === 'cloud' ? '搜索一本云端小说' : '搜索本地书架' }}</view>
+          <text class="empty-desc">{{ mode === 'cloud' ? '输入书名开始搜索，演示流程推荐使用“星轨图书馆”。' : '本地模式只查已经导入或加入书架的书籍。' }}</text>
+          <view class="starter-grid" v-if="mode === 'cloud'">
+            <button class="starter" v-for="entry in starterKeywords" :key="entry" @tap="useStarter(entry)">
+              {{ entry }}
+            </button>
+          </view>
         </view>
       </view>
     </scroll-view>
@@ -58,15 +92,14 @@
 <script>
 import { searchBooks } from '../../common/books.js'
 import { getSourceConfigs, saveOnlineBookDraft, searchOnlineBooks, setSourceEnabled } from '../../common/bookSources.js'
-import { getTrackedBook, openTrackedBook, searchTrackedBooks } from '../../common/tracking.js'
 import apiClient from '../../common/apiClient.js'
 import { searchBackendBooks } from '../../common/backendLibrary.js'
-import { buildSourceSelectState, demoSearchKeywords, sanitizeSearchKeyword } from '../../common/searchHelpers.js'
+import { buildSourceToggleState, demoSearchKeywords, sanitizeSearchKeyword } from '../../common/searchHelpers.js'
 
 export default {
   data() {
     return {
-      mode: 'source',
+      mode: 'cloud',
       keyword: '',
       results: [],
       sources: [],
@@ -77,11 +110,24 @@ export default {
   },
   computed: {
     filteredSources() {
-      const word = String(this.keyword || '').trim().toLowerCase()
+      const word = sanitizeSearchKeyword(this.keyword).toLowerCase()
       if (!word) return this.sources
       return this.sources.filter(source => {
         return [source.name, source.group, source.compatibility].join(' ').toLowerCase().includes(word)
       })
+    },
+    enabledSourceCount() {
+      return this.sources.filter(source => source.enabled).length
+    },
+    modeHint() {
+      if (this.mode === 'source') return '管理外部书源'
+      if (this.mode === 'local') return '只查本地书架'
+      return '后端云端优先'
+    },
+    searchPlaceholder() {
+      if (this.mode === 'source') return '筛选书源名称'
+      if (this.mode === 'local') return '搜索本地书名'
+      return '搜索书名，例如：星轨图书馆'
     }
   },
   onShow() {
@@ -91,55 +137,54 @@ export default {
     setMode(mode) {
       this.mode = mode
       this.results = []
-      if (mode !== 'source' && this.keyword) this.runSearch()
-    },
-    toggleMode() {
-      this.setMode(this.mode === 'source' ? 'online' : 'source')
+      this.loading = false
+      if (mode === 'local' && this.keyword) this.runSearch()
     },
     useStarter(keyword) {
       this.keyword = sanitizeSearchKeyword(keyword)
-      this.setMode('online')
+      this.mode = 'cloud'
+      this.runSearch()
     },
-    useSource(source) {
-      const state = buildSourceSelectState(source, this.keyword)
+    toggleSource(source) {
+      const state = buildSourceToggleState(source)
       if (state.sourceId) {
-        setSourceEnabled(state.sourceId, true)
+        setSourceEnabled(state.sourceId, state.nextEnabled)
         this.sources = getSourceConfigs()
       }
-      this.mode = 'online'
-      this.keyword = state.keyword
-      this.results = []
       uni.showToast({ title: state.toast, icon: 'none' })
-      if (state.shouldSearch) this.runSearch()
     },
     async runSearch() {
-      const word = String(this.keyword || '').trim()
+      const word = sanitizeSearchKeyword(this.keyword)
+      this.keyword = word
       const token = Date.now()
       this.searchToken = token
+      this.results = []
+
+      if (this.mode === 'source') return
       if (!word) {
-        this.results = []
+        uni.showToast({ title: '请输入书名', icon: 'none' })
         return
       }
 
-      if (this.mode === 'online') {
-        this.loading = true
-        try {
-          const results = apiClient.getToken()
-            ? await searchBackendBooks(word)
-            : await searchOnlineBooks(word)
-          if (this.searchToken === token) this.results = results
-        } catch (error) {
-          if (this.searchToken === token) {
-            this.results = []
-            uni.showToast({ title: error.message || '解码失败', icon: 'none' })
-          }
-        } finally {
-          if (this.searchToken === token) this.loading = false
+      if (this.mode === 'local') {
+        this.results = searchBooks(word)
+        return
+      }
+
+      this.loading = true
+      try {
+        const results = apiClient.getToken()
+          ? await searchBackendBooks(word)
+          : await searchOnlineBooks(word)
+        if (this.searchToken === token) this.results = results
+      } catch (error) {
+        if (this.searchToken === token) {
+          this.results = []
+          uni.showToast({ title: error.message || '搜索失败', icon: 'none' })
         }
-        return
+      } finally {
+        if (this.searchToken === token) this.loading = false
       }
-
-      this.results = this.mode === 'local' ? searchBooks(word) : searchTrackedBooks(word)
     },
     openResult(item) {
       if (item.type === 'online' || item.type === 'backend-online') {
@@ -151,26 +196,15 @@ export default {
         uni.showToast({ title: item.snippet || '书源不可用', icon: 'none' })
         return
       }
-      if (item.type === 'tracking') {
-        const book = getTrackedBook(item.bookId)
-        try {
-          const result = openTrackedBook(book)
-          if (result === 'copied') uni.showToast({ title: '预览模式已复制链接', icon: 'none' })
-        } catch (error) {
-          uni.showToast({ title: error.message || '无法打开链接', icon: 'none' })
-        }
-        return
-      }
       uni.navigateTo({
         url: `/pages/reader/reader?bookId=${item.bookId}&chapterIndex=${item.chapterIndex || 0}&pageIndex=0`
       })
     },
     resultTypeLabel(item) {
       if (item.type === 'backend-online') return '云端'
-      if (item.type === 'online') return '解码'
+      if (item.type === 'online') return '外部'
       if (item.type === 'source-error') return '失败'
-      if (item.type === 'tracking') return '链接'
-      return item.type === 'book' ? '书籍' : '章节'
+      return item.type === 'book' ? '本地书籍' : '本地章节'
     }
   }
 }
@@ -182,227 +216,300 @@ export default {
   width: 100%;
   max-width: 1120px;
   min-height: 100vh;
-  padding: 86rpx 40rpx 132rpx;
+  padding: 76rpx 36rpx 132rpx;
   margin: 0 auto;
-  background: #1f1f1f;
+  color: #233531;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(143, 205, 191, 0.35), transparent 32%),
+    linear-gradient(180deg, #f4fbf8 0%, #eef7f5 46%, #f8f3ea 100%);
 }
 
 button::after {
   border: 0;
 }
 
-.top-zone {
-  display: grid;
-  grid-template-columns: 1fr 78rpx;
+button {
+  display: flex;
   align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.top-zone {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
   gap: 24rpx;
-  min-height: 116rpx;
-  margin: -86rpx -40rpx 34rpx;
-  padding: 86rpx 40rpx 28rpx;
-  background: #60757d;
+}
+
+.eyebrow {
+  color: #e26a4f;
+  font-size: 22rpx;
+  font-weight: 900;
+}
+
+.title {
+  margin-top: 8rpx;
+  color: #20352f;
+  font-family: "KaiTi", "STKaiti", "FZKai-Z03", "PingFang SC", cursive;
+  font-size: 48rpx;
+  font-weight: 900;
+}
+
+.top-note {
+  flex-shrink: 0;
+  color: #6c817b;
+  font-size: 24rpx;
+}
+
+.search-panel {
+  display: grid;
+  grid-template-columns: 1fr 132rpx;
+  gap: 14rpx;
+  margin-top: 34rpx;
 }
 
 .search-pill {
   display: flex;
   align-items: center;
   min-width: 0;
-  height: 74rpx;
+  height: 76rpx;
   padding: 0 28rpx;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.10);
+  border: 1rpx solid rgba(76, 129, 117, 0.14);
+  border-radius: 18rpx;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 14rpx 32rpx rgba(69, 104, 96, 0.10);
 }
 
 .search-icon {
   margin-right: 12rpx;
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 32rpx;
+  color: #6a9d91;
+  font-size: 30rpx;
 }
 
 .search-input {
   flex: 1;
-  height: 74rpx;
-  color: #ffffff;
-  font-family: cursive;
-  font-size: 30rpx;
+  height: 76rpx;
+  color: #20352f;
+  font-size: 28rpx;
 }
 
-.filter-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 78rpx;
-  height: 78rpx;
-  padding: 0;
+.search-button {
+  height: 76rpx;
+  border-radius: 18rpx;
   color: #ffffff;
-  font-size: 54rpx;
-  line-height: 1;
-  background: transparent;
+  font-size: 26rpx;
+  font-weight: 800;
+  background: #e26a4f;
+  box-shadow: 0 14rpx 28rpx rgba(226, 106, 79, 0.22);
 }
 
 .mode-row {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 12rpx;
-  margin-bottom: 28rpx;
+  margin-top: 26rpx;
 }
 
 .mode {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 62rpx;
-  padding: 0;
-  border-radius: 999rpx;
-  color: #cfcfcf;
+  height: 64rpx;
+  border: 1rpx solid rgba(76, 129, 117, 0.14);
+  border-radius: 18rpx;
+  color: #60756f;
   font-size: 25rpx;
-  line-height: 1;
-  background: #2c2c2c;
+  background: rgba(255, 255, 255, 0.78);
 }
 
 .mode.active {
   color: #ffffff;
-  background: #d44b2f;
+  border-color: #78aaa0;
+  background: linear-gradient(135deg, #70ad9f 0%, #90c7ba 100%);
 }
 
-.loading-line {
-  margin-bottom: 18rpx;
-  color: #bbbbbb;
-  font-size: 24rpx;
-}
-
-.content {
-  height: calc(100vh - 300rpx);
-}
-
+.tip-card,
 .source-card,
-.source-entry,
-.result-card {
-  position: relative;
-  min-height: 86rpx;
-  padding: 22rpx 78rpx 22rpx 28rpx;
-  margin-bottom: 24rpx;
-  border-radius: 14rpx;
-  background: #2d2d2d;
+.result-card,
+.empty-state,
+.loading-card {
+  border: 1rpx solid rgba(76, 129, 117, 0.12);
+  border-radius: 16rpx;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 16rpx 38rpx rgba(64, 96, 89, 0.09);
 }
 
-.empty-state {
-  padding: 44rpx 28rpx;
-  border-radius: 18rpx;
-  text-align: center;
-  background: rgba(47, 48, 45, 0.92);
+.tip-card {
+  padding: 24rpx 26rpx;
+  margin-top: 22rpx;
 }
 
-.empty-title {
-  color: #ffffff;
-  font-size: 30rpx;
+.tip-title,
+.section-title,
+.result-title,
+.empty-title,
+.loading-title,
+.source-name {
+  color: #20352f;
   font-weight: 900;
 }
 
-.empty-desc {
-  display: block;
-  margin-top: 12rpx;
-  color: #a9aaa4;
-  font-size: 24rpx;
-  line-height: 36rpx;
+.tip-title,
+.section-title {
+  font-size: 29rpx;
 }
 
-.source-entry {
+.tip-desc,
+.section-desc,
+.source-desc,
+.result-subtitle,
+.result-snippet,
+.empty-desc,
+.loading-desc {
+  display: block;
+  margin-top: 8rpx;
+  color: #70847e;
+  font-size: 23rpx;
+  line-height: 34rpx;
+}
+
+.content {
+  height: calc(100vh - 420rpx);
+  margin-top: 22rpx;
+}
+
+.section-head {
   display: flex;
   align-items: center;
-  color: #f2f2f2;
-  font-family: cursive;
-  font-size: 33rpx;
+  justify-content: space-between;
+  gap: 20rpx;
+  margin-bottom: 18rpx;
+}
+
+.source-count {
+  flex-shrink: 0;
+  color: #e26a4f;
+  font-size: 23rpx;
+  font-weight: 900;
+}
+
+.source-card {
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  min-height: 88rpx;
+  padding: 20rpx 22rpx;
+  margin-bottom: 16rpx;
+}
+
+.source-main {
+  min-width: 0;
+  flex: 1;
 }
 
 .source-name,
 .result-title {
   overflow: hidden;
-  color: #ffffff;
-  font-family: cursive;
-  font-size: 32rpx;
-  line-height: 42rpx;
+  font-size: 30rpx;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.source-desc,
-.result-subtitle,
-.result-snippet {
-  display: block;
-  margin-top: 8rpx;
-  color: #ababab;
+.source-action {
+  flex-shrink: 0;
+  width: 94rpx;
+  height: 52rpx;
+  border-radius: 14rpx;
+  color: #6e817b;
   font-size: 23rpx;
-  line-height: 34rpx;
+  background: #edf5f2;
 }
 
-.source-arrow {
-  position: absolute;
-  right: 34rpx;
-  top: 50%;
-  color: #c8c8c8;
-  font-size: 64rpx;
-  line-height: 1;
-  transform: translateY(-50%);
+.source-action.active {
+  color: #ffffff;
+  background: #70ad9f;
 }
 
-.result-type {
+.loading-card {
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  padding: 26rpx;
+  margin-bottom: 18rpx;
+}
+
+.loading-dot {
+  flex-shrink: 0;
+  width: 18rpx;
+  height: 18rpx;
+  border-radius: 999rpx;
+  background: #e26a4f;
+  animation: pulse 1.1s ease-in-out infinite;
+}
+
+.result-card {
+  padding: 22rpx 24rpx;
+  margin-bottom: 18rpx;
+}
+
+.result-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12rpx;
+}
+
+.result-type,
+.result-action {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 74rpx;
   height: 36rpx;
   padding: 0 14rpx;
-  margin-bottom: 12rpx;
   border-radius: 999rpx;
-  color: #ffffff;
   font-size: 21rpx;
-  background: #d44b2f;
 }
 
-/* Ink theme polish */
-.discover-page {
-  background:
-    radial-gradient(circle at 20% 0%, rgba(96, 117, 125, 0.18), transparent 30%),
-    linear-gradient(180deg, #20211f 0%, #1b1c1a 100%);
-}
-
-.top-zone {
-  background: linear-gradient(180deg, #667b83 0%, #586d75 100%);
-  box-shadow: 0 10rpx 28rpx rgba(0, 0, 0, 0.20);
-}
-
-.search-pill {
-  background: rgba(255, 255, 255, 0.13);
-  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.08);
-}
-
-.mode,
-.source-card,
-.source-entry,
-.result-card,
-.empty-state {
-  border: 1rpx solid rgba(255, 255, 255, 0.05);
-  background: rgba(47, 48, 45, 0.92);
-  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.035);
-}
-
-.mode.active,
 .result-type {
-  background: #d85a3a;
+  color: #ffffff;
+  background: #70ad9f;
 }
 
-.source-name,
-.source-entry,
-.result-title,
-.empty-title,
-.search-input {
-  font-family: "KaiTi", "STKaiti", "FZKai-Z03", "PingFang SC", cursive;
+.result-action {
+  color: #e26a4f;
+  background: #fff0eb;
 }
 
-.source-desc,
-.result-subtitle,
-.result-snippet,
-.empty-desc {
-  color: #a9aaa4;
+.empty-state {
+  padding: 38rpx 28rpx;
+  text-align: center;
+}
+
+.empty-title {
+  font-size: 31rpx;
+}
+
+.starter-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12rpx;
+  margin-top: 26rpx;
+}
+
+.starter {
+  height: 58rpx;
+  border-radius: 16rpx;
+  color: #426a62;
+  font-size: 23rpx;
+  background: #e9f4f1;
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 </style>

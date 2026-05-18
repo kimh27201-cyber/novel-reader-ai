@@ -10,6 +10,7 @@ import {
 import {
   getSourceConfigs,
   importSourcesFromJson,
+  pickOnlineSearchSources,
   setSourceEnabled
 } from '../common/bookSources.js'
 
@@ -60,5 +61,14 @@ assert.equal(importSourcesFromJson(sourceJson), 1)
 assert.equal(getSourceConfigs().length, before + 1)
 setSourceEnabled(parsed[0].id, false)
 assert.equal(getSourceConfigs().find(source => source.id === parsed[0].id).enabled, false)
+
+const searchSources = pickOnlineSearchSources([
+  { id: 'off', enabled: false, raw: { searchUrl: '/off', ruleSearch: { bookList: '$.items[*]' } } },
+  { id: 'one', enabled: true, raw: { searchUrl: '/one', ruleSearch: { bookList: '$.items[*]' } } },
+  { id: 'two', enabled: true, raw: { searchUrl: '/two', ruleSearch: { bookList: '$.items[*]' } } },
+  { id: 'three', enabled: true, raw: { searchUrl: '/three', ruleSearch: { bookList: '$.items[*]' } } },
+  { id: 'four', enabled: true, raw: { searchUrl: '/four', ruleSearch: { bookList: '$.items[*]' } } }
+])
+assert.deepEqual(searchSources.map(source => source.id), ['one', 'two', 'three'])
 
 console.log('sourceEngine tests passed')

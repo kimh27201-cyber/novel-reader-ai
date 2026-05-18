@@ -15,6 +15,8 @@ const USER_SOURCES_KEY = 'sources:user'
 const SOURCE_SETTINGS_KEY = 'sources:settings'
 const ONLINE_BOOKS_KEY = 'sources:online-books'
 const ONLINE_DRAFT_KEY = 'sources:online-draft'
+export const ONLINE_SOURCE_SEARCH_LIMIT = 3
+export const ONLINE_SOURCE_TIMEOUT_MS = 5000
 const chapterCacheKey = (bookId, chapterIndex) => `sources:chapter:${bookId}:${chapterIndex}`
 
 const memoryStore = {}
@@ -263,12 +265,29 @@ export function addOnlineBookToShelf(book) {
   return normalized
 }
 
-export async function searchOnlineBooks(keyword) {
+export function pickOnlineSearchSources(sources, limit = ONLINE_SOURCE_SEARCH_LIMIT) {
+  return sources
+    .filter(source => source.enabled && !hasUnsupportedRule(source.raw))
+    .slice(0, limit)
+}
+
+function withTimeout(promise, ms, sourceName) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      setTimeout(() => reject(new Error(`${sourceName || '书源'}响应超时`)), ms)
+    })
+  ])
+}
+
+export async function searchOnlineBooks(keyword, options = {}) {
   const word = String(keyword || '').trim()
   if (!word) return []
 
-  const sources = getSourceConfigs().filter(source => source.enabled && !hasUnsupportedRule(source.raw))
-  const searches = sources.map(source => searchSource(source, word).catch(error => {
+  const limit = options.limit || ONLINE_SOURCE_SEARCH_LIMIT
+  const timeoutMs = options.timeoutMs || ONLINE_SOURCE_TIMEOUT_MS
+  const sources = pickOnlineSearchSources(getSourceConfigs(), limit)
+  const searches = sources.map(source => withTimeout(searchSource(source, word), timeoutMs, source.name).catch(error => {
     return [{
       type: 'source-error',
       sourceId: source.id,

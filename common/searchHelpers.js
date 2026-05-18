@@ -11,16 +11,12 @@ export function sanitizeSearchKeyword(value) {
   return String(value || '').replace(/^[^\u4e00-\u9fa5A-Za-z0-9]+/, '').trim()
 }
 
-export function buildSourceSelectState(source, keyword) {
+export function buildSourceToggleState(source) {
   const sourceName = String((source && source.name) || '').trim()
-  const word = sanitizeSearchKeyword(keyword)
-  const shouldSearch = !!word && word !== sourceName
+  const nextEnabled = !(source && source.enabled)
   return {
     sourceId: source && source.id,
-    keyword: word,
-    shouldSearch,
-    toast: shouldSearch
-      ? `已启用${sourceName}，开始搜索：${word}`
-      : `已启用${sourceName}，请输入书名搜索`
+    nextEnabled,
+    toast: `${nextEnabled ? '已启用' : '已停用'}${sourceName}`
   }
 }
