@@ -133,8 +133,12 @@ export default {
 
 <style>
 .source-book-page {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1120px;
   min-height: 100vh;
   padding: 58rpx 32rpx 120rpx;
+  margin: 0 auto;
   background: var(--app-bg);
 }
 
@@ -251,11 +255,15 @@ button::after {
 
 .plain-action,
 .primary-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex: 1;
   height: 82rpx;
   padding: 0;
   border-radius: 18rpx;
   font-size: 26rpx;
+  line-height: 1;
 }
 
 .plain-action {

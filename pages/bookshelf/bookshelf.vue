@@ -154,9 +154,13 @@ export default {
 
 <style>
 .decoder-page {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1120px;
   min-height: 100vh;
   overflow: hidden;
   padding: 86rpx 40rpx 132rpx;
+  margin: 0 auto;
   background: #1f1f1f;
 }
 
@@ -298,6 +302,7 @@ button::after {
   border-radius: 999rpx;
   color: #ffffff;
   font-size: 24rpx;
+  line-height: 1;
   background: #3a3a3a;
 }
 
@@ -381,6 +386,9 @@ button::after {
   position: absolute;
   right: 28rpx;
   top: 34rpx;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   min-width: 72rpx;
   height: 48rpx;
   padding: 0 18rpx;
@@ -388,7 +396,7 @@ button::after {
   color: #f4f4f4;
   font-family: cursive;
   font-size: 28rpx;
-  line-height: 48rpx;
+  line-height: 1;
   text-align: center;
   background: rgba(255, 255, 255, 0.12);
 }

@@ -716,6 +716,8 @@ export default {
   position: relative;
   z-index: 2;
   height: 100%;
+  max-width: 920px;
+  margin: 0 auto;
   overflow: hidden;
 }
 
@@ -871,8 +873,11 @@ export default {
   right: 0;
   top: 0;
   z-index: 8;
+  box-sizing: border-box;
+  max-width: 920px;
   min-height: 116rpx;
   padding: 42rpx 28rpx 14rpx;
+  margin: 0 auto;
   color: #f4f0e8;
   background: rgba(32, 33, 31, 0.94);
   backdrop-filter: blur(10px);
@@ -949,7 +954,10 @@ export default {
   right: 22rpx;
   bottom: 24rpx;
   z-index: 8;
+  box-sizing: border-box;
+  max-width: 920px;
   padding: 24rpx;
+  margin: 0 auto;
   border: 1rpx solid rgba(255, 255, 255, 0.06);
   border-radius: 26rpx;
   color: #f4f0e8;

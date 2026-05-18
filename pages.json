@@ -29,13 +29,6 @@
       }
     },
     {
-      "path": "pages/trackDetail/trackDetail",
-      "style": {
-        "navigationBarTitleText": "追书详情",
-        "navigationStyle": "custom"
-      }
-    },
-    {
       "path": "pages/sourceBook/sourceBook",
       "style": {
         "navigationBarTitleText": "书源详情",
