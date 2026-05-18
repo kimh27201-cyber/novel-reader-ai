@@ -248,6 +248,10 @@ export function createApiClient(deps = {}) {
     listChats(params = {}) {
       const query = buildQuery(params)
       return request(`/api/ai/chats${query}`)
+    },
+    listAiCalls(params = {}) {
+      const query = buildQuery(params)
+      return request(`/api/ai/calls${query}`)
     }
   }
 }

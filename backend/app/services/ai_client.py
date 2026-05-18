@@ -8,7 +8,18 @@ from app.core.config import Settings
 
 
 class AIClientError(RuntimeError):
-    pass
+    status_code = 502
+    error_code = "provider_error"
+
+
+class AIProviderTimeoutError(AIClientError):
+    status_code = 504
+    error_code = "timeout"
+
+
+class AIProviderResponseError(AIClientError):
+    status_code = 502
+    error_code = "bad_response"
 
 
 def active_provider(settings: Settings) -> str:
@@ -93,14 +104,21 @@ async def request_chat_completion(settings: Settings, messages: list[dict[str, s
         async with httpx.AsyncClient(timeout=settings.ai_timeout_seconds) as client:
             response = await client.post(chat_completions_url(settings), headers=headers, json=payload)
             response.raise_for_status()
+    except httpx.TimeoutException as exc:
+        raise AIProviderTimeoutError("AI provider request timed out") from exc
+    except httpx.HTTPStatusError as exc:
+        raise AIClientError(f"AI provider returned HTTP {exc.response.status_code}") from exc
     except httpx.HTTPError as exc:
         raise AIClientError(f"AI provider request failed: {exc}") from exc
 
-    data = response.json()
+    try:
+        data = response.json()
+    except json.JSONDecodeError as exc:
+        raise AIProviderResponseError("AI provider returned invalid JSON") from exc
     try:
         return data["choices"][0]["message"]["content"]
     except (KeyError, IndexError, TypeError) as exc:
-        raise AIClientError("AI provider returned an unexpected response") from exc
+        raise AIProviderResponseError("AI provider returned an unexpected response") from exc
 
 
 def parse_summary_response(text: str) -> dict[str, Any]:

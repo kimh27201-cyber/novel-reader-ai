@@ -90,9 +90,11 @@ async function testAIHistoryRoutesUseFilters() {
 
   await client.listSummaries({ book_id: 12, chapter_id: 34 })
   await client.listChats({ book_id: 12 })
+  await client.listAiCalls({ call_type: 'summary', status_value: 'failed' })
 
   assert.equal(calls[0].url, 'http://127.0.0.1:8000/api/ai/summaries?book_id=12&chapter_id=34')
   assert.equal(calls[1].url, 'http://127.0.0.1:8000/api/ai/chats?book_id=12')
+  assert.equal(calls[2].url, 'http://127.0.0.1:8000/api/ai/calls?call_type=summary&status_value=failed')
 }
 
 async function testLibraryAndReadingHistoryRoutes() {

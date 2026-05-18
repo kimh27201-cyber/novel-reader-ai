@@ -30,3 +30,10 @@ def test_initial_migration_declares_current_business_tables() -> None:
         "chat_records",
     ]:
         assert f'"{table_name}",' in migration
+
+
+def test_ai_call_log_migration_declares_call_log_table() -> None:
+    migration = (BACKEND_DIR / "migrations" / "versions" / "0002_ai_call_logs.py").read_text(encoding="utf-8")
+    assert '"ai_call_logs",' in migration
+    assert '"call_type"' in migration
+    assert '"duration_ms"' in migration

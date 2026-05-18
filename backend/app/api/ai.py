@@ -1,4 +1,5 @@
 import json
+import time
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -7,9 +8,9 @@ from app.api.auth import get_current_user
 from app.api.library import get_owned_book, get_owned_chapter
 from app.core.config import get_settings
 from app.db.session import get_db
-from app.models.models import AiSummary, ChatRecord, User
-from app.schemas.ai import AIChatRequest, AIChatResponse, AISummaryRequest, AISummaryResponse
-from app.services.ai_client import AIClientError, answer_question, summarize_chapter
+from app.models.models import AiCallLog, AiSummary, ChatRecord, User
+from app.schemas.ai import AICallLogResponse, AIChatRequest, AIChatResponse, AISummaryRequest, AISummaryResponse
+from app.services.ai_client import AIClientError, active_provider, answer_question, model_name, summarize_chapter
 
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
@@ -43,6 +44,40 @@ def summary_to_response(summary: AiSummary) -> AISummaryResponse:
     )
 
 
+def elapsed_ms(started_at: float) -> int:
+    return max(0, int((time.perf_counter() - started_at) * 1000))
+
+
+def add_ai_call_log(
+    db: Session,
+    *,
+    current_user: User,
+    call_type: str,
+    provider: str,
+    model: str,
+    status_value: str,
+    duration_ms: int,
+    book_id: int | None = None,
+    chapter_id: int | None = None,
+    error_code: str = "",
+    error_message: str = "",
+) -> AiCallLog:
+    call_log = AiCallLog(
+        user_id=current_user.id,
+        book_id=book_id,
+        chapter_id=chapter_id,
+        call_type=call_type,
+        provider=provider,
+        model=model,
+        status=status_value,
+        error_code=error_code,
+        error_message=error_message,
+        duration_ms=duration_ms,
+    )
+    db.add(call_log)
+    return call_log
+
+
 @router.post("/summary", response_model=AISummaryResponse, status_code=status.HTTP_201_CREATED)
 async def create_ai_summary(
     payload: AISummaryRequest,
@@ -51,10 +86,27 @@ async def create_ai_summary(
 ) -> AISummaryResponse:
     validate_ai_scope(payload.book_id, payload.chapter_id, current_user.id, db)
     settings = get_settings()
+    provider = active_provider(settings)
+    model = model_name(settings)
+    started_at = time.perf_counter()
     try:
         result = await summarize_chapter(payload.chapter_text, settings)
     except AIClientError as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+        add_ai_call_log(
+            db,
+            current_user=current_user,
+            call_type="summary",
+            provider=provider,
+            model=model,
+            status_value="failed",
+            duration_ms=elapsed_ms(started_at),
+            book_id=payload.book_id,
+            chapter_id=payload.chapter_id,
+            error_code=exc.error_code,
+            error_message=str(exc),
+        )
+        db.commit()
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
     record = AiSummary(
         user_id=current_user.id,
@@ -66,6 +118,17 @@ async def create_ai_summary(
         provider=result["provider"],
     )
     db.add(record)
+    add_ai_call_log(
+        db,
+        current_user=current_user,
+        call_type="summary",
+        provider=result["provider"],
+        model=model,
+        status_value="success",
+        duration_ms=elapsed_ms(started_at),
+        book_id=payload.book_id,
+        chapter_id=payload.chapter_id,
+    )
     db.commit()
     db.refresh(record)
     return summary_to_response(record)
@@ -96,10 +159,27 @@ async def create_ai_chat(
 ) -> ChatRecord:
     validate_ai_scope(payload.book_id, payload.chapter_id, current_user.id, db)
     settings = get_settings()
+    provider = active_provider(settings)
+    model = model_name(settings)
+    started_at = time.perf_counter()
     try:
         result = await answer_question(payload.question, payload.context, settings)
     except AIClientError as exc:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+        add_ai_call_log(
+            db,
+            current_user=current_user,
+            call_type="chat",
+            provider=provider,
+            model=model,
+            status_value="failed",
+            duration_ms=elapsed_ms(started_at),
+            book_id=payload.book_id,
+            chapter_id=payload.chapter_id,
+            error_code=exc.error_code,
+            error_message=str(exc),
+        )
+        db.commit()
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
     record = ChatRecord(
         user_id=current_user.id,
@@ -110,6 +190,17 @@ async def create_ai_chat(
         provider=result["provider"],
     )
     db.add(record)
+    add_ai_call_log(
+        db,
+        current_user=current_user,
+        call_type="chat",
+        provider=result["provider"],
+        model=model,
+        status_value="success",
+        duration_ms=elapsed_ms(started_at),
+        book_id=payload.book_id,
+        chapter_id=payload.chapter_id,
+    )
     db.commit()
     db.refresh(record)
     return record
@@ -129,3 +220,25 @@ def list_ai_chats(
     if chapter_id is not None:
         query = query.filter(ChatRecord.chapter_id == chapter_id)
     return query.order_by(ChatRecord.created_at.desc(), ChatRecord.id.desc()).all()
+
+
+@router.get("/calls", response_model=list[AICallLogResponse])
+def list_ai_call_logs(
+    book_id: int | None = None,
+    chapter_id: int | None = None,
+    call_type: str | None = None,
+    status_value: str | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> list[AiCallLog]:
+    validate_ai_scope(book_id, chapter_id, current_user.id, db)
+    query = db.query(AiCallLog).filter(AiCallLog.user_id == current_user.id)
+    if book_id is not None:
+        query = query.filter(AiCallLog.book_id == book_id)
+    if chapter_id is not None:
+        query = query.filter(AiCallLog.chapter_id == chapter_id)
+    if call_type:
+        query = query.filter(AiCallLog.call_type == call_type.strip())
+    if status_value:
+        query = query.filter(AiCallLog.status == status_value.strip())
+    return query.order_by(AiCallLog.created_at.desc(), AiCallLog.id.desc()).all()

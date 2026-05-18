@@ -15,7 +15,8 @@ from fastapi.testclient import TestClient
 
 from app.db.session import Base, SessionLocal, engine
 from app.main import app
-from app.models.models import AiSummary, ChatRecord
+from app.models.models import AiCallLog, AiSummary, ChatRecord
+from app.services.ai_client import AIProviderTimeoutError
 
 
 client = TestClient(app)
@@ -90,6 +91,11 @@ def test_create_ai_summary_with_mock_provider():
 
     with SessionLocal() as db:
         assert db.query(AiSummary).count() == 1
+        call_log = db.query(AiCallLog).one()
+        assert call_log.call_type == "summary"
+        assert call_log.status == "success"
+        assert call_log.provider == "mock"
+        assert call_log.error_code == ""
 
 
 def test_create_ai_chat_with_mock_provider():
@@ -115,6 +121,11 @@ def test_create_ai_chat_with_mock_provider():
 
     with SessionLocal() as db:
         assert db.query(ChatRecord).count() == 1
+        call_log = db.query(AiCallLog).one()
+        assert call_log.call_type == "chat"
+        assert call_log.status == "success"
+        assert call_log.provider == "mock"
+        assert call_log.error_code == ""
 
 
 def test_list_ai_summaries_for_current_user_only():
@@ -202,3 +213,61 @@ def test_ai_endpoints_require_login():
 
     assert summary.status_code == 401
     assert chat.status_code == 401
+
+
+def test_ai_summary_timeout_returns_gateway_timeout_and_logs_failure(monkeypatch):
+    headers = auth_headers()
+    book, chapter = create_book_and_chapter(headers)
+
+    async def fail_summary(chapter_text, settings):
+        raise AIProviderTimeoutError("AI provider request timed out")
+
+    monkeypatch.setattr("app.api.ai.summarize_chapter", fail_summary)
+
+    response = client.post(
+        "/api/ai/summary",
+        headers=headers,
+        json={
+            "book_id": book["id"],
+            "chapter_id": chapter["id"],
+            "chapter_text": chapter["content"],
+        },
+    )
+
+    assert response.status_code == 504
+    body = response.json()
+    assert body["error"]["code"] == "gateway_timeout"
+    assert body["error"]["message"] == "AI provider request timed out"
+
+    with SessionLocal() as db:
+        call_log = db.query(AiCallLog).one()
+        assert call_log.call_type == "summary"
+        assert call_log.status == "failed"
+        assert call_log.error_code == "timeout"
+        assert call_log.error_message == "AI provider request timed out"
+
+
+def test_list_ai_call_logs_for_current_user_only():
+    first_headers = auth_headers()
+    second_headers = auth_headers("callother", "callother@example.com")
+    book, chapter = create_book_and_chapter(first_headers)
+    client.post(
+        "/api/ai/chat",
+        headers=first_headers,
+        json={
+            "book_id": book["id"],
+            "chapter_id": chapter["id"],
+            "question": "安禾看到了什么？",
+            "context": chapter["content"],
+        },
+    )
+
+    first_list = client.get("/api/ai/calls", headers=first_headers)
+    second_list = client.get("/api/ai/calls", headers=second_headers)
+
+    assert first_list.status_code == 200
+    assert len(first_list.json()) == 1
+    assert first_list.json()[0]["call_type"] == "chat"
+    assert first_list.json()[0]["status"] == "success"
+    assert second_list.status_code == 200
+    assert second_list.json() == []

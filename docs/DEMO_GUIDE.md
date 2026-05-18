@@ -216,10 +216,12 @@ POST /api/sources/{source_id}/content
 5. `POST /api/ai/summary` 生成章节总结
 6. `POST /api/ai/chat` 进行问答
 7. `GET /api/ai/summaries` / `GET /api/ai/chats` 查看历史
+8. `GET /api/ai/calls` 查看 AI 调用日志和耗时
 
 讲解重点：
 
 - 书源、书架、章节、阅读记录和 AI 历史都归属当前用户
+- AI 调用日志会记录 summary/chat、success/failed、provider、模型、耗时和错误信息
 - AI 默认 mock 模式，没有真实 API Key 也能完整演示
 - 后续可以切换真实 AI provider
 
@@ -253,7 +255,7 @@ POST /api/sources/{source_id}/content
 2. Swagger 注册登录：40 秒
 3. 未登录错误响应和 request_id：30 秒
 4. 导入演示源、搜索、解析目录和正文：80 秒
-5. AI 总结、AI 记录：60 秒
+5. AI 总结、AI 记录和 AI 调用日志：60 秒
 6. 结尾展示测试命令或 Actions：20 秒
 
 ## 截图清单
@@ -266,6 +268,7 @@ POST /api/sources/{source_id}/content
 - 未登录 `GET /api/books` 的统一错误响应
 - 书源搜索、目录解析、正文解析接口响应
 - AI 总结接口响应
+- `GET /api/ai/calls` 调用日志响应
 - uni-app 书架或阅读器页面
 
 ## 常见演示问题

@@ -23,6 +23,7 @@ ERROR_CODES = {
     422: "validation_error",
     500: "internal_server_error",
     502: "bad_gateway",
+    504: "gateway_timeout",
 }
 
 

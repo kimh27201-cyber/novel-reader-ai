@@ -53,7 +53,8 @@
 - 本地演示书源，方便 Swagger 直接测试
 - AI 章节总结
 - AI 小说问答
-- AI 总结和问答历史记录查询
+- AI 总结、问答历史和调用日志查询
+- AI 超时、上游错误、返回格式异常分类处理
 - 统一错误响应、`X-Request-ID` 和请求日志
 - 自动化测试
 
@@ -245,6 +246,7 @@ AI：
 - `GET /api/ai/summaries`
 - `POST /api/ai/chat`
 - `GET /api/ai/chats`
+- `GET /api/ai/calls`
 
 更详细接口说明见 [docs/API.md](docs/API.md)。
 

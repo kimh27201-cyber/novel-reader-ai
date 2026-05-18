@@ -131,6 +131,29 @@ GET /api/ai/chats?book_id=1
 GET /api/ai/chats?chapter_id=1
 ```
 
+### AI 调用日志
+
+`GET /api/ai/calls`
+
+用于查看当前用户的 AI 调用记录，包括总结、问答、成功、失败、耗时和错误信息。可选筛选：
+
+```text
+GET /api/ai/calls?book_id=1
+GET /api/ai/calls?chapter_id=1
+GET /api/ai/calls?call_type=summary
+GET /api/ai/calls?status_value=failed
+```
+
+返回字段：
+
+- `call_type`: `summary` 或 `chat`
+- `provider`: `mock`、`deepseek` 或 `openai`
+- `model`: 实际模型名
+- `status`: `success` 或 `failed`
+- `error_code`: 失败分类，例如 `timeout`
+- `error_message`: 失败原因
+- `duration_ms`: 调用耗时
+
 ## 4. 数据库查看
 
 SQLite 文件位置：
@@ -148,3 +171,4 @@ D:\Codex\novel-reader-uniapp\backend\data\novel_reader.db
 - `reading_history`
 - `ai_summaries`
 - `chat_records`
+- `ai_call_logs`

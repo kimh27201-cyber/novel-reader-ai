@@ -37,3 +37,19 @@ class AIChatResponse(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class AICallLogResponse(BaseModel):
+    id: int
+    book_id: int | None
+    chapter_id: int | None
+    call_type: str
+    provider: str
+    model: str
+    status: str
+    error_code: str
+    error_message: str
+    duration_ms: int
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
