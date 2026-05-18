@@ -1,5 +1,6 @@
 import json
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
@@ -22,6 +23,13 @@ from app.services.source_parser import SourceParseError, load_content, load_toc,
 
 
 router = APIRouter(prefix="/api/sources", tags=["sources"])
+
+
+def raise_source_bad_gateway(exc: httpx.HTTPError) -> None:
+    raise HTTPException(
+        status_code=status.HTTP_502_BAD_GATEWAY,
+        detail=f"Source request failed: {exc}",
+    ) from exc
 
 
 def get_owned_source(source_id: int, user_id: int, db: Session) -> BookSource:
@@ -128,6 +136,8 @@ async def search_books_from_source(
         books = await search_source(source_to_parser_dict(source), payload.keyword, payload.page)
     except (SourceParseError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except httpx.HTTPError as exc:
+        raise_source_bad_gateway(exc)
     for book in books:
         book["source_id"] = source.id
         book["source_name"] = source.name
@@ -146,6 +156,8 @@ async def parse_toc_from_source(
         chapters = await load_toc(source_to_parser_dict(source), payload.book_url, payload.toc_url)
     except (SourceParseError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except httpx.HTTPError as exc:
+        raise_source_bad_gateway(exc)
     return SourceTocResponse(chapters=chapters)
 
 
@@ -161,4 +173,6 @@ async def parse_content_from_source(
         content = await load_content(source_to_parser_dict(source), payload.chapter_url)
     except (SourceParseError, json.JSONDecodeError) as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except httpx.HTTPError as exc:
+        raise_source_bad_gateway(exc)
     return SourceContentResponse(content=content)

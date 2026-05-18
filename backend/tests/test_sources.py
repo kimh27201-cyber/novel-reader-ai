@@ -3,6 +3,8 @@ import os
 import sys
 from pathlib import Path
 
+import httpx
+
 BACKEND_DIR = Path(__file__).resolve().parents[1]
 
 os.environ["DATABASE_URL"] = f"sqlite:///{BACKEND_DIR / 'data' / 'test_novel_reader.db'}"
@@ -156,3 +158,24 @@ def test_toc_and_content_parser_endpoints(monkeypatch):
     assert toc_response.json()["chapters"][0]["url"] == "https://example.com/book/1/0"
     assert content_response.status_code == 200
     assert "星轨图书馆经过城市上空" in content_response.json()["content"]
+
+
+def test_toc_upstream_request_failure_returns_bad_gateway(monkeypatch):
+    headers = auth_headers()
+    source = import_sample_source(headers)
+
+    async def fake_request_text(spec):
+        raise httpx.ConnectError("connection failed")
+
+    monkeypatch.setattr("app.services.source_parser.request_text", fake_request_text)
+
+    response = client.post(
+        f"/api/sources/{source['id']}/toc",
+        headers=headers,
+        json={"book_url": "https://example.com/book/1", "toc_url": "https://example.com/book/1/catalog"},
+    )
+
+    assert response.status_code == 502
+    body = response.json()
+    assert body["error"]["code"] == "bad_gateway"
+    assert "Source request failed" in body["error"]["message"]

@@ -94,36 +94,154 @@ uvicorn app.main:app --reload --port 8000
 
 > 我保留了 FastAPI 原来的 detail 字段，同时新增统一 error 对象，方便前端统一弹错，也方便通过 request_id 对应后端日志。
 
-### 5. 展示业务闭环
+### 5. 展示书源导入和解码闭环
 
-重新授权后按顺序演示：
+这一段建议优先用 Swagger 演示，因为 Swagger 能清楚展示请求参数、响应体和后端解析结果。uni-app 前端联调放到下一节作为补充。
 
-1. `POST /api/sources/import-demo` 导入演示源
-2. `GET /api/sources` 查看当前用户的书源
-3. `POST /api/sources/{source_id}/search` 搜索示例书籍
-4. `POST /api/books` 加入书架
-5. `POST /api/books/{book_id}/chapters` 创建章节
-6. `POST /api/reading-history` 保存阅读进度
-7. `POST /api/ai/summary` 生成章节总结
-8. `POST /api/ai/chat` 进行问答
-9. `GET /api/ai/summaries` / `GET /api/ai/chats` 查看历史
+重新授权后按顺序演示。
+
+#### 5.1 导入演示书源
+
+执行：
+
+```text
+POST /api/sources/import-demo
+```
+
+预期结果：
+
+- 状态码 `201`
+- 返回 `imported_count`
+- 返回 `sources`
+
+然后执行：
+
+```text
+GET /api/sources
+```
+
+从响应中记住当前演示源的 `id`，后面记作 `source_id`。不同账号或重复导入时，这个 id 可能不是 `1`，演示时以接口返回值为准。
+
+#### 5.2 搜索书籍
+
+执行：
+
+```text
+POST /api/sources/{source_id}/search
+```
+
+请求体：
+
+```json
+{
+  "keyword": "星轨",
+  "page": 1
+}
+```
+
+预期结果：
+
+- 状态码 `200`
+- 返回 `books`
+- 第一条书籍通常是《星轨图书馆》
+- 响应里会包含 `book_url`
+
+演示时优先复制搜索结果里的 `book_url` 继续下一步，不要手写路径。
+
+#### 5.3 解析目录
+
+执行：
+
+```text
+POST /api/sources/{source_id}/toc
+```
+
+推荐请求体：
+
+```json
+{
+  "book_url": "http://127.0.0.1:8000/demo-source/books/star-library/catalog",
+  "toc_url": "http://127.0.0.1:8000/demo-source/books/star-library/catalog"
+}
+```
+
+如果你的搜索结果里返回了不同的 `book_url`，以搜索结果为准，把 `book_url` 和 `toc_url` 都填成搜索结果里的目录地址。
+
+预期结果：
+
+- 状态码 `200`
+- 返回 `chapters`
+- 章节里有 `title`、`url`、`index`
+
+第一章的章节地址通常是：
+
+```text
+http://127.0.0.1:8000/demo-source/books/star-library/chapters/1
+```
+
+#### 5.4 解析正文
+
+执行：
+
+```text
+POST /api/sources/{source_id}/content
+```
+
+请求体：
+
+```json
+{
+  "chapter_url": "http://127.0.0.1:8000/demo-source/books/star-library/chapters/1"
+}
+```
+
+预期结果：
+
+- 状态码 `200`
+- 返回 `content`
+- 正文里能看到“凌晨四点，星轨图书馆经过城市上空”
+
+这一步可以这样讲：
+
+> 这里展示的是后端书源解析能力：先导入规则，再根据规则搜索书籍、解析目录、解析正文。演示源是项目本地提供的 HTML 页面，不依赖第三方网站，也不涉及盗版内容。
+
+#### 5.5 加入书架、阅读进度和 AI
+
+目录和正文解析成功后，再继续业务闭环：
+
+1. `POST /api/books` 加入书架，保存返回的 `book_id`
+2. `POST /api/books/{book_id}/chapters` 创建章节，保存返回的 `chapter_id`
+3. `POST /api/reading-history` 保存阅读进度
+4. `GET /api/reading-history` 读取阅读进度
+5. `POST /api/ai/summary` 生成章节总结
+6. `POST /api/ai/chat` 进行问答
+7. `GET /api/ai/summaries` / `GET /api/ai/chats` 查看历史
 
 讲解重点：
 
-- 书源解析、书架、章节、阅读记录和 AI 历史都归属当前用户
+- 书源、书架、章节、阅读记录和 AI 历史都归属当前用户
 - AI 默认 mock 模式，没有真实 API Key 也能完整演示
 - 后续可以切换真实 AI provider
 
 ### 6. 展示前端联调
 
-打开 uni-app：
+前端联调建议作为补充展示，不要把它作为书源解码的唯一演示路径。面试现场优先用 Swagger 证明后端书源解析闭环已经跑通；如果时间允许，再打开 uni-app 展示前端已经接入后端。
 
-1. “我的”页面登录后端
-2. “导入”页面导入演示源或刷新后端书源
-3. “发现”页面搜索并加入云端书架
-4. “书架”页面进入云端书籍
-5. 阅读器里触发 AI 总结或问答
-6. “我的”页面进入 AI 记录
+打开 uni-app 后按这个顺序演示：
+
+1. “我的”页面登录后端，确认登录状态。
+2. “导入”页面刷新后端书源列表，确认能看到“本地演示书源”。
+3. 如果页面提供“导入演示源”按钮，可以点击导入；如果已经在 Swagger 导入过，就只刷新列表。
+4. “发现”页面搜索“星轨”，查看后端书源搜索结果。
+5. 选择《星轨图书馆》，查看目录解析结果。
+6. 加入云端书架后，进入“书架”页面确认书籍出现。
+7. 进入阅读器，确认章节正文能打开。
+8. 阅读器里触发 AI 总结或问答。
+9. “我的”页面进入 AI 记录，查看总结和问答历史。
+
+如果 uni-app 某个页面展示效果不稳定，演示时可以这样说明：
+
+> 书源导入、搜索、目录和正文解析的核心能力已经在 Swagger 跑通；uni-app 主要展示前端调用这些后端接口的联调入口。现场如果移动端预览环境不稳定，我会优先用 Swagger 展示完整后端闭环。
 
 如果现场时间紧，可以只演示 Swagger，把 uni-app 作为补充说明。
 
@@ -134,7 +252,7 @@ uvicorn app.main:app --reload --port 8000
 1. GitHub README + CI 绿色：20 秒
 2. Swagger 注册登录：40 秒
 3. 未登录错误响应和 request_id：30 秒
-4. 导入演示源、搜索、加入书架：60 秒
+4. 导入演示源、搜索、解析目录和正文：80 秒
 5. AI 总结、AI 记录：60 秒
 6. 结尾展示测试命令或 Actions：20 秒
 
@@ -146,6 +264,7 @@ uvicorn app.main:app --reload --port 8000
 - Swagger 接口列表
 - 登录后 `GET /api/auth/me`
 - 未登录 `GET /api/books` 的统一错误响应
+- 书源搜索、目录解析、正文解析接口响应
 - AI 总结接口响应
 - uni-app 书架或阅读器页面
 
