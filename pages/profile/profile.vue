@@ -224,7 +224,11 @@ export default {
 
 <style>
 .profile-page {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1120px;
   min-height: 100vh;
+  margin: 0 auto;
   padding: 86rpx 40rpx 132rpx;
   background: #1f1f1f;
 }
@@ -353,11 +357,15 @@ button::after {
 }
 
 .backend-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex: 1;
   height: 62rpx;
   border-radius: 16rpx;
   color: #f4f0e8;
   font-size: 23rpx;
+  line-height: 1;
   background: rgba(255, 255, 255, 0.08);
 }
 

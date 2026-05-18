@@ -75,7 +75,8 @@ function testBuildHistoryItemsSortsNewestFirst() {
 }
 
 function testFormatHistoryTime() {
-  assert.equal(formatHistoryTime('2026-05-16T10:35:00'), '05-16 10:35')
+  assert.equal(formatHistoryTime('2026-05-16T10:35:00', 'Asia/Shanghai'), '05-16 18:35')
+  assert.equal(formatHistoryTime('2026-05-16T10:35:00Z', 'Asia/Shanghai'), '05-16 18:35')
   assert.equal(formatHistoryTime(''), '未知时间')
 }
 

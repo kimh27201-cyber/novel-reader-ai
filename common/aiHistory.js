@@ -5,10 +5,35 @@ function safeList(value) {
   return Array.isArray(value) ? value.filter(Boolean) : []
 }
 
-export function formatHistoryTime(value) {
+function normalizeBackendTime(value) {
+  const text = String(value || '').trim()
+  if (!text) return ''
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(text)) {
+    return `${text}Z`
+  }
+  return text
+}
+
+function formatWithTimeZone(date, timeZone) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false
+  }).formatToParts(date)
+  const values = Object.fromEntries(parts.map(part => [part.type, part.value]))
+  return `${values.month}-${values.day} ${values.hour}:${values.minute}`
+}
+
+export function formatHistoryTime(value, timeZone) {
   if (!value) return '未知时间'
-  const date = new Date(value)
+  const date = new Date(normalizeBackendTime(value))
   if (Number.isNaN(date.getTime())) return '未知时间'
+  if (timeZone) {
+    return formatWithTimeZone(date, timeZone)
+  }
   const month = `${date.getMonth() + 1}`.padStart(2, '0')
   const day = `${date.getDate()}`.padStart(2, '0')
   const hour = `${date.getHours()}`.padStart(2, '0')
@@ -84,7 +109,9 @@ export function buildAIHistoryItems(summaries = [], chats = [], callLogs = []) {
     ...summaries.map(mapSummaryRecord),
     ...chats.map(mapChatRecord),
     ...callLogs.map(mapCallLogRecord)
-  ].sort((left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime())
+  ].sort((left, right) => {
+    return new Date(normalizeBackendTime(right.createdAt)).getTime() - new Date(normalizeBackendTime(left.createdAt)).getTime()
+  })
 }
 
 export async function loadAIHistory(client = apiClient, filters = {}) {

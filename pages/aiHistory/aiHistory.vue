@@ -114,7 +114,11 @@ export default {
 
 <style>
 .history-page {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1120px;
   min-height: 100vh;
+  margin: 0 auto;
   padding: 58rpx 32rpx 120rpx;
   background: #1f1f1f;
 }
@@ -166,11 +170,15 @@ button::after {
 }
 
 .filter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   height: 62rpx;
   padding: 0;
   border-radius: 999rpx;
   color: #cfcfcf;
   font-size: 25rpx;
+  line-height: 1;
   background: #2c2c2c;
 }
 
@@ -201,12 +209,15 @@ button::after {
 }
 
 .type-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   height: 42rpx;
   padding: 0 16rpx;
   border-radius: 999rpx;
   color: #061019;
   font-size: 22rpx;
-  line-height: 42rpx;
+  line-height: 1;
   background: #7ad7c4;
 }
 
@@ -251,6 +262,9 @@ button::after {
 }
 
 .tag {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   max-width: 100%;
   padding: 8rpx 14rpx;
   border-radius: 12rpx;
@@ -271,12 +285,16 @@ button::after {
 }
 
 .status-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   height: 70rpx;
   margin-top: 22rpx;
   padding: 0 24rpx;
   border-radius: 14rpx;
   color: #ffffff;
   font-size: 26rpx;
+  line-height: 1;
   background: #d44b2f;
 }
 </style>

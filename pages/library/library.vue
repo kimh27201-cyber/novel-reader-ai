@@ -353,8 +353,12 @@ export default {
 
 <style>
 .import-page {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1120px;
   min-height: 100vh;
   padding: 86rpx 40rpx 132rpx;
+  margin: 0 auto;
   background: #1f1f1f;
 }
 
@@ -398,6 +402,7 @@ button::after {
   border-radius: 999rpx;
   color: #ffffff;
   font-size: 44rpx;
+  line-height: 1;
   background: transparent;
 }
 
@@ -484,6 +489,7 @@ button::after {
   align-items: center;
   justify-content: center;
   padding: 0;
+  line-height: 1;
 }
 
 .mode {
@@ -598,10 +604,12 @@ button::after {
 .file-picker {
   display: flex;
   align-items: center;
+  justify-content: center;
   width: 100%;
   min-height: 112rpx;
   padding: 18rpx;
   margin-top: 24rpx;
+  line-height: 1;
   border-radius: 16rpx;
   background: #303030;
 }

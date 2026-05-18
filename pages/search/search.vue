@@ -160,8 +160,12 @@ export default {
 
 <style>
 .discover-page {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1120px;
   min-height: 100vh;
   padding: 86rpx 40rpx 132rpx;
+  margin: 0 auto;
   background: #1f1f1f;
 }
 
@@ -213,6 +217,7 @@ button::after {
   padding: 0;
   color: #ffffff;
   font-size: 54rpx;
+  line-height: 1;
   background: transparent;
 }
 
@@ -224,11 +229,15 @@ button::after {
 }
 
 .mode {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   height: 62rpx;
   padding: 0;
   border-radius: 999rpx;
   color: #cfcfcf;
   font-size: 25rpx;
+  line-height: 1;
   background: #2c2c2c;
 }
 
