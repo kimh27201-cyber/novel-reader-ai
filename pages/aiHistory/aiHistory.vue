@@ -1,5 +1,5 @@
 <template>
-  <view class="history-page" :style="themeVars">
+  <view class="history-page app-page secondary" :style="themeVars">
     <view class="topbar">
       <button class="back-button" @tap="goBack">‹</button>
       <view>
@@ -52,6 +52,7 @@
 <script>
 import { loadAIHistory } from '../../common/aiHistory.js'
 import { getAppThemeId, getAppThemeStyle } from '../../common/appTheme.js'
+import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 
 export default {
   data() {
@@ -84,7 +85,7 @@ export default {
         this.items = await loadAIHistory()
       } catch (error) {
         this.items = []
-        this.errorMessage = error.message || '请先到“我的”页面登录后端。'
+        this.errorMessage = friendlyErrorMessage(error, '请先到“我的”页面登录后端。')
       } finally {
         this.loading = false
       }

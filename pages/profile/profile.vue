@@ -1,5 +1,5 @@
 <template>
-  <view class="profile-page" :style="themeVars">
+  <view class="profile-page app-page" :style="themeVars">
     <view class="top-zone">
       <view>
         <text class="eyebrow">ME</text>
@@ -66,7 +66,7 @@
       </view>
     </view>
 
-    <view class="theme-panel" v-if="themeVisible">
+    <view class="theme-panel app-floating-panel" v-if="themeVisible">
       <view class="panel-head">
         <view class="panel-title">主题模式</view>
         <button class="close-button" @tap="themeVisible = false">×</button>
@@ -93,6 +93,7 @@
 import { exportTrackedBooks } from '../../common/tracking.js'
 import { appThemes, getAppThemeId, getAppThemeStyle, saveAppTheme } from '../../common/appTheme.js'
 import apiClient from '../../common/apiClient.js'
+import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 
 export default {
   data() {
@@ -110,13 +111,10 @@ export default {
         error: ''
       },
       mainItems: [
-        { id: 'source', icon: '▤', title: '书源管理', desc: '新建、导入、编辑或管理书源' },
-        { id: 'txt', icon: '▤', title: 'TXT 目录规则', desc: '配置 TXT 目录规则' },
-        { id: 'clean', icon: 'A↔B', title: '替换净化', desc: '配置替换净化规则' },
-        { id: 'dict', icon: '文A', title: '字典规则', desc: '配置字典规则' },
+        { id: 'source', icon: '源', title: '书源与导入', desc: '导入演示源、管理外部源和 TXT' },
         { id: 'aiHistory', icon: 'AI', title: 'AI 记录', desc: '查看后端保存的总结和问答历史' },
         { id: 'theme', icon: '♜', title: '主题模式', desc: '选择主题模式' },
-        { id: 'web', icon: '◎', title: 'Web 服务', desc: '用浏览器写源或看书' }
+        { id: 'web', icon: '◎', title: '后端服务提示', desc: 'Swagger 和 FastAPI 本地联调状态' }
       ]
     }
   },
@@ -159,7 +157,7 @@ export default {
         uni.showToast({ title: '后端登录成功', icon: 'none' })
       } catch (error) {
         this.backend.user = null
-        this.backend.error = error.message || '登录失败'
+        this.backend.error = friendlyErrorMessage(error, '登录失败')
         uni.showToast({ title: this.backend.error, icon: 'none' })
       } finally {
         this.backend.loading = false
@@ -176,7 +174,7 @@ export default {
         }
       } catch (error) {
         this.backend.user = null
-        this.backend.error = error.message || '后端未连接'
+        this.backend.error = friendlyErrorMessage(error, '后端未连接')
         if (!options.silent) {
           uni.showToast({ title: this.backend.error, icon: 'none' })
         }
@@ -191,7 +189,7 @@ export default {
       uni.showToast({ title: '已退出后端登录', icon: 'none' })
     },
     openItem(id) {
-      if (id === 'source' || id === 'txt') {
+      if (id === 'source') {
         uni.switchTab({ url: '/pages/library/library' })
         return
       }
@@ -203,9 +201,7 @@ export default {
         uni.navigateTo({ url: '/pages/aiHistory/aiHistory' })
         return
       }
-      if (id !== 'web') {
-        uni.showToast({ title: '规则模块稍后接入', icon: 'none' })
-      }
+      if (id === 'web') this.refreshBackendMe()
     },
     toggleWeb(event) {
       this.webEnabled = !!event.detail.value

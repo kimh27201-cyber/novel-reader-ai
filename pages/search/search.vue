@@ -1,5 +1,5 @@
 <template>
-  <view class="discover-page" :style="themeVars">
+  <view class="discover-page app-page" :style="themeVars">
     <view class="top-zone">
       <view>
         <text class="eyebrow">DISCOVER</text>
@@ -96,6 +96,7 @@ import apiClient from '../../common/apiClient.js'
 import { searchBackendBooks } from '../../common/backendLibrary.js'
 import { buildSourceToggleState, demoSearchKeywords, sanitizeSearchKeyword } from '../../common/searchHelpers.js'
 import { getAppThemeId, getAppThemeStyle } from '../../common/appTheme.js'
+import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 
 export default {
   data() {
@@ -186,7 +187,7 @@ export default {
       } catch (error) {
         if (this.searchToken === token) {
           this.results = []
-          uni.showToast({ title: error.message || '搜索失败', icon: 'none' })
+          uni.showToast({ title: friendlyErrorMessage(error, '搜索失败'), icon: 'none' })
         }
       } finally {
         if (this.searchToken === token) this.loading = false

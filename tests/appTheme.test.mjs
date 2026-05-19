@@ -20,6 +20,8 @@ const {
 assert.equal(getAppThemeId(), 'qinglan')
 assert.equal(appThemes.length, 4)
 assert.ok(appThemes.every(theme => theme.vars['--app-bg'] && theme.vars['--app-panel'] && theme.vars['--app-text']))
+assert.ok(appThemes.every(theme => theme.vars['--app-stage'] && theme.vars['--app-shell-border'] && theme.vars['--app-floating-shadow']))
+assert.ok(appThemes.every(theme => theme.vars['--app-reader-control'] && theme.vars['--app-reader-control-text']))
 
 assert.equal(saveAppTheme('paper'), 'paper')
 assert.equal(getAppThemeId(), 'paper')

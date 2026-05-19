@@ -1,5 +1,5 @@
 <template>
-  <view class="decoder-page" :style="themeVars">
+  <view class="decoder-page app-page" :style="themeVars">
     <view class="top-zone">
       <view class="search-pill" @tap="goSearch">
         <text class="search-icon">⌕</text>
@@ -16,7 +16,10 @@
         <view class="tool-icon" :class="tool.id">
           <text>{{ tool.icon }}</text>
         </view>
-        <text class="tool-name">{{ tool.name }}</text>
+        <view class="tool-copy">
+          <text class="tool-name">{{ tool.name }}</text>
+          <text class="tool-desc">{{ tool.desc }}</text>
+        </view>
       </view>
     </view>
 
@@ -68,6 +71,7 @@ import { getSourceConfigs } from '../../common/bookSources.js'
 import { getAppThemeId, getAppThemeStyle } from '../../common/appTheme.js'
 import apiClient from '../../common/apiClient.js'
 import { listBackendBooks } from '../../common/backendLibrary.js'
+import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 
 export default {
   data() {
@@ -76,11 +80,11 @@ export default {
       sources: [],
       themeId: getAppThemeId(),
       tools: [
-        { id: 'rules', name: '规则订阅', icon: '阅' },
-        { id: 'help', name: '使用说明', icon: '读' },
-        { id: 'repo', name: '源仓库', icon: 'M' },
-        { id: 'import', name: '导入', icon: '↓' },
-        { id: 'cloud', name: 'Meow云', icon: '☁' }
+        { id: 'discover', name: '发现书源', desc: '搜索并加入云端书架', icon: '⌕' },
+        { id: 'import', name: '导入 TXT', desc: '本地文本目录识别', icon: 'TXT' },
+        { id: 'cloud', name: '后端登录', desc: '启用 AI 与云同步', icon: '☁' },
+        { id: 'aiHistory', name: 'AI 记录', desc: '总结与问答历史', icon: 'AI' },
+        { id: 'help', name: '演示说明', desc: '5 分钟项目流程', icon: '?' }
       ]
     }
   },
@@ -103,7 +107,7 @@ export default {
         const backendBooks = await listBackendBooks()
         this.books = [...backendBooks, ...localBooks]
       } catch (error) {
-        uni.showToast({ title: error.message || '云端书架加载失败', icon: 'none' })
+        uni.showToast({ title: friendlyErrorMessage(error, '云端书架加载失败'), icon: 'none' })
       }
     },
     shortTitle(title) {
@@ -126,15 +130,23 @@ export default {
       })
     },
     openTool(id) {
-      if (id === 'repo' || id === 'rules' || id === 'import') {
+      if (id === 'discover') {
+        this.goSearch()
+        return
+      }
+      if (id === 'import') {
         this.goLibrary()
+        return
+      }
+      if (id === 'aiHistory') {
+        uni.navigateTo({ url: '/pages/aiHistory/aiHistory' })
         return
       }
       if (id === 'help') {
         uni.showToast({ title: '导入书源后，在发现页搜索并加入书架', icon: 'none' })
         return
       }
-      uni.showToast({ title: '云同步稍后接入', icon: 'none' })
+      this.goProfile()
     },
     goSearch() {
       uni.switchTab({ url: '/pages/search/search' })
@@ -220,40 +232,47 @@ button::after {
 
 .tool-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  row-gap: 74rpx;
-  margin-top: 42rpx;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 18rpx;
+  margin-top: 34rpx;
 }
 
 .tool {
   display: flex;
-  flex-direction: column;
   align-items: center;
+  min-height: 132rpx;
+  padding: 20rpx;
+  border-radius: 18rpx;
+}
+
+.tool:nth-child(5) {
+  grid-column: 1 / -1;
 }
 
 .tool-icon {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 124rpx;
-  height: 124rpx;
+  flex-shrink: 0;
+  width: 86rpx;
+  height: 86rpx;
   overflow: hidden;
-  border-radius: 28rpx;
+  border-radius: 18rpx;
   color: #ffffff;
-  font-size: 48rpx;
+  font-size: 28rpx;
   font-weight: 900;
   background: linear-gradient(180deg, #505050 0%, #242424 100%);
 }
 
 .tool-icon.repo {
   color: #a9f060;
-  font-size: 76rpx;
+  font-size: 34rpx;
   background: linear-gradient(180deg, #222 0%, #070707 100%);
 }
 
 .tool-icon.import {
   color: #ffffff;
-  font-size: 72rpx;
+  font-size: 22rpx;
   background: linear-gradient(145deg, #2d79ff, #1c52d6);
 }
 
@@ -262,12 +281,33 @@ button::after {
   background: #050505;
 }
 
+.tool-copy {
+  min-width: 0;
+  flex: 1;
+  margin-left: 18rpx;
+}
+
 .tool-name {
-  margin-top: 28rpx;
+  display: block;
+  overflow: hidden;
   color: #d4d4d4;
   font-family: cursive;
-  font-size: 32rpx;
+  font-size: 30rpx;
+  font-weight: 900;
   line-height: 38rpx;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tool-desc {
+  display: block;
+  overflow: hidden;
+  margin-top: 8rpx;
+  color: #a8a8a8;
+  font-size: 23rpx;
+  line-height: 32rpx;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .shelf-head {
@@ -526,5 +566,15 @@ button::after {
 
 .cover-wrap {
   background: linear-gradient(145deg, var(--app-accent) 0%, var(--app-accent-3) 100%);
+}
+
+.tool {
+  border: 1rpx solid var(--app-border);
+  background: var(--app-panel-strong);
+  box-shadow: var(--app-shadow);
+}
+
+.tool-desc {
+  color: var(--app-muted);
 }
 </style>

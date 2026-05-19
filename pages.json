@@ -51,10 +51,10 @@
     }
   ],
   "tabBar": {
-    "color": "#ffffff",
-    "selectedColor": "#d85a3a",
-    "backgroundColor": "#2f302d",
-    "borderStyle": "black",
+    "color": "#6f817b",
+    "selectedColor": "#e26a4f",
+    "backgroundColor": "#f6fbf8",
+    "borderStyle": "white",
     "list": [
       {
         "pagePath": "pages/bookshelf/bookshelf",

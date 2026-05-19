@@ -20,7 +20,13 @@ export const appThemes = [
       '--app-panel-strong': 'rgba(255, 255, 255, 0.90)',
       '--app-input': 'rgba(255, 255, 255, 0.86)',
       '--app-border': 'rgba(76, 129, 117, 0.14)',
-      '--app-shadow': '0 16rpx 38rpx rgba(64, 96, 89, 0.09)'
+      '--app-shadow': '0 16rpx 38rpx rgba(64, 96, 89, 0.09)',
+      '--app-stage': '#e4efeb',
+      '--app-shell-border': 'rgba(73, 114, 105, 0.24)',
+      '--app-shell-shadow': '0 28rpx 90rpx rgba(51, 83, 76, 0.22)',
+      '--app-floating-shadow': '0 -20rpx 70rpx rgba(51, 83, 76, 0.20)',
+      '--app-reader-control': 'rgba(255, 255, 255, 0.94)',
+      '--app-reader-control-text': '#20352f'
     }
   },
   {
@@ -41,7 +47,13 @@ export const appThemes = [
       '--app-panel-strong': 'rgba(255, 253, 247, 0.93)',
       '--app-input': 'rgba(255, 253, 247, 0.90)',
       '--app-border': 'rgba(157, 116, 61, 0.16)',
-      '--app-shadow': '0 16rpx 38rpx rgba(133, 96, 49, 0.10)'
+      '--app-shadow': '0 16rpx 38rpx rgba(133, 96, 49, 0.10)',
+      '--app-stage': '#f0e7d6',
+      '--app-shell-border': 'rgba(155, 114, 61, 0.24)',
+      '--app-shell-shadow': '0 28rpx 90rpx rgba(119, 82, 38, 0.20)',
+      '--app-floating-shadow': '0 -20rpx 70rpx rgba(119, 82, 38, 0.18)',
+      '--app-reader-control': 'rgba(255, 253, 247, 0.95)',
+      '--app-reader-control-text': '#3f3326'
     }
   },
   {
@@ -62,7 +74,13 @@ export const appThemes = [
       '--app-panel-strong': 'rgba(255, 255, 255, 0.93)',
       '--app-input': 'rgba(255, 255, 255, 0.90)',
       '--app-border': 'rgba(80, 150, 171, 0.14)',
-      '--app-shadow': '0 16rpx 38rpx rgba(59, 114, 128, 0.09)'
+      '--app-shadow': '0 16rpx 38rpx rgba(59, 114, 128, 0.09)',
+      '--app-stage': '#e2f1f4',
+      '--app-shell-border': 'rgba(69, 136, 153, 0.22)',
+      '--app-shell-shadow': '0 28rpx 90rpx rgba(50, 107, 121, 0.20)',
+      '--app-floating-shadow': '0 -20rpx 70rpx rgba(50, 107, 121, 0.18)',
+      '--app-reader-control': 'rgba(255, 255, 255, 0.95)',
+      '--app-reader-control-text': '#203842'
     }
   },
   {
@@ -83,7 +101,13 @@ export const appThemes = [
       '--app-panel-strong': 'rgba(34, 48, 50, 0.94)',
       '--app-input': 'rgba(255, 255, 255, 0.08)',
       '--app-border': 'rgba(255, 255, 255, 0.08)',
-      '--app-shadow': '0 18rpx 44rpx rgba(0, 0, 0, 0.24)'
+      '--app-shadow': '0 18rpx 44rpx rgba(0, 0, 0, 0.24)',
+      '--app-stage': '#11181a',
+      '--app-shell-border': 'rgba(255, 255, 255, 0.12)',
+      '--app-shell-shadow': '0 28rpx 90rpx rgba(0, 0, 0, 0.34)',
+      '--app-floating-shadow': '0 -20rpx 70rpx rgba(0, 0, 0, 0.32)',
+      '--app-reader-control': 'rgba(34, 48, 50, 0.95)',
+      '--app-reader-control-text': '#f4fbf8'
     }
   }
 ]

@@ -10,19 +10,29 @@ export default {
 page {
   min-height: 100%;
   color: #20352f;
-  background: #dfe8e4;
+  background: #e4efeb;
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
 /* #ifdef H5 */
+html,
 body {
-  background: #dfe8e4;
+  min-height: 100%;
+  background:
+    radial-gradient(circle at 50% -8%, rgba(117, 173, 159, 0.22), transparent 38%),
+    linear-gradient(90deg, #dce9e5 0%, #edf5f2 18%, #edf5f2 82%, #dce9e5 100%);
 }
 
 uni-page-body {
+  position: relative;
   max-width: 1120px;
   min-height: 100vh;
   margin: 0 auto;
+  overflow-x: hidden;
+  border-left: 1rpx solid rgba(73, 114, 105, 0.18);
+  border-right: 1rpx solid rgba(73, 114, 105, 0.18);
+  background: #f4fbf8;
+  box-shadow: 0 28rpx 90rpx rgba(51, 83, 76, 0.20);
 }
 
 uni-tabbar .uni-tabbar {
@@ -31,10 +41,10 @@ uni-tabbar .uni-tabbar {
   width: min(100vw, 1120px) !important;
   max-width: 1120px;
   overflow: hidden;
-  border-left: 1rpx solid rgba(60, 84, 78, 0.12);
-  border-right: 1rpx solid rgba(60, 84, 78, 0.12);
-  border-radius: 18rpx 18rpx 0 0;
-  box-shadow: 0 -16rpx 50rpx rgba(42, 62, 57, 0.18);
+  border-left: 1rpx solid rgba(73, 114, 105, 0.18);
+  border-right: 1rpx solid rgba(73, 114, 105, 0.18);
+  border-radius: 22rpx 22rpx 0 0;
+  box-shadow: 0 -16rpx 54rpx rgba(42, 62, 57, 0.16);
   transform: translateX(-50%);
 }
 /* #endif */
@@ -47,9 +57,56 @@ uni-tabbar .uni-tabbar {
 .source-book-page,
 .history-page,
 .reader-page {
-  border-left: 1rpx solid rgba(60, 84, 78, 0.12);
-  border-right: 1rpx solid rgba(60, 84, 78, 0.12);
-  box-shadow: 0 24rpx 80rpx rgba(42, 62, 57, 0.18);
+  border-left: 1rpx solid var(--app-shell-border, rgba(60, 84, 78, 0.16));
+  border-right: 1rpx solid var(--app-shell-border, rgba(60, 84, 78, 0.16));
+  box-shadow: var(--app-shell-shadow, 0 24rpx 80rpx rgba(42, 62, 57, 0.18));
+}
+
+.app-page,
+.reader-page {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.app-page {
+  min-height: 100vh;
+  overflow-x: hidden;
+  color: var(--app-text);
+  background: var(--app-bg);
+}
+
+.app-page.secondary {
+  padding-top: 58rpx;
+}
+
+.app-shell-panel {
+  border: 1rpx solid var(--app-border);
+  border-radius: 18rpx;
+  background: var(--app-panel-strong);
+  box-shadow: var(--app-shadow);
+}
+
+.app-floating-panel {
+  position: fixed;
+  left: 50% !important;
+  right: auto !important;
+  width: min(94vw, 1048px);
+  max-width: 1048px;
+  transform: translateX(-50%);
+  border: 1rpx solid var(--app-border);
+  background: var(--app-panel-strong);
+  box-shadow: var(--app-floating-shadow);
+}
+
+.app-action-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 64rpx;
+  border-radius: 16rpx;
+  color: var(--app-on-accent);
+  background: var(--app-accent);
 }
 
 view,

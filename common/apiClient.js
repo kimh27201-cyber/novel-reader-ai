@@ -1,3 +1,5 @@
+import { friendlyErrorMessage } from './uiFeedback.js'
+
 const DEFAULT_BASE_URL = 'http://127.0.0.1:8000'
 const BASE_URL_KEY = 'novelReaderBackendBaseUrl'
 const TOKEN_KEY = 'novelReaderBackendToken'
@@ -109,7 +111,7 @@ export function createApiClient(deps = {}) {
           reject(new ApiError(getErrorMessage(response.data, `请求失败：${statusCode}`), statusCode, response.data))
         },
         fail(error) {
-          reject(new ApiError(error.errMsg || '网络请求失败', 0, error))
+          reject(new ApiError(friendlyErrorMessage(error, '网络请求失败'), 0, error))
         }
       })
       if (maybePromise && typeof maybePromise.then === 'function') {
@@ -124,7 +126,7 @@ export function createApiClient(deps = {}) {
           }
           reject(new ApiError(getErrorMessage(response.data, `请求失败：${statusCode}`), statusCode, response.data))
         }).catch(error => {
-          reject(error instanceof ApiError ? error : new ApiError(error.message || '网络请求失败', 0, error))
+          reject(error instanceof ApiError ? error : new ApiError(friendlyErrorMessage(error, '网络请求失败'), 0, error))
         })
       }
     })

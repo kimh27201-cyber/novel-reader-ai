@@ -2,6 +2,7 @@
   <view class="reader-page" :style="pageStyle">
     <view
       class="reading-surface"
+      :style="readerSurfaceStyle"
       @tap="handleReaderTap"
       @touchstart="onTouchStart"
       @touchend="onTouchEnd"
@@ -183,6 +184,7 @@ import {
   loadBackendSourceContent,
   saveBackendReadingHistory
 } from '../../common/backendLibrary.js'
+import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 
 export default {
   data() {
@@ -232,10 +234,17 @@ export default {
       return getTheme(this.prefs.theme)
     },
     pageStyle() {
+      const appVars = getAppThemeStyle(this.appThemeId)
+      return {
+        ...appVars,
+        background: appVars['--app-stage'],
+        color: appVars['--app-text']
+      }
+    },
+    readerSurfaceStyle() {
       return {
         background: this.activeTheme.background,
-        color: this.activeTheme.text,
-        ...getAppThemeStyle(this.appThemeId)
+        color: this.activeTheme.text
       }
     },
     lineHeight() {
@@ -286,7 +295,7 @@ export default {
         this.book = getBook('wind-city')
         this.chapterIndex = 0
         this.pageIndex = 0
-        uni.showToast({ title: error.message || '云端书籍加载失败', icon: 'none' })
+        uni.showToast({ title: friendlyErrorMessage(error, '云端书籍加载失败'), icon: 'none' })
       }
       this.rebuildPages()
     },
@@ -310,7 +319,7 @@ export default {
         } catch (error) {
           if (this.chapterLoadToken !== token) return
           this.loadingChapter = false
-          this.chapterLoadError = error.message || '请稍后重试，或换一个可用书源。'
+          this.chapterLoadError = friendlyErrorMessage(error, '请稍后重试，或换一个可用书源。')
           this.pages = ['这一章暂时没有解码成功。你可以轻点重试，或者回到目录换一章。']
         }
         this.pageIndex = Math.max(0, Math.min(this.pageIndex, this.pages.length - 1))
@@ -335,7 +344,7 @@ export default {
         } catch (error) {
           if (this.chapterLoadToken !== token) return
           this.loadingChapter = false
-          this.chapterLoadError = error.message || '后端章节解析失败'
+          this.chapterLoadError = friendlyErrorMessage(error, '后端章节解析失败')
           this.pages = ['这一章暂时没有解析成功。你可以重试，或回到目录换一章。']
         }
         this.pageIndex = Math.max(0, Math.min(this.pageIndex, this.pages.length - 1))
@@ -598,7 +607,7 @@ export default {
           }
         })
       } catch (error) {
-        uni.showModal({ title: 'AI 总结失败', content: error.message || '请检查后端服务', showCancel: false })
+        uni.showModal({ title: 'AI 总结失败', content: friendlyErrorMessage(error, '请检查后端服务'), showCancel: false })
       } finally {
         uni.hideLoading()
       }
@@ -646,7 +655,7 @@ export default {
           }
         })
       } catch (error) {
-        uni.showModal({ title: 'AI 问答失败', content: error.message || '请检查后端服务', showCancel: false })
+        uni.showModal({ title: 'AI 问答失败', content: friendlyErrorMessage(error, '请检查后端服务'), showCancel: false })
       } finally {
         uni.hideLoading()
       }
@@ -699,10 +708,10 @@ export default {
   max-width: 1120px;
   height: 100vh;
   overflow: hidden;
-  padding: 58rpx 42rpx 54rpx;
+  padding: 40rpx 42rpx 54rpx;
   margin: 0 auto;
   box-sizing: border-box;
-  border-radius: 0 0 18rpx 18rpx;
+  border-radius: 0 0 24rpx 24rpx;
   transition: background 0.2s ease, color 0.2s ease;
 }
 
@@ -725,7 +734,11 @@ export default {
   height: 100%;
   max-width: 920px;
   margin: 0 auto;
+  padding: 116rpx 0 124rpx;
   overflow: hidden;
+  border: 1rpx solid var(--app-shell-border);
+  border-radius: 24rpx;
+  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.12), var(--app-shadow);
 }
 
 .page-head,
@@ -781,7 +794,7 @@ export default {
 
 .reader-content {
   display: block;
-  max-height: calc(100vh - 292rpx);
+  max-height: calc(100vh - 420rpx);
   overflow: hidden;
   white-space: pre-wrap;
   text-align: justify;
@@ -876,15 +889,16 @@ export default {
 
 .top-chrome {
   position: fixed;
-  left: 0;
-  right: 0;
+  left: 50%;
+  right: auto;
   top: 0;
   z-index: 8;
   box-sizing: border-box;
+  width: min(100vw, 920px);
   max-width: 920px;
   min-height: 116rpx;
   padding: 42rpx 28rpx 14rpx;
-  margin: 0 auto;
+  transform: translateX(-50%);
   color: #f4f0e8;
   background: rgba(32, 33, 31, 0.94);
   backdrop-filter: blur(10px);
@@ -957,14 +971,15 @@ export default {
 .settings-panel,
 .catalog-panel {
   position: fixed;
-  left: 22rpx;
-  right: 22rpx;
+  left: 50%;
+  right: auto;
   bottom: 24rpx;
   z-index: 8;
   box-sizing: border-box;
-  max-width: 920px;
+  width: min(94vw, 876px);
+  max-width: 876px;
   padding: 24rpx;
-  margin: 0 auto;
+  transform: translateX(-50%);
   border: 1rpx solid rgba(255, 255, 255, 0.06);
   border-radius: 26rpx;
   color: #f4f0e8;
@@ -1024,9 +1039,12 @@ export default {
 
 .settings-panel {
   bottom: 0;
-  left: 0;
-  right: 0;
+  left: 50%;
+  right: auto;
+  width: min(100vw, 920px);
+  max-width: 920px;
   padding: 28rpx 28rpx 36rpx;
+  transform: translateX(-50%);
   border-radius: 28rpx 28rpx 0 0;
 }
 
@@ -1103,11 +1121,15 @@ export default {
 
 .catalog-mask {
   position: fixed;
-  inset: 0;
+  top: 0;
+  bottom: 0;
+  left: 50%;
   z-index: 9;
   display: flex;
   align-items: flex-end;
+  width: min(100vw, 1120px);
   padding: 24rpx;
+  transform: translateX(-50%);
   background: rgba(0, 0, 0, 0.58);
 }
 
@@ -1118,6 +1140,7 @@ export default {
   bottom: auto;
   left: auto;
   right: auto;
+  transform: none;
 }
 
 .catalog-list {
@@ -1175,10 +1198,9 @@ export default {
   position: fixed;
   top: 0;
   bottom: 0;
-  left: 0;
-  right: 0;
-  max-width: 1120px;
-  margin: 0 auto;
+  left: 50%;
+  width: min(100vw, 1120px);
+  transform: translateX(-50%);
   z-index: 1;
   pointer-events: none;
   background: #000000;
@@ -1205,9 +1227,9 @@ export default {
 .catalog-panel,
 .more-menu {
   border-color: var(--app-border);
-  color: var(--app-text);
-  background: var(--app-panel-strong);
-  box-shadow: var(--app-shadow);
+  color: var(--app-reader-control-text);
+  background: var(--app-reader-control);
+  box-shadow: var(--app-floating-shadow);
 }
 
 .icon-button,

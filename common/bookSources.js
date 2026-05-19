@@ -10,6 +10,7 @@ import {
   requestText,
   resolveUrl
 } from './sourceEngine.js'
+import { friendlyErrorMessage } from './uiFeedback.js'
 
 const USER_SOURCES_KEY = 'sources:user'
 const SOURCE_SETTINGS_KEY = 'sources:settings'
@@ -293,7 +294,7 @@ export async function searchOnlineBooks(keyword, options = {}) {
       sourceId: source.id,
       title: source.name,
       subtitle: '书源不可用',
-      snippet: error.message || '搜索失败'
+      snippet: friendlyErrorMessage(error, '搜索失败')
     }]
   }))
   const groups = await Promise.all(searches)

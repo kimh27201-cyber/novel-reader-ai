@@ -1,5 +1,5 @@
 <template>
-  <view class="source-book-page" :style="themeVars">
+  <view class="source-book-page app-page secondary" :style="themeVars">
     <view class="topbar">
       <button class="back-button" @tap="goBack">‹</button>
       <view>
@@ -56,6 +56,7 @@ import {
   addBackendBookWithChapters,
   loadBackendSourceToc
 } from '../../common/backendLibrary.js'
+import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 
 export default {
   data() {
@@ -105,7 +106,7 @@ export default {
         }
         this.chapters = chapters
       } catch (error) {
-        this.errorMessage = error.message || '书源解析失败'
+        this.errorMessage = friendlyErrorMessage(error, '书源解析失败')
       } finally {
         this.loading = false
       }
@@ -124,7 +125,7 @@ export default {
           url: `/pages/reader/reader?bookId=${book.id}&chapterIndex=${Number(chapterIndex) || 0}&pageIndex=0`
         })
       } catch (error) {
-        uni.showToast({ title: error.message || '加入书架失败', icon: 'none' })
+        uni.showToast({ title: friendlyErrorMessage(error, '加入书架失败'), icon: 'none' })
       }
     },
     goBack() {

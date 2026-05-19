@@ -1,5 +1,5 @@
 <template>
-  <view class="import-page" :style="themeVars">
+  <view class="import-page app-page" :style="themeVars">
     <view class="top-zone">
       <view>
         <text class="eyebrow">IMPORT</text>
@@ -59,7 +59,7 @@
       </view>
     </view>
 
-    <view class="source-panel" v-if="sourceVisible">
+    <view class="source-panel app-floating-panel" v-if="sourceVisible">
       <view class="panel-head">
         <view>
           <text class="eyebrow">BOOK SOURCES</text>
@@ -113,7 +113,7 @@
       </scroll-view>
     </view>
 
-    <view class="source-panel" v-if="txtVisible">
+    <view class="source-panel app-floating-panel" v-if="txtVisible">
       <view class="panel-head">
         <view>
           <text class="eyebrow">TXT IMPORT</text>
@@ -149,6 +149,7 @@ import {
   listBackendSources
 } from '../../common/backendLibrary.js'
 import { getAppThemeId, getAppThemeStyle } from '../../common/appTheme.js'
+import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 
 export default {
   data() {
@@ -211,7 +212,7 @@ export default {
         this.sources = getSourceConfigs()
         uni.showToast({ title: `已导入 ${count} 个书源`, icon: 'none' })
       } catch (error) {
-        uni.showToast({ title: error.message || '导入书源失败', icon: 'none' })
+        uni.showToast({ title: friendlyErrorMessage(error, '导入书源失败'), icon: 'none' })
       }
     },
     async refreshBackendSources(options = {}) {
@@ -224,7 +225,7 @@ export default {
       } catch (error) {
         this.backendSources = []
         if (!options.silent) {
-          uni.showToast({ title: error.message || '请先登录后端', icon: 'none' })
+          uni.showToast({ title: friendlyErrorMessage(error, '请先登录后端'), icon: 'none' })
         }
       } finally {
         this.backendLoading = false
@@ -237,7 +238,7 @@ export default {
         this.backendSources = result.sources
         uni.showToast({ title: `已导入后端演示源 ${result.importedCount} 个`, icon: 'none' })
       } catch (error) {
-        uni.showToast({ title: error.message || '导入后端演示源失败', icon: 'none' })
+        uni.showToast({ title: friendlyErrorMessage(error, '导入后端演示源失败'), icon: 'none' })
       } finally {
         this.backendLoading = false
       }
@@ -268,7 +269,7 @@ export default {
             this.sources = getSourceConfigs()
             uni.showToast({ title: `已扫码导入 ${count} 个书源`, icon: 'none' })
           } catch (error) {
-            uni.showToast({ title: error.message || '扫码导入失败', icon: 'none' })
+            uni.showToast({ title: friendlyErrorMessage(error, '扫码导入失败'), icon: 'none' })
           }
         },
         fail: () => {

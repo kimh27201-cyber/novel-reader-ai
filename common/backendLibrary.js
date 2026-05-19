@@ -1,4 +1,5 @@
 import apiClient from './apiClient.js'
+import { friendlyErrorMessage } from './uiFeedback.js'
 
 const BACKEND_BOOK_PREFIX = 'backend:'
 const BACKEND_CHAPTER_PREFIX = 'backend-chapter:'
@@ -219,7 +220,7 @@ export async function searchBackendBooks(keyword, client = apiClient) {
       sourceId: source.id,
       title: source.name,
       subtitle: '后端书源不可用',
-      snippet: error.message || '搜索失败'
+      snippet: friendlyErrorMessage(error, '搜索失败')
     }])
   }))
   return groups.flat().slice(0, 80)
