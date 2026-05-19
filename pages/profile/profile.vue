@@ -23,9 +23,15 @@
         <input class="backend-input" v-model="backend.password" password placeholder="密码" />
       </view>
       <text class="backend-error" v-if="backend.error">{{ backend.error }}</text>
+      <view class="backend-hint" v-if="!backend.user">
+        <view class="hint-title">FastAPI 未启动时</view>
+        <text class="hint-command">cd D:\Codex\novel-reader-uniapp\backend</text>
+        <text class="hint-command">.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000</text>
+      </view>
       <view class="backend-actions">
         <button class="backend-button primary" :loading="backend.loading" @tap="loginBackend">登录后端</button>
         <button class="backend-button" :loading="backend.loading" @tap="refreshBackendMe">刷新状态</button>
+        <button class="backend-button" @tap="openSwagger">打开 Swagger</button>
         <button class="backend-button ghost" @tap="logoutBackend">退出</button>
       </view>
     </view>
@@ -38,7 +44,7 @@
           <text class="setting-desc">{{ item.desc }}</text>
         </view>
         <view class="setting-extra" v-if="item.id === 'theme'">{{ activeThemeName }}</view>
-        <switch v-if="item.id === 'web'" :checked="webEnabled" :color="themeAccent" @change="toggleWeb" />
+        <view class="setting-extra" v-if="item.id === 'web'">{{ backend.user ? '已连接' : '未启动' }}</view>
       </view>
 
       <text class="section-label">设置</text>
@@ -101,7 +107,6 @@ export default {
       themeId: getAppThemeId(),
       themes: appThemes,
       themeVisible: false,
-      webEnabled: false,
       backend: {
         baseUrl: '',
         username: 'student',
@@ -203,9 +208,16 @@ export default {
       }
       if (id === 'web') this.refreshBackendMe()
     },
-    toggleWeb(event) {
-      this.webEnabled = !!event.detail.value
-      uni.showToast({ title: this.webEnabled ? 'Web 服务为预留开关' : 'Web 服务已关闭', icon: 'none' })
+    openSwagger() {
+      const url = `${apiClient.getBaseUrl()}/docs`
+      if (typeof window !== 'undefined' && window.open) {
+        window.open(url, '_blank')
+        return
+      }
+      uni.setClipboardData({
+        data: url,
+        success: () => uni.showToast({ title: 'Swagger 地址已复制', icon: 'none' })
+      })
     },
     openThemePanel() {
       this.themeVisible = true
@@ -296,7 +308,6 @@ button::after {
 }
 
 .backend-head,
-.backend-actions,
 .backend-grid {
   display: flex;
   align-items: center;
@@ -325,6 +336,30 @@ button::after {
 
 .backend-error {
   color: #ff9d86;
+}
+
+.backend-hint {
+  margin-top: 18rpx;
+  padding: 18rpx 20rpx;
+  border-radius: 16rpx;
+  background: rgba(216, 90, 58, 0.08);
+}
+
+.hint-title {
+  color: #d85a3a;
+  font-size: 24rpx;
+  font-weight: 900;
+}
+
+.hint-command {
+  display: block;
+  margin-top: 8rpx;
+  overflow: hidden;
+  color: #7d6b5d;
+  font-size: 21rpx;
+  line-height: 30rpx;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .backend-status {
@@ -361,6 +396,8 @@ button::after {
 }
 
 .backend-actions {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr 1fr 0.7fr;
   gap: 12rpx;
   margin-top: 20rpx;
 }
@@ -369,7 +406,6 @@ button::after {
   display: flex;
   align-items: center;
   justify-content: center;
-  flex: 1;
   height: 62rpx;
   border-radius: 16rpx;
   color: #f4f0e8;
@@ -384,7 +420,6 @@ button::after {
 }
 
 .backend-button.ghost {
-  flex: 0.65;
   color: #a9aaa4;
   background: rgba(255, 255, 255, 0.04);
 }
@@ -581,6 +616,7 @@ button::after {
 }
 
 .backend-card,
+.backend-hint,
 .setting-item,
 .theme-panel,
 .theme-row {
@@ -590,6 +626,7 @@ button::after {
 }
 
 .backend-desc,
+.hint-command,
 .setting-desc,
 .theme-desc {
   color: var(--app-muted);

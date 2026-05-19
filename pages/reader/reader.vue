@@ -1,171 +1,173 @@
 <template>
   <view class="reader-page" :style="pageStyle">
-    <view
-      class="reading-surface"
-      :style="readerSurfaceStyle"
-      @tap="handleReaderTap"
-      @touchstart="onTouchStart"
-      @touchend="onTouchEnd"
-    >
-      <view class="page-head">
-        <text class="book-name">{{ book.title }}</text>
-        <text class="page-count">{{ pageIndex + 1 }}/{{ pages.length }}</text>
-      </view>
-
-      <view class="chapter-kicker">{{ sourceLabel }} · {{ chapterIndex + 1 }}/{{ totalChapters }}</view>
-      <view class="chapter-title">{{ chapter.title || `第 ${chapterIndex + 1} 章` }}</view>
-
-      <view class="loading-card" v-if="loadingChapter">
-        <view class="loading-dot"></view>
-        <text>{{ loadingText }}</text>
-      </view>
-
-      <view class="error-card" v-if="chapterLoadError">
-        <view>
-          <view class="error-title">章节解码失败</view>
-          <text class="error-desc">{{ chapterLoadError }}</text>
-        </view>
-        <button class="retry-button" @tap.stop="retryChapter">重试</button>
-      </view>
-
-      <text
-        class="reader-content"
-        :class="{ quiet: loadingChapter }"
-        :style="{ fontSize: prefs.fontSize + 'px', lineHeight: lineHeight + 'px' }"
+    <view class="reader-embed">
+      <view
+        class="reading-surface"
+        :style="readerSurfaceStyle"
+        @tap="handleReaderTap"
+        @touchstart="onTouchStart"
+        @touchend="onTouchEnd"
       >
-        {{ pageContent }}
-      </text>
-
-      <view class="page-foot">
-        <view class="foot-line">
-          <view class="foot-progress" :style="{ width: pageProgressPercent + '%' }"></view>
+        <view class="page-head">
+          <text class="book-name">{{ book.title }}</text>
+          <text class="page-count">{{ pageIndex + 1 }}/{{ pages.length }}</text>
         </view>
-        <text>{{ progressPercent }}%</text>
-      </view>
-    </view>
 
-    <view class="top-chrome" v-if="controlsVisible">
-      <button class="icon-button" @tap.stop="back">‹</button>
-      <view class="top-title">
-        <view>{{ book.title }}</view>
-        <text>{{ chapter.title || `第 ${chapterIndex + 1} 章` }}</text>
-      </view>
-      <button class="icon-button" @tap.stop="toggleMore">•••</button>
-    </view>
+        <view class="chapter-kicker">{{ sourceLabel }} · {{ chapterIndex + 1 }}/{{ totalChapters }}</view>
+        <view class="chapter-title">{{ chapter.title || `第 ${chapterIndex + 1} 章` }}</view>
 
-    <view class="more-menu" v-if="moreVisible">
-      <button class="more-item" @tap.stop="aiSummarizeChapter">AI 总结本章</button>
-      <button class="more-item" @tap.stop="aiAskChapter">AI 问答本章</button>
-      <button class="more-item" @tap.stop="copyProgress">复制进度</button>
-      <button class="more-item" @tap.stop="retryChapter">重新解码本章</button>
-      <button class="more-item" @tap.stop="showCacheState">缓存状态</button>
-      <button class="more-item" @tap.stop="back">回到书架</button>
-    </view>
-
-    <view class="bottom-chrome" v-if="controlsVisible && !settingsVisible && !catalogVisible">
-      <view class="chapter-row">
-        <button class="chapter-button" @tap.stop="prevChapter">上一章</button>
-        <view class="chapter-track" @tap.stop>
-          <view class="chapter-track-fill" :style="{ width: progressPercent + '%' }"></view>
+        <view class="loading-card" v-if="loadingChapter">
+          <view class="loading-dot"></view>
+          <text>{{ loadingText }}</text>
         </view>
-        <button class="chapter-button" @tap.stop="nextChapter">下一章</button>
-      </view>
-      <view class="dock-actions">
-        <button class="dock-tool" @tap.stop="openCatalog">
-          <text class="dock-icon">☰</text>
-          <text>目录</text>
-        </button>
-        <button class="dock-tool" @tap.stop="adjustBrightness">
-          <text class="dock-icon">◐</text>
-          <text>亮度</text>
-        </button>
-        <button class="dock-tool" @tap.stop="openSettings">
-          <text class="dock-icon">Aa</text>
-          <text>字号</text>
-        </button>
-        <button class="dock-tool" @tap.stop="cycleTheme">
-          <text class="dock-icon">◒</text>
-          <text>主题</text>
-        </button>
-      </view>
-    </view>
 
-    <view class="settings-panel" v-if="settingsVisible">
-      <view class="panel-head">
-        <view>
-          <view class="panel-title">阅读设置</view>
-          <text class="panel-desc">字号 {{ prefs.fontSize }} · 行高 {{ lineHeight }} · 亮度 {{ prefs.brightness }}%</text>
+        <view class="error-card" v-if="chapterLoadError">
+          <view>
+            <view class="error-title">章节解码失败</view>
+            <text class="error-desc">{{ chapterLoadError }}</text>
+          </view>
+          <button class="retry-button" @tap.stop="retryChapter">重试</button>
         </view>
-        <button class="close-button" @tap.stop="closeSettings">×</button>
-      </view>
 
-      <view class="font-row">
-        <button class="step-button" @tap.stop="changeFont(-1)">A-</button>
-        <view class="font-meter">
-          <view class="font-meter-fill" :style="{ width: fontPercent + '%' }"></view>
-        </view>
-        <button class="step-button" @tap.stop="changeFont(1)">A+</button>
-      </view>
-
-      <view class="theme-row">
-        <button
-          class="theme-chip"
-          v-for="item in visibleThemes"
-          :key="item.id"
-          :class="{ active: prefs.theme === item.id }"
-          :style="{ background: item.background, color: item.text }"
-          @tap.stop="setTheme(item.id)"
+        <text
+          class="reader-content"
+          :class="{ quiet: loadingChapter }"
+          :style="{ fontSize: prefs.fontSize + 'px', lineHeight: lineHeight + 'px' }"
         >
-          {{ item.name }}
-        </button>
+          {{ pageContent }}
+        </text>
+
+        <view class="page-foot">
+          <view class="foot-line">
+            <view class="foot-progress" :style="{ width: pageProgressPercent + '%' }"></view>
+          </view>
+          <text>{{ progressPercent }}%</text>
+        </view>
       </view>
 
-      <view class="brightness-row">
-        <text>亮度</text>
-        <slider
-          class="brightness-slider"
-          :value="prefs.brightness"
-          min="40"
-          max="100"
-          activeColor="#d85a3a"
-          backgroundColor="rgba(255,255,255,0.16)"
-          block-color="#f4f0e8"
-          block-size="20"
-          @change="changeBrightness"
-        />
+      <view class="top-chrome">
+        <button class="icon-button" @tap.stop="back">‹</button>
+        <view class="top-title">
+          <view>{{ book.title }}</view>
+          <text>{{ chapter.title || `第 ${chapterIndex + 1} 章` }}</text>
+        </view>
+        <button class="icon-button" @tap.stop="toggleMore">•••</button>
       </view>
-    </view>
 
-    <view class="catalog-mask" v-if="catalogVisible" @tap.stop="closeCatalog">
-      <view class="catalog-panel" @tap.stop>
+      <view class="more-menu" v-if="moreVisible">
+        <button class="more-item" @tap.stop="aiSummarizeChapter">AI 总结本章</button>
+        <button class="more-item" @tap.stop="aiAskChapter">AI 问答本章</button>
+        <button class="more-item" @tap.stop="copyProgress">复制进度</button>
+        <button class="more-item" @tap.stop="retryChapter">重新解码本章</button>
+        <button class="more-item" @tap.stop="showCacheState">缓存状态</button>
+        <button class="more-item" @tap.stop="back">回到书架</button>
+      </view>
+
+      <view class="bottom-chrome" v-if="controlsVisible && !settingsVisible && !catalogVisible">
+        <view class="chapter-row">
+          <button class="chapter-button" @tap.stop="prevChapter">上一章</button>
+          <view class="chapter-track" @tap.stop>
+            <view class="chapter-track-fill" :style="{ width: progressPercent + '%' }"></view>
+          </view>
+          <button class="chapter-button" @tap.stop="nextChapter">下一章</button>
+        </view>
+        <view class="dock-actions">
+          <button class="dock-tool" @tap.stop="openCatalog">
+            <text class="dock-icon">☰</text>
+            <text>目录</text>
+          </button>
+          <button class="dock-tool" @tap.stop="adjustBrightness">
+            <text class="dock-icon">◐</text>
+            <text>亮度</text>
+          </button>
+          <button class="dock-tool" @tap.stop="openSettings">
+            <text class="dock-icon">Aa</text>
+            <text>字号</text>
+          </button>
+          <button class="dock-tool" @tap.stop="cycleTheme">
+            <text class="dock-icon">◒</text>
+            <text>主题</text>
+          </button>
+        </view>
+      </view>
+
+      <view class="settings-panel" v-if="settingsVisible">
         <view class="panel-head">
           <view>
-            <view class="panel-title">目录</view>
-            <text class="panel-desc">{{ sourceLabel }} · {{ totalChapters }} 章 · 当前 {{ chapterIndex + 1 }}</text>
+            <view class="panel-title">阅读设置</view>
+            <text class="panel-desc">字号 {{ prefs.fontSize }} · 行高 {{ lineHeight }} · 亮度 {{ prefs.brightness }}%</text>
           </view>
-          <button class="close-button" @tap.stop="closeCatalog">×</button>
+          <button class="close-button" @tap.stop="closeSettings">×</button>
         </view>
 
-        <scroll-view class="catalog-list" scroll-y :scroll-into-view="activeChapterId" :show-scrollbar="false">
-          <view
-            class="catalog-item"
-            v-for="(item, index) in book.chapters"
-            :key="index"
-            :id="`chapter-${index}`"
-            :class="{ active: index === chapterIndex }"
-            @tap.stop="jumpToChapter(index)"
-          >
-            <text class="catalog-index">{{ index + 1 }}</text>
-            <view class="catalog-copy">
-              <text class="catalog-title">{{ item.title || `第 ${index + 1} 章` }}</text>
-              <text class="catalog-state">{{ item.isCached || item.content ? '已缓存' : book.source === 'online' ? '待解码' : '本地' }}</text>
-            </view>
+        <view class="font-row">
+          <button class="step-button" @tap.stop="changeFont(-1)">A-</button>
+          <view class="font-meter">
+            <view class="font-meter-fill" :style="{ width: fontPercent + '%' }"></view>
           </view>
-        </scroll-view>
-      </view>
-    </view>
+          <button class="step-button" @tap.stop="changeFont(1)">A+</button>
+        </view>
 
-    <view class="brightness-mask" :style="{ opacity: brightnessOpacity }"></view>
+        <view class="theme-row">
+          <button
+            class="theme-chip"
+            v-for="item in visibleThemes"
+            :key="item.id"
+            :class="{ active: prefs.theme === item.id }"
+            :style="{ background: item.background, color: item.text }"
+            @tap.stop="setTheme(item.id)"
+          >
+            {{ item.name }}
+          </button>
+        </view>
+
+        <view class="brightness-row">
+          <text>亮度</text>
+          <slider
+            class="brightness-slider"
+            :value="prefs.brightness"
+            min="40"
+            max="100"
+            activeColor="#d85a3a"
+            backgroundColor="rgba(255,255,255,0.16)"
+            block-color="#f4f0e8"
+            block-size="20"
+            @change="changeBrightness"
+          />
+        </view>
+      </view>
+
+      <view class="catalog-mask" v-if="catalogVisible" @tap.stop="closeCatalog">
+        <view class="catalog-panel" @tap.stop>
+          <view class="panel-head">
+            <view>
+              <view class="panel-title">目录</view>
+              <text class="panel-desc">{{ sourceLabel }} · {{ totalChapters }} 章 · 当前 {{ chapterIndex + 1 }}</text>
+            </view>
+            <button class="close-button" @tap.stop="closeCatalog">×</button>
+          </view>
+
+          <scroll-view class="catalog-list" scroll-y :scroll-into-view="activeChapterId" :show-scrollbar="false">
+            <view
+              class="catalog-item"
+              v-for="(item, index) in book.chapters"
+              :key="index"
+              :id="`chapter-${index}`"
+              :class="{ active: index === chapterIndex }"
+              @tap.stop="jumpToChapter(index)"
+            >
+              <text class="catalog-index">{{ index + 1 }}</text>
+              <view class="catalog-copy">
+                <text class="catalog-title">{{ item.title || `第 ${index + 1} 章` }}</text>
+                <text class="catalog-state">{{ item.isCached || item.content ? '已缓存' : book.source === 'online' ? '待解码' : '本地' }}</text>
+              </view>
+            </view>
+          </scroll-view>
+        </view>
+      </view>
+
+      <view class="brightness-mask" :style="{ opacity: brightnessOpacity }"></view>
+    </view>
   </view>
 </template>
 
@@ -706,9 +708,9 @@ export default {
   position: relative;
   width: 100%;
   max-width: 1120px;
-  height: 100vh;
+  min-height: 100vh;
   overflow: hidden;
-  padding: 40rpx 42rpx 54rpx;
+  padding: 42rpx;
   margin: 0 auto;
   box-sizing: border-box;
   border-radius: 0 0 24rpx 24rpx;
@@ -728,17 +730,27 @@ export default {
   border: 0;
 }
 
-.reading-surface {
+.reader-embed {
   position: relative;
-  z-index: 2;
-  height: 100%;
   max-width: 920px;
+  height: calc(100vh - 84rpx);
+  min-height: 760rpx;
   margin: 0 auto;
-  padding: 116rpx 0 124rpx;
   overflow: hidden;
   border: 1rpx solid var(--app-shell-border);
-  border-radius: 24rpx;
-  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.12), var(--app-shadow);
+  border-radius: 28rpx;
+  background: var(--app-panel-strong);
+  box-shadow: var(--app-shell-shadow);
+}
+
+.reading-surface {
+  position: absolute;
+  inset: 18rpx;
+  z-index: 2;
+  overflow: hidden;
+  padding: 136rpx 56rpx 170rpx;
+  border-radius: 22rpx;
+  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.10);
 }
 
 .page-head,
@@ -794,7 +806,7 @@ export default {
 
 .reader-content {
   display: block;
-  max-height: calc(100vh - 420rpx);
+  max-height: calc(100vh - 492rpx);
   overflow: hidden;
   white-space: pre-wrap;
   text-align: justify;
@@ -864,9 +876,9 @@ export default {
 
 .page-foot {
   position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  left: 56rpx;
+  right: 56rpx;
+  bottom: 46rpx;
   gap: 18rpx;
   color: rgba(244, 240, 232, 0.42);
   font-size: 21rpx;
@@ -888,17 +900,14 @@ export default {
 }
 
 .top-chrome {
-  position: fixed;
-  left: 50%;
-  right: auto;
+  position: absolute;
+  left: 0;
+  right: 0;
   top: 0;
   z-index: 8;
   box-sizing: border-box;
-  width: min(100vw, 920px);
-  max-width: 920px;
   min-height: 116rpx;
   padding: 42rpx 28rpx 14rpx;
-  transform: translateX(-50%);
   color: #f4f0e8;
   background: rgba(32, 33, 31, 0.94);
   backdrop-filter: blur(10px);
@@ -940,9 +949,9 @@ export default {
 }
 
 .more-menu {
-  position: fixed;
+  position: absolute;
   top: 124rpx;
-  right: max(24rpx, calc((100vw - 1120px) / 2 + 24rpx));
+  right: 28rpx;
   z-index: 10;
   width: 268rpx;
   padding: 10rpx;
@@ -970,16 +979,13 @@ export default {
 .bottom-chrome,
 .settings-panel,
 .catalog-panel {
-  position: fixed;
-  left: 50%;
-  right: auto;
+  position: absolute;
+  left: 28rpx;
+  right: 28rpx;
   bottom: 24rpx;
   z-index: 8;
   box-sizing: border-box;
-  width: min(94vw, 876px);
-  max-width: 876px;
   padding: 24rpx;
-  transform: translateX(-50%);
   border: 1rpx solid rgba(255, 255, 255, 0.06);
   border-radius: 26rpx;
   color: #f4f0e8;
@@ -1039,12 +1045,9 @@ export default {
 
 .settings-panel {
   bottom: 0;
-  left: 50%;
-  right: auto;
-  width: min(100vw, 920px);
-  max-width: 920px;
+  left: 0;
+  right: 0;
   padding: 28rpx 28rpx 36rpx;
-  transform: translateX(-50%);
   border-radius: 28rpx 28rpx 0 0;
 }
 
@@ -1120,16 +1123,12 @@ export default {
 }
 
 .catalog-mask {
-  position: fixed;
-  top: 0;
-  bottom: 0;
-  left: 50%;
+  position: absolute;
+  inset: 0;
   z-index: 9;
   display: flex;
   align-items: flex-end;
-  width: min(100vw, 1120px);
   padding: 24rpx;
-  transform: translateX(-50%);
   background: rgba(0, 0, 0, 0.58);
 }
 
@@ -1195,13 +1194,9 @@ export default {
 }
 
 .brightness-mask {
-  position: fixed;
-  top: 0;
-  bottom: 0;
-  left: 50%;
-  width: min(100vw, 1120px);
-  transform: translateX(-50%);
-  z-index: 1;
+  position: absolute;
+  inset: 0;
+  z-index: 3;
   pointer-events: none;
   background: #000000;
 }
