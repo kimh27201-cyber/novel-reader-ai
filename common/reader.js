@@ -114,6 +114,12 @@ export function toggleBookmark(bookId, bookmark) {
   return { active: true, bookmark: next, bookmarks: updated }
 }
 
+export function getBrightnessOverlayOpacity(brightness) {
+  const value = clampNumber(brightness, 40, 100, defaultPrefs.brightness)
+  if (value >= 82) return 0
+  return Number(Math.min(0.42, (82 - value) / 100).toFixed(3))
+}
+
 export function splitChapter(content, fontSize, prefs = {}) {
   const normalized = String(content || '').trim()
   const safeFontSize = Math.max(16, Math.min(Number(fontSize) || 20, 30))

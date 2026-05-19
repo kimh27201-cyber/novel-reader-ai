@@ -15,6 +15,7 @@ globalThis.uni = {
 }
 
 const {
+  getBrightnessOverlayOpacity,
   getBookmarks,
   getPrefs,
   savePrefs,
@@ -31,6 +32,10 @@ assert.equal(prefs.showProgress, true)
 assert.equal(prefs.showChapterInfo, true)
 assert.equal(prefs.immersiveMode, false)
 assert.equal(prefs.autoSyncProgress, true)
+assert.equal(getBrightnessOverlayOpacity(100), 0)
+assert.equal(getBrightnessOverlayOpacity(86), 0)
+assert.ok(getBrightnessOverlayOpacity(52) > 0)
+assert.ok(getBrightnessOverlayOpacity(40) <= 0.42)
 
 savePrefs({ fontSize: 99, lineHeight: 4, paragraphSpacing: -1, contentWidth: 20, brightness: 5 })
 const normalized = getPrefs()

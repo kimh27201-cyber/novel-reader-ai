@@ -259,6 +259,7 @@
 import { getBook } from '../../common/books.js'
 import { addOnlineBookToShelf, loadOnlineChapter } from '../../common/bookSources.js'
 import {
+  getBrightnessOverlayOpacity,
   getBookmarks,
   getPrefs,
   getProgress,
@@ -361,7 +362,7 @@ export default {
       return Math.round(this.prefs.fontSize * this.prefs.lineHeight)
     },
     brightnessOpacity() {
-      return Math.max(0, Math.min(0.42, (100 - this.prefs.brightness) / 140))
+      return getBrightnessOverlayOpacity(this.prefs.brightness)
     },
     visibleThemes() {
       return this.themes
