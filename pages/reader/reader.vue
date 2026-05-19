@@ -32,13 +32,20 @@
           <button class="retry-button" @tap.stop="retryChapter">重试</button>
         </view>
 
-        <text
+        <view
           class="reader-content"
           :class="{ quiet: loadingChapter }"
           :style="readerContentStyle"
         >
-          {{ pageContent }}
-        </text>
+          <text
+            class="reader-paragraph"
+            v-for="(paragraph, index) in pageParagraphs"
+            :key="index"
+            :style="paragraphStyle"
+          >
+            {{ paragraph }}
+          </text>
+        </view>
 
         <view class="page-foot" v-if="prefs.showProgress">
           <view class="foot-line">
@@ -267,6 +274,7 @@ import {
   savePrefs,
   saveProgress,
   splitChapter,
+  splitParagraphs,
   themes,
   toggleBookmark
 } from '../../common/reader.js'
@@ -332,6 +340,9 @@ export default {
     pageContent() {
       return this.pages[this.pageIndex] || ''
     },
+    pageParagraphs() {
+      return splitParagraphs(this.pageContent)
+    },
     activeTheme() {
       return getTheme(this.prefs.theme)
     },
@@ -354,8 +365,12 @@ export default {
         fontSize: `${this.prefs.fontSize}px`,
         lineHeight: `${this.lineHeight}px`,
         width: `${this.prefs.contentWidth}%`,
-        letterSpacing: '0',
-        paddingBottom: `${Math.round(this.prefs.paragraphSpacing * 18)}px`
+        letterSpacing: '0'
+      }
+    },
+    paragraphStyle() {
+      return {
+        marginBottom: `${Math.round(this.prefs.paragraphSpacing * this.prefs.fontSize)}px`
       }
     },
     lineHeight() {
@@ -1046,8 +1061,12 @@ export default {
   display: block;
   min-height: 420rpx;
   margin-top: 38rpx;
-  white-space: pre-wrap;
   transition: opacity 0.2s ease, max-width 0.2s ease;
+}
+
+.reader-paragraph {
+  display: block;
+  white-space: pre-wrap;
 }
 
 .reader-content.quiet {

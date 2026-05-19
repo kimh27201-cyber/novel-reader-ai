@@ -120,6 +120,15 @@ export function getBrightnessOverlayOpacity(brightness) {
   return Number(Math.min(0.42, (82 - value) / 100).toFixed(3))
 }
 
+export function splitParagraphs(content) {
+  const text = String(content || '').trim()
+  if (!text) return ['']
+  return text
+    .split(/\n+/)
+    .map(item => item.trim())
+    .filter(Boolean)
+}
+
 export function splitChapter(content, fontSize, prefs = {}) {
   const normalized = String(content || '').trim()
   const safeFontSize = Math.max(16, Math.min(Number(fontSize) || 20, 30))

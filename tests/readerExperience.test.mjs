@@ -19,6 +19,7 @@ const {
   getBookmarks,
   getPrefs,
   savePrefs,
+  splitParagraphs,
   toggleBookmark
 } = await import('../common/reader.js')
 
@@ -36,6 +37,8 @@ assert.equal(getBrightnessOverlayOpacity(100), 0)
 assert.equal(getBrightnessOverlayOpacity(86), 0)
 assert.ok(getBrightnessOverlayOpacity(52) > 0)
 assert.ok(getBrightnessOverlayOpacity(40) <= 0.42)
+assert.deepEqual(splitParagraphs('第一段\n\n第二段\n第三段'), ['第一段', '第二段', '第三段'])
+assert.deepEqual(splitParagraphs(''), [''])
 
 savePrefs({ fontSize: 99, lineHeight: 4, paragraphSpacing: -1, contentWidth: 20, brightness: 5 })
 const normalized = getPrefs()
@@ -67,6 +70,8 @@ assert.match(reader, /catalog-tabs/)
 assert.match(reader, /bookmark-list/)
 assert.match(reader, /interface-tabs/)
 assert.match(reader, /reader-setting-list/)
+assert.match(reader, /reader-paragraph/)
+assert.match(reader, /paragraphStyle/)
 assert.match(reader, /toggleReadAloud/)
 
 console.log('readerExperience tests passed')
