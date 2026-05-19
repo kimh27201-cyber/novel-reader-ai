@@ -1,6 +1,6 @@
 <template>
   <view class="reader-page" :style="pageStyle">
-    <view class="reader-embed">
+    <view class="reader-embed" :class="{ immersive: prefs.immersiveMode }">
       <view
         class="reading-surface"
         :style="readerSurfaceStyle"
@@ -8,12 +8,15 @@
         @touchstart="onTouchStart"
         @touchend="onTouchEnd"
       >
-        <view class="page-head">
+        <view class="page-head" v-if="prefs.showChapterInfo">
           <text class="book-name">{{ book.title }}</text>
           <text class="page-count">{{ pageIndex + 1 }}/{{ pages.length }}</text>
         </view>
 
-        <view class="chapter-kicker">{{ sourceLabel }} · {{ chapterIndex + 1 }}/{{ totalChapters }}</view>
+        <view class="chapter-meta" v-if="prefs.showChapterInfo">
+          <text class="source-badge">{{ sourceLabel }}</text>
+          <text>{{ chapterIndex + 1 }}/{{ totalChapters }}</text>
+        </view>
         <view class="chapter-title">{{ chapter.title || `第 ${chapterIndex + 1} 章` }}</view>
 
         <view class="loading-card" v-if="loadingChapter">
@@ -32,12 +35,12 @@
         <text
           class="reader-content"
           :class="{ quiet: loadingChapter }"
-          :style="{ fontSize: prefs.fontSize + 'px', lineHeight: lineHeight + 'px' }"
+          :style="readerContentStyle"
         >
           {{ pageContent }}
         </text>
 
-        <view class="page-foot">
+        <view class="page-foot" v-if="prefs.showProgress">
           <view class="foot-line">
             <view class="foot-progress" :style="{ width: pageProgressPercent + '%' }"></view>
           </view>
@@ -45,7 +48,7 @@
         </view>
       </view>
 
-      <view class="top-chrome">
+      <view class="top-chrome" v-if="controlsVisible || !prefs.immersiveMode">
         <button class="icon-button" @tap.stop="back">‹</button>
         <view class="top-title">
           <view>{{ book.title }}</view>
@@ -54,12 +57,20 @@
         <button class="icon-button" @tap.stop="toggleMore">•••</button>
       </view>
 
+      <view class="quick-actions" v-if="controlsVisible && !settingsVisible && !catalogVisible && !moreVisible">
+        <button class="quick-action" @tap.stop="openCatalog">☰</button>
+        <button class="quick-action" @tap.stop="searchInChapter">⌕</button>
+        <button class="quick-action" @tap.stop="retryChapter">↻</button>
+        <button class="quick-action" @tap.stop="adjustBrightness">◐</button>
+      </view>
+
       <view class="more-menu" v-if="moreVisible">
         <button class="more-item" @tap.stop="aiSummarizeChapter">AI 总结本章</button>
         <button class="more-item" @tap.stop="aiAskChapter">AI 问答本章</button>
+        <button class="more-item" @tap.stop="toggleCurrentBookmark">{{ currentBookmarkActive ? '取消书签' : '加入书签' }}</button>
         <button class="more-item" @tap.stop="copyProgress">复制进度</button>
         <button class="more-item" @tap.stop="retryChapter">重新解码本章</button>
-        <button class="more-item" @tap.stop="showCacheState">缓存状态</button>
+        <button class="more-item" @tap.stop="showSourceInfo">来源信息</button>
         <button class="more-item" @tap.stop="back">回到书架</button>
       </view>
 
@@ -76,17 +87,17 @@
             <text class="dock-icon">☰</text>
             <text>目录</text>
           </button>
-          <button class="dock-tool" @tap.stop="adjustBrightness">
-            <text class="dock-icon">◐</text>
-            <text>亮度</text>
+          <button class="dock-tool" @tap.stop="toggleReadAloud">
+            <text class="dock-icon">◉</text>
+            <text>{{ speaking ? '停止' : '听读' }}</text>
           </button>
-          <button class="dock-tool" @tap.stop="openSettings">
+          <button class="dock-tool" @tap.stop="openInterfaceSettings">
             <text class="dock-icon">Aa</text>
-            <text>字号</text>
+            <text>界面</text>
           </button>
-          <button class="dock-tool" @tap.stop="cycleTheme">
-            <text class="dock-icon">◒</text>
-            <text>主题</text>
+          <button class="dock-tool" @tap.stop="openBehaviorSettings">
+            <text class="dock-icon">⚙</text>
+            <text>设置</text>
           </button>
         </view>
       </view>
@@ -94,46 +105,93 @@
       <view class="settings-panel" v-if="settingsVisible">
         <view class="panel-head">
           <view>
-            <view class="panel-title">阅读设置</view>
-            <text class="panel-desc">字号 {{ prefs.fontSize }} · 行高 {{ lineHeight }} · 亮度 {{ prefs.brightness }}%</text>
+            <view class="panel-title">{{ settingsMode === 'interface' ? '界面设置' : '阅读设置' }}</view>
+            <text class="panel-desc">{{ settingsSummary }}</text>
           </view>
           <button class="close-button" @tap.stop="closeSettings">×</button>
         </view>
 
-        <view class="font-row">
-          <button class="step-button" @tap.stop="changeFont(-1)">A-</button>
-          <view class="font-meter">
-            <view class="font-meter-fill" :style="{ width: fontPercent + '%' }"></view>
+        <view class="interface-tabs">
+          <button :class="{ active: settingsMode === 'interface' }" @tap.stop="settingsMode = 'interface'">界面</button>
+          <button :class="{ active: settingsMode === 'behavior' }" @tap.stop="settingsMode = 'behavior'">设置</button>
+          <button @tap.stop="toggleCurrentBookmark">{{ currentBookmarkActive ? '已书签' : '书签' }}</button>
+        </view>
+
+        <view v-if="settingsMode === 'interface'">
+          <view class="control-row">
+            <text>字号</text>
+            <button class="step-button" @tap.stop="changeFont(-1)">−</button>
+            <slider class="reader-slider" :value="prefs.fontSize" min="16" max="30" activeColor="#df7458" @change="changeFontSlider" />
+            <button class="step-button" @tap.stop="changeFont(1)">＋</button>
+            <text class="control-value">{{ prefs.fontSize }}</text>
           </view>
-          <button class="step-button" @tap.stop="changeFont(1)">A+</button>
+
+          <view class="control-row">
+            <text>行距</text>
+            <button class="step-button" @tap.stop="changeLineHeight(-0.08)">−</button>
+            <slider class="reader-slider" :value="lineHeightSlider" min="145" max="240" activeColor="#df7458" @change="changeLineHeightSlider" />
+            <button class="step-button" @tap.stop="changeLineHeight(0.08)">＋</button>
+            <text class="control-value">{{ prefs.lineHeight.toFixed(2) }}</text>
+          </view>
+
+          <view class="control-row">
+            <text>段距</text>
+            <button class="step-button" @tap.stop="changeParagraphSpacing(-0.1)">−</button>
+            <slider class="reader-slider" :value="paragraphSlider" min="0" max="220" activeColor="#df7458" @change="changeParagraphSlider" />
+            <button class="step-button" @tap.stop="changeParagraphSpacing(0.1)">＋</button>
+            <text class="control-value">{{ prefs.paragraphSpacing.toFixed(1) }}</text>
+          </view>
+
+          <view class="control-row">
+            <text>边距</text>
+            <button class="step-button" @tap.stop="changeContentWidth(-4)">−</button>
+            <slider class="reader-slider" :value="prefs.contentWidth" min="62" max="96" activeColor="#df7458" @change="changeContentWidthSlider" />
+            <button class="step-button" @tap.stop="changeContentWidth(4)">＋</button>
+            <text class="control-value">{{ prefs.contentWidth }}%</text>
+          </view>
+
+          <view class="theme-row">
+            <button
+              class="theme-chip"
+              v-for="item in visibleThemes"
+              :key="item.id"
+              :class="{ active: prefs.theme === item.id }"
+              :style="{ background: item.background, color: item.text }"
+              @tap.stop="setTheme(item.id)"
+            >
+              {{ item.name }}
+            </button>
+          </view>
         </view>
 
-        <view class="theme-row">
-          <button
-            class="theme-chip"
-            v-for="item in visibleThemes"
-            :key="item.id"
-            :class="{ active: prefs.theme === item.id }"
-            :style="{ background: item.background, color: item.text }"
-            @tap.stop="setTheme(item.id)"
-          >
-            {{ item.name }}
-          </button>
-        </view>
-
-        <view class="brightness-row">
-          <text>亮度</text>
-          <slider
-            class="brightness-slider"
-            :value="prefs.brightness"
-            min="40"
-            max="100"
-            activeColor="#d85a3a"
-            backgroundColor="rgba(255,255,255,0.16)"
-            block-color="#f4f0e8"
-            block-size="20"
-            @change="changeBrightness"
-          />
+        <view class="reader-setting-list" v-else>
+          <view class="control-row">
+            <text>亮度</text>
+            <slider class="reader-slider wide" :value="prefs.brightness" min="40" max="100" activeColor="#df7458" @change="changeBrightness" />
+            <text class="control-value">{{ prefs.brightness }}%</text>
+          </view>
+          <view class="turn-row">
+            <text>翻页动画</text>
+            <button :class="{ active: prefs.pageTurnMode === 'slide' }" @tap.stop="setPageTurnMode('slide')">滑动</button>
+            <button :class="{ active: prefs.pageTurnMode === 'cover' }" @tap.stop="setPageTurnMode('cover')">覆盖</button>
+            <button :class="{ active: prefs.pageTurnMode === 'none' }" @tap.stop="setPageTurnMode('none')">无动画</button>
+          </view>
+          <view class="setting-item">
+            <text>显示章节信息</text>
+            <switch :checked="prefs.showChapterInfo" color="#7cc1b6" @change="togglePref('showChapterInfo', $event)" />
+          </view>
+          <view class="setting-item">
+            <text>显示阅读进度</text>
+            <switch :checked="prefs.showProgress" color="#7cc1b6" @change="togglePref('showProgress', $event)" />
+          </view>
+          <view class="setting-item">
+            <text>沉浸模式</text>
+            <switch :checked="prefs.immersiveMode" color="#7cc1b6" @change="togglePref('immersiveMode', $event)" />
+          </view>
+          <view class="setting-item">
+            <text>自动同步云端进度</text>
+            <switch :checked="prefs.autoSyncProgress" color="#7cc1b6" @change="togglePref('autoSyncProgress', $event)" />
+          </view>
         </view>
       </view>
 
@@ -141,26 +199,52 @@
         <view class="catalog-panel" @tap.stop>
           <view class="panel-head">
             <view>
-              <view class="panel-title">目录</view>
+              <view class="panel-title">目录与书签</view>
               <text class="panel-desc">{{ sourceLabel }} · {{ totalChapters }} 章 · 当前 {{ chapterIndex + 1 }}</text>
             </view>
             <button class="close-button" @tap.stop="closeCatalog">×</button>
           </view>
 
-          <scroll-view class="catalog-list" scroll-y :scroll-into-view="activeChapterId" :show-scrollbar="false">
+          <view class="catalog-tabs">
+            <button :class="{ active: catalogTab === 'catalog' }" @tap.stop="catalogTab = 'catalog'">目录</button>
+            <button :class="{ active: catalogTab === 'bookmark' }" @tap.stop="catalogTab = 'bookmark'">书签</button>
+          </view>
+
+          <view class="catalog-search" v-if="catalogTab === 'catalog'">
+            <input v-model="catalogKeyword" placeholder="搜索章节名" confirm-type="search" />
+          </view>
+
+          <scroll-view v-if="catalogTab === 'catalog'" class="catalog-list" scroll-y :scroll-into-view="activeChapterId" :show-scrollbar="false">
             <view
               class="catalog-item"
-              v-for="(item, index) in book.chapters"
-              :key="index"
-              :id="`chapter-${index}`"
-              :class="{ active: index === chapterIndex }"
-              @tap.stop="jumpToChapter(index)"
+              v-for="item in filteredChapters"
+              :key="item.index"
+              :id="`chapter-${item.index}`"
+              :class="{ active: item.index === chapterIndex }"
+              @tap.stop="jumpToChapter(item.index)"
             >
-              <text class="catalog-index">{{ index + 1 }}</text>
+              <text class="catalog-index">{{ item.index + 1 }}</text>
               <view class="catalog-copy">
-                <text class="catalog-title">{{ item.title || `第 ${index + 1} 章` }}</text>
-                <text class="catalog-state">{{ item.isCached || item.content ? '已缓存' : book.source === 'online' ? '待解码' : '本地' }}</text>
+                <text class="catalog-title">{{ item.title || `第 ${item.index + 1} 章` }}</text>
+                <text class="catalog-state">{{ chapterState(item) }}</text>
               </view>
+              <text class="catalog-check" v-if="item.index === chapterIndex">✓</text>
+            </view>
+          </scroll-view>
+
+          <scroll-view v-else class="bookmark-list" scroll-y :show-scrollbar="false">
+            <view class="empty-state" v-if="bookmarks.length === 0">当前还没有书签，阅读时可在更多菜单或设置面板中加入。</view>
+            <view
+              class="bookmark-item"
+              v-for="item in bookmarks"
+              :key="item.id"
+              @tap.stop="jumpToBookmark(item)"
+            >
+              <view>
+                <text class="catalog-title">{{ item.chapterTitle }}</text>
+                <text class="catalog-state">第 {{ item.chapterIndex + 1 }} 章 · 第 {{ item.pageIndex + 1 }} 页 · {{ formatTime(item.createdAt) }}</text>
+              </view>
+              <text class="catalog-check">›</text>
             </view>
           </scroll-view>
         </view>
@@ -174,7 +258,17 @@
 <script>
 import { getBook } from '../../common/books.js'
 import { addOnlineBookToShelf, loadOnlineChapter } from '../../common/bookSources.js'
-import { getPrefs, getProgress, getTheme, savePrefs, saveProgress, splitChapter, themes } from '../../common/reader.js'
+import {
+  getBookmarks,
+  getPrefs,
+  getProgress,
+  getTheme,
+  savePrefs,
+  saveProgress,
+  splitChapter,
+  themes,
+  toggleBookmark
+} from '../../common/reader.js'
 import { getAppThemeId, getAppThemeStyle } from '../../common/appTheme.js'
 import apiClient from '../../common/apiClient.js'
 import {
@@ -198,6 +292,7 @@ export default {
       pages: [''],
       prefs: getPrefs(),
       themes,
+      bookmarks: [],
       controlsVisible: false,
       settingsVisible: false,
       catalogVisible: false,
@@ -209,7 +304,11 @@ export default {
       chromeTimer: null,
       touchStartX: 0,
       touchStartY: 0,
-      appThemeId: getAppThemeId()
+      appThemeId: getAppThemeId(),
+      catalogTab: 'catalog',
+      catalogKeyword: '',
+      settingsMode: 'interface',
+      speaking: false
     }
   },
   computed: {
@@ -249,8 +348,17 @@ export default {
         color: this.activeTheme.text
       }
     },
+    readerContentStyle() {
+      return {
+        fontSize: `${this.prefs.fontSize}px`,
+        lineHeight: `${this.lineHeight}px`,
+        width: `${this.prefs.contentWidth}%`,
+        letterSpacing: '0',
+        paddingBottom: `${Math.round(this.prefs.paragraphSpacing * 18)}px`
+      }
+    },
     lineHeight() {
-      return Math.round(this.prefs.fontSize * 1.86)
+      return Math.round(this.prefs.fontSize * this.prefs.lineHeight)
     },
     brightnessOpacity() {
       return Math.max(0, Math.min(0.42, (100 - this.prefs.brightness) / 140))
@@ -258,25 +366,47 @@ export default {
     visibleThemes() {
       return this.themes
     },
-    fontPercent() {
-      return Math.round(((this.prefs.fontSize - 16) / 14) * 100)
+    lineHeightSlider() {
+      return Math.round(this.prefs.lineHeight * 100)
+    },
+    paragraphSlider() {
+      return Math.round(this.prefs.paragraphSpacing * 100)
     },
     sourceLabel() {
       if (this.book.source === 'backend') return this.book.sourceName || '云端书架'
       if (this.book.source === 'online') return this.book.sourceName || '在线书源'
       if (this.book.source === 'local') return '本地 TXT'
       return '内置示例'
+    },
+    settingsSummary() {
+      if (this.settingsMode === 'interface') {
+        return `字号 ${this.prefs.fontSize} · 行距 ${this.prefs.lineHeight.toFixed(2)} · 边距 ${this.prefs.contentWidth}%`
+      }
+      return `亮度 ${this.prefs.brightness}% · ${this.prefs.immersiveMode ? '沉浸' : '标准'} · ${this.prefs.pageTurnMode}`
+    },
+    filteredChapters() {
+      const keyword = this.catalogKeyword.trim().toLowerCase()
+      return (this.book.chapters || [])
+        .map((item, index) => ({ ...item, index }))
+        .filter(item => !keyword || String(item.title || '').toLowerCase().includes(keyword))
+    },
+    currentBookmarkActive() {
+      return this.bookmarks.some(item => item.chapterIndex === this.chapterIndex && item.pageIndex === this.pageIndex)
     }
   },
   onLoad(options) {
     this.appThemeId = getAppThemeId()
     this.bookId = options.bookId || 'wind-city'
-    this.prefs.readingMode = 'page'
-    savePrefs(this.prefs)
+    this.prefs = savePrefs({ ...this.prefs, readingMode: 'page' })
+    this.loadBookmarks()
     this.loadInitialBook(options)
   },
   onShow() {
     this.appThemeId = getAppThemeId()
+    this.loadBookmarks()
+  },
+  onUnload() {
+    this.stopReadAloud()
   },
   methods: {
     async loadInitialBook(options) {
@@ -316,7 +446,7 @@ export default {
           if (this.chapterLoadToken !== token) return
           this.book.chapters.splice(this.chapterIndex, 1, loaded)
           addOnlineBookToShelf(this.book)
-          this.pages = splitChapter(loaded.content, this.prefs.fontSize)
+          this.pages = splitChapter(loaded.content, this.prefs.fontSize, this.prefs)
           this.loadingChapter = false
         } catch (error) {
           if (this.chapterLoadToken !== token) return
@@ -341,7 +471,7 @@ export default {
             content,
             isCached: !!content
           })
-          this.pages = splitChapter(content, this.prefs.fontSize)
+          this.pages = splitChapter(content, this.prefs.fontSize, this.prefs)
           this.loadingChapter = false
         } catch (error) {
           if (this.chapterLoadToken !== token) return
@@ -356,7 +486,7 @@ export default {
 
       this.loadingChapter = false
       this.chapterLoadError = ''
-      this.pages = splitChapter(currentChapter.content, this.prefs.fontSize)
+      this.pages = splitChapter(currentChapter.content, this.prefs.fontSize, this.prefs)
       this.pageIndex = Math.max(0, Math.min(this.pageIndex, this.pages.length - 1))
       this.persist()
     },
@@ -366,7 +496,7 @@ export default {
         pageIndex: this.pageIndex,
         scrollTop: 0
       })
-      if (this.book.source === 'backend') {
+      if (this.book.source === 'backend' && this.prefs.autoSyncProgress) {
         saveBackendReadingHistory({
           book: this.book,
           chapter: this.chapter,
@@ -375,6 +505,9 @@ export default {
           progressPercent: this.progressPercent
         }).catch(() => {})
       }
+    },
+    loadBookmarks() {
+      this.bookmarks = getBookmarks(this.bookId)
     },
     onTouchStart(event) {
       const touch = event.changedTouches[0]
@@ -436,6 +569,7 @@ export default {
         this.chapterIndex += 1
         this.pageIndex = 0
         this.hideReaderChrome()
+        this.stopReadAloud()
         this.rebuildPages()
       } else {
         uni.showToast({ title: '已经读完', icon: 'none' })
@@ -444,6 +578,7 @@ export default {
     prevChapter(toLastPage) {
       if (this.chapterIndex > 0) {
         this.chapterIndex -= 1
+        this.stopReadAloud()
         this.rebuildPages().then(() => {
           if (toLastPage) this.pageIndex = this.pages.length - 1
           this.persist()
@@ -476,18 +611,20 @@ export default {
       this.settingsVisible = false
       this.moreVisible = false
       this.controlsVisible = true
+      this.catalogTab = 'catalog'
       this.clearChromeTimer()
     },
     closeCatalog() {
       this.catalogVisible = false
       this.scheduleChromeAutoHide()
     },
-    toggleSettings() {
-      this.settingsVisible = !this.settingsVisible
-      this.catalogVisible = false
-      this.moreVisible = false
-      this.controlsVisible = true
-      this.clearChromeTimer()
+    openInterfaceSettings() {
+      this.settingsMode = 'interface'
+      this.openSettings()
+    },
+    openBehaviorSettings() {
+      this.settingsMode = 'behavior'
+      this.openSettings()
     },
     openSettings() {
       this.settingsVisible = true
@@ -500,36 +637,139 @@ export default {
       this.settingsVisible = false
       this.scheduleChromeAutoHide()
     },
+    saveReaderPrefs(rebuild = false) {
+      this.prefs = savePrefs(this.prefs)
+      if (rebuild) this.rebuildPages()
+    },
     changeFont(delta) {
-      this.prefs.fontSize = Math.max(16, Math.min(30, this.prefs.fontSize + delta))
-      savePrefs(this.prefs)
-      this.rebuildPages()
+      this.prefs.fontSize += delta
+      this.saveReaderPrefs(true)
+    },
+    changeFontSlider(event) {
+      this.prefs.fontSize = Number(event.detail.value)
+      this.saveReaderPrefs(true)
+    },
+    changeLineHeight(delta) {
+      this.prefs.lineHeight += delta
+      this.saveReaderPrefs(true)
+    },
+    changeLineHeightSlider(event) {
+      this.prefs.lineHeight = Number(event.detail.value) / 100
+      this.saveReaderPrefs(true)
+    },
+    changeParagraphSpacing(delta) {
+      this.prefs.paragraphSpacing += delta
+      this.saveReaderPrefs(false)
+    },
+    changeParagraphSlider(event) {
+      this.prefs.paragraphSpacing = Number(event.detail.value) / 100
+      this.saveReaderPrefs(false)
+    },
+    changeContentWidth(delta) {
+      this.prefs.contentWidth += delta
+      this.saveReaderPrefs(true)
+    },
+    changeContentWidthSlider(event) {
+      this.prefs.contentWidth = Number(event.detail.value)
+      this.saveReaderPrefs(true)
     },
     setTheme(themeId) {
       this.prefs.theme = themeId
-      savePrefs(this.prefs)
-      this.rebuildPages()
+      this.saveReaderPrefs(false)
     },
-    cycleTheme() {
-      const index = this.themes.findIndex(theme => theme.id === this.prefs.theme)
-      const next = this.themes[(index + 1 + this.themes.length) % this.themes.length]
-      this.setTheme(next.id)
-      uni.showToast({ title: next.name, icon: 'none' })
-      this.scheduleChromeAutoHide()
+    setPageTurnMode(mode) {
+      this.prefs.pageTurnMode = mode
+      this.saveReaderPrefs(false)
+    },
+    togglePref(key, event) {
+      this.prefs[key] = !!(event.detail && event.detail.value)
+      this.saveReaderPrefs(false)
     },
     adjustBrightness() {
       const next = this.prefs.brightness <= 55 ? 86 : this.prefs.brightness <= 86 ? 100 : 52
       this.prefs.brightness = next
-      savePrefs(this.prefs)
+      this.saveReaderPrefs(false)
       uni.showToast({ title: `亮度 ${next}%`, icon: 'none' })
       this.scheduleChromeAutoHide()
     },
     changeBrightness(event) {
-      this.prefs.brightness = event.detail.value
-      savePrefs(this.prefs)
+      this.prefs.brightness = Number(event.detail.value)
+      this.saveReaderPrefs(false)
+    },
+    toggleCurrentBookmark() {
+      const result = toggleBookmark(this.bookId, {
+        chapterIndex: this.chapterIndex,
+        pageIndex: this.pageIndex,
+        chapterTitle: this.chapter.title || `第 ${this.chapterIndex + 1} 章`,
+        excerpt: this.pageContent
+      })
+      this.bookmarks = result.bookmarks
+      uni.showToast({ title: result.active ? '已加入书签' : '已取消书签', icon: 'none' })
+      this.moreVisible = false
+    },
+    jumpToBookmark(item) {
+      this.chapterIndex = Math.max(0, Math.min(item.chapterIndex, this.totalChapters - 1))
+      this.pageIndex = Math.max(0, item.pageIndex || 0)
+      this.catalogVisible = false
+      this.hideReaderChrome()
+      this.rebuildPages()
+    },
+    chapterState(item) {
+      const chapter = this.book.chapters[item.index] || item
+      const length = String(chapter.content || '').length
+      if (length) return `${length} 字 · 已缓存`
+      if (chapter.isCached) return '已缓存'
+      if (this.book.source === 'online' || this.book.source === 'backend') return '待解码'
+      return '本地'
+    },
+    formatTime(timestamp) {
+      const date = new Date(timestamp || Date.now())
+      return `${date.getMonth() + 1}-${date.getDate()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+    },
+    searchInChapter() {
+      const keyword = this.askText('搜索本章', '输入关键词')
+      if (!keyword) return
+      const index = this.pages.findIndex(page => page.includes(keyword))
+      if (index < 0) {
+        uni.showToast({ title: '本章未找到关键词', icon: 'none' })
+        return
+      }
+      this.pageIndex = index
+      this.persist()
+      uni.showToast({ title: `已跳到第 ${index + 1} 页`, icon: 'none' })
+    },
+    toggleReadAloud() {
+      if (this.speaking) {
+        this.stopReadAloud()
+        return
+      }
+      if (typeof window === 'undefined' || !window.speechSynthesis || typeof window.SpeechSynthesisUtterance !== 'function') {
+        uni.showToast({ title: '当前环境暂不支持听读', icon: 'none' })
+        return
+      }
+      const text = this.getCurrentChapterText().trim() || this.pageContent.trim()
+      if (!text) {
+        uni.showToast({ title: '当前没有可朗读正文', icon: 'none' })
+        return
+      }
+      const utterance = new window.SpeechSynthesisUtterance(text.slice(0, 4000))
+      utterance.lang = 'zh-CN'
+      utterance.rate = 0.95
+      utterance.onend = () => { this.speaking = false }
+      utterance.onerror = () => { this.speaking = false }
+      window.speechSynthesis.cancel()
+      window.speechSynthesis.speak(utterance)
+      this.speaking = true
+      uni.showToast({ title: '开始听读', icon: 'none' })
+    },
+    stopReadAloud() {
+      if (typeof window !== 'undefined' && window.speechSynthesis) {
+        window.speechSynthesis.cancel()
+      }
+      this.speaking = false
     },
     copyProgress() {
-      const text = `${this.book.title} · ${this.chapter.title || `第 ${this.chapterIndex + 1} 章`}`
+      const text = `${this.book.title} · ${this.chapter.title || `第 ${this.chapterIndex + 1} 章`} · ${this.pageIndex + 1}/${this.pages.length}`
       uni.setClipboardData({
         data: text,
         success: () => uni.showToast({ title: '进度已复制', icon: 'none' })
@@ -542,17 +782,12 @@ export default {
       this.pageIndex = 0
       this.catalogVisible = false
       this.hideReaderChrome()
+      this.stopReadAloud()
       this.rebuildPages()
     },
     retryChapter() {
       this.chapterLoadError = ''
-      if (this.book.source === 'online' && this.book.chapters[this.chapterIndex]) {
-        this.book.chapters[this.chapterIndex] = {
-          ...this.book.chapters[this.chapterIndex],
-          content: ''
-        }
-      }
-      if (this.book.source === 'backend' && this.book.chapters[this.chapterIndex]) {
+      if ((this.book.source === 'online' || this.book.source === 'backend') && this.book.chapters[this.chapterIndex]) {
         this.book.chapters[this.chapterIndex] = {
           ...this.book.chapters[this.chapterIndex],
           content: ''
@@ -603,9 +838,7 @@ export default {
           cancelText: '关闭',
           confirmText: '复制',
           success: modal => {
-            if (modal.confirm) {
-              uni.setClipboardData({ data: content })
-            }
+            if (modal.confirm) uni.setClipboardData({ data: content })
           }
         })
       } catch (error) {
@@ -621,17 +854,15 @@ export default {
         uni.showToast({ title: '当前章节没有正文', icon: 'none' })
         return
       }
-      const question = this.askAIQuestionText()
+      const question = this.askText('AI 问答本章', '本章发生了什么？')
       if (!question) return
       this.sendAIQuestion(question, chapterText)
     },
-    askAIQuestionText() {
-      const fallback = '本章发生了什么？'
+    askText(title, fallback) {
       if (typeof window !== 'undefined' && typeof window.prompt === 'function') {
-        const value = window.prompt('请输入你想问本章的问题', fallback)
-        return String(value || '').trim()
+        return String(window.prompt(title, fallback) || '').trim()
       }
-      uni.showToast({ title: `将使用默认问题：${fallback}`, icon: 'none' })
+      uni.showToast({ title: fallback, icon: 'none' })
       return fallback
     },
     async sendAIQuestion(question, context) {
@@ -651,9 +882,7 @@ export default {
           cancelText: '关闭',
           confirmText: '复制',
           success: modal => {
-            if (modal.confirm) {
-              uni.setClipboardData({ data: result.answer })
-            }
+            if (modal.confirm) uni.setClipboardData({ data: result.answer })
           }
         })
       } catch (error) {
@@ -669,13 +898,14 @@ export default {
       this.controlsVisible = true
       this.moreVisible ? this.clearChromeTimer() : this.scheduleChromeAutoHide()
     },
-    showCacheState() {
-      const state = this.book.source === 'online'
-        ? (this.chapter.content ? '当前章已缓存' : '当前章尚未缓存')
-        : '当前书籍为本地内容'
-      uni.showToast({ title: state, icon: 'none' })
+    showSourceInfo() {
+      const message = [
+        `来源：${this.sourceLabel}`,
+        `章节：${this.chapter.title || `第 ${this.chapterIndex + 1} 章`}`,
+        `状态：${this.chapterState({ index: this.chapterIndex })}`
+      ].join('\n')
+      uni.showModal({ title: '来源信息', content: message, showCancel: false })
       this.moreVisible = false
-      this.scheduleChromeAutoHide()
     },
     scheduleChromeAutoHide() {
       this.clearChromeTimer()
@@ -683,7 +913,7 @@ export default {
         if (!this.settingsVisible && !this.catalogVisible && !this.moreVisible) {
           this.controlsVisible = false
         }
-      }, 4200)
+      }, 5200)
     },
     clearChromeTimer() {
       if (this.chromeTimer) {
@@ -692,6 +922,7 @@ export default {
       }
     },
     back() {
+      this.stopReadAloud()
       const pages = getCurrentPages()
       if (pages.length > 1) {
         uni.navigateBack()
@@ -710,7 +941,7 @@ export default {
   max-width: 1120px;
   min-height: 100vh;
   overflow: hidden;
-  padding: 42rpx;
+  padding: 34rpx;
   margin: 0 auto;
   box-sizing: border-box;
   border-radius: 0 0 24rpx 24rpx;
@@ -732,248 +963,189 @@ export default {
 
 .reader-embed {
   position: relative;
-  max-width: 920px;
-  height: calc(100vh - 84rpx);
+  max-width: 930px;
+  height: calc(100vh - 68rpx);
   min-height: 760rpx;
   margin: 0 auto;
   overflow: hidden;
   border: 1rpx solid var(--app-shell-border);
-  border-radius: 28rpx;
-  background: var(--app-panel-strong);
-  box-shadow: var(--app-shell-shadow);
+  border-radius: 24rpx;
+  background: var(--app-panel);
+  box-shadow: var(--app-floating-shadow);
 }
 
 .reading-surface {
   position: absolute;
-  inset: 18rpx;
-  z-index: 2;
-  overflow: hidden;
-  padding: 136rpx 56rpx 170rpx;
-  border-radius: 22rpx;
-  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.10);
+  inset: 0;
+  padding: 128rpx 0 174rpx;
+  box-sizing: border-box;
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
 .page-head,
-.page-foot,
-.top-chrome,
+.chapter-meta,
+.reader-content,
+.chapter-title {
+  width: 82%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.page-head,
+.chapter-meta,
+.panel-head,
 .chapter-row,
 .dock-actions,
-.panel-head,
-.font-row,
-.brightness-row,
-.catalog-item {
+.control-row,
+.setting-item,
+.turn-row,
+.catalog-item,
+.bookmark-item {
   display: flex;
   align-items: center;
 }
 
 .page-head,
-.page-foot,
-.top-chrome,
+.chapter-meta,
 .panel-head,
-.brightness-row {
+.chapter-row,
+.setting-item,
+.turn-row {
   justify-content: space-between;
 }
 
 .page-head {
-  min-height: 42rpx;
-  color: rgba(244, 240, 232, 0.44);
+  min-height: 32rpx;
+  color: currentColor;
+  opacity: 0.58;
+  font-size: 23rpx;
+}
+
+.chapter-meta {
+  gap: 14rpx;
+  justify-content: flex-start;
+  margin-top: 26rpx;
+  color: var(--app-accent);
   font-size: 22rpx;
 }
 
-.book-name {
-  overflow: hidden;
-  max-width: 70%;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.chapter-kicker {
-  margin-top: 46rpx;
-  color: rgba(216, 90, 58, 0.86);
-  font-size: 22rpx;
-  letter-spacing: 0;
+.source-badge {
+  padding: 6rpx 14rpx;
+  border-radius: 999rpx;
+  background: rgba(255, 255, 255, 0.18);
 }
 
 .chapter-title {
-  margin-top: 14rpx;
-  margin-bottom: 34rpx;
-  color: inherit;
-  font-family: "KaiTi", "STKaiti", "FZKai-Z03", "PingFang SC", serif;
-  font-size: 42rpx;
-  font-weight: 700;
-  line-height: 54rpx;
+  margin-top: 18rpx;
+  font-size: 34rpx;
+  font-weight: 800;
 }
 
 .reader-content {
   display: block;
-  max-height: calc(100vh - 492rpx);
-  overflow: hidden;
+  min-height: 420rpx;
+  margin-top: 38rpx;
   white-space: pre-wrap;
-  text-align: justify;
-  letter-spacing: 0;
+  transition: opacity 0.2s ease, max-width 0.2s ease;
 }
 
 .reader-content.quiet {
-  color: rgba(244, 240, 232, 0.50);
-}
-
-.loading-card {
-  display: flex;
-  align-items: center;
-  gap: 14rpx;
-  min-height: 76rpx;
-  padding: 0 22rpx;
-  margin-bottom: 24rpx;
-  border-radius: 18rpx;
-  color: rgba(244, 240, 232, 0.78);
-  font-size: 24rpx;
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.error-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18rpx;
-  padding: 22rpx;
-  margin-bottom: 24rpx;
-  border: 1rpx solid rgba(216, 90, 58, 0.24);
-  border-radius: 20rpx;
-  background: rgba(216, 90, 58, 0.10);
-}
-
-.error-title {
-  color: #f4f0e8;
-  font-size: 27rpx;
-  font-weight: 800;
-}
-
-.error-desc {
-  display: block;
-  margin-top: 8rpx;
-  color: rgba(244, 240, 232, 0.64);
-  font-size: 23rpx;
-  line-height: 34rpx;
-}
-
-.retry-button {
-  flex-shrink: 0;
-  width: 96rpx;
-  height: 56rpx;
-  border-radius: 999rpx;
-  color: #ffffff;
-  font-size: 24rpx;
-  background: #d85a3a;
-}
-
-.loading-dot {
-  width: 18rpx;
-  height: 18rpx;
-  border-radius: 999rpx;
-  background: #d85a3a;
-  animation: pulse 1.2s ease-in-out infinite;
+  opacity: 0.42;
 }
 
 .page-foot {
   position: absolute;
-  left: 56rpx;
-  right: 56rpx;
-  bottom: 46rpx;
+  left: 9%;
+  right: 9%;
+  bottom: 112rpx;
+  display: flex;
+  align-items: center;
   gap: 18rpx;
-  color: rgba(244, 240, 232, 0.42);
-  font-size: 21rpx;
+  color: currentColor;
+  font-size: 22rpx;
+  opacity: 0.58;
 }
 
-.foot-line {
+.foot-line,
+.chapter-track,
+.font-meter {
   position: relative;
   flex: 1;
-  height: 4rpx;
+  height: 10rpx;
   overflow: hidden;
   border-radius: 999rpx;
-  background: rgba(244, 240, 232, 0.12);
+  background: rgba(128, 128, 128, 0.22);
 }
 
-.foot-progress {
+.foot-progress,
+.chapter-track-fill,
+.font-meter-fill {
   height: 100%;
-  border-radius: 999rpx;
-  background: #d85a3a;
+  border-radius: inherit;
+  background: var(--app-accent);
 }
 
 .top-chrome {
   position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
+  top: 24rpx;
+  left: 28rpx;
+  right: 28rpx;
   z-index: 8;
-  box-sizing: border-box;
-  min-height: 116rpx;
-  padding: 42rpx 28rpx 14rpx;
-  color: #f4f0e8;
-  background: rgba(32, 33, 31, 0.94);
-  backdrop-filter: blur(10px);
+  display: grid;
+  grid-template-columns: 72rpx 1fr 72rpx;
+  align-items: center;
+  min-height: 76rpx;
+  padding: 0 14rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: 999rpx;
+  color: var(--app-reader-control-text);
+  background: color-mix(in srgb, var(--app-reader-control) 88%, transparent);
+  box-shadow: var(--app-floating-shadow);
 }
 
 .icon-button,
+.quick-action,
 .close-button {
-  width: 66rpx;
-  height: 66rpx;
+  width: 58rpx;
+  height: 58rpx;
   border-radius: 999rpx;
-  color: #f4f0e8;
-  font-size: 40rpx;
-  background: rgba(255, 255, 255, 0.08);
+  color: var(--app-reader-control-text);
+  background: rgba(255, 255, 255, 0.24);
+  font-size: 34rpx;
 }
 
 .top-title {
   min-width: 0;
-  flex: 1;
-  margin: 0 18rpx;
   text-align: center;
-}
-
-.top-title view {
-  overflow: hidden;
-  font-size: 27rpx;
+  font-size: 26rpx;
   font-weight: 800;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 .top-title text {
   display: block;
+  margin-top: 5rpx;
   overflow: hidden;
-  margin-top: 4rpx;
-  color: #a9aaa4;
-  font-size: 21rpx;
+  color: var(--app-muted);
+  font-size: 20rpx;
+  font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.more-menu {
+.quick-actions {
   position: absolute;
-  top: 124rpx;
-  right: 28rpx;
-  z-index: 10;
-  width: 268rpx;
-  padding: 10rpx;
-  border: 1rpx solid rgba(255, 255, 255, 0.06);
-  border-radius: 20rpx;
-  background: rgba(47, 48, 45, 0.96);
-  box-shadow: 0 18rpx 44rpx rgba(0, 0, 0, 0.30), inset 0 1rpx 0 rgba(255, 255, 255, 0.04);
+  right: 34rpx;
+  bottom: 252rpx;
+  z-index: 9;
+  display: grid;
+  gap: 16rpx;
 }
 
-.more-item {
-  width: 100%;
-  height: 62rpx;
-  justify-content: flex-start !important;
-  padding: 0 18rpx !important;
-  border-radius: 14rpx;
-  color: #f4f0e8;
-  font-size: 24rpx;
-  background: transparent;
-}
-
-.more-item:active {
-  background: rgba(255, 255, 255, 0.08);
+.quick-action {
+  width: 72rpx;
+  height: 72rpx;
+  background: var(--app-reader-control);
+  box-shadow: var(--app-floating-shadow);
 }
 
 .bottom-chrome,
@@ -982,194 +1154,281 @@ export default {
   position: absolute;
   left: 28rpx;
   right: 28rpx;
-  bottom: 24rpx;
-  z-index: 8;
-  box-sizing: border-box;
-  padding: 24rpx;
-  border: 1rpx solid rgba(255, 255, 255, 0.06);
-  border-radius: 26rpx;
-  color: #f4f0e8;
-  background: rgba(47, 48, 45, 0.94);
-  box-shadow: 0 -18rpx 54rpx rgba(0, 0, 0, 0.34), inset 0 1rpx 0 rgba(255, 255, 255, 0.04);
+  bottom: 28rpx;
+  z-index: 10;
+  border: 1rpx solid var(--app-border);
+  border-radius: 28rpx;
+  color: var(--app-reader-control-text);
+  background: color-mix(in srgb, var(--app-reader-control) 94%, transparent);
+  box-shadow: var(--app-floating-shadow);
+}
+
+.bottom-chrome {
+  padding: 20rpx;
 }
 
 .chapter-row {
-  display: grid;
-  grid-template-columns: 112rpx 1fr 112rpx;
-  gap: 22rpx;
+  gap: 18rpx;
 }
 
 .chapter-button {
-  height: 56rpx;
-  border-radius: 14rpx;
-  color: #d7d1c7;
-  font-size: 23rpx;
-  background: rgba(255, 255, 255, 0.06);
-}
-
-.chapter-track {
-  height: 56rpx;
-  overflow: hidden;
+  min-width: 118rpx;
+  height: 52rpx;
   border-radius: 18rpx;
-  background: rgba(255, 255, 255, 0.08);
-}
-
-.chapter-track-fill {
-  height: 100%;
-  border-radius: 18rpx;
-  background: rgba(216, 90, 58, 0.42);
+  color: var(--app-text);
+  background: var(--app-panel);
+  font-size: 24rpx;
 }
 
 .dock-actions {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10rpx;
-  margin-top: 22rpx;
+  gap: 12rpx;
+  margin-top: 18rpx;
 }
 
 .dock-tool {
-  min-height: 86rpx;
+  flex: 1;
+  min-width: 0;
+  min-height: 82rpx;
   flex-direction: column;
-  border-radius: 16rpx;
-  color: #d7d1c7;
-  font-size: 21rpx;
-  background: rgba(255, 255, 255, 0.05);
+  gap: 8rpx;
+  border-radius: 18rpx;
+  color: var(--app-text);
+  background: var(--app-panel);
+  font-size: 22rpx;
 }
 
 .dock-icon {
-  margin-bottom: 8rpx;
-  color: #f4f0e8;
+  font-size: 32rpx;
+  font-weight: 800;
+}
+
+.more-menu {
+  position: absolute;
+  top: 116rpx;
+  right: 36rpx;
+  z-index: 12;
+  width: 250rpx;
+  overflow: hidden;
+  border: 1rpx solid var(--app-border);
+  border-radius: 22rpx;
+  background: var(--app-panel);
+  box-shadow: var(--app-floating-shadow);
+}
+
+.more-item {
+  width: 100%;
+  min-height: 70rpx;
+  justify-content: flex-start;
+  padding: 0 22rpx;
+  box-sizing: border-box;
+  color: var(--app-text);
+  background: transparent;
+  font-size: 24rpx;
+}
+
+.settings-panel {
+  max-height: 64%;
+  padding: 24rpx;
+  box-sizing: border-box;
+}
+
+.panel-title {
+  color: var(--app-text);
   font-size: 30rpx;
   font-weight: 800;
 }
 
-.settings-panel {
-  bottom: 0;
-  left: 0;
-  right: 0;
-  padding: 28rpx 28rpx 36rpx;
-  border-radius: 28rpx 28rpx 0 0;
-}
-
-.panel-title {
-  color: #f4f0e8;
-  font-family: "KaiTi", "STKaiti", "FZKai-Z03", "PingFang SC", serif;
-  font-size: 34rpx;
-  font-weight: 700;
-}
-
 .panel-desc {
   display: block;
-  margin-top: 6rpx;
-  color: #a9aaa4;
+  margin-top: 8rpx;
+  color: var(--app-muted);
   font-size: 22rpx;
 }
 
-.font-row {
-  gap: 16rpx;
-  margin-top: 24rpx;
+.interface-tabs,
+.catalog-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12rpx;
+  margin: 22rpx 0;
+}
+
+.catalog-tabs {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.interface-tabs button,
+.catalog-tabs button,
+.turn-row button {
+  height: 58rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: 16rpx;
+  color: var(--app-text);
+  background: var(--app-panel);
+  font-size: 23rpx;
+}
+
+.interface-tabs button.active,
+.catalog-tabs button.active,
+.turn-row button.active {
+  color: var(--app-on-accent);
+  border-color: var(--app-accent);
+  background: var(--app-accent);
+}
+
+.control-row {
+  gap: 14rpx;
+  min-height: 66rpx;
+  color: var(--app-text);
+  font-size: 24rpx;
+}
+
+.control-row > text:first-child {
+  width: 72rpx;
+}
+
+.reader-slider {
+  flex: 1;
+}
+
+.reader-slider.wide {
+  min-width: 0;
 }
 
 .step-button {
-  width: 84rpx;
-  height: 62rpx;
+  width: 54rpx;
+  height: 54rpx;
   border-radius: 16rpx;
-  color: #f4f0e8;
-  font-size: 24rpx;
-  background: rgba(255, 255, 255, 0.08);
+  color: var(--app-text);
+  background: var(--app-panel);
+  font-size: 28rpx;
 }
 
-.font-meter {
-  flex: 1;
-  height: 14rpx;
-  overflow: hidden;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.12);
-}
-
-.font-meter-fill {
-  height: 100%;
-  border-radius: 999rpx;
-  background: #d85a3a;
-}
-
-.theme-row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12rpx;
-  margin-top: 24rpx;
-}
-
-.theme-chip {
-  height: 64rpx;
-  border: 2rpx solid rgba(255, 255, 255, 0.12);
-  border-radius: 16rpx;
+.control-value {
+  width: 72rpx;
+  color: var(--app-muted);
+  text-align: right;
   font-size: 22rpx;
 }
 
-.theme-chip.active {
-  border-color: #d85a3a;
+.theme-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14rpx;
+  margin-top: 20rpx;
 }
 
-.brightness-row {
-  gap: 18rpx;
-  margin-top: 24rpx;
-  color: #d7d1c7;
+.theme-chip {
+  width: 118rpx;
+  height: 64rpx;
+  border: 2rpx solid transparent;
+  border-radius: 999rpx;
+  font-size: 23rpx;
+}
+
+.theme-chip.active {
+  border-color: var(--app-accent);
+  box-shadow: 0 0 0 4rpx rgba(223, 116, 88, 0.16);
+}
+
+.reader-setting-list {
+  display: grid;
+  gap: 14rpx;
+}
+
+.setting-item {
+  min-height: 68rpx;
+  color: var(--app-text);
   font-size: 24rpx;
 }
 
-.brightness-slider {
+.turn-row {
+  gap: 12rpx;
+  min-height: 68rpx;
+}
+
+.turn-row text {
+  width: 132rpx;
+  color: var(--app-text);
+  font-size: 24rpx;
+}
+
+.turn-row button {
   flex: 1;
 }
 
 .catalog-mask {
   position: absolute;
   inset: 0;
-  z-index: 9;
+  z-index: 11;
   display: flex;
   align-items: flex-end;
-  padding: 24rpx;
-  background: rgba(0, 0, 0, 0.58);
+  padding: 28rpx;
+  box-sizing: border-box;
+  background: rgba(10, 18, 20, 0.18);
 }
 
 .catalog-panel {
   position: relative;
-  width: 100%;
-  max-height: 78vh;
-  bottom: auto;
   left: auto;
   right: auto;
-  transform: none;
+  bottom: auto;
+  width: 100%;
+  max-height: 78%;
+  padding: 24rpx;
+  box-sizing: border-box;
 }
 
-.catalog-list {
-  height: 56vh;
-  margin-top: 22rpx;
+.catalog-search {
+  margin-bottom: 16rpx;
 }
 
-.catalog-item {
+.catalog-search input {
+  height: 64rpx;
+  padding: 0 22rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: 18rpx;
+  color: var(--app-text);
+  background: var(--app-bg);
+  font-size: 24rpx;
+}
+
+.catalog-list,
+.bookmark-list {
+  height: 50vh;
+}
+
+.catalog-item,
+.bookmark-item {
+  gap: 18rpx;
   min-height: 86rpx;
   padding: 0 18rpx;
-  margin-bottom: 10rpx;
   border-radius: 18rpx;
-  color: #d7d1c7;
-  background: rgba(255, 255, 255, 0.06);
+  color: var(--app-text);
+  background: var(--app-panel);
+  margin-bottom: 12rpx;
 }
 
 .catalog-item.active {
-  color: #ffffff;
-  background: rgba(216, 90, 58, 0.28);
+  color: var(--app-on-accent);
+  background: var(--app-accent);
 }
 
 .catalog-index {
   flex-shrink: 0;
   width: 58rpx;
-  color: #d85a3a;
+  color: var(--app-accent-3);
   font-size: 24rpx;
-  font-weight: 900;
+  font-weight: 800;
 }
 
-.catalog-copy {
+.catalog-item.active .catalog-index,
+.catalog-item.active .catalog-state {
+  color: var(--app-on-accent);
+}
+
+.catalog-copy,
+.bookmark-item > view {
   min-width: 0;
   flex: 1;
 }
@@ -1184,95 +1443,122 @@ export default {
 
 .catalog-title {
   color: inherit;
-  font-size: 27rpx;
+  font-size: 26rpx;
+  font-weight: 700;
 }
 
 .catalog-state {
-  margin-top: 6rpx;
-  color: #a9aaa4;
+  margin-top: 7rpx;
+  color: var(--app-muted);
   font-size: 21rpx;
+}
+
+.catalog-check {
+  font-size: 34rpx;
+  font-weight: 800;
+}
+
+.empty-state {
+  padding: 48rpx 24rpx;
+  border-radius: 20rpx;
+  color: var(--app-muted);
+  background: var(--app-panel);
+  text-align: center;
+  font-size: 24rpx;
+}
+
+.loading-card,
+.error-card {
+  width: 82%;
+  margin: 44rpx auto 0;
+  padding: 24rpx;
+  border-radius: 22rpx;
+  box-sizing: border-box;
+  color: var(--app-text);
+  background: var(--app-panel);
+}
+
+.loading-card {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.loading-dot {
+  width: 16rpx;
+  height: 16rpx;
+  border-radius: 999rpx;
+  background: var(--app-accent);
+}
+
+.error-card {
+  display: flex;
+  justify-content: space-between;
+  gap: 18rpx;
+}
+
+.error-title {
+  font-size: 26rpx;
+  font-weight: 800;
+}
+
+.error-desc {
+  display: block;
+  margin-top: 8rpx;
+  color: var(--app-muted);
+  font-size: 22rpx;
+}
+
+.retry-button {
+  width: 96rpx;
+  height: 56rpx;
+  border-radius: 16rpx;
+  color: var(--app-on-accent);
+  background: var(--app-accent);
 }
 
 .brightness-mask {
   position: absolute;
   inset: 0;
-  z-index: 3;
+  z-index: 2;
   pointer-events: none;
   background: #000000;
 }
 
-/* Global app theme polish for reader chrome */
-.reader-page {
-  box-shadow: 0 24rpx 80rpx rgba(42, 62, 57, 0.18);
-}
-
-.chapter-kicker,
-.catalog-index {
-  color: var(--app-accent-3);
-}
-
-.foot-progress,
-.font-meter-fill {
-  background: var(--app-accent-3);
-}
-
-.top-chrome,
-.bottom-chrome,
-.settings-panel,
-.catalog-panel,
-.more-menu {
-  border-color: var(--app-border);
-  color: var(--app-reader-control-text);
-  background: var(--app-reader-control);
-  box-shadow: var(--app-floating-shadow);
-}
-
-.icon-button,
-.close-button,
-.chapter-button,
-.dock-tool,
-.step-button,
-.more-item,
-.catalog-item {
-  color: var(--app-text);
-  background: var(--app-panel);
-}
-
-.top-title text,
-.panel-desc,
-.catalog-state {
-  color: var(--app-muted);
-}
-
-.panel-title,
-.dock-icon,
-.catalog-title,
-.error-title {
-  color: var(--app-text);
-}
-
-.theme-chip.active {
-  border-color: var(--app-accent-3);
-}
-
-.retry-button {
-  color: var(--app-on-accent);
-  background: var(--app-accent-3);
-}
-
-.catalog-item.active {
-  color: var(--app-on-accent);
-  background: var(--app-accent);
-}
-
-@keyframes pulse {
-  0%, 100% {
-    opacity: 0.35;
-    transform: scale(0.82);
+@media (max-width: 760px) {
+  .reader-page {
+    padding: 0;
   }
-  50% {
-    opacity: 1;
-    transform: scale(1);
+
+  .reader-embed {
+    width: 100%;
+    height: 100vh;
+    min-height: 100vh;
+    border-radius: 0;
+    border: 0;
+  }
+
+  .reading-surface {
+    padding-top: 118rpx;
+  }
+
+  .quick-actions {
+    right: 22rpx;
+    bottom: 240rpx;
+  }
+
+  .bottom-chrome,
+  .settings-panel {
+    left: 18rpx;
+    right: 18rpx;
+    bottom: 18rpx;
+  }
+
+  .page-head,
+  .chapter-meta,
+  .reader-content,
+  .chapter-title {
+    width: 88%;
   }
 }
 </style>
