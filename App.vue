@@ -14,6 +14,31 @@ page {
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
 }
 
+/* #ifdef H5 */
+body {
+  background: #dfe8e4;
+}
+
+uni-page-body {
+  max-width: 1120px;
+  min-height: 100vh;
+  margin: 0 auto;
+}
+
+uni-tabbar .uni-tabbar {
+  left: 50% !important;
+  right: auto !important;
+  width: min(100vw, 1120px) !important;
+  max-width: 1120px;
+  overflow: hidden;
+  border-left: 1rpx solid rgba(60, 84, 78, 0.12);
+  border-right: 1rpx solid rgba(60, 84, 78, 0.12);
+  border-radius: 18rpx 18rpx 0 0;
+  box-shadow: 0 -16rpx 50rpx rgba(42, 62, 57, 0.18);
+  transform: translateX(-50%);
+}
+/* #endif */
+
 /* H5 preview shell: keep the app visually separate from the browser chrome. */
 .decoder-page,
 .import-page,
