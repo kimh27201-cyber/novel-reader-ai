@@ -1,5 +1,5 @@
 <template>
-  <view class="discover-page">
+  <view class="discover-page" :style="themeVars">
     <view class="top-zone">
       <view>
         <text class="eyebrow">DISCOVER</text>
@@ -95,6 +95,7 @@ import { getSourceConfigs, saveOnlineBookDraft, searchOnlineBooks, setSourceEnab
 import apiClient from '../../common/apiClient.js'
 import { searchBackendBooks } from '../../common/backendLibrary.js'
 import { buildSourceToggleState, demoSearchKeywords, sanitizeSearchKeyword } from '../../common/searchHelpers.js'
+import { getAppThemeId, getAppThemeStyle } from '../../common/appTheme.js'
 
 export default {
   data() {
@@ -105,10 +106,14 @@ export default {
       sources: [],
       loading: false,
       searchToken: 0,
+      themeId: getAppThemeId(),
       starterKeywords: demoSearchKeywords
     }
   },
   computed: {
+    themeVars() {
+      return getAppThemeStyle(this.themeId)
+    },
     filteredSources() {
       const word = sanitizeSearchKeyword(this.keyword).toLowerCase()
       if (!word) return this.sources
@@ -131,6 +136,7 @@ export default {
     }
   },
   onShow() {
+    this.themeId = getAppThemeId()
     this.sources = getSourceConfigs()
   },
   methods: {
@@ -218,10 +224,8 @@ export default {
   min-height: 100vh;
   padding: 76rpx 36rpx 132rpx;
   margin: 0 auto;
-  color: #233531;
-  background:
-    radial-gradient(circle at 12% 0%, rgba(143, 205, 191, 0.35), transparent 32%),
-    linear-gradient(180deg, #f4fbf8 0%, #eef7f5 46%, #f8f3ea 100%);
+  color: var(--app-text);
+  background: var(--app-bg);
 }
 
 button::after {
@@ -243,14 +247,14 @@ button {
 }
 
 .eyebrow {
-  color: #e26a4f;
+  color: var(--app-accent-3);
   font-size: 22rpx;
   font-weight: 900;
 }
 
 .title {
   margin-top: 8rpx;
-  color: #20352f;
+  color: var(--app-text);
   font-family: "KaiTi", "STKaiti", "FZKai-Z03", "PingFang SC", cursive;
   font-size: 48rpx;
   font-weight: 900;
@@ -258,7 +262,7 @@ button {
 
 .top-note {
   flex-shrink: 0;
-  color: #6c817b;
+  color: var(--app-muted);
   font-size: 24rpx;
 }
 
@@ -275,32 +279,32 @@ button {
   min-width: 0;
   height: 76rpx;
   padding: 0 28rpx;
-  border: 1rpx solid rgba(76, 129, 117, 0.14);
+  border: 1rpx solid var(--app-border);
   border-radius: 18rpx;
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 14rpx 32rpx rgba(69, 104, 96, 0.10);
+  background: var(--app-input);
+  box-shadow: var(--app-shadow);
 }
 
 .search-icon {
   margin-right: 12rpx;
-  color: #6a9d91;
+  color: var(--app-accent);
   font-size: 30rpx;
 }
 
 .search-input {
   flex: 1;
   height: 76rpx;
-  color: #20352f;
+  color: var(--app-text);
   font-size: 28rpx;
 }
 
 .search-button {
   height: 76rpx;
   border-radius: 18rpx;
-  color: #ffffff;
+  color: var(--app-on-accent);
   font-size: 26rpx;
   font-weight: 800;
-  background: #e26a4f;
+  background: var(--app-accent-3);
   box-shadow: 0 14rpx 28rpx rgba(226, 106, 79, 0.22);
 }
 
@@ -313,17 +317,17 @@ button {
 
 .mode {
   height: 64rpx;
-  border: 1rpx solid rgba(76, 129, 117, 0.14);
+  border: 1rpx solid var(--app-border);
   border-radius: 18rpx;
-  color: #60756f;
+  color: var(--app-muted);
   font-size: 25rpx;
-  background: rgba(255, 255, 255, 0.78);
+  background: var(--app-panel);
 }
 
 .mode.active {
-  color: #ffffff;
-  border-color: #78aaa0;
-  background: linear-gradient(135deg, #70ad9f 0%, #90c7ba 100%);
+  color: var(--app-on-accent);
+  border-color: var(--app-accent);
+  background: linear-gradient(135deg, var(--app-accent) 0%, var(--app-accent-2) 100%);
 }
 
 .tip-card,
@@ -331,10 +335,10 @@ button {
 .result-card,
 .empty-state,
 .loading-card {
-  border: 1rpx solid rgba(76, 129, 117, 0.12);
+  border: 1rpx solid var(--app-border);
   border-radius: 16rpx;
-  background: rgba(255, 255, 255, 0.82);
-  box-shadow: 0 16rpx 38rpx rgba(64, 96, 89, 0.09);
+  background: var(--app-panel-strong);
+  box-shadow: var(--app-shadow);
 }
 
 .tip-card {
@@ -348,7 +352,7 @@ button {
 .empty-title,
 .loading-title,
 .source-name {
-  color: #20352f;
+  color: var(--app-text);
   font-weight: 900;
 }
 
@@ -366,7 +370,7 @@ button {
 .loading-desc {
   display: block;
   margin-top: 8rpx;
-  color: #70847e;
+  color: var(--app-muted);
   font-size: 23rpx;
   line-height: 34rpx;
 }
@@ -386,7 +390,7 @@ button {
 
 .source-count {
   flex-shrink: 0;
-  color: #e26a4f;
+  color: var(--app-accent-3);
   font-size: 23rpx;
   font-weight: 900;
 }
@@ -418,14 +422,14 @@ button {
   width: 94rpx;
   height: 52rpx;
   border-radius: 14rpx;
-  color: #6e817b;
+  color: var(--app-muted);
   font-size: 23rpx;
-  background: #edf5f2;
+  background: var(--app-panel);
 }
 
 .source-action.active {
-  color: #ffffff;
-  background: #70ad9f;
+  color: var(--app-on-accent);
+  background: var(--app-accent);
 }
 
 .loading-card {
@@ -441,7 +445,7 @@ button {
   width: 18rpx;
   height: 18rpx;
   border-radius: 999rpx;
-  background: #e26a4f;
+  background: var(--app-accent-3);
   animation: pulse 1.1s ease-in-out infinite;
 }
 
@@ -469,13 +473,13 @@ button {
 }
 
 .result-type {
-  color: #ffffff;
-  background: #70ad9f;
+  color: var(--app-on-accent);
+  background: var(--app-accent);
 }
 
 .result-action {
-  color: #e26a4f;
-  background: #fff0eb;
+  color: var(--app-accent-3);
+  background: var(--app-panel);
 }
 
 .empty-state {
@@ -497,9 +501,9 @@ button {
 .starter {
   height: 58rpx;
   border-radius: 16rpx;
-  color: #426a62;
+  color: var(--app-text);
   font-size: 23rpx;
-  background: #e9f4f1;
+  background: var(--app-panel);
 }
 
 @keyframes pulse {

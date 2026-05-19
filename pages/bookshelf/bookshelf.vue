@@ -472,4 +472,59 @@ button::after {
 .tab.active {
   color: #f4f0e8;
 }
+
+/* Global app theme */
+.decoder-page {
+  color: var(--app-text);
+  background: var(--app-bg);
+}
+
+.top-zone {
+  background: var(--app-top);
+  box-shadow: var(--app-shadow);
+}
+
+.search-pill,
+.tool-icon,
+.book-row,
+.empty-box {
+  border-color: var(--app-border);
+  background: var(--app-panel-strong);
+  box-shadow: var(--app-shadow);
+}
+
+.search-icon,
+.search-text,
+.top-icon,
+.top-icon.star,
+.book-title,
+.empty-title,
+.tab.active {
+  color: var(--app-text);
+}
+
+.tool-name,
+.tab,
+.meta-line,
+.empty-desc {
+  color: var(--app-muted);
+}
+
+.meta-icon,
+.chapter-badge,
+.mini-action {
+  color: var(--app-on-accent);
+  background: var(--app-accent);
+}
+
+.tool-icon.repo,
+.tool-icon.import,
+.tool-icon.cloud {
+  color: var(--app-on-accent);
+  background: linear-gradient(145deg, var(--app-accent) 0%, var(--app-accent-2) 100%);
+}
+
+.cover-wrap {
+  background: linear-gradient(145deg, var(--app-accent) 0%, var(--app-accent-3) 100%);
+}
 </style>

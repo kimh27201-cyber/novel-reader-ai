@@ -1,5 +1,5 @@
 <template>
-  <view class="profile-page">
+  <view class="profile-page" :style="themeVars">
     <view class="top-zone">
       <view>
         <text class="eyebrow">ME</text>
@@ -38,7 +38,7 @@
           <text class="setting-desc">{{ item.desc }}</text>
         </view>
         <view class="setting-extra" v-if="item.id === 'theme'">{{ activeThemeName }}</view>
-        <switch v-if="item.id === 'web'" :checked="webEnabled" color="#d44b2f" @change="toggleWeb" />
+        <switch v-if="item.id === 'web'" :checked="webEnabled" :color="themeAccent" @change="toggleWeb" />
       </view>
 
       <text class="section-label">设置</text>
@@ -76,7 +76,14 @@
           <view class="theme-name">{{ theme.name }}</view>
           <text class="theme-desc">{{ theme.desc }}</text>
         </view>
-        <text class="theme-dot">●</text>
+        <view class="theme-swatch">
+          <text
+            class="swatch-dot"
+            v-for="color in theme.swatch"
+            :key="color"
+            :style="{ background: color }"
+          ></text>
+        </view>
       </view>
     </view>
   </view>
@@ -84,7 +91,7 @@
 
 <script>
 import { exportTrackedBooks } from '../../common/tracking.js'
-import { appThemes, getAppThemeId, saveAppTheme } from '../../common/appTheme.js'
+import { appThemes, getAppThemeId, getAppThemeStyle, saveAppTheme } from '../../common/appTheme.js'
 import apiClient from '../../common/apiClient.js'
 
 export default {
@@ -114,8 +121,14 @@ export default {
     }
   },
   computed: {
+    themeVars() {
+      return getAppThemeStyle(this.themeId)
+    },
     activeThemeName() {
       return (this.themes.find(theme => theme.id === this.themeId) || this.themes[0]).name
+    },
+    themeAccent() {
+      return getAppThemeStyle(this.themeId)['--app-accent']
     },
     backendStatusDesc() {
       return this.backend.user
@@ -528,5 +541,95 @@ button::after {
 .setting-desc,
 .theme-desc {
   color: #a9aaa4;
+}
+
+.theme-swatch {
+  display: flex;
+  align-items: center;
+  gap: 8rpx;
+  flex-shrink: 0;
+}
+
+.swatch-dot {
+  display: block;
+  width: 24rpx;
+  height: 24rpx;
+  border: 2rpx solid rgba(255, 255, 255, 0.64);
+  border-radius: 999rpx;
+}
+
+/* Global app theme */
+.profile-page {
+  color: var(--app-text);
+  background: var(--app-bg);
+}
+
+.top-zone {
+  background: var(--app-top);
+  box-shadow: var(--app-shadow);
+}
+
+.title,
+.backend-title,
+.setting-title,
+.panel-title,
+.theme-name {
+  color: var(--app-text);
+}
+
+.eyebrow,
+.setting-icon,
+.section-label,
+.theme-dot {
+  color: var(--app-accent-3);
+}
+
+.backend-card,
+.setting-item,
+.theme-panel,
+.theme-row {
+  border-color: var(--app-border);
+  background: var(--app-panel-strong);
+  box-shadow: var(--app-shadow);
+}
+
+.backend-desc,
+.setting-desc,
+.theme-desc {
+  color: var(--app-muted);
+}
+
+.backend-input {
+  color: var(--app-text);
+  background: var(--app-input);
+}
+
+.backend-button,
+.setting-extra {
+  color: var(--app-text);
+  background: var(--app-panel);
+}
+
+.backend-button.primary,
+.backend-status.online {
+  color: var(--app-on-accent);
+  background: var(--app-accent);
+}
+
+.backend-button.ghost,
+.backend-status {
+  color: var(--app-muted);
+  background: var(--app-panel);
+}
+
+.theme-row.active {
+  border-color: var(--app-accent);
+  background: var(--app-panel);
+}
+
+.help-button,
+.close-button {
+  color: var(--app-text);
+  border-color: var(--app-text);
 }
 </style>

@@ -1,5 +1,5 @@
 <template>
-  <view class="import-page">
+  <view class="import-page" :style="themeVars">
     <view class="top-zone">
       <view>
         <text class="eyebrow">IMPORT</text>
@@ -148,6 +148,7 @@ import {
   importBackendDemoSource,
   listBackendSources
 } from '../../common/backendLibrary.js'
+import { getAppThemeId, getAppThemeStyle } from '../../common/appTheme.js'
 
 export default {
   data() {
@@ -160,6 +161,7 @@ export default {
       sourceImportUrl: '',
       backendSources: [],
       backendLoading: false,
+      themeId: getAppThemeId(),
       importTitle: '',
       importAuthor: '',
       importFileName: '',
@@ -167,6 +169,9 @@ export default {
     }
   },
   computed: {
+    themeVars() {
+      return getAppThemeStyle(this.themeId)
+    },
     importPreview() {
       const chapters = parseTxtChapters(this.importFileText)
       return {
@@ -176,6 +181,7 @@ export default {
     }
   },
   onShow() {
+    this.themeId = getAppThemeId()
     this.sources = getSourceConfigs()
   },
   methods: {
@@ -676,5 +682,73 @@ button::after {
 .source-desc,
 .file-desc {
   color: #a9aaa4;
+}
+
+/* Global app theme */
+.import-page {
+  color: var(--app-text);
+  background: var(--app-bg);
+}
+
+.top-zone {
+  background: var(--app-top);
+  box-shadow: var(--app-shadow);
+}
+
+.title,
+.panel-title,
+.entry-title,
+.source-name,
+.file-title {
+  color: var(--app-text);
+}
+
+.eyebrow,
+.entry-icon,
+.section-label,
+.theme-dot,
+.entry-arrow {
+  color: var(--app-accent-3);
+}
+
+.entry-desc,
+.source-desc,
+.file-desc {
+  color: var(--app-muted);
+}
+
+.entry-card,
+.source-panel,
+.source-item,
+.file-picker,
+.mode,
+.source-area,
+.field {
+  border-color: var(--app-border);
+  background: var(--app-panel-strong);
+  box-shadow: var(--app-shadow);
+}
+
+.source-area,
+.field {
+  color: var(--app-text);
+  background: var(--app-input);
+}
+
+.mode {
+  color: var(--app-muted);
+}
+
+.mode.active,
+.submit-button,
+.source-toggle.active,
+.file-icon {
+  color: var(--app-on-accent);
+  background: var(--app-accent);
+}
+
+.top-button,
+.close-button {
+  color: var(--app-text);
 }
 </style>
