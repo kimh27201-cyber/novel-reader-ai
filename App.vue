@@ -9,9 +9,22 @@ export default {
 <style>
 page {
   min-height: 100%;
-  color: #f4f0e8;
-  background: #1f201e;
+  color: #20352f;
+  background: #dfe8e4;
   font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+/* H5 preview shell: keep the app visually separate from the browser chrome. */
+.decoder-page,
+.import-page,
+.discover-page,
+.profile-page,
+.source-book-page,
+.history-page,
+.reader-page {
+  border-left: 1rpx solid rgba(60, 84, 78, 0.12);
+  border-right: 1rpx solid rgba(60, 84, 78, 0.12);
+  box-shadow: 0 24rpx 80rpx rgba(42, 62, 57, 0.18);
 }
 
 view,

@@ -264,6 +264,9 @@ export default {
     savePrefs(this.prefs)
     this.loadInitialBook(options)
   },
+  onShow() {
+    this.appThemeId = getAppThemeId()
+  },
   methods: {
     async loadInitialBook(options) {
       try {
@@ -692,10 +695,14 @@ export default {
 <style>
 .reader-page {
   position: relative;
+  width: 100%;
+  max-width: 1120px;
   height: 100vh;
   overflow: hidden;
   padding: 58rpx 42rpx 54rpx;
+  margin: 0 auto;
   box-sizing: border-box;
+  border-radius: 0 0 18rpx 18rpx;
   transition: background 0.2s ease, color 0.2s ease;
 }
 
@@ -921,7 +928,7 @@ export default {
 .more-menu {
   position: fixed;
   top: 124rpx;
-  right: 24rpx;
+  right: max(24rpx, calc((100vw - 1120px) / 2 + 24rpx));
   z-index: 10;
   width: 268rpx;
   padding: 10rpx;
@@ -1166,10 +1173,79 @@ export default {
 
 .brightness-mask {
   position: fixed;
-  inset: 0;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-width: 1120px;
+  margin: 0 auto;
   z-index: 1;
   pointer-events: none;
   background: #000000;
+}
+
+/* Global app theme polish for reader chrome */
+.reader-page {
+  box-shadow: 0 24rpx 80rpx rgba(42, 62, 57, 0.18);
+}
+
+.chapter-kicker,
+.catalog-index {
+  color: var(--app-accent-3);
+}
+
+.foot-progress,
+.font-meter-fill {
+  background: var(--app-accent-3);
+}
+
+.top-chrome,
+.bottom-chrome,
+.settings-panel,
+.catalog-panel,
+.more-menu {
+  border-color: var(--app-border);
+  color: var(--app-text);
+  background: var(--app-panel-strong);
+  box-shadow: var(--app-shadow);
+}
+
+.icon-button,
+.close-button,
+.chapter-button,
+.dock-tool,
+.step-button,
+.more-item,
+.catalog-item {
+  color: var(--app-text);
+  background: var(--app-panel);
+}
+
+.top-title text,
+.panel-desc,
+.catalog-state {
+  color: var(--app-muted);
+}
+
+.panel-title,
+.dock-icon,
+.catalog-title,
+.error-title {
+  color: var(--app-text);
+}
+
+.theme-chip.active {
+  border-color: var(--app-accent-3);
+}
+
+.retry-button {
+  color: var(--app-on-accent);
+  background: var(--app-accent-3);
+}
+
+.catalog-item.active {
+  color: var(--app-on-accent);
+  background: var(--app-accent);
 }
 
 @keyframes pulse {

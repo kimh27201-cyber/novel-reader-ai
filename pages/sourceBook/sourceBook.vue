@@ -81,6 +81,9 @@ export default {
     }
     this.reload()
   },
+  onShow() {
+    this.themeId = getAppThemeId()
+  },
   methods: {
     shortTitle(title) {
       return String(title || '').slice(0, 4)
@@ -383,5 +386,58 @@ button::after {
 
 .primary-action {
   background: #d85a3a;
+}
+
+/* Global app theme */
+.source-book-page {
+  color: var(--app-text);
+  background: var(--app-bg);
+}
+
+.topbar {
+  background: var(--app-top);
+  box-shadow: var(--app-shadow);
+}
+
+.eyebrow,
+.chapter-index {
+  color: var(--app-accent-3);
+}
+
+.title,
+.book-title,
+.status-title,
+.chapter-title {
+  color: var(--app-text);
+}
+
+.back-button,
+.hero-card,
+.status-card,
+.chapter-item,
+.plain-action {
+  border: 1rpx solid var(--app-border);
+  background: var(--app-panel-strong);
+  box-shadow: var(--app-shadow);
+}
+
+.book-meta,
+.book-desc,
+.status-desc {
+  color: var(--app-muted);
+}
+
+.primary-action {
+  color: var(--app-on-accent);
+  background: var(--app-accent);
+}
+
+.primary-action[disabled] {
+  color: var(--app-muted);
+  background: var(--app-panel);
+}
+
+.cover {
+  background: linear-gradient(155deg, var(--app-accent) 0%, var(--app-accent-2) 50%, var(--app-accent-3) 100%);
 }
 </style>

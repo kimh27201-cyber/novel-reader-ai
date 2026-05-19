@@ -1,5 +1,5 @@
 <template>
-  <view class="history-page">
+  <view class="history-page" :style="themeVars">
     <view class="topbar">
       <button class="back-button" @tap="goBack">‹</button>
       <view>
@@ -51,6 +51,7 @@
 
 <script>
 import { loadAIHistory } from '../../common/aiHistory.js'
+import { getAppThemeId, getAppThemeStyle } from '../../common/appTheme.js'
 
 export default {
   data() {
@@ -58,16 +59,21 @@ export default {
       items: [],
       filter: 'all',
       loading: false,
-      errorMessage: ''
+      errorMessage: '',
+      themeId: getAppThemeId()
     }
   },
   computed: {
+    themeVars() {
+      return getAppThemeStyle(this.themeId)
+    },
     visibleItems() {
       if (this.filter === 'all') return this.items
       return this.items.filter(item => item.type === this.filter)
     }
   },
   onShow() {
+    this.themeId = getAppThemeId()
     this.refresh()
   },
   methods: {
@@ -296,5 +302,66 @@ button::after {
   font-size: 26rpx;
   line-height: 1;
   background: #d44b2f;
+}
+
+/* Global app theme */
+.history-page {
+  color: var(--app-text);
+  background: var(--app-bg);
+}
+
+.back-button,
+.refresh-button,
+.filter,
+.history-item,
+.status-card,
+.empty-card {
+  border: 1rpx solid var(--app-border);
+  background: var(--app-panel-strong);
+  box-shadow: var(--app-shadow);
+}
+
+.eyebrow {
+  color: var(--app-accent-3);
+}
+
+.title,
+.item-title,
+.status-title,
+.item-content {
+  color: var(--app-text);
+}
+
+.filter,
+.time-text,
+.provider,
+.status-desc {
+  color: var(--app-muted);
+}
+
+.filter.active,
+.status-action {
+  color: var(--app-on-accent);
+  background: var(--app-accent);
+}
+
+.type-badge {
+  color: var(--app-on-accent);
+  background: var(--app-accent);
+}
+
+.type-badge.chat {
+  color: var(--app-on-accent);
+  background: var(--app-accent-3);
+}
+
+.type-badge.call {
+  color: var(--app-on-accent);
+  background: var(--app-accent-2);
+}
+
+.tag {
+  color: var(--app-text);
+  background: var(--app-panel);
 }
 </style>
