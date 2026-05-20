@@ -2,6 +2,9 @@ import assert from 'node:assert/strict'
 import {
   applyListRule,
   applyRule,
+  detectSourceImportPayload,
+  extractRepositorySourceUrl,
+  getRuntimeRequestUrl,
   parseRequestSpec,
   parseSourceJson,
   renderTemplate,
@@ -42,6 +45,32 @@ const request = parseRequestSpec('https://example.com/search,{"method":"POST","b
 assert.equal(request.method, 'POST')
 assert.equal(request.data, 'key=abc')
 assert.equal(request.header['X-Test'], '3')
+
+const importLink = 'yuedu://bookSource/import?src=https%3A%2F%2Fwww.yck2026.top%2Fyuedu%2Fshuyuan%2Fjson%2F7274.json'
+assert.deepEqual(detectSourceImportPayload('[{"bookSourceName":"A"}]'), {
+  type: 'json',
+  value: '[{"bookSourceName":"A"}]'
+})
+assert.equal(detectSourceImportPayload('https://example.com/a.json').type, 'json-url')
+assert.equal(detectSourceImportPayload('https://www.yck2026.top/yuedu/shuyuan/content/id/7274.html').type, 'repository-page')
+assert.equal(detectSourceImportPayload(importLink).type, 'import-link')
+assert.equal(detectSourceImportPayload(importLink).value, 'https://www.yck2026.top/yuedu/shuyuan/json/7274.json')
+
+const repoHtml = `
+  <a class="btn" href="/yuedu/shuyuan/json/id/7274.json">下载 JSON</a>
+  <a href="legado://import?src=https%3A%2F%2Fexample.com%2Fignored.json">一键导入</a>
+`
+assert.equal(
+  extractRepositorySourceUrl(repoHtml, 'https://www.yck2026.top/yuedu/shuyuan/content/id/7274.html'),
+  'https://www.yck2026.top/yuedu/shuyuan/json/id/7274.json'
+)
+
+globalThis.window = {}
+assert.equal(
+  getRuntimeRequestUrl('https://www.yck2026.top/yuedu/shuyuan/content/id/7274.html'),
+  '/yck2026-proxy/yuedu/shuyuan/content/id/7274.html'
+)
+delete globalThis.window
 
 const sourceJson = JSON.stringify([{
   bookSourceName: '测试源',

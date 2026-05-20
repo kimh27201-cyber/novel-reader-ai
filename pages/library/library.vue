@@ -10,13 +10,14 @@
 
     <view class="entry-grid">
       <view class="entry-card" @tap="openSourcePanel">
-        <text class="entry-icon">▦</text>
+        <text class="entry-icon">源</text>
         <view class="entry-copy">
           <view class="entry-title">书源管理</view>
-          <text class="entry-desc">新建、导入、编辑或管理书源</text>
+          <text class="entry-desc">粘贴、URL、剪贴板、扫码、本地 JSON 和源仓库页导入</text>
         </view>
         <text class="entry-arrow">›</text>
       </view>
+
       <view class="entry-card" @tap="scanSourceQr">
         <text class="entry-icon">▣</text>
         <view class="entry-copy">
@@ -25,30 +26,34 @@
         </view>
         <text class="entry-arrow">›</text>
       </view>
+
       <view class="entry-card" @tap="openTxtPanel">
         <text class="entry-icon">TXT</text>
         <view class="entry-copy">
           <view class="entry-title">TXT 目录规则</view>
-          <text class="entry-desc">导入本地文件并按章节解码</text>
+          <text class="entry-desc">导入本地小说并按章节解码</text>
         </view>
         <text class="entry-arrow">›</text>
       </view>
+
       <view class="entry-card" @tap="coming('替换净化稍后接入')">
-        <text class="entry-icon">A↔B</text>
+        <text class="entry-icon">A→B</text>
         <view class="entry-copy">
           <view class="entry-title">替换净化</view>
           <text class="entry-desc">配置广告、乱码、空白净化规则</text>
         </view>
         <text class="entry-arrow">›</text>
       </view>
+
       <view class="entry-card" @tap="coming('字典规则稍后接入')">
-        <text class="entry-icon">文A</text>
+        <text class="entry-icon">文</text>
         <view class="entry-copy">
           <view class="entry-title">字典规则</view>
           <text class="entry-desc">配置词典、翻译和名称规整</text>
         </view>
         <text class="entry-arrow">›</text>
       </view>
+
       <view class="entry-card" @tap="goProfile">
         <text class="entry-icon">⚙</text>
         <view class="entry-copy">
@@ -68,42 +73,60 @@
         <button class="close-button" @tap="closePanels">×</button>
       </view>
 
-      <view class="mode-row">
-        <button class="mode" :class="{ active: sourceImportMode === 'json' }" @tap="sourceImportMode = 'json'">粘贴 JSON</button>
-        <button class="mode" :class="{ active: sourceImportMode === 'url' }" @tap="sourceImportMode = 'url'">导入 URL</button>
+      <view class="mode-row import-mode-row">
+        <button class="mode" :class="{ active: sourceImportMode === 'json' }" @tap="setImportMode('json')">粘贴导入</button>
+        <button class="mode" :class="{ active: sourceImportMode === 'url' }" @tap="setImportMode('url')">URL 导入</button>
+        <button class="mode" :class="{ active: sourceImportMode === 'repo' }" @tap="setImportMode('repo')">源仓库页</button>
       </view>
 
       <textarea
         v-if="sourceImportMode === 'json'"
         class="source-area"
         v-model="sourceImportText"
-        placeholder="粘贴书源 JSON；如果你粘的是 https://...json，我也会自动按 URL 导入"
+        placeholder="粘贴书源 JSON、yuedu:// 一键导入链接，或 https://...json"
       ></textarea>
       <input
         v-else
         class="field"
         v-model="sourceImportUrl"
-        placeholder="粘贴 JSON 直链或 yckceo 书源页面 URL"
+        :placeholder="sourceImportMode === 'repo' ? '粘贴 yck2026/yckceo 源仓库详情页 URL' : '粘贴 JSON 直链或一键导入链接'"
       />
-      <button class="submit-button" @tap="submitSourceImport">导入书源</button>
+      <text class="source-hint">{{ sourceImportHint }}</text>
+      <button class="submit-button" :loading="sourceImporting" @tap="submitSourceImport">导入书源</button>
+
+      <view class="quick-import-grid">
+        <button class="mode" @tap="importFromClipboard">剪贴板</button>
+        <button class="mode" @tap="chooseSourceJsonFile">本地 JSON</button>
+        <button class="mode" @tap="scanSourceQr">扫码</button>
+        <button class="mode" @tap="setImportMode('repo')">源仓库页</button>
+      </view>
 
       <view class="mode-row">
         <button class="mode" :loading="backendLoading" @tap="importBackendDemo">导入后端演示源</button>
         <button class="mode" :loading="backendLoading" @tap="refreshBackendSources">刷新后端源</button>
       </view>
 
+      <view class="filter-row">
+        <button class="filter-chip" :class="{ active: sourceFilter === 'all' }" @tap="sourceFilter = 'all'">全部</button>
+        <button class="filter-chip" :class="{ active: sourceFilter === 'enabled' }" @tap="sourceFilter = 'enabled'">启用</button>
+        <button class="filter-chip" :class="{ active: sourceFilter === 'disabled' }" @tap="sourceFilter = 'disabled'">停用</button>
+        <button class="filter-chip" :class="{ active: sourceFilter === 'incompatible' }" @tap="sourceFilter = 'incompatible'">不兼容</button>
+        <button class="filter-chip" :class="{ active: sourceFilter === 'cloud' }" @tap="sourceFilter = 'cloud'">云端</button>
+      </view>
+
       <scroll-view class="source-list" scroll-y :show-scrollbar="false">
-        <view class="source-item" v-for="source in backendSources" :key="source.id">
+        <view class="source-item" v-for="source in visibleBackendSources" :key="source.id">
           <view class="source-main">
             <view class="source-name">{{ source.name }}</view>
             <text class="source-desc">后端 · {{ source.group }} · {{ source.compatibility }}</text>
           </view>
           <button class="source-toggle active">云端</button>
         </view>
-        <view class="source-item" v-for="source in sources" :key="source.id">
+
+        <view class="source-item" v-for="source in filteredSources" :key="source.id">
           <view class="source-main">
             <view class="source-name">{{ source.name }}</view>
-            <text class="source-desc">{{ source.group }} · {{ source.compatibility }}</text>
+            <text class="source-desc">{{ source.group }} · {{ source.compatibility }} · {{ source.importedAt ? '本地导入' : '内置' }}</text>
           </view>
           <button class="source-toggle" :class="{ active: source.enabled }" @tap="toggleSource(source)">
             {{ source.enabled ? '启用' : '停用' }}
@@ -140,8 +163,7 @@ import { importBookFromText, parseTxtChapters } from '../../common/books.js'
 import {
   deleteUserSource,
   getSourceConfigs,
-  importSourcesFromJson,
-  importSourcesFromUrl,
+  importSourcesFromAny,
   setSourceEnabled
 } from '../../common/bookSources.js'
 import {
@@ -160,6 +182,8 @@ export default {
       sourceImportMode: 'json',
       sourceImportText: '',
       sourceImportUrl: '',
+      sourceImporting: false,
+      sourceFilter: 'all',
       backendSources: [],
       backendLoading: false,
       themeId: getAppThemeId(),
@@ -179,6 +203,23 @@ export default {
         chapterCount: chapters.length,
         wordCount: String(this.importFileText || '').replace(/\s/g, '').length
       }
+    },
+    sourceImportHint() {
+      if (this.sourceImportMode === 'json') return '支持 JSON、sources 包装结构、一键导入链接和 JSON URL。'
+      if (this.sourceImportMode === 'repo') return '支持 yck2026/yckceo 的源仓库详情页或合集页，系统会自动提取 JSON。'
+      return '支持直接 JSON 链接、yuedu://、legado:// 和包含 src= 的链接。'
+    },
+    filteredSources() {
+      if (this.sourceFilter === 'cloud') return []
+      return this.sources.filter(source => {
+        if (this.sourceFilter === 'enabled') return source.enabled
+        if (this.sourceFilter === 'disabled') return !source.enabled
+        if (this.sourceFilter === 'incompatible') return !/^v1/.test(source.compatibility)
+        return true
+      })
+    },
+    visibleBackendSources() {
+      return this.sourceFilter === 'all' || this.sourceFilter === 'cloud' ? this.backendSources : []
     }
   },
   onShow() {
@@ -186,6 +227,9 @@ export default {
     this.sources = getSourceConfigs()
   },
   methods: {
+    setImportMode(mode) {
+      this.sourceImportMode = mode
+    },
     openSourcePanel() {
       this.sources = getSourceConfigs()
       this.sourceVisible = true
@@ -204,16 +248,66 @@ export default {
       this.sources = getSourceConfigs()
     },
     async submitSourceImport() {
+      const raw = String(this.sourceImportMode === 'json' ? this.sourceImportText : this.sourceImportUrl).trim()
+      if (!raw) {
+        uni.showToast({ title: '请先粘贴书源内容或 URL', icon: 'none' })
+        return
+      }
+      await this.importSourcePayload(raw)
+      this.sourceImportText = ''
+      this.sourceImportUrl = ''
+    },
+    async importSourcePayload(raw, successPrefix = '已导入') {
+      this.sourceImporting = true
       try {
-        const raw = String(this.sourceImportMode === 'json' ? this.sourceImportText : this.sourceImportUrl).trim()
-        const count = /^https?:\/\//i.test(raw) ? await importSourcesFromUrl(raw) : importSourcesFromJson(raw)
-        this.sourceImportText = ''
-        this.sourceImportUrl = ''
+        const result = await importSourcesFromAny(raw)
         this.sources = getSourceConfigs()
-        uni.showToast({ title: `已导入 ${count} 个书源`, icon: 'none' })
+        uni.showToast({
+          title: `${successPrefix} ${result.imported} 新增 / ${result.updated} 覆盖 / ${result.incompatible} 不兼容`,
+          icon: 'none'
+        })
+        return result
       } catch (error) {
         uni.showToast({ title: friendlyErrorMessage(error, '导入书源失败'), icon: 'none' })
+        return null
+      } finally {
+        this.sourceImporting = false
       }
+    },
+    importFromClipboard() {
+      if (!uni.getClipboardData) {
+        uni.showToast({ title: '当前环境不支持读取剪贴板', icon: 'none' })
+        return
+      }
+      uni.getClipboardData({
+        success: result => this.importSourcePayload(result.data || '', '剪贴板导入'),
+        fail: () => uni.showToast({ title: '读取剪贴板失败', icon: 'none' })
+      })
+    },
+    chooseSourceJsonFile() {
+      if (!uni.chooseFile) {
+        uni.showToast({ title: '当前环境暂不支持文件选择，请用 H5 或真机测试', icon: 'none' })
+        return
+      }
+      uni.chooseFile({
+        count: 1,
+        type: 'all',
+        extension: ['.json'],
+        success: async result => {
+          try {
+            const file = (result.tempFiles && result.tempFiles[0]) || {
+              path: result.tempFilePaths && result.tempFilePaths[0],
+              name: result.tempFilePaths && result.tempFilePaths[0]
+            }
+            const fileName = this.getFileName(file)
+            if (!/\.json$/i.test(fileName)) throw new Error('请选择 .json 书源文件')
+            const text = await this.readFileText(file)
+            await this.importSourcePayload(text, '本地 JSON 导入')
+          } catch (error) {
+            uni.showToast({ title: error.message || '读取 JSON 失败', icon: 'none' })
+          }
+        }
+      })
     },
     async refreshBackendSources(options = {}) {
       this.backendLoading = true
@@ -253,28 +347,13 @@ export default {
     },
     scanSourceQr() {
       if (!uni.scanCode) {
-        uni.showToast({ title: '浏览器预览不支持扫码，请用真机测试', icon: 'none' })
+        uni.showToast({ title: 'H5 预览不支持扫码，请用真机测试或剪贴板导入', icon: 'none' })
         return
       }
       uni.scanCode({
         onlyFromCamera: false,
-        success: async result => {
-          const raw = String(result.result || '').trim()
-          if (!raw) {
-            uni.showToast({ title: '二维码内容为空', icon: 'none' })
-            return
-          }
-          try {
-            const count = /^https?:\/\//i.test(raw) ? await importSourcesFromUrl(raw) : importSourcesFromJson(raw)
-            this.sources = getSourceConfigs()
-            uni.showToast({ title: `已扫码导入 ${count} 个书源`, icon: 'none' })
-          } catch (error) {
-            uni.showToast({ title: friendlyErrorMessage(error, '扫码导入失败'), icon: 'none' })
-          }
-        },
-        fail: () => {
-          uni.showToast({ title: '未完成扫码', icon: 'none' })
-        }
+        success: result => this.importSourcePayload(String(result.result || '').trim(), '扫码导入'),
+        fail: () => uni.showToast({ title: '未完成扫码', icon: 'none' })
       })
     },
     chooseTxtFile() {
@@ -294,7 +373,7 @@ export default {
             }
             const fileName = this.getFileName(file)
             if (!/\.txt$/i.test(fileName)) throw new Error('请选择 .txt 文件')
-            const text = await this.readTxtFile(file)
+            const text = await this.readFileText(file)
             if (!text || text.trim().length < 20) throw new Error('TXT 内容太短')
             this.importFileName = fileName
             this.importFileText = text
@@ -306,9 +385,9 @@ export default {
       })
     },
     getFileName(file) {
-      return String((file && (file.name || file.path)) || '未命名.txt').split(/[\\/]/).pop()
+      return String((file && (file.name || file.path)) || '未命名').split(/[\\/]/).pop()
     },
-    readTxtFile(file) {
+    readFileText(file) {
       if (file.file && typeof FileReader !== 'undefined') {
         return new Promise((resolve, reject) => {
           const reader = new FileReader()
@@ -330,7 +409,7 @@ export default {
         })
       }
       if (file.path && typeof fetch !== 'undefined') return fetch(file.path).then(response => response.text())
-      return Promise.reject(new Error('当前环境无法读取 TXT'))
+      return Promise.reject(new Error('当前环境无法读取文件'))
     },
     submitImport() {
       try {
@@ -366,7 +445,7 @@ export default {
   min-height: 100vh;
   padding: 86rpx 40rpx 132rpx;
   margin: 0 auto;
-  background: #1f1f1f;
+  background: var(--app-bg);
 }
 
 button::after {
@@ -380,11 +459,11 @@ button::after {
   min-height: 116rpx;
   margin: -86rpx -40rpx 34rpx;
   padding: 86rpx 40rpx 28rpx;
-  background: #60757d;
+  background: var(--app-top);
 }
 
 .eyebrow {
-  color: rgba(255, 255, 255, 0.7);
+  color: var(--app-accent);
   font-size: 22rpx;
   font-weight: 800;
 }
@@ -392,25 +471,35 @@ button::after {
 .title,
 .panel-title {
   margin-top: 8rpx;
-  color: #ffffff;
-  font-family: cursive;
-  font-size: 48rpx;
-  line-height: 58rpx;
+  color: var(--app-text);
+  font-size: 42rpx;
+  font-weight: 800;
+  line-height: 52rpx;
+}
+
+.top-button,
+.close-button,
+.mode,
+.submit-button,
+.source-toggle,
+.source-delete,
+.filter-chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  line-height: 1;
 }
 
 .top-button,
 .close-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
   width: 78rpx;
   height: 78rpx;
-  padding: 0;
   border-radius: 999rpx;
-  color: #ffffff;
-  font-size: 44rpx;
-  line-height: 1;
-  background: transparent;
+  color: var(--app-text);
+  font-size: 42rpx;
+  background: var(--app-panel);
 }
 
 .entry-card {
@@ -419,7 +508,10 @@ button::after {
   align-items: center;
   min-height: 124rpx;
   padding: 18rpx 76rpx 18rpx 10rpx;
-  margin-bottom: 26rpx;
+  margin-bottom: 20rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: 18rpx;
+  background: var(--app-panel);
 }
 
 .entry-icon {
@@ -428,8 +520,9 @@ button::after {
   justify-content: center;
   flex-shrink: 0;
   width: 92rpx;
-  color: #d44b2f;
-  font-size: 38rpx;
+  color: var(--app-accent);
+  font-size: 34rpx;
+  font-weight: 800;
 }
 
 .entry-copy {
@@ -439,40 +532,43 @@ button::after {
 }
 
 .entry-title {
-  color: #ffffff;
-  font-family: cursive;
-  font-size: 38rpx;
-  line-height: 48rpx;
+  color: var(--app-text);
+  font-size: 32rpx;
+  font-weight: 800;
+  line-height: 42rpx;
 }
 
-.entry-desc {
+.entry-desc,
+.source-desc,
+.source-hint,
+.file-desc {
   display: block;
-  margin-top: 10rpx;
-  color: #a7a7a7;
-  font-family: cursive;
-  font-size: 27rpx;
-  line-height: 38rpx;
+  margin-top: 8rpx;
+  color: var(--app-muted);
+  font-size: 24rpx;
+  line-height: 34rpx;
 }
 
 .entry-arrow {
   position: absolute;
-  right: 16rpx;
-  color: #c8c8c8;
-  font-size: 62rpx;
+  right: 22rpx;
+  color: var(--app-muted);
+  font-size: 56rpx;
 }
 
 .source-panel {
   position: fixed;
-  left: 24rpx;
-  right: 24rpx;
+  left: 50%;
   bottom: 124rpx;
   z-index: 20;
+  width: min(calc(100vw - 48rpx), 1040px);
   max-height: 78vh;
   padding: 28rpx;
-  border: 1rpx solid rgba(255, 255, 255, 0.08);
+  border: 1rpx solid var(--app-border);
   border-radius: 26rpx;
-  background: #252525;
-  box-shadow: 0 -20rpx 60rpx rgba(0, 0, 0, 0.36);
+  background: var(--app-panel-strong);
+  box-shadow: var(--app-floating-shadow);
+  transform: translateX(-50%);
 }
 
 .panel-head {
@@ -481,275 +577,163 @@ button::after {
   justify-content: space-between;
 }
 
-.mode-row {
+.mode-row,
+.quick-import-grid,
+.filter-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, 1fr);
   gap: 12rpx;
-  margin-top: 24rpx;
+  margin-top: 22rpx;
+}
+
+.import-mode-row {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.quick-import-grid {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.filter-row {
+  grid-template-columns: repeat(5, 1fr);
 }
 
 .mode,
-.submit-button,
-.source-toggle,
-.source-delete {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  line-height: 1;
-}
-
-.mode {
+.filter-chip {
   height: 68rpx;
+  border: 1rpx solid var(--app-border);
   border-radius: 14rpx;
-  color: #d2d2d2;
-  font-size: 25rpx;
-  background: #303030;
+  color: var(--app-text);
+  font-size: 24rpx;
+  background: var(--app-panel);
 }
 
 .mode.active,
 .submit-button,
-.source-toggle.active {
-  color: #ffffff;
-  background: #d44b2f;
+.source-toggle.active,
+.filter-chip.active {
+  color: var(--app-on-accent);
+  border-color: var(--app-accent);
+  background: var(--app-accent);
 }
 
 .source-area,
 .field {
   width: 100%;
   margin-top: 18rpx;
-  border-radius: 14rpx;
-  color: #ffffff;
+  border: 1rpx solid var(--app-border);
+  border-radius: 16rpx;
+  box-sizing: border-box;
+  color: var(--app-text);
+  background: var(--app-panel);
   font-size: 25rpx;
-  background: #181818;
 }
 
 .source-area {
-  height: 180rpx;
-  padding: 20rpx;
-  line-height: 36rpx;
+  height: 150rpx;
+  padding: 18rpx;
 }
 
 .field {
-  height: 76rpx;
-  padding: 0 20rpx;
-  line-height: 76rpx;
+  height: 78rpx;
+  padding: 0 22rpx;
 }
 
 .submit-button {
   width: 100%;
-  height: 78rpx;
+  height: 76rpx;
   margin-top: 18rpx;
-  border-radius: 14rpx;
-  font-size: 26rpx;
-}
-
-.submit-button[disabled] {
-  color: #888888;
-  background: #333333;
+  border-radius: 16rpx;
+  font-size: 27rpx;
 }
 
 .source-list {
-  height: 30vh;
-  margin-top: 20rpx;
+  height: 310rpx;
+  margin-top: 18rpx;
 }
 
 .source-item {
   display: flex;
   align-items: center;
-  gap: 12rpx;
+  gap: 14rpx;
   min-height: 86rpx;
   padding: 14rpx;
   margin-bottom: 12rpx;
-  border-radius: 14rpx;
-  background: #303030;
+  border: 1rpx solid var(--app-border);
+  border-radius: 16rpx;
+  background: var(--app-panel);
 }
 
-.source-main,
-.file-copy {
+.source-main {
   min-width: 0;
   flex: 1;
 }
 
-.source-name,
-.file-title {
+.source-name {
   overflow: hidden;
-  color: #ffffff;
+  color: var(--app-text);
   font-size: 28rpx;
-  font-weight: 900;
+  font-weight: 800;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.source-desc,
-.file-desc {
-  display: block;
-  margin-top: 8rpx;
-  color: #a8a8a8;
+.source-toggle,
+.source-delete {
+  min-width: 70rpx;
+  height: 48rpx;
+  border-radius: 14rpx;
+  color: var(--app-text);
+  background: var(--app-bg);
   font-size: 22rpx;
-  line-height: 32rpx;
-}
-
-.source-toggle {
-  width: 78rpx;
-  height: 50rpx;
-  border-radius: 12rpx;
-  color: #b8b8b8;
-  font-size: 22rpx;
-  background: #1b1b1b;
 }
 
 .source-delete {
   width: 48rpx;
-  height: 48rpx;
-  border-radius: 999rpx;
-  color: #ffffff;
-  font-size: 28rpx;
-  background: #4b2a24;
+  min-width: 48rpx;
 }
 
 .file-picker {
   display: flex;
   align-items: center;
-  justify-content: center;
   width: 100%;
-  min-height: 112rpx;
-  padding: 18rpx;
+  min-height: 120rpx;
   margin-top: 24rpx;
-  line-height: 1;
-  border-radius: 16rpx;
-  background: #303030;
-}
-
-.file-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  width: 76rpx;
-  height: 76rpx;
+  padding: 18rpx;
+  border: 1rpx solid var(--app-border);
   border-radius: 18rpx;
-  color: #ffffff;
-  font-size: 22rpx;
-  font-weight: 900;
-  background: #d44b2f;
+  background: var(--app-panel);
 }
 
-/* Ink theme polish */
-.import-page {
-  background:
-    radial-gradient(circle at 18% 0%, rgba(96, 117, 125, 0.20), transparent 28%),
-    linear-gradient(180deg, #20211f 0%, #1b1c1a 100%);
-}
-
-.top-zone {
-  background: linear-gradient(180deg, #667b83 0%, #586d75 100%);
-  box-shadow: 0 10rpx 28rpx rgba(0, 0, 0, 0.20);
-}
-
-.title,
-.panel-title,
-.entry-title {
-  font-family: "KaiTi", "STKaiti", "FZKai-Z03", "PingFang SC", cursive;
-  font-weight: 700;
-}
-
-.entry-card,
-.source-panel,
-.source-item,
-.file-picker,
-.mode,
-.source-area,
-.field {
-  border: 1rpx solid rgba(255, 255, 255, 0.05);
-  background: rgba(47, 48, 45, 0.92);
-  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.035);
-}
-
-.entry-icon,
-.section-label,
-.theme-dot {
-  color: #d85a3a;
-}
-
-.mode.active,
-.submit-button,
-.source-toggle.active,
 .file-icon {
-  background: #d85a3a;
+  width: 84rpx;
+  color: var(--app-accent);
+  font-size: 34rpx;
+  font-weight: 900;
 }
 
-.entry-desc,
-.source-desc,
-.file-desc {
-  color: #a9aaa4;
+.file-copy {
+  min-width: 0;
+  flex: 1;
+  text-align: left;
 }
 
-/* Global app theme */
-.import-page {
-  color: var(--app-text);
-  background: var(--app-bg);
-}
-
-.top-zone {
-  background: var(--app-top);
-  box-shadow: var(--app-shadow);
-}
-
-.title,
-.panel-title,
-.entry-title,
-.source-name,
 .file-title {
   color: var(--app-text);
+  font-size: 28rpx;
+  font-weight: 800;
 }
 
-.eyebrow,
-.entry-icon,
-.section-label,
-.theme-dot,
-.entry-arrow {
-  color: var(--app-accent-3);
-}
+@media (max-width: 760px) {
+  .source-panel {
+    width: calc(100vw - 28rpx);
+    bottom: 112rpx;
+    padding: 22rpx;
+  }
 
-.entry-desc,
-.source-desc,
-.file-desc {
-  color: var(--app-muted);
-}
-
-.entry-card,
-.source-panel,
-.source-item,
-.file-picker,
-.mode,
-.source-area,
-.field {
-  border-color: var(--app-border);
-  background: var(--app-panel-strong);
-  box-shadow: var(--app-shadow);
-}
-
-.source-area,
-.field {
-  color: var(--app-text);
-  background: var(--app-input);
-}
-
-.mode {
-  color: var(--app-muted);
-}
-
-.mode.active,
-.submit-button,
-.source-toggle.active,
-.file-icon {
-  color: var(--app-on-accent);
-  background: var(--app-accent);
-}
-
-.top-button,
-.close-button {
-  color: var(--app-text);
+  .quick-import-grid,
+  .filter-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 </style>

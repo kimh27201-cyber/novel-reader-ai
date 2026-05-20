@@ -62,6 +62,70 @@ export function parseSourceJson(text) {
   return list.map(item => normalizeSourceConfig(item))
 }
 
+export function detectSourceImportPayload(input) {
+  const raw = String(input || '').trim()
+  if (!raw) return { type: 'unknown', value: '' }
+  if (raw[0] === '[' || raw[0] === '{') return { type: 'json', value: raw }
+
+  const importUrl = extractImportLinkUrl(raw)
+  if (importUrl) return { type: 'import-link', value: importUrl }
+
+  if (/^https?:\/\/.+\.json(?:[?#].*)?$/i.test(raw)) return { type: 'json-url', value: raw }
+  if (/^https?:\/\/.+\/(?:yuedu\/)?(?:shuyuan|article|index|content|source|booksource)/i.test(raw) || /yck(?:2026|ceo)\.(?:top|com)/i.test(raw)) {
+    return { type: 'repository-page', value: raw }
+  }
+  if (/^https?:\/\//i.test(raw)) return { type: 'url', value: raw }
+  return { type: 'unknown', value: raw }
+}
+
+export function extractImportLinkUrl(value) {
+  const raw = decodeHtml(String(value || '').trim())
+  if (!raw) return ''
+
+  const direct = raw.match(/(?:src|url|data)=([^&\s"'<>]+)/i)
+  if (direct) return decodeURIComponentSafe(direct[1])
+
+  if (/^(?:yuedu|legado):\/\//i.test(raw)) {
+    const queryStart = raw.indexOf('?')
+    if (queryStart >= 0) {
+      const params = new URLSearchParams(raw.slice(queryStart + 1))
+      const found = params.get('src') || params.get('url') || params.get('data')
+      if (found) return decodeURIComponentSafe(found)
+    }
+  }
+
+  const encodedUrl = raw.match(/https?%3A%2F%2F[^&\s"'<>]+/i)
+  if (encodedUrl) return decodeURIComponentSafe(encodedUrl[0])
+
+  return ''
+}
+
+export function extractRepositorySourceUrl(html, baseUrl = '') {
+  const text = String(html || '')
+  const directJson = text.match(/https?:\/\/[^"'<> ]+\.json(?:\?[^"'<> ]*)?/i)
+  if (directJson) return directJson[0]
+
+  const attrMatches = [...text.matchAll(/(?:href|data-url|data-src|url)=["']([^"']+)["']/gi)]
+    .map(match => decodeHtml(match[1]))
+  const found = attrMatches.find(link => /\.json(?:[?#].*)?$/i.test(link))
+    || attrMatches.find(link => /(json|download|shuyuan|booksource|source)/i.test(link))
+  if (found) return resolveUrl(found, baseUrl)
+
+  const importLink = extractImportLinkUrl(text)
+  if (importLink) return resolveUrl(importLink, baseUrl)
+
+  const inline = findInlineJsonPayload(text)
+  return inline ? `data:application/json,${encodeURIComponent(inline)}` : ''
+}
+
+export function findInlineJsonPayload(html) {
+  try {
+    return extractJsonPayload(html)
+  } catch (error) {
+    return ''
+  }
+}
+
 export function extractJsonPayload(text) {
   const raw = String(text || '').trim()
   if (!raw) throw new Error('书源内容为空')
@@ -181,11 +245,16 @@ export function requestText(spec) {
 export function getRuntimeRequestUrl(url) {
   const value = String(url || '')
   if (typeof window === 'undefined') return value
-  if (!/^https?:\/\/www\.yckceo\.com/i.test(value)) return value
 
   try {
     const parsed = new URL(value)
-    return `/yckceo-proxy${parsed.pathname}${parsed.search}`
+    if (/^www\.yckceo\.com$/i.test(parsed.hostname)) {
+      return `/yckceo-proxy${parsed.pathname}${parsed.search}`
+    }
+    if (/^www\.yck2026\.top$/i.test(parsed.hostname)) {
+      return `/yck2026-proxy${parsed.pathname}${parsed.search}`
+    }
+    return value
   } catch (error) {
     return value
   }
@@ -426,4 +495,12 @@ function ensureBaseUrl(url) {
 
 function escapeRegExp(value) {
   return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function decodeURIComponentSafe(value) {
+  try {
+    return decodeURIComponent(value)
+  } catch (error) {
+    return value
+  }
 }

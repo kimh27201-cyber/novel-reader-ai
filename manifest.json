@@ -33,6 +33,14 @@
           "pathRewrite": {
             "^/yckceo-proxy": ""
           }
+        },
+        "/yck2026-proxy": {
+          "target": "https://www.yck2026.top",
+          "changeOrigin": true,
+          "secure": true,
+          "pathRewrite": {
+            "^/yck2026-proxy": ""
+          }
         }
       }
     }

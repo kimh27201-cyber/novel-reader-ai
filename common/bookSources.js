@@ -2,6 +2,8 @@ import {
   applyListRule,
   applyRule,
   cleanText,
+  detectSourceImportPayload,
+  extractRepositorySourceUrl,
   hasUnsupportedRule,
   normalizeSourceConfig,
   parseRequestSpec,
@@ -220,27 +222,54 @@ export function deleteUserSource(sourceId) {
 }
 
 export function importSourcesFromJson(text) {
+  return importSourcesWithStats(text).sources.length
+}
+
+export function importSourcesWithStats(text) {
   const sources = parseSourceJson(text)
   const current = getUserSources()
+  const currentIds = new Set(current.map(source => source.id))
   const next = [
     ...sources,
     ...current.filter(source => !sources.some(item => item.id === source.id))
   ]
   writeUserSources(next)
-  return sources.length
+  return {
+    imported: sources.filter(source => !currentIds.has(source.id)).length,
+    updated: sources.filter(source => currentIds.has(source.id)).length,
+    incompatible: sources.filter(source => hasUnsupportedRule(source.raw)).length,
+    sources
+  }
 }
 
 export async function importSourcesFromUrl(url) {
+  const result = await importSourcesFromUrlWithStats(url)
+  return result.sources.length
+}
+
+export async function importSourcesFromUrlWithStats(url) {
   const spec = parseRequestSpec(url, {}, url)
   const text = await requestText(spec)
   try {
-    return importSourcesFromJson(text)
+    return importSourcesWithStats(text)
   } catch (error) {
-    const directJsonUrl = extractJsonLink(text, spec.url)
+    const directJsonUrl = extractJsonLink(text, spec.url) || extractRepositorySourceUrl(text, spec.url)
     if (!directJsonUrl) throw error
+    if (/^data:application\/json,/i.test(directJsonUrl)) {
+      return importSourcesWithStats(decodeURIComponent(directJsonUrl.replace(/^data:application\/json,/i, '')))
+    }
     const jsonText = await requestText(parseRequestSpec(directJsonUrl, {}, directJsonUrl))
-    return importSourcesFromJson(jsonText)
+    return importSourcesWithStats(jsonText)
   }
+}
+
+export async function importSourcesFromAny(input) {
+  const payload = detectSourceImportPayload(input)
+  if (payload.type === 'json') return importSourcesWithStats(payload.value)
+  if (payload.type === 'import-link' || payload.type === 'json-url' || payload.type === 'repository-page' || payload.type === 'url') {
+    return importSourcesFromUrlWithStats(payload.value)
+  }
+  throw new Error('没有识别到可导入的书源 JSON 或 URL')
 }
 
 export function saveOnlineBookDraft(book) {
