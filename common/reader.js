@@ -6,6 +6,7 @@ const defaultPrefs = {
   fontSize: 20,
   lineHeight: 1.86,
   paragraphSpacing: 0.8,
+  textIndent: 2,
   contentWidth: 82,
   theme: 'eye',
   brightness: 86,
@@ -36,6 +37,7 @@ function normalizePrefs(raw) {
   prefs.fontSize = Math.round(clampNumber(prefs.fontSize, 16, 30, defaultPrefs.fontSize))
   prefs.lineHeight = Number(clampNumber(prefs.lineHeight, 1.45, 2.4, defaultPrefs.lineHeight).toFixed(2))
   prefs.paragraphSpacing = Number(clampNumber(prefs.paragraphSpacing, 0, 2.2, defaultPrefs.paragraphSpacing).toFixed(2))
+  prefs.textIndent = Number(clampNumber(prefs.textIndent, 0, 4, defaultPrefs.textIndent).toFixed(1))
   prefs.contentWidth = Math.round(clampNumber(prefs.contentWidth, 62, 96, defaultPrefs.contentWidth))
   prefs.brightness = Math.round(clampNumber(prefs.brightness, 40, 100, defaultPrefs.brightness))
   if (!['slide', 'cover', 'none'].includes(prefs.pageTurnMode)) prefs.pageTurnMode = defaultPrefs.pageTurnMode

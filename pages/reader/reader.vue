@@ -150,6 +150,14 @@
           </view>
 
           <view class="control-row">
+            <text>缩进</text>
+            <button class="step-button" @tap.stop="changeTextIndent(-0.5)">−</button>
+            <slider class="reader-slider" :value="textIndentSlider" min="0" max="40" activeColor="#df7458" @change="changeTextIndentSlider" />
+            <button class="step-button" @tap.stop="changeTextIndent(0.5)">＋</button>
+            <text class="control-value">{{ prefs.textIndent.toFixed(1) }}</text>
+          </view>
+
+          <view class="control-row">
             <text>边距</text>
             <button class="step-button" @tap.stop="changeContentWidth(-4)">−</button>
             <slider class="reader-slider" :value="prefs.contentWidth" min="62" max="96" activeColor="#df7458" @change="changeContentWidthSlider" />
@@ -370,7 +378,8 @@ export default {
     },
     paragraphStyle() {
       return {
-        marginBottom: `${Math.round(this.prefs.paragraphSpacing * this.prefs.fontSize)}px`
+        marginBottom: `${Math.round(this.prefs.paragraphSpacing * this.prefs.fontSize)}px`,
+        textIndent: `${this.prefs.textIndent}em`
       }
     },
     lineHeight() {
@@ -387,6 +396,9 @@ export default {
     },
     paragraphSlider() {
       return Math.round(this.prefs.paragraphSpacing * 100)
+    },
+    textIndentSlider() {
+      return Math.round(this.prefs.textIndent * 10)
     },
     sourceLabel() {
       if (this.book.source === 'backend') return this.book.sourceName || '云端书架'
@@ -679,6 +691,14 @@ export default {
     },
     changeParagraphSlider(event) {
       this.prefs.paragraphSpacing = Number(event.detail.value) / 100
+      this.saveReaderPrefs(false)
+    },
+    changeTextIndent(delta) {
+      this.prefs.textIndent += delta
+      this.saveReaderPrefs(false)
+    },
+    changeTextIndentSlider(event) {
+      this.prefs.textIndent = Number(event.detail.value) / 10
       this.saveReaderPrefs(false)
     },
     changeContentWidth(delta) {
