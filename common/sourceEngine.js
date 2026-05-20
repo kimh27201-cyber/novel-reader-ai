@@ -105,10 +105,14 @@ export function extractRepositorySourceUrl(html, baseUrl = '') {
   const directJson = text.match(/https?:\/\/[^"'<> ]+\.json(?:\?[^"'<> ]*)?/i)
   if (directJson) return directJson[0]
 
-  const attrMatches = [...text.matchAll(/(?:href|data-url|data-src|url)=["']([^"']+)["']/gi)]
+  const jsonUrlInput = text.match(/id=["']jsonurl["'][^>]*\bvalue=["']([^"']+)["']/i)
+    || text.match(/\bvalue=["']([^"']+\.json(?:\?[^"']*)?)["'][^>]*id=["']jsonurl["']/i)
+  if (jsonUrlInput) return resolveUrl(decodeHtml(jsonUrlInput[1]), baseUrl)
+
+  const attrMatches = [...text.matchAll(/(?:href|data-url|data-src|url|value)=["']([^"']+)["']/gi)]
     .map(match => decodeHtml(match[1]))
   const found = attrMatches.find(link => /\.json(?:[?#].*)?$/i.test(link))
-    || attrMatches.find(link => /(json|download|shuyuan|booksource|source)/i.test(link))
+    || attrMatches.find(link => /(?:download|booksource|source)[^"'<> ]*\.json/i.test(link))
   if (found) return resolveUrl(found, baseUrl)
 
   const importLink = extractImportLinkUrl(text)
@@ -130,6 +134,9 @@ export function extractJsonPayload(text) {
   const raw = String(text || '').trim()
   if (!raw) throw new Error('书源内容为空')
   if (raw[0] === '[' || raw[0] === '{') return raw
+
+  const embedded = extractEmbeddedJsonPayload(raw)
+  if (embedded) return embedded
 
   const textarea = raw.match(/<textarea[^>]*>([\s\S]*?)<\/textarea>/i)
   if (textarea) return decodeHtml(textarea[1]).trim()
@@ -495,6 +502,32 @@ function ensureBaseUrl(url) {
 
 function escapeRegExp(value) {
   return String(value || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function extractEmbeddedJsonPayload(html) {
+  const blocks = [...String(html || '').matchAll(/<(textarea|pre|code)([^>]*)>([\s\S]*?)<\/\1>/gi)]
+  for (const block of blocks) {
+    const attrs = block[2] || ''
+    const decoded = decodeHtml(block[3]).trim()
+    const looksLikeSource = /jsonpre|layui-code|bookSource(Name|Url)|sources/i.test(attrs + decoded)
+    if (!looksLikeSource) continue
+    const sliced = sliceJsonLike(decoded)
+    if (sliced) return sliced
+  }
+  return ''
+}
+
+function sliceJsonLike(value) {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  if (raw[0] === '[' || raw[0] === '{') return raw
+  const arrayStart = raw.indexOf('[')
+  const arrayEnd = raw.lastIndexOf(']')
+  if (arrayStart >= 0 && arrayEnd > arrayStart) return raw.slice(arrayStart, arrayEnd + 1)
+  const objectStart = raw.indexOf('{')
+  const objectEnd = raw.lastIndexOf('}')
+  if (objectStart >= 0 && objectEnd > objectStart) return raw.slice(objectStart, objectEnd + 1)
+  return ''
 }
 
 function decodeURIComponentSafe(value) {

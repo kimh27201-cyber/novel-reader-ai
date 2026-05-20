@@ -3,6 +3,7 @@ import {
   applyListRule,
   applyRule,
   detectSourceImportPayload,
+  extractJsonPayload,
   extractRepositorySourceUrl,
   getRuntimeRequestUrl,
   parseRequestSpec,
@@ -64,6 +65,23 @@ assert.equal(
   extractRepositorySourceUrl(repoHtml, 'https://www.yck2026.top/yuedu/shuyuan/content/id/7274.html'),
   'https://www.yck2026.top/yuedu/shuyuan/json/id/7274.json'
 )
+
+const yckDetailHtml = `
+  <a href="/yuedu/shuyuan/index.html">source list</a>
+  <pre>/*
+    author comment, not json
+  */</pre>
+  <input id="jsonurl" value="https://www.yck2026.top/yuedu/shuyuan/json/id/7274.json">
+  <pre class="layui-code" id="jsonpre">{
+    "bookSourceName": "YCK Detail Source",
+    "bookSourceUrl": "detail-source"
+  }</pre>
+`
+assert.equal(
+  extractRepositorySourceUrl(yckDetailHtml, 'https://www.yck2026.top/yuedu/shuyuan/content/id/7274.html'),
+  'https://www.yck2026.top/yuedu/shuyuan/json/id/7274.json'
+)
+assert.equal(JSON.parse(extractJsonPayload(yckDetailHtml)).bookSourceName, 'YCK Detail Source')
 
 globalThis.window = {}
 assert.equal(

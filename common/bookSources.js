@@ -250,6 +250,14 @@ export async function importSourcesFromUrl(url) {
 export async function importSourcesFromUrlWithStats(url) {
   const spec = parseRequestSpec(url, {}, url)
   const text = await requestText(spec)
+  const pageJsonUrl = /^\s*</.test(String(text || '')) ? extractJsonLink(text, spec.url) || extractRepositorySourceUrl(text, spec.url) : ''
+  if (pageJsonUrl) {
+    if (/^data:application\/json,/i.test(pageJsonUrl)) {
+      return importSourcesWithStats(decodeURIComponent(pageJsonUrl.replace(/^data:application\/json,/i, '')))
+    }
+    const jsonText = await requestText(parseRequestSpec(pageJsonUrl, {}, pageJsonUrl))
+    return importSourcesWithStats(jsonText)
+  }
   try {
     return importSourcesWithStats(text)
   } catch (error) {
@@ -480,9 +488,13 @@ function extractJsonLink(html, baseUrl) {
   const direct = text.match(/https?:\/\/[^"'<> ]+\.json[^"'<> ]*/i)
   if (direct) return direct[0]
 
-  const links = text.match(/(?:href|data-url|url)=["']([^"']+(?:json|download|shuyuan)[^"']*)["']/ig) || []
+  const jsonUrlInput = text.match(/id=["']jsonurl["'][^>]*\bvalue=["']([^"']+)["']/i)
+    || text.match(/\bvalue=["']([^"']+\.json(?:\?[^"']*)?)["'][^>]*id=["']jsonurl["']/i)
+  if (jsonUrlInput) return resolveUrl(jsonUrlInput[1], baseUrl)
+
+  const links = text.match(/(?:href|data-url|url|value)=["']([^"']+\.json(?:\?[^"']*)?)["']/ig) || []
   const found = links
-    .map(link => (link.match(/(?:href|data-url|url)=["']([^"']+)["']/i) || [])[1])
+    .map(link => (link.match(/(?:href|data-url|url|value)=["']([^"']+)["']/i) || [])[1])
     .find(Boolean)
   return found ? resolveUrl(found, baseUrl) : ''
 }
