@@ -10,6 +10,7 @@
 - [简历与面试讲解稿](docs/INTERVIEW_NOTES.md)：可直接改写到简历里的项目描述、亮点和常见追问答案。
 - [接口文档](docs/API.md)：后端主要 API、请求示例和演示顺序。
 - [截图清单](docs/SCREENSHOTS.md)：用于 README、简历附件和录屏素材准备。
+- [Android 真机验收清单](docs/ANDROID_VALIDATION.md)：后续 App 端扫码、文件、剪贴板和网络验证步骤。
 
 ## 项目定位
 

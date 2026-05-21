@@ -299,3 +299,8 @@ POST /api/sources/{source_id}/content
 
 - 说明本机尚未安装 Docker Desktop
 - 本地演示使用 Python venv 启动后端即可
+
+如果进入 Android 真机阶段：
+
+- 按 `docs/ANDROID_VALIDATION.md` 验证扫码导入、本地 JSON、剪贴板、真机网络请求、阅读器和 AI 记录。
+- 真机访问后端时使用电脑局域网 IP 或部署地址，不使用 `127.0.0.1`。
