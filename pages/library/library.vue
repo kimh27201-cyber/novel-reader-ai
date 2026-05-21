@@ -211,10 +211,10 @@
       <view class="detail-status" :class="{ compatible: sourceDiagnostics && sourceDiagnostics.compatible }">
         <view>
           <view class="detail-status-title">
-            {{ sourceDiagnostics && sourceDiagnostics.compatible ? '可用于 H5 在线搜索' : 'H5 暂不兼容' }}
+            {{ sourceDiagnostics && sourceDiagnostics.compatible ? '规则兼容，待网络测试' : 'H5 暂不兼容' }}
           </view>
           <text class="detail-status-desc">
-            {{ sourceDiagnostics && sourceDiagnostics.compatible ? '规则结构可解析，启用后会参与发现页搜索。' : sourceReasonText }}
+            {{ sourceDiagnostics && sourceDiagnostics.compatible ? '规则结构可解析；网络是否可用以单源测试为准。' : sourceReasonText }}
           </text>
         </view>
         <button class="status-switch" :class="{ active: selectedSource.enabled }" @tap="toggleSelectedSource">
@@ -478,9 +478,12 @@ export default {
           items: result.results
         }
       } catch (error) {
+        const isCompatible = this.sourceDiagnostics && this.sourceDiagnostics.compatible
         this.sourceTestResult = {
           title: '测试未通过',
-          desc: friendlyErrorMessage(error, '书源测试失败'),
+          desc: isCompatible
+            ? `${friendlyErrorMessage(error, '网络请求失败')}。规则本身仍兼容，通常是目标站不可访问、跨域代理未生效或站点限制请求。`
+            : friendlyErrorMessage(error, '书源测试失败'),
           items: []
         }
       } finally {

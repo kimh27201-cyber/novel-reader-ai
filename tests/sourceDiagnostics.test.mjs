@@ -78,5 +78,8 @@ assert.match(library, /openSourceDetail/)
 assert.match(library, /sourceDiagnostics/)
 assert.match(library, /runSourceTest/)
 assert.match(library, /testSourceKeyword/)
+assert.match(library, /规则兼容，待网络测试/)
+assert.match(library, /网络是否可用以单源测试为准/)
+assert.match(library, /规则本身仍兼容/)
 
 console.log('sourceDiagnostics tests passed')
