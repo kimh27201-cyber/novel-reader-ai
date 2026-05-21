@@ -70,3 +70,6 @@ jobs:
 
       - name: Run AI history tests
         run: node tests/aiHistory.test.mjs
+
+      - name: Run import adapter tests
+        run: node tests/importAdapters.test.mjs

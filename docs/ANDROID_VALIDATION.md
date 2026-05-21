@@ -2,6 +2,8 @@
 
 本阶段不提前打包发布；等 H5 主链路稳定后，再用这份清单做真机适配、权限验证和安装包展示。
 
+当前导入页的扫码、文件选择、剪贴板和文件读取已经统一走 `common/importAdapters.js`。真机阶段优先验证这个适配层在 Android App 端的实际返回值和权限提示。
+
 ## 准备
 
 - 使用 HBuilderX 打开 `D:\Codex\novel-reader-uniapp`。
@@ -21,7 +23,7 @@
 ## 重点风险
 
 - 真机不能访问电脑的 `127.0.0.1`，需要改成电脑局域网 IP 或部署地址。
-- Android 文件选择返回结构可能与 H5 不同，需要验证 `tempFiles`、`tempFilePaths`、`path`。
+- Android 文件选择返回结构可能与 H5 不同，需要验证 `tempFiles`、`tempFilePaths`、`path` 是否都能被 `importAdapters` 识别。
 - `uni.scanCode` 只在真机/App 端可用，H5 预览会提示不支持。
 - 剪贴板权限可能被系统拦截，需要保留清晰失败提示。
 - 第三方站点可能限制移动端网络请求，失败源应保留失败原因并被发现页跳过。
@@ -29,7 +31,7 @@
 ## 打包前检查
 
 - `pages.json` 能解析。
-- 前端 Node 测试通过。
+- 前端 Node 测试通过，尤其是 `tests/importAdapters.test.mjs`。
 - 后端 pytest 通过。
 - README、演示脚本和截图清单已更新到当前功能。
 - App 名称、图标、启动页、权限说明不含真实 API Key 或敏感信息。

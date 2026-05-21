@@ -72,6 +72,7 @@
 - AI 记录页展示总结、问答和调用日志
 - 书源导入、兼容性诊断、单源测试、批量检测和发现页可用源引导
 - 书源改名、分组管理、当前结果批量启停、删除确认和导入前预览
+- 导入页扫码、剪贴板、本地 JSON/TXT 文件选择统一走跨端适配层，便于 Android 真机验证
 
 ## 项目结构
 
@@ -130,6 +131,7 @@ node tests/sourceEngine.test.mjs
 node tests/sourceImport.test.mjs
 node tests/sourceDiagnostics.test.mjs
 node tests/searchHelpers.test.mjs
+node tests/importAdapters.test.mjs
 ```
 
 前端后端 API client 测试：
@@ -153,7 +155,7 @@ node tests/aiHistory.test.mjs
 
 - 后端依赖安装、Alembic 迁移检查、`pytest`
 - `pages.json` 解析检查
-- 前端工具测试：`sourceEngine`、`apiClient`、`backendLibrary`、`aiHistory`
+- 前端工具测试：`sourceEngine`、`apiClient`、`backendLibrary`、`aiHistory`、`importAdapters`
 
 ## 错误响应与排查
 
@@ -293,7 +295,7 @@ AI_MODEL=deepseek-chat
 ## 后续方向
 
 - 更多 uni-app 页面接入后端 API
-- App 端扫码导入书源与 Android 真机适配
+- Android 真机权限验证、局域网后端联调与打包展示
 - AI 总结和问答展示页
 - 书源规则兼容性检测、网络可用性检测和分组管理
 - PostgreSQL 迁移

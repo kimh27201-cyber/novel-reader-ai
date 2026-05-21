@@ -345,6 +345,14 @@ import {
   listBackendSources
 } from '../../common/backendLibrary.js'
 import { getAppThemeId, getAppThemeStyle } from '../../common/appTheme.js'
+import {
+  assertFileExtension,
+  chooseSingleFile,
+  getClipboardText,
+  getPickedFileName,
+  readPickedFileText,
+  scanImportPayload
+} from '../../common/importAdapters.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 
 export default {
@@ -737,40 +745,26 @@ export default {
         this.sourceImporting = false
       }
     },
-    importFromClipboard() {
-      if (!uni.getClipboardData) {
-        uni.showToast({ title: '当前环境不支持读取剪贴板', icon: 'none' })
-        return
+    async importFromClipboard() {
+      try {
+        const text = await getClipboardText(uni)
+        await this.importSourcePayload(text, '剪贴板导入')
+      } catch (error) {
+        uni.showToast({ title: error.message || '读取剪贴板失败', icon: 'none' })
       }
-      uni.getClipboardData({
-        success: result => this.importSourcePayload(result.data || '', '剪贴板导入'),
-        fail: () => uni.showToast({ title: '读取剪贴板失败', icon: 'none' })
-      })
     },
-    chooseSourceJsonFile() {
-      if (!uni.chooseFile) {
-        uni.showToast({ title: '当前环境暂不支持文件选择，请使用粘贴导入', icon: 'none' })
-        return
+    async chooseSourceJsonFile() {
+      try {
+        const file = await chooseSingleFile(uni, {
+          extension: ['.json'],
+          label: '本地 JSON'
+        })
+        assertFileExtension(file, '.json', '请选择 .json 书源文件')
+        const text = await readPickedFileText(file)
+        await this.importSourcePayload(text, '本地 JSON 导入')
+      } catch (error) {
+        uni.showToast({ title: error.message || '读取 JSON 失败', icon: 'none' })
       }
-      uni.chooseFile({
-        count: 1,
-        type: 'all',
-        extension: ['.json'],
-        success: async result => {
-          try {
-            const file = (result.tempFiles && result.tempFiles[0]) || {
-              path: result.tempFilePaths && result.tempFilePaths[0],
-              name: result.tempFilePaths && result.tempFilePaths[0]
-            }
-            const fileName = this.getFileName(file)
-            if (!/\.json$/i.test(fileName)) throw new Error('请选择 .json 书源文件')
-            const text = await this.readFileText(file)
-            await this.importSourcePayload(text, '本地 JSON 导入')
-          } catch (error) {
-            uni.showToast({ title: error.message || '读取 JSON 失败', icon: 'none' })
-          }
-        }
-      })
     },
     async refreshBackendSources(options = {}) {
       this.backendLoading = true
@@ -840,71 +834,30 @@ export default {
         this.closePanels()
       }
     },
-    scanSourceQr() {
-      if (!uni.scanCode) {
-        uni.showToast({ title: 'H5 预览不支持扫码，请用真机测试或剪贴板导入', icon: 'none' })
-        return
+    async scanSourceQr() {
+      try {
+        const payload = await scanImportPayload(uni)
+        await this.importSourcePayload(payload, '扫码导入')
+      } catch (error) {
+        uni.showToast({ title: error.message || '未完成扫码', icon: 'none' })
       }
-      uni.scanCode({
-        onlyFromCamera: false,
-        success: result => this.importSourcePayload(String(result.result || '').trim(), '扫码导入'),
-        fail: () => uni.showToast({ title: '未完成扫码', icon: 'none' })
-      })
     },
-    chooseTxtFile() {
-      if (!uni.chooseFile) {
-        uni.showToast({ title: '当前环境暂不支持文件选择，请用真机测试', icon: 'none' })
-        return
-      }
-      uni.chooseFile({
-        count: 1,
-        type: 'all',
-        extension: ['.txt'],
-        success: async result => {
-          try {
-            const file = (result.tempFiles && result.tempFiles[0]) || {
-              path: result.tempFilePaths && result.tempFilePaths[0],
-              name: result.tempFilePaths && result.tempFilePaths[0]
-            }
-            const fileName = this.getFileName(file)
-            if (!/\.txt$/i.test(fileName)) throw new Error('请选择 .txt 文件')
-            const text = await this.readFileText(file)
-            if (!text || text.trim().length < 20) throw new Error('TXT 内容太短')
-            this.importFileName = fileName
-            this.importFileText = text
-            if (!this.importTitle) this.importTitle = fileName.replace(/\.txt$/i, '').slice(0, 30)
-          } catch (error) {
-            uni.showToast({ title: error.message || '读取失败', icon: 'none' })
-          }
-        }
-      })
-    },
-    getFileName(file) {
-      return String((file && (file.name || file.path)) || '未命名').split(/[\\/]/).pop()
-    },
-    readFileText(file) {
-      if (file.file && typeof FileReader !== 'undefined') {
-        return new Promise((resolve, reject) => {
-          const reader = new FileReader()
-          reader.onload = event => resolve(new TextDecoder('utf-8').decode(event.target.result))
-          reader.onerror = () => reject(new Error('读取文件失败'))
-          reader.readAsArrayBuffer(file.file)
+    async chooseTxtFile() {
+      try {
+        const file = await chooseSingleFile(uni, {
+          extension: ['.txt'],
+          label: 'TXT'
         })
+        const fileName = getPickedFileName(file)
+        assertFileExtension(file, '.txt', '请选择 .txt 文件')
+        const text = await readPickedFileText(file)
+        if (!text || text.trim().length < 20) throw new Error('TXT 内容太短')
+        this.importFileName = fileName
+        this.importFileText = text
+        if (!this.importTitle) this.importTitle = fileName.replace(/\.txt$/i, '').slice(0, 30)
+      } catch (error) {
+        uni.showToast({ title: error.message || '读取失败', icon: 'none' })
       }
-      if (file.path && typeof plus !== 'undefined' && plus.io) {
-        return new Promise((resolve, reject) => {
-          plus.io.resolveLocalFileSystemURL(file.path, entry => {
-            entry.file(rawFile => {
-              const reader = new plus.io.FileReader()
-              reader.onloadend = event => resolve(event.target.result || '')
-              reader.onerror = () => reject(new Error('读取文件失败'))
-              reader.readAsText(rawFile, 'utf-8')
-            }, reject)
-          }, reject)
-        })
-      }
-      if (file.path && typeof fetch !== 'undefined') return fetch(file.path).then(response => response.text())
-      return Promise.reject(new Error('当前环境无法读取文件'))
     },
     submitImport() {
       try {
