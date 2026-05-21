@@ -9,6 +9,7 @@
 - [项目演示脚本](docs/DEMO_GUIDE.md)：面试或录屏时按步骤展示 Swagger、登录鉴权、书源、阅读器和 AI 功能。
 - [简历与面试讲解稿](docs/INTERVIEW_NOTES.md)：可直接改写到简历里的项目描述、亮点和常见追问答案。
 - [接口文档](docs/API.md)：后端主要 API、请求示例和演示顺序。
+- [截图清单](docs/SCREENSHOTS.md)：用于 README、简历附件和录屏素材准备。
 
 ## 项目定位
 
@@ -68,6 +69,8 @@
 - 我的页面后端登录入口
 - 阅读器内 AI 总结和问答入口
 - AI 记录页展示总结、问答和调用日志
+- 书源导入、兼容性诊断、单源测试、批量检测和发现页可用源引导
+- 书源改名、分组管理、当前结果批量启停、删除确认和导入前预览
 
 ## 项目结构
 
@@ -123,6 +126,9 @@ pytest
 ```powershell
 cd D:\Codex\novel-reader-uniapp
 node tests/sourceEngine.test.mjs
+node tests/sourceImport.test.mjs
+node tests/sourceDiagnostics.test.mjs
+node tests/searchHelpers.test.mjs
 ```
 
 前端后端 API client 测试：
@@ -210,9 +216,10 @@ alembic upgrade head
 4. 使用书源搜索、目录解析和正文解析接口。
 5. 在 uni-app “我的”页面登录后端。
 6. 在“导入”页刷新后端书源或导入演示源。
-7. 在“发现”页搜索书籍，加入云端书架。
-8. 进入阅读器，验证章节解析、阅读进度保存、AI 总结和 AI 问答。
-9. 回到“我的”页打开“AI 记录”，查看总结、问答历史和 AI 调用日志。
+7. 在“导入”页查看书源诊断，运行单源测试或批量检测，确认发现页只使用测试通过的源。
+8. 在“发现”页查看可用书源数量，搜索书籍，加入云端书架。
+9. 进入阅读器，验证章节解析、阅读进度保存、AI 总结和 AI 问答。
+10. 回到“我的”页打开“AI 记录”，查看总结、问答历史和 AI 调用日志。
 
 ## 重要接口
 
@@ -285,8 +292,8 @@ AI_MODEL=deepseek-chat
 ## 后续方向
 
 - 更多 uni-app 页面接入后端 API
-- App 端扫码导入书源
+- App 端扫码导入书源与 Android 真机适配
 - AI 总结和问答展示页
-- 书源规则兼容性检测
+- 书源规则兼容性检测、网络可用性检测和分组管理
 - PostgreSQL 迁移
 - Docker 本地部署
