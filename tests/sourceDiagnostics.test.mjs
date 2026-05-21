@@ -4,8 +4,10 @@ import {
   getSourceConfig,
   getSourceDiagnostics,
   getSourceConfigs,
+  batchTestSources,
   importSourcesWithStats,
   pickOnlineSearchSources,
+  searchOnlineBooks,
   testSourceSearch
 } from '../common/bookSources.js'
 
@@ -33,6 +35,13 @@ const compatibleSource = {
   ruleContent: { content: '$.content' }
 }
 
+const compatibleSourceTwo = {
+  ...compatibleSource,
+  bookSourceName: 'Diagnostic Compatible Two',
+  bookSourceUrl: 'https://diagnostic-two.example.com',
+  searchUrl: 'https://diagnostic-two.example.com/search?q={{key}}'
+}
+
 const incompatibleSource = {
   bookSourceName: 'Diagnostic Unsupported',
   bookSourceUrl: 'https://unsupported.example.com',
@@ -43,7 +52,7 @@ const incompatibleSource = {
   ruleSearch: '<js>java.ajax()</js>'
 }
 
-importSourcesWithStats(JSON.stringify([compatibleSource, incompatibleSource]))
+importSourcesWithStats(JSON.stringify([compatibleSource, compatibleSourceTwo, incompatibleSource]))
 
 const sources = pickOnlineSearchSources(Object.values(store['sources:user']))
 assert.equal(sources.length, 0)
@@ -64,6 +73,7 @@ await assert.rejects(
 )
 
 const compatible = Object.values(store['sources:user']).find(source => source.name === 'Diagnostic Compatible')
+const compatibleTwo = Object.values(store['sources:user']).find(source => source.name === 'Diagnostic Compatible Two')
 
 globalThis.fetch = async () => {
   throw new Error('network down')
@@ -97,11 +107,55 @@ assert.equal(passed.networkStatus, 'passed')
 assert.equal(getSourceConfig(compatible.id).lastTest.status, 'passed')
 assert.equal(pickOnlineSearchSources(getSourceConfigs()).some(source => source.id === compatible.id), true)
 
+let batchRequests = []
+globalThis.fetch = async url => {
+  batchRequests.push(String(url))
+  if (String(url).includes('diagnostic-two')) {
+    throw new Error('batch network down')
+  }
+  return {
+    text: async () => JSON.stringify({
+      items: [
+        { name: '星轨图书馆', author: '示例作者', url: '/book/1' }
+      ]
+    })
+  }
+}
+
+const progress = []
+const batchResult = await batchTestSources({
+  keyword: '星轨图书馆',
+  sourceIds: [compatible.id, compatibleTwo.id, unsupported.id],
+  onProgress: item => progress.push(item)
+})
+assert.equal(batchResult.total, 3)
+assert.equal(batchResult.tested, 2)
+assert.equal(batchResult.passed, 1)
+assert.equal(batchResult.failed, 1)
+assert.equal(batchResult.skipped, 1)
+assert.equal(batchResult.results.find(item => item.sourceId === compatible.id).status, 'passed')
+assert.equal(batchResult.results.find(item => item.sourceId === compatibleTwo.id).status, 'failed')
+assert.equal(batchResult.results.find(item => item.sourceId === unsupported.id).status, 'skipped')
+assert.equal(progress.length, 3)
+assert.equal(getSourceConfig(compatibleTwo.id).lastTest.status, 'failed')
+assert.equal(pickOnlineSearchSources(getSourceConfigs()).some(source => source.id === compatibleTwo.id), false)
+
+batchRequests = []
+const onlineResults = await searchOnlineBooks('星轨图书馆', { limit: 5, timeoutMs: 1000 })
+assert.equal(onlineResults.length, 1)
+assert.ok(batchRequests.every(url => !url.includes('diagnostic-two')))
+
 const library = readFileSync(new URL('../pages/library/library.vue', import.meta.url), 'utf8')
 assert.match(library, /openSourceDetail/)
 assert.match(library, /sourceDiagnostics/)
 assert.match(library, /runSourceTest/)
+assert.match(library, /runBatchSourceTest/)
 assert.match(library, /testSourceKeyword/)
+assert.match(library, /批量检测/)
+assert.match(library, /测试全部启用源/)
+assert.match(library, /测试当前分组/)
+assert.match(library, /正在测试/)
+assert.match(library, /发现页只使用已通过测试的书源/)
 assert.match(library, /规则兼容，待网络测试/)
 assert.match(library, /网络是否可用以单源测试为准/)
 assert.match(library, /规则本身仍兼容/)

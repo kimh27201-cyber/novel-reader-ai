@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import {
   buildSourceToggleState,
   demoSearchKeywords,
@@ -19,5 +20,14 @@ assert.deepEqual(buildSourceToggleState({ id: 'source-1', name: '笔趣阁', ena
   nextEnabled: false,
   toast: '已停用笔趣阁'
 })
+
+const searchPage = readFileSync(new URL('../pages/search/search.vue', import.meta.url), 'utf8')
+assert.match(searchPage, /availableSourceCount/)
+assert.match(searchPage, /暂无可用书源/)
+assert.match(searchPage, /请先到导入页完成书源测试/)
+assert.match(searchPage, /goLibrary/)
+assert.match(searchPage, /本次使用/)
+assert.match(searchPage, /可用书源/)
+assert.match(searchPage, /sourceName/)
 
 console.log('searchHelpers tests passed')

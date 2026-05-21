@@ -440,6 +440,16 @@ export async function testSourceSearch(sourceId, keyword, options = {}) {
     })
     throw error
   }
+  if (options.failOnEmpty && !results.length) {
+    const error = new Error('无搜索结果')
+    writeSourceTestResult(source.id, {
+      status: 'failed',
+      keyword: word,
+      count: 0,
+      message: error.message
+    })
+    throw error
+  }
   writeSourceTestResult(source.id, {
     status: 'passed',
     keyword: word,
@@ -451,6 +461,94 @@ export async function testSourceSearch(sourceId, keyword, options = {}) {
     count: results.length,
     results: results.slice(0, options.limit || 5)
   }
+}
+
+export async function batchTestSources(options = {}) {
+  const word = String(options.keyword || '').trim()
+  if (!word) throw new Error('请输入测试关键词')
+
+  const sourceIds = Array.isArray(options.sourceIds) ? new Set(options.sourceIds) : null
+  const group = String(options.group || '').trim()
+  const selected = getSourceConfigs().filter(source => {
+    if (sourceIds && !sourceIds.has(source.id)) return false
+    if (group && source.group !== group) return false
+    return sourceIds ? true : source.enabled
+  })
+  const summary = {
+    total: selected.length,
+    tested: 0,
+    passed: 0,
+    failed: 0,
+    skipped: 0,
+    results: []
+  }
+
+  for (let index = 0; index < selected.length; index += 1) {
+    const source = selected[index]
+    const diagnostics = getSourceDiagnostics(source)
+    let item
+    if (!source.enabled) {
+      summary.skipped += 1
+      item = {
+        sourceId: source.id,
+        name: source.name,
+        group: source.group,
+        status: 'skipped',
+        message: '书源已停用'
+      }
+    } else if (!diagnostics.compatible) {
+      summary.skipped += 1
+      item = {
+        sourceId: source.id,
+        name: source.name,
+        group: source.group,
+        status: 'skipped',
+        message: diagnostics.reasons.join('、') || 'H5 不兼容'
+      }
+    } else {
+      summary.tested += 1
+      try {
+        const result = await testSourceSearch(source.id, word, {
+          timeoutMs: options.timeoutMs,
+          limit: options.limit,
+          failOnEmpty: true
+        })
+        summary.passed += 1
+        item = {
+          sourceId: source.id,
+          name: source.name,
+          group: source.group,
+          status: 'passed',
+          count: result.count,
+          message: `返回 ${result.count} 条结果`
+        }
+      } catch (error) {
+        summary.failed += 1
+        item = {
+          sourceId: source.id,
+          name: source.name,
+          group: source.group,
+          status: 'failed',
+          count: 0,
+          message: friendlyErrorMessage(error, '书源测试失败')
+        }
+      }
+    }
+    summary.results.push(item)
+    if (typeof options.onProgress === 'function') {
+      options.onProgress({
+        ...item,
+        index: index + 1,
+        total: selected.length,
+        tested: summary.tested,
+        passed: summary.passed,
+        failed: summary.failed,
+        skipped: summary.skipped
+      })
+    }
+  }
+
+  return summary
 }
 
 export async function loadOnlineBookInfo(book) {

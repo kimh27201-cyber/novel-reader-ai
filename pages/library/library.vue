@@ -75,6 +75,31 @@
         <text>{{ sourceStats.searchable }} 可搜索</text>
       </view>
 
+      <view class="batch-panel">
+        <view class="batch-head">
+          <view>
+            <view class="test-title">批量检测</view>
+            <text class="source-hint">发现页只使用已通过测试的书源。失败源会保留网络失败、规则不兼容、无搜索结果或超时原因。</text>
+          </view>
+          <view class="batch-actions">
+            <button class="small-action primary" :loading="batchTesting" @tap="runBatchSourceTest('all')">测试全部启用源</button>
+            <button class="small-action" :disabled="sourceGroupFilter === '全部分组'" :loading="batchTesting" @tap="runBatchSourceTest('group')">测试当前分组</button>
+          </view>
+        </view>
+        <input class="field compact" v-model="batchTestKeyword" placeholder="批量测试关键词，例如 星轨图书馆" />
+        <view class="batch-progress" v-if="batchTesting || batchTestResult">
+          <text>{{ batchProgressText }}</text>
+          <text v-if="batchTestResult">通过 {{ batchTestResult.passed }} / 失败 {{ batchTestResult.failed }} / 跳过 {{ batchTestResult.skipped }}</text>
+        </view>
+        <view class="batch-result-list" v-if="batchTestItems.length">
+          <view class="batch-result-row" v-for="item in batchTestItems" :key="item.sourceId">
+            <text class="batch-result-status" :class="item.status">{{ batchStatusLabel(item.status) }}</text>
+            <text class="batch-result-name">{{ item.name }}</text>
+            <text class="batch-result-message">{{ item.message }}</text>
+          </view>
+        </view>
+      </view>
+
       <scroll-view class="source-list" scroll-y :show-scrollbar="false">
         <view class="source-empty" v-if="!visibleSources.length && !visibleBackendSources.length">
           <view class="empty-title">没有匹配的书源</view>
@@ -274,6 +299,7 @@
 <script>
 import { importBookFromText, parseTxtChapters } from '../../common/books.js'
 import {
+  batchTestSources,
   deleteUserSource,
   getSourceDiagnostics,
   getSourceConfigs,
@@ -305,6 +331,11 @@ export default {
       sourceTesting: false,
       testSourceKeyword: '星轨图书馆',
       sourceTestResult: null,
+      batchTesting: false,
+      batchTestKeyword: '星轨图书馆',
+      batchProgress: { current: 0, total: 0 },
+      batchTestResult: null,
+      batchTestItems: [],
       sourceFilter: 'all',
       sourceSort: 'manual',
       sourceKeyword: '',
@@ -355,6 +386,15 @@ export default {
         incompatible: this.sources.filter(source => !getSourceDiagnostics(source).compatible).length,
         searchable: this.sources.filter(source => getSourceDiagnostics(source).searchable).length
       }
+    },
+    batchProgressText() {
+      if (this.batchTesting) {
+        return `正在测试 ${this.batchProgress.current}/${this.batchProgress.total}`
+      }
+      if (this.batchTestResult) {
+        return `检测完成 ${this.batchTestResult.total} 个书源`
+      }
+      return ''
     },
     sourceReasonText() {
       const reasons = this.sourceDiagnostics && this.sourceDiagnostics.reasons || []
@@ -489,6 +529,51 @@ export default {
       if (diagnostics.networkStatus === 'passed') return '网络已通过'
       if (diagnostics.networkStatus === 'failed') return '网络不可用'
       return '待网络测试'
+    },
+    batchStatusLabel(status) {
+      if (status === 'passed') return '通过'
+      if (status === 'failed') return '失败'
+      if (status === 'skipped') return '不兼容'
+      return '未测试'
+    },
+    getBatchSourceIds(scope) {
+      return this.sources
+        .filter(source => source.enabled)
+        .filter(source => {
+          if (scope !== 'group') return true
+          if (this.sourceGroupFilter === '全部分组') return true
+          return source.group === this.sourceGroupFilter
+        })
+        .map(source => source.id)
+    },
+    async runBatchSourceTest(scope = 'all') {
+      const sourceIds = this.getBatchSourceIds(scope)
+      if (!sourceIds.length) {
+        uni.showToast({ title: scope === 'group' ? '当前分组没有启用书源' : '没有启用书源可检测', icon: 'none' })
+        return
+      }
+      this.batchTesting = true
+      this.batchTestResult = null
+      this.batchTestItems = []
+      this.batchProgress = { current: 0, total: sourceIds.length }
+      try {
+        const result = await batchTestSources({
+          keyword: this.batchTestKeyword,
+          sourceIds,
+          onProgress: item => {
+            this.batchProgress = { current: item.index, total: item.total }
+            this.batchTestItems = [...this.batchTestItems.filter(row => row.sourceId !== item.sourceId), item]
+          }
+        })
+        this.batchTestResult = result
+        this.batchTestItems = result.results
+        this.sources = getSourceConfigs()
+        uni.showToast({ title: `检测完成：通过 ${result.passed} / 失败 ${result.failed}`, icon: 'none' })
+      } catch (error) {
+        uni.showToast({ title: friendlyErrorMessage(error, '批量检测失败'), icon: 'none' })
+      } finally {
+        this.batchTesting = false
+      }
     },
     refreshSelectedSource() {
       if (!this.selectedSource) return
@@ -950,6 +1035,77 @@ textarea {
   font-size: 23rpx;
 }
 
+.batch-panel {
+  margin-top: 18rpx;
+  padding: 18rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: 20rpx;
+  background: var(--app-panel);
+}
+
+.batch-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+}
+
+.batch-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 12rpx;
+}
+
+.batch-progress {
+  display: flex;
+  justify-content: space-between;
+  gap: 18rpx;
+  margin-top: 14rpx;
+  color: var(--app-muted);
+  font-size: 23rpx;
+}
+
+.batch-result-list {
+  margin-top: 12rpx;
+}
+
+.batch-result-row {
+  display: grid;
+  grid-template-columns: 86rpx minmax(0, 1fr) minmax(0, 1.5fr);
+  gap: 12rpx;
+  align-items: center;
+  min-height: 54rpx;
+  color: var(--app-muted);
+  font-size: 22rpx;
+}
+
+.batch-result-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 38rpx;
+  border-radius: 999rpx;
+  color: var(--app-text);
+  background: var(--app-input);
+}
+
+.batch-result-status.passed {
+  color: var(--app-on-accent);
+  background: var(--app-accent);
+}
+
+.batch-result-status.failed {
+  color: var(--app-on-accent);
+  background: var(--app-accent-3);
+}
+
+.batch-result-name,
+.batch-result-message {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .source-list {
   height: 560rpx;
   margin-top: 20rpx;
@@ -1348,8 +1504,16 @@ textarea {
   .import-methods,
   .quick-actions,
   .detail-grid,
-  .rule-summary {
+  .rule-summary,
+  .batch-result-row {
     grid-template-columns: 1fr;
+  }
+
+  .batch-head,
+  .batch-progress,
+  .batch-actions {
+    flex-direction: column;
+    align-items: stretch;
   }
 
   .source-list {

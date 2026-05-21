@@ -30,7 +30,8 @@
 
     <view class="tip-card" v-if="mode === 'cloud'">
       <view class="tip-title">优先搜索后端演示源</view>
-      <text class="tip-desc">登录后走 FastAPI 后端书源；未登录时只搜索最多 3 个启用外部源，避免长时间等待。</text>
+      <text class="tip-desc">登录后走 FastAPI 后端书源；未登录时只搜索最多 3 个启用外部源，当前可用书源 {{ availableSourceCount }} 个。</text>
+      <text class="tip-desc" v-if="availableSourceNames">可用书源：{{ availableSourceNames }}</text>
     </view>
 
     <scroll-view class="content" scroll-y :show-scrollbar="false">
@@ -64,6 +65,9 @@
         </view>
 
         <view v-if="results.length">
+          <view class="source-usage" v-if="lastSearchSourceNames.length">
+            本次使用 {{ lastSearchSourceNames.join('、') }}
+          </view>
           <view class="result-card" v-for="item in results" :key="`${item.type}-${item.bookId}-${item.title}`" @tap="openResult(item)">
             <view class="result-top">
               <view class="result-type">{{ resultTypeLabel(item) }}</view>
@@ -71,8 +75,15 @@
             </view>
             <view class="result-title">{{ item.title }}</view>
             <text class="result-subtitle">{{ item.subtitle }}</text>
+            <text class="result-source" v-if="resultSourceName(item)">来源：{{ resultSourceName(item) }}</text>
             <text class="result-snippet">{{ item.snippet }}</text>
           </view>
+        </view>
+
+        <view class="empty-state" v-else-if="mode === 'cloud' && noAvailableSourceHint && !loading">
+          <view class="empty-title">暂无可用书源</view>
+          <text class="empty-desc">请先到导入页完成书源测试。发现页只会使用启用且测试通过的书源。</text>
+          <button class="starter primary" @tap="goLibrary">去导入页批量检测</button>
         </view>
 
         <view class="empty-state" v-else-if="!loading">
@@ -91,7 +102,7 @@
 
 <script>
 import { searchBooks } from '../../common/books.js'
-import { getSourceConfigs, saveOnlineBookDraft, searchOnlineBooks, setSourceEnabled } from '../../common/bookSources.js'
+import { getSourceConfigs, pickOnlineSearchSources, saveOnlineBookDraft, searchOnlineBooks, setSourceEnabled } from '../../common/bookSources.js'
 import apiClient from '../../common/apiClient.js'
 import { searchBackendBooks } from '../../common/backendLibrary.js'
 import { buildSourceToggleState, demoSearchKeywords, sanitizeSearchKeyword } from '../../common/searchHelpers.js'
@@ -107,6 +118,7 @@ export default {
       sources: [],
       loading: false,
       searchToken: 0,
+      lastSearchSourceNames: [],
       themeId: getAppThemeId(),
       starterKeywords: demoSearchKeywords
     }
@@ -125,10 +137,22 @@ export default {
     enabledSourceCount() {
       return this.sources.filter(source => source.enabled).length
     },
+    availableSearchSources() {
+      return pickOnlineSearchSources(this.sources, 99)
+    },
+    availableSourceCount() {
+      return this.availableSearchSources.length
+    },
+    availableSourceNames() {
+      return this.availableSearchSources.map(source => source.name).join('、')
+    },
+    noAvailableSourceHint() {
+      return this.availableSourceCount === 0 && !apiClient.getToken()
+    },
     modeHint() {
       if (this.mode === 'source') return '管理外部书源'
       if (this.mode === 'local') return '只查本地书架'
-      return '后端云端优先'
+      return `可用书源 ${this.availableSourceCount} 个`
     },
     searchPlaceholder() {
       if (this.mode === 'source') return '筛选书源名称'
@@ -145,6 +169,7 @@ export default {
       this.mode = mode
       this.results = []
       this.loading = false
+      this.lastSearchSourceNames = []
       if (mode === 'local' && this.keyword) this.runSearch()
     },
     useStarter(keyword) {
@@ -166,6 +191,7 @@ export default {
       const token = Date.now()
       this.searchToken = token
       this.results = []
+      this.lastSearchSourceNames = []
 
       if (this.mode === 'source') return
       if (!word) {
@@ -178,6 +204,14 @@ export default {
         return
       }
 
+      if (this.noAvailableSourceHint) {
+        uni.showToast({ title: '暂无可用书源，请先到导入页完成书源测试', icon: 'none' })
+        return
+      }
+
+      this.lastSearchSourceNames = apiClient.getToken()
+        ? ['后端演示源']
+        : this.availableSearchSources.map(source => source.name)
       this.loading = true
       try {
         const results = apiClient.getToken()
@@ -192,6 +226,9 @@ export default {
       } finally {
         if (this.searchToken === token) this.loading = false
       }
+    },
+    goLibrary() {
+      uni.switchTab({ url: '/pages/library/library' })
     },
     openResult(item) {
       if (item.type === 'online' || item.type === 'backend-online') {
@@ -212,6 +249,9 @@ export default {
       if (item.type === 'online') return '外部'
       if (item.type === 'source-error') return '失败'
       return item.type === 'book' ? '本地书籍' : '本地章节'
+    },
+    resultSourceName(item) {
+      return item.sourceName || (item.book && item.book.sourceName) || ''
     }
   }
 }
@@ -366,6 +406,7 @@ button {
 .section-desc,
 .source-desc,
 .result-subtitle,
+.result-source,
 .result-snippet,
 .empty-desc,
 .loading-desc {
@@ -455,6 +496,12 @@ button {
   margin-bottom: 18rpx;
 }
 
+.source-usage {
+  margin-bottom: 16rpx;
+  color: var(--app-muted);
+  font-size: 23rpx;
+}
+
 .result-top {
   display: flex;
   align-items: center;
@@ -505,6 +552,13 @@ button {
   color: var(--app-text);
   font-size: 23rpx;
   background: var(--app-panel);
+}
+
+.starter.primary {
+  width: 100%;
+  margin-top: 24rpx;
+  color: var(--app-on-accent);
+  background: var(--app-accent);
 }
 
 @keyframes pulse {
