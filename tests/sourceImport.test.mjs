@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
+  batchSetSourcesEnabled,
   getSourceConfigs,
   importSourcesFromAny,
-  importSourcesWithStats
+  importSourcesWithStats,
+  previewSourcesImport,
+  updateSourceMetadata
 } from '../common/bookSources.js'
 
 const store = {}
@@ -73,6 +76,37 @@ assert.equal(yckDetail.imported, 1)
 assert.ok(requestedUrls.some(url => url.includes('/json/id/7274.json')))
 assert.ok(!requestedUrls.some(url => url.endsWith('/yuedu/shuyuan/index.html')))
 
+const builtIn = getSourceConfigs().find(item => !item.importedAt)
+const builtInRawName = builtIn.raw.bookSourceName
+updateSourceMetadata(builtIn.id, { name: '展示用内置源', group: '演示分组' })
+const renamedBuiltIn = getSourceConfigs().find(item => item.id === builtIn.id)
+assert.equal(renamedBuiltIn.name, '展示用内置源')
+assert.equal(renamedBuiltIn.group, '演示分组')
+assert.equal(renamedBuiltIn.raw.bookSourceName, builtInRawName)
+
+const imported = getSourceConfigs().find(item => item.name === 'Stats Test Source')
+updateSourceMetadata(imported.id, { name: '改名书源', group: '测试分组' })
+const renamedImported = getSourceConfigs().find(item => item.id === imported.id)
+assert.equal(renamedImported.name, '改名书源')
+assert.equal(renamedImported.group, '测试分组')
+
+const bulkResult = batchSetSourcesEnabled([builtIn.id, imported.id], false)
+assert.equal(bulkResult.updated, 2)
+assert.equal(getSourceConfigs().find(item => item.id === builtIn.id).enabled, false)
+assert.equal(getSourceConfigs().find(item => item.id === imported.id).enabled, false)
+
+const beforePreviewCount = getSourceConfigs().length
+const preview = previewSourcesImport(JSON.stringify([
+  source,
+  { ...source, bookSourceName: 'Preview New Source', bookSourceUrl: 'https://preview.example.com' },
+  incompatible
+]))
+assert.equal(preview.imported, 1)
+assert.equal(preview.updated, 2)
+assert.equal(preview.incompatible, 1)
+assert.ok(preview.groups.includes('用户导入'))
+assert.equal(getSourceConfigs().length, beforePreviewCount)
+
 const library = readFileSync(new URL('../pages/library/library.vue', import.meta.url), 'utf8')
 assert.match(library, /importFromClipboard/)
 assert.match(library, /chooseSourceJsonFile/)
@@ -81,5 +115,15 @@ assert.match(library, /sourceImportMode === 'repo'/)
 assert.match(library, /sourceFilter === 'cloud'/)
 assert.match(library, /sourceSort/)
 assert.match(library, /sourceMenuVisible/)
+assert.match(library, /openSourceEdit/)
+assert.match(library, /saveSourceEdit/)
+assert.match(library, /batchToggleVisibleSources/)
+assert.match(library, /confirmRemoveSource/)
+assert.match(library, /previewSourceImport/)
+assert.match(library, /导入前预览/)
+assert.match(library, /批量启用当前结果/)
+assert.match(library, /批量停用当前结果/)
+assert.match(library, /确认删除/)
+assert.match(library, /分组统计/)
 
 console.log('sourceImport tests passed')

@@ -74,6 +74,15 @@
         <text>{{ sourceStats.incompatible }} 不兼容</text>
         <text>{{ sourceStats.searchable }} 可搜索</text>
       </view>
+      <view class="summary-row group-summary">
+        <text>分组统计</text>
+        <text v-for="item in sourceGroupStats" :key="item.group">{{ item.group }} {{ item.count }}</text>
+      </view>
+
+      <view class="bulk-actions">
+        <button class="small-action" @tap="batchToggleVisibleSources(true)">批量启用当前结果</button>
+        <button class="small-action" @tap="batchToggleVisibleSources(false)">批量停用当前结果</button>
+      </view>
 
       <view class="batch-panel">
         <view class="batch-head">
@@ -126,7 +135,8 @@
           <button class="status-switch" :class="{ active: source.enabled }" @tap.stop="toggleSource(source)">
             {{ source.enabled ? '启用' : '停用' }}
           </button>
-          <button class="row-action" v-if="source.importedAt" @tap.stop="removeSource(source)">删</button>
+          <button class="row-action" @tap.stop="openSourceEdit(source)">编</button>
+          <button class="row-action" v-if="source.importedAt" @tap.stop="confirmRemoveSource(source)">删</button>
         </view>
       </scroll-view>
     </view>
@@ -155,7 +165,7 @@
       </button>
     </view>
 
-    <view class="drawer-mask" v-if="importDrawerVisible || txtVisible || sourceDetailVisible" @tap="closePanels"></view>
+    <view class="drawer-mask" v-if="importDrawerVisible || txtVisible || sourceDetailVisible || sourceEditVisible" @tap="closePanels"></view>
 
     <view class="import-drawer app-floating-panel" v-if="importDrawerVisible">
       <view class="drawer-head">
@@ -195,6 +205,12 @@
       />
       <text class="source-hint">{{ sourceImportHint }}</text>
 
+      <view class="preview-card" v-if="sourceImportPreview">
+        <view class="test-title">导入前预览</view>
+        <text class="source-hint">新增 {{ sourceImportPreview.imported }} / 覆盖 {{ sourceImportPreview.updated }} / 不兼容 {{ sourceImportPreview.incompatible }}</text>
+        <text class="source-hint">分组：{{ sourceImportPreview.groups.join('、') || '未分组' }}</text>
+      </view>
+      <button class="outline-action wide" @tap="previewSourceImport">导入前预览</button>
       <button class="submit-button" :loading="sourceImporting" @tap="submitSourceImport">导入书源</button>
 
       <view class="quick-actions">
@@ -223,6 +239,20 @@
       <input class="field" v-model="importTitle" placeholder="书名，默认使用文件名" />
       <input class="field" v-model="importAuthor" placeholder="作者，可不填" />
       <button class="submit-button" :disabled="!importFileText" @tap="submitImport">加入书架</button>
+    </view>
+
+    <view class="import-drawer app-floating-panel" v-if="sourceEditVisible && editingSource">
+      <view class="drawer-head">
+        <view>
+          <text class="eyebrow">EDIT SOURCE</text>
+          <view class="drawer-title">编辑书源</view>
+        </view>
+        <button class="round-action" @tap="closePanels">×</button>
+      </view>
+      <input class="field" v-model="sourceEditName" placeholder="书源名称" />
+      <input class="field" v-model="sourceEditGroup" placeholder="书源分组" />
+      <text class="source-hint">{{ editingSource.importedAt ? '用户导入书源可改名、改分组和删除。' : '内置书源只保存本地显示名和分组，不会修改原始规则。' }}</text>
+      <button class="submit-button" @tap="saveSourceEdit">保存修改</button>
     </view>
 
     <view class="import-drawer source-detail-drawer app-floating-panel" v-if="sourceDetailVisible && selectedSource">
@@ -300,12 +330,15 @@
 import { importBookFromText, parseTxtChapters } from '../../common/books.js'
 import {
   batchTestSources,
+  batchSetSourcesEnabled,
   deleteUserSource,
   getSourceDiagnostics,
   getSourceConfigs,
   importSourcesFromAny,
+  previewSourcesImport,
   setSourceEnabled,
-  testSourceSearch
+  testSourceSearch,
+  updateSourceMetadata
 } from '../../common/bookSources.js'
 import {
   importBackendDemoSource,
@@ -325,7 +358,12 @@ export default {
       sourceImportText: '',
       sourceImportUrl: '',
       sourceImporting: false,
+      sourceImportPreview: null,
       sourceDetailVisible: false,
+      sourceEditVisible: false,
+      editingSource: null,
+      sourceEditName: '',
+      sourceEditGroup: '',
       selectedSource: null,
       sourceDiagnostics: null,
       sourceTesting: false,
@@ -386,6 +424,16 @@ export default {
         incompatible: this.sources.filter(source => !getSourceDiagnostics(source).compatible).length,
         searchable: this.sources.filter(source => getSourceDiagnostics(source).searchable).length
       }
+    },
+    sourceGroupStats() {
+      const counts = {}
+      this.sources.forEach(source => {
+        const group = source.group || '未分组'
+        counts[group] = (counts[group] || 0) + 1
+      })
+      return Object.keys(counts)
+        .sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'))
+        .map(group => ({ group, count: counts[group] }))
     },
     batchProgressText() {
       if (this.batchTesting) {
@@ -492,6 +540,7 @@ export default {
       this.sourceImportMode = mode
       this.importDrawerVisible = true
       this.txtVisible = false
+      this.sourceEditVisible = false
       this.sourceMenuVisible = false
     },
     openSourcePanel() {
@@ -500,16 +549,20 @@ export default {
     openTxtPanel() {
       this.txtVisible = true
       this.importDrawerVisible = false
+      this.sourceEditVisible = false
       this.sourceMenuVisible = false
     },
     closePanels() {
       this.importDrawerVisible = false
       this.txtVisible = false
       this.sourceDetailVisible = false
+      this.sourceEditVisible = false
       this.sourceMenuVisible = false
       this.selectedSource = null
+      this.editingSource = null
       this.sourceDiagnostics = null
       this.sourceTestResult = null
+      this.sourceImportPreview = null
       this.sourceImportText = ''
       this.sourceImportUrl = ''
       this.sources = getSourceConfigs()
@@ -520,8 +573,33 @@ export default {
       this.sourceTestResult = null
       this.importDrawerVisible = false
       this.txtVisible = false
+      this.sourceEditVisible = false
       this.sourceMenuVisible = false
       this.sourceDetailVisible = true
+    },
+    openSourceEdit(source) {
+      this.editingSource = source
+      this.sourceEditName = source.name
+      this.sourceEditGroup = source.group || '未分组'
+      this.importDrawerVisible = false
+      this.txtVisible = false
+      this.sourceDetailVisible = false
+      this.sourceMenuVisible = false
+      this.sourceEditVisible = true
+    },
+    saveSourceEdit() {
+      if (!this.editingSource) return
+      try {
+        updateSourceMetadata(this.editingSource.id, {
+          name: this.sourceEditName,
+          group: this.sourceEditGroup
+        })
+        this.sources = getSourceConfigs()
+        uni.showToast({ title: '书源信息已保存', icon: 'none' })
+        this.closePanels()
+      } catch (error) {
+        uni.showToast({ title: friendlyErrorMessage(error, '保存书源失败'), icon: 'none' })
+      }
     },
     sourceAvailabilityLabel(source) {
       const diagnostics = getSourceDiagnostics(source)
@@ -626,6 +704,20 @@ export default {
       if (result) {
         this.sourceImportText = ''
         this.sourceImportUrl = ''
+        this.sourceImportPreview = null
+      }
+    },
+    previewSourceImport() {
+      const raw = String(this.sourceImportMode === 'json' ? this.sourceImportText : this.sourceImportUrl).trim()
+      if (!raw) {
+        uni.showToast({ title: '请先粘贴书源内容或 URL', icon: 'none' })
+        return
+      }
+      try {
+        this.sourceImportPreview = previewSourcesImport(raw)
+      } catch (error) {
+        this.sourceImportPreview = null
+        uni.showToast({ title: friendlyErrorMessage(error, '当前内容无法预览，请确认是书源 JSON'), icon: 'none' })
       }
     },
     async importSourcePayload(raw, successPrefix = '已导入') {
@@ -712,6 +804,34 @@ export default {
       setSourceEnabled(source.id, !source.enabled)
       this.sources = getSourceConfigs()
       this.refreshSelectedSource()
+    },
+    batchToggleVisibleSources(enabled) {
+      const ids = this.visibleSources.map(source => source.id)
+      if (!ids.length) {
+        uni.showToast({ title: '当前结果没有可操作书源', icon: 'none' })
+        return
+      }
+      const result = batchSetSourcesEnabled(ids, enabled)
+      this.sources = getSourceConfigs()
+      this.refreshSelectedSource()
+      uni.showToast({ title: `${enabled ? '已启用' : '已停用'} ${result.updated} 个书源`, icon: 'none' })
+    },
+    confirmRemoveSource(source) {
+      if (!source || !source.importedAt) return
+      const remove = () => this.removeSource(source)
+      if (!uni.showModal) {
+        remove()
+        return
+      }
+      uni.showModal({
+        title: '确认删除',
+        content: `删除书源“${source.name}”后，它不会再参与发现页搜索。`,
+        confirmText: '删除',
+        confirmColor: '#e26a4f',
+        success: result => {
+          if (result.confirm) remove()
+        }
+      })
     },
     removeSource(source) {
       deleteUserSource(source.id)
@@ -1029,10 +1149,22 @@ textarea {
 
 .summary-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 20rpx;
   margin-top: 18rpx;
   color: var(--app-muted);
   font-size: 23rpx;
+}
+
+.group-summary {
+  gap: 12rpx;
+}
+
+.bulk-actions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12rpx;
+  margin-top: 18rpx;
 }
 
 .batch-panel {
@@ -1285,6 +1417,19 @@ textarea {
   gap: 8rpx;
 }
 
+.outline-action.wide {
+  width: 100%;
+  margin-top: 18rpx;
+}
+
+.preview-card {
+  margin-top: 18rpx;
+  padding: 16rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: 16rpx;
+  background: var(--app-panel);
+}
+
 .method-icon {
   font-size: 22rpx;
   font-weight: 900;
@@ -1503,6 +1648,7 @@ textarea {
   .utility-grid,
   .import-methods,
   .quick-actions,
+  .bulk-actions,
   .detail-grid,
   .rule-summary,
   .batch-result-row {

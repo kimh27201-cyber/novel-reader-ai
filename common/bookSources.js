@@ -221,6 +221,8 @@ export function getSourceConfigs() {
     const saved = settings[source.id] || {}
     return {
       ...source,
+      name: saved.name || source.name,
+      group: saved.group || source.group,
       enabled: saved.enabled !== undefined ? saved.enabled : source.enabled,
       updatedAt: saved.updatedAt || source.updatedAt,
       lastTest: saved.lastTest || source.lastTest || ''
@@ -240,6 +242,38 @@ export function setSourceEnabled(sourceId, enabled) {
     updatedAt: Date.now()
   }
   writeSourceSettings(settings)
+}
+
+export function batchSetSourcesEnabled(sourceIds, enabled) {
+  const ids = Array.isArray(sourceIds) ? sourceIds.filter(Boolean) : []
+  const settings = getSourceSettings()
+  const now = Date.now()
+  ids.forEach(sourceId => {
+    settings[sourceId] = {
+      ...(settings[sourceId] || {}),
+      enabled: !!enabled,
+      updatedAt: now
+    }
+  })
+  writeSourceSettings(settings)
+  return { updated: ids.length, enabled: !!enabled }
+}
+
+export function updateSourceMetadata(sourceId, metadata = {}) {
+  const source = getSourceConfig(sourceId)
+  if (!source) throw new Error('书源不存在或已删除')
+  const name = cleanText(metadata.name).slice(0, 60)
+  const group = cleanText(metadata.group).slice(0, 40)
+  if (!name) throw new Error('书源名称不能为空')
+  const settings = getSourceSettings()
+  settings[sourceId] = {
+    ...(settings[sourceId] || {}),
+    name,
+    group: group || '未分组',
+    updatedAt: Date.now()
+  }
+  writeSourceSettings(settings)
+  return getSourceConfig(sourceId)
 }
 
 export function deleteUserSource(sourceId) {
@@ -301,6 +335,19 @@ export function getSourceDiagnostics(source) {
 
 export function importSourcesFromJson(text) {
   return importSourcesWithStats(text).sources.length
+}
+
+export function previewSourcesImport(text) {
+  const sources = parseSourceJson(text)
+  const currentIds = new Set(getUserSources().map(source => source.id))
+  const groups = sources.map(source => source.group || source.raw.bookSourceGroup || '用户导入')
+  return {
+    imported: sources.filter(source => !currentIds.has(source.id)).length,
+    updated: sources.filter(source => currentIds.has(source.id)).length,
+    incompatible: sources.filter(source => hasUnsupportedRule(source.raw)).length,
+    groups: Array.from(new Set(groups)),
+    sources
+  }
 }
 
 export function importSourcesWithStats(text) {
