@@ -154,6 +154,9 @@ export function createApiClient(deps = {}) {
     getMe() {
       return request('/api/auth/me')
     },
+    healthCheck() {
+      return request('/api/health', { auth: false })
+    },
     listBooks() {
       return request('/api/books')
     },

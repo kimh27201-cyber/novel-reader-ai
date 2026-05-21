@@ -73,6 +73,7 @@
 - 书源导入、兼容性诊断、单源测试、批量检测和发现页可用源引导
 - 书源改名、分组管理、当前结果批量启停、删除确认和导入前预览
 - 导入页扫码、剪贴板、本地 JSON/TXT 文件选择统一走跨端适配层，便于 Android 真机验证
+- 我的页支持后端地址保存、真机地址风险提示和 `/api/health` 自检
 
 ## 项目结构
 
@@ -94,6 +95,14 @@ cd D:\Codex\novel-reader-uniapp\backend
 .\.venv\Scripts\Activate.ps1
 uvicorn app.main:app --reload --port 8000
 ```
+
+Android 真机联调时使用：
+
+```powershell
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+```
+
+手机端“我的”页后端地址填写电脑局域网地址，例如 `http://192.168.x.x:8000`。不要在真机里使用 `127.0.0.1` 或 `localhost`。
 
 打开：
 
@@ -139,6 +148,7 @@ node tests/importAdapters.test.mjs
 ```powershell
 cd D:\Codex\novel-reader-uniapp
 node tests/apiClient.test.mjs
+node tests/backendConnection.test.mjs
 ```
 
 AI 历史和后端适配层测试：
@@ -155,7 +165,7 @@ node tests/aiHistory.test.mjs
 
 - 后端依赖安装、Alembic 迁移检查、`pytest`
 - `pages.json` 解析检查
-- 前端工具测试：`sourceEngine`、`apiClient`、`backendLibrary`、`aiHistory`、`importAdapters`
+- 前端工具测试：`sourceEngine`、`apiClient`、`backendConnection`、`backendLibrary`、`aiHistory`、`importAdapters`
 
 ## 错误响应与排查
 

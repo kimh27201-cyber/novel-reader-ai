@@ -18,17 +18,22 @@
       </view>
 
       <input class="backend-input" v-model="backend.baseUrl" placeholder="后端地址" />
+      <view class="backend-tip" :class="{ warning: !backendAddressTip.mobileReady }">
+        <text>{{ backendAddressTip.message }}</text>
+      </view>
       <view class="backend-grid">
         <input class="backend-input" v-model="backend.username" placeholder="用户名" />
         <input class="backend-input" v-model="backend.password" password placeholder="密码" />
       </view>
       <text class="backend-error" v-if="backend.error">{{ backend.error }}</text>
+      <text class="backend-health" v-if="backend.health">{{ backend.health }}</text>
       <view class="backend-hint" v-if="!backend.user">
         <view class="hint-title">FastAPI 未启动时</view>
-        <text class="hint-command">cd D:\Codex\novel-reader-uniapp\backend</text>
-        <text class="hint-command">.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000</text>
+        <text class="hint-command" v-for="line in backendStartCommands" :key="line">{{ line }}</text>
       </view>
       <view class="backend-actions">
+        <button class="backend-button" @tap="saveBackendBaseUrl">保存地址</button>
+        <button class="backend-button" :loading="backend.loading" @tap="checkBackendHealth">自检后端</button>
         <button class="backend-button primary" :loading="backend.loading" @tap="loginBackend">登录后端</button>
         <button class="backend-button" :loading="backend.loading" @tap="refreshBackendMe">刷新状态</button>
         <button class="backend-button" @tap="openSwagger">打开 Swagger</button>
@@ -99,6 +104,7 @@
 import { exportTrackedBooks } from '../../common/tracking.js'
 import { appThemes, getAppThemeId, getAppThemeStyle, saveAppTheme } from '../../common/appTheme.js'
 import apiClient from '../../common/apiClient.js'
+import { analyzeBackendBaseUrl, buildBackendStartCommands } from '../../common/backendConnection.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 
 export default {
@@ -113,6 +119,7 @@ export default {
         password: 'secret123',
         user: null,
         loading: false,
+        health: '',
         error: ''
       },
       mainItems: [
@@ -137,6 +144,12 @@ export default {
       return this.backend.user
         ? `已登录：${this.backend.user.username}`
         : '连接 FastAPI 后端，启用 AI 总结和问答'
+    },
+    backendAddressTip() {
+      return analyzeBackendBaseUrl(this.backend.baseUrl)
+    },
+    backendStartCommands() {
+      return buildBackendStartCommands(this.backendAddressTip.mobileReady ? this.backendAddressTip.host : '电脑局域网 IP')
     }
   },
   onShow() {
@@ -155,8 +168,9 @@ export default {
     async loginBackend() {
       this.backend.loading = true
       this.backend.error = ''
+      this.backend.health = ''
       try {
-        apiClient.setBaseUrl(this.backend.baseUrl)
+        this.backend.baseUrl = apiClient.setBaseUrl(this.backend.baseUrl)
         await apiClient.login(this.backend.username.trim(), this.backend.password)
         await this.refreshBackendMe({ silent: true })
         uni.showToast({ title: '后端登录成功', icon: 'none' })
@@ -171,8 +185,9 @@ export default {
     async refreshBackendMe(options = {}) {
       this.backend.loading = true
       this.backend.error = ''
+      this.backend.health = ''
       try {
-        apiClient.setBaseUrl(this.backend.baseUrl)
+        this.backend.baseUrl = apiClient.setBaseUrl(this.backend.baseUrl)
         this.backend.user = await apiClient.getMe()
         if (!options.silent) {
           uni.showToast({ title: '后端状态正常', icon: 'none' })
@@ -187,10 +202,33 @@ export default {
         this.backend.loading = false
       }
     },
+    saveBackendBaseUrl() {
+      this.backend.baseUrl = apiClient.setBaseUrl(this.backend.baseUrl)
+      const message = this.backendAddressTip.mobileReady ? '后端地址已保存，可用于真机联调' : '后端地址已保存，真机请改用局域网 IP'
+      uni.showToast({ title: message, icon: 'none' })
+    },
+    async checkBackendHealth() {
+      this.backend.loading = true
+      this.backend.error = ''
+      this.backend.health = ''
+      try {
+        this.backend.baseUrl = apiClient.setBaseUrl(this.backend.baseUrl)
+        const result = await apiClient.healthCheck()
+        this.backend.health = `健康检查通过：${result.status || 'ok'}`
+        uni.showToast({ title: '后端健康检查通过', icon: 'none' })
+      } catch (error) {
+        this.backend.health = ''
+        this.backend.error = friendlyErrorMessage(error, '后端健康检查失败')
+        uni.showToast({ title: this.backend.error, icon: 'none' })
+      } finally {
+        this.backend.loading = false
+      }
+    },
     logoutBackend() {
       apiClient.clearToken()
       this.backend.user = null
       this.backend.error = ''
+      this.backend.health = ''
       uni.showToast({ title: '已退出后端登录', icon: 'none' })
     },
     openItem(id) {
@@ -326,7 +364,9 @@ button::after {
 }
 
 .backend-desc,
-.backend-error {
+.backend-error,
+.backend-health,
+.backend-tip {
   display: block;
   margin-top: 8rpx;
   color: #a9aaa4;
@@ -336,6 +376,22 @@ button::after {
 
 .backend-error {
   color: #ff9d86;
+}
+
+.backend-health {
+  color: #9ee2b4;
+}
+
+.backend-tip {
+  padding: 12rpx 16rpx;
+  margin: 12rpx 0 0;
+  border-radius: 14rpx;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.backend-tip.warning {
+  color: #ffcf9a;
+  background: rgba(216, 90, 58, 0.10);
 }
 
 .backend-hint {
@@ -397,7 +453,7 @@ button::after {
 
 .backend-actions {
   display: grid;
-  grid-template-columns: 1.2fr 1fr 1fr 0.7fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 12rpx;
   margin-top: 20rpx;
 }
@@ -627,6 +683,7 @@ button::after {
 
 .backend-desc,
 .hint-command,
+.backend-tip,
 .setting-desc,
 .theme-desc {
   color: var(--app-muted);
@@ -653,6 +710,11 @@ button::after {
 .backend-status {
   color: var(--app-muted);
   background: var(--app-panel);
+}
+
+.backend-tip.warning {
+  color: #ffcf9a;
+  background: rgba(216, 90, 58, 0.10);
 }
 
 .theme-row.active {
