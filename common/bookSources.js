@@ -187,6 +187,34 @@ function writeSourceSettings(settings) {
   writeStorage(SOURCE_SETTINGS_KEY, settings)
 }
 
+function normalizeSourceTest(value) {
+  if (!value || typeof value !== 'object') return { status: 'untested' }
+  const status = value.status === 'passed' || value.status === 'failed' ? value.status : 'untested'
+  return {
+    status,
+    testedAt: Number(value.testedAt || 0),
+    keyword: String(value.keyword || ''),
+    count: Number(value.count || 0),
+    message: String(value.message || '')
+  }
+}
+
+function writeSourceTestResult(sourceId, result) {
+  const settings = getSourceSettings()
+  settings[sourceId] = {
+    ...(settings[sourceId] || {}),
+    lastTest: {
+      status: result.status,
+      testedAt: Date.now(),
+      keyword: result.keyword || '',
+      count: Number(result.count || 0),
+      message: result.message || ''
+    },
+    updatedAt: Date.now()
+  }
+  writeSourceSettings(settings)
+}
+
 export function getSourceConfigs() {
   const settings = getSourceSettings()
   return [...builtInSources, ...getUserSources()].map(source => {
@@ -241,6 +269,9 @@ export function getSourceDiagnostics(source) {
   const raw = (source && (source.raw || source)) || {}
   const reasons = getUnsupportedRuleReasons(source)
   const compatible = reasons.length === 0 && !hasUnsupportedRule(raw)
+  const lastTest = normalizeSourceTest(source && source.lastTest)
+  const networkStatus = compatible ? lastTest.status : 'incompatible'
+  const searchable = compatible && networkStatus === 'passed'
   const ruleSearch = normalizeRuleObject(raw.ruleSearch)
   const ruleToc = normalizeRuleObject(raw.ruleToc)
   const ruleContent = normalizeRuleObject(raw.ruleContent)
@@ -253,7 +284,10 @@ export function getSourceDiagnostics(source) {
     enabled: !!(source && source.enabled),
     imported: !!(source && source.importedAt),
     compatible,
+    searchable,
+    networkStatus,
     compatibility: compatible ? 'v1 兼容' : '不兼容',
+    lastTest,
     reasons: compatible ? [] : (reasons.length ? reasons : ['包含 H5 暂不支持的复杂规则']),
     ruleSummary: {
       search: compatible && !!(raw.searchUrl && Object.keys(ruleSearch).length),
@@ -349,7 +383,7 @@ export function addOnlineBookToShelf(book) {
 
 export function pickOnlineSearchSources(sources, limit = ONLINE_SOURCE_SEARCH_LIMIT) {
   return sources
-    .filter(source => source.enabled && getSourceDiagnostics(source).compatible)
+    .filter(source => source.enabled && getSourceDiagnostics(source).searchable)
     .slice(0, limit)
 }
 
@@ -395,7 +429,22 @@ export async function testSourceSearch(sourceId, keyword, options = {}) {
     throw new Error('当前书源已停用，请先启用后测试')
   }
   const timeoutMs = options.timeoutMs || ONLINE_SOURCE_TIMEOUT_MS
-  const results = await withTimeout(searchSource(source, word), timeoutMs, source.name)
+  let results
+  try {
+    results = await withTimeout(searchSource(source, word), timeoutMs, source.name)
+  } catch (error) {
+    writeSourceTestResult(source.id, {
+      status: 'failed',
+      keyword: word,
+      message: friendlyErrorMessage(error, '网络请求失败')
+    })
+    throw error
+  }
+  writeSourceTestResult(source.id, {
+    status: 'passed',
+    keyword: word,
+    count: results.length
+  })
   return {
     sourceId,
     keyword: word,

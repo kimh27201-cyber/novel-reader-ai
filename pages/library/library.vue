@@ -72,6 +72,7 @@
         <text>{{ sourceStats.total }} 个书源</text>
         <text>{{ sourceStats.enabled }} 启用</text>
         <text>{{ sourceStats.incompatible }} 不兼容</text>
+        <text>{{ sourceStats.searchable }} 可搜索</text>
       </view>
 
       <scroll-view class="source-list" scroll-y :show-scrollbar="false">
@@ -95,7 +96,7 @@
           </button>
           <view class="source-main">
             <view class="source-name">{{ source.name }}</view>
-            <text class="source-meta">{{ source.group }} · {{ source.compatibility }} · {{ source.baseUrl || '无地址' }}</text>
+            <text class="source-meta">{{ source.group }} · {{ source.compatibility }} · {{ sourceAvailabilityLabel(source) }}</text>
           </view>
           <button class="status-switch" :class="{ active: source.enabled }" @tap.stop="toggleSource(source)">
             {{ source.enabled ? '启用' : '停用' }}
@@ -208,13 +209,13 @@
         <button class="round-action" @tap="closePanels">×</button>
       </view>
 
-      <view class="detail-status" :class="{ compatible: sourceDiagnostics && sourceDiagnostics.compatible }">
+      <view class="detail-status" :class="sourceStatusClass">
         <view>
           <view class="detail-status-title">
-            {{ sourceDiagnostics && sourceDiagnostics.compatible ? '规则兼容，待网络测试' : 'H5 暂不兼容' }}
+            {{ sourceStatusTitle }}
           </view>
           <text class="detail-status-desc">
-            {{ sourceDiagnostics && sourceDiagnostics.compatible ? '规则结构可解析；网络是否可用以单源测试为准。' : sourceReasonText }}
+            {{ sourceStatusDesc }}
           </text>
         </view>
         <button class="status-switch" :class="{ active: selectedSource.enabled }" @tap="toggleSelectedSource">
@@ -351,12 +352,43 @@ export default {
       return {
         total: this.sources.length + this.backendSources.length,
         enabled: this.sources.filter(source => source.enabled).length,
-        incompatible: this.sources.filter(source => !getSourceDiagnostics(source).compatible).length
+        incompatible: this.sources.filter(source => !getSourceDiagnostics(source).compatible).length,
+        searchable: this.sources.filter(source => getSourceDiagnostics(source).searchable).length
       }
     },
     sourceReasonText() {
       const reasons = this.sourceDiagnostics && this.sourceDiagnostics.reasons || []
       return reasons.length ? reasons.join('、') : '包含当前 H5 解析器暂不支持的复杂规则。'
+    },
+    sourceStatusClass() {
+      const status = this.sourceDiagnostics && this.sourceDiagnostics.networkStatus
+      return {
+        compatible: status === 'untested',
+        passed: status === 'passed',
+        failed: status === 'failed',
+        incompatible: status === 'incompatible'
+      }
+    },
+    sourceStatusTitle() {
+      if (!this.sourceDiagnostics) return '书源状态'
+      if (!this.sourceDiagnostics.compatible) return 'H5 暂不兼容'
+      if (this.sourceDiagnostics.networkStatus === 'passed') return '已通过网络测试'
+      if (this.sourceDiagnostics.networkStatus === 'failed') return '网络测试未通过'
+      return '规则兼容，待网络测试'
+    },
+    sourceStatusDesc() {
+      if (!this.sourceDiagnostics) return ''
+      if (!this.sourceDiagnostics.compatible) return this.sourceReasonText
+      const lastTest = this.sourceDiagnostics.lastTest || {}
+      if (this.sourceDiagnostics.networkStatus === 'passed') {
+        const suffix = lastTest.keyword ? `关键词：${lastTest.keyword}` : '可参与发现页搜索'
+        return `已通过网络测试，发现页会使用它搜索。${suffix}`
+      }
+      if (this.sourceDiagnostics.networkStatus === 'failed') {
+        const message = lastTest.message || '最近网络测试失败'
+        return `${message}。规则本身仍兼容，发现页会跳过它。`
+      }
+      return '规则结构可解析；网络是否可用以单源测试为准。'
     },
     sourceRuleSummary() {
       const summary = this.sourceDiagnostics && this.sourceDiagnostics.ruleSummary || {}
@@ -451,6 +483,13 @@ export default {
       this.sourceMenuVisible = false
       this.sourceDetailVisible = true
     },
+    sourceAvailabilityLabel(source) {
+      const diagnostics = getSourceDiagnostics(source)
+      if (!diagnostics.compatible) return 'H5 不兼容'
+      if (diagnostics.networkStatus === 'passed') return '网络已通过'
+      if (diagnostics.networkStatus === 'failed') return '网络不可用'
+      return '待网络测试'
+    },
     refreshSelectedSource() {
       if (!this.selectedSource) return
       const latest = getSourceConfigs().find(source => source.id === this.selectedSource.id)
@@ -474,7 +513,7 @@ export default {
         const result = await testSourceSearch(this.selectedSource.id, this.testSourceKeyword)
         this.sourceTestResult = {
           title: `搜索完成：${result.count} 条结果`,
-          desc: result.count ? '当前书源可以参与发现页搜索。' : '请求成功，但这个关键词没有返回书籍。',
+          desc: result.count ? '已通过网络测试，发现页会使用它搜索。' : '网络请求成功，已记录为可用；这个关键词没有返回书籍。',
           items: result.results
         }
       } catch (error) {
@@ -482,11 +521,13 @@ export default {
         this.sourceTestResult = {
           title: '测试未通过',
           desc: isCompatible
-            ? `${friendlyErrorMessage(error, '网络请求失败')}。规则本身仍兼容，通常是目标站不可访问、跨域代理未生效或站点限制请求。`
+            ? `${friendlyErrorMessage(error, '网络请求失败')}。规则本身仍兼容，发现页会跳过它。通常是目标站不可访问、跨域代理未生效或站点限制请求。`
             : friendlyErrorMessage(error, '书源测试失败'),
           items: []
         }
       } finally {
+        this.sources = getSourceConfigs()
+        this.refreshSelectedSource()
         this.sourceTesting = false
       }
     },
@@ -1156,8 +1197,19 @@ textarea {
 }
 
 .detail-status.compatible {
+  border-color: rgba(229, 166, 91, 0.62);
+  background: rgba(229, 166, 91, 0.1);
+}
+
+.detail-status.passed {
   border-color: rgba(142, 207, 194, 0.58);
   background: rgba(142, 207, 194, 0.12);
+}
+
+.detail-status.failed,
+.detail-status.incompatible {
+  border-color: rgba(230, 105, 74, 0.42);
+  background: rgba(230, 105, 74, 0.08);
 }
 
 .detail-status-title,

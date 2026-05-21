@@ -111,10 +111,10 @@ assert.equal(getSourceConfigs().find(source => source.id === parsed[0].id).enabl
 
 const searchSources = pickOnlineSearchSources([
   { id: 'off', enabled: false, raw: { searchUrl: '/off', ruleSearch: { bookList: '$.items[*]' } } },
-  { id: 'one', enabled: true, raw: { searchUrl: '/one', ruleSearch: { bookList: '$.items[*]' } } },
-  { id: 'two', enabled: true, raw: { searchUrl: '/two', ruleSearch: { bookList: '$.items[*]' } } },
-  { id: 'three', enabled: true, raw: { searchUrl: '/three', ruleSearch: { bookList: '$.items[*]' } } },
-  { id: 'four', enabled: true, raw: { searchUrl: '/four', ruleSearch: { bookList: '$.items[*]' } } }
+  { id: 'one', enabled: true, lastTest: { status: 'passed' }, raw: { searchUrl: '/one', ruleSearch: { bookList: '$.items[*]' } } },
+  { id: 'two', enabled: true, lastTest: { status: 'passed' }, raw: { searchUrl: '/two', ruleSearch: { bookList: '$.items[*]' } } },
+  { id: 'three', enabled: true, lastTest: { status: 'passed' }, raw: { searchUrl: '/three', ruleSearch: { bookList: '$.items[*]' } } },
+  { id: 'four', enabled: true, lastTest: { status: 'untested' }, raw: { searchUrl: '/four', ruleSearch: { bookList: '$.items[*]' } } }
 ])
 assert.deepEqual(searchSources.map(source => source.id), ['one', 'two', 'three'])
 
