@@ -221,6 +221,50 @@ export function deleteUserSource(sourceId) {
   writeSourceSettings(settings)
 }
 
+export function getUnsupportedRuleReasons(source) {
+  const raw = source && (source.raw || source)
+  if (!raw) return []
+  const text = typeof raw === 'string' ? raw : JSON.stringify(raw)
+  const checks = [
+    { label: '包含 JS 规则', pattern: /<js>|<\/js>|@js:|java\.|eval\(/i },
+    { label: '依赖 Cookie', pattern: /cookie\.|cookiejar|enabledCookieJar|Cookie/i },
+    { label: '依赖登录', pattern: /loginUrl|loginUi|loginCheck/i },
+    { label: '依赖 WebView', pattern: /webview/i },
+    { label: '包含自定义 Header', pattern: /header\s*=|headers?\s*:/i }
+  ]
+  return checks
+    .filter(check => check.pattern.test(text))
+    .map(check => check.label)
+}
+
+export function getSourceDiagnostics(source) {
+  const raw = (source && (source.raw || source)) || {}
+  const reasons = getUnsupportedRuleReasons(source)
+  const compatible = reasons.length === 0 && !hasUnsupportedRule(raw)
+  const ruleSearch = normalizeRuleObject(raw.ruleSearch)
+  const ruleToc = normalizeRuleObject(raw.ruleToc)
+  const ruleContent = normalizeRuleObject(raw.ruleContent)
+  const ruleBookInfo = normalizeRuleObject(raw.ruleBookInfo)
+  return {
+    id: source && source.id || '',
+    name: source && source.name || raw.bookSourceName || '未命名书源',
+    group: source && source.group || raw.bookSourceGroup || '用户导入',
+    baseUrl: source && source.baseUrl || raw.bookSourceUrl || raw.sourceUrl || '',
+    enabled: !!(source && source.enabled),
+    imported: !!(source && source.importedAt),
+    compatible,
+    compatibility: compatible ? 'v1 兼容' : '不兼容',
+    reasons: compatible ? [] : (reasons.length ? reasons : ['包含 H5 暂不支持的复杂规则']),
+    ruleSummary: {
+      search: compatible && !!(raw.searchUrl && Object.keys(ruleSearch).length),
+      bookInfo: compatible && !!Object.keys(ruleBookInfo).length,
+      toc: compatible && !!Object.keys(ruleToc).length,
+      content: compatible && !!Object.keys(ruleContent).length,
+      explore: compatible && !!raw.ruleExplore
+    }
+  }
+}
+
 export function importSourcesFromJson(text) {
   return importSourcesWithStats(text).sources.length
 }
@@ -305,7 +349,7 @@ export function addOnlineBookToShelf(book) {
 
 export function pickOnlineSearchSources(sources, limit = ONLINE_SOURCE_SEARCH_LIMIT) {
   return sources
-    .filter(source => source.enabled && !hasUnsupportedRule(source.raw))
+    .filter(source => source.enabled && getSourceDiagnostics(source).compatible)
     .slice(0, limit)
 }
 
@@ -336,6 +380,28 @@ export async function searchOnlineBooks(keyword, options = {}) {
   }))
   const groups = await Promise.all(searches)
   return groups.flat().slice(0, 80)
+}
+
+export async function testSourceSearch(sourceId, keyword, options = {}) {
+  const word = String(keyword || '').trim()
+  if (!word) throw new Error('请输入测试关键词')
+  const source = getSourceConfig(sourceId)
+  if (!source) throw new Error('书源不存在或已删除')
+  const diagnostics = getSourceDiagnostics(source)
+  if (!diagnostics.compatible) {
+    throw new Error(`当前书源不兼容：${diagnostics.reasons.join('、')}`)
+  }
+  if (!source.enabled && !options.allowDisabled) {
+    throw new Error('当前书源已停用，请先启用后测试')
+  }
+  const timeoutMs = options.timeoutMs || ONLINE_SOURCE_TIMEOUT_MS
+  const results = await withTimeout(searchSource(source, word), timeoutMs, source.name)
+  return {
+    sourceId,
+    keyword: word,
+    count: results.length,
+    results: results.slice(0, options.limit || 5)
+  }
 }
 
 export async function loadOnlineBookInfo(book) {

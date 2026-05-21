@@ -89,18 +89,18 @@
           <text class="status-dot active"></text>
         </view>
 
-        <view class="source-row" v-for="source in visibleSources" :key="source.id">
-          <button class="check-box" :class="{ active: source.enabled }" @tap="toggleSource(source)">
+        <view class="source-row" v-for="source in visibleSources" :key="source.id" @tap="openSourceDetail(source)">
+          <button class="check-box" :class="{ active: source.enabled }" @tap.stop="toggleSource(source)">
             {{ source.enabled ? '✓' : '' }}
           </button>
           <view class="source-main">
             <view class="source-name">{{ source.name }}</view>
             <text class="source-meta">{{ source.group }} · {{ source.compatibility }} · {{ source.baseUrl || '无地址' }}</text>
           </view>
-          <button class="status-switch" :class="{ active: source.enabled }" @tap="toggleSource(source)">
+          <button class="status-switch" :class="{ active: source.enabled }" @tap.stop="toggleSource(source)">
             {{ source.enabled ? '启用' : '停用' }}
           </button>
-          <button class="row-action" v-if="source.importedAt" @tap="removeSource(source)">删</button>
+          <button class="row-action" v-if="source.importedAt" @tap.stop="removeSource(source)">删</button>
         </view>
       </scroll-view>
     </view>
@@ -129,7 +129,7 @@
       </button>
     </view>
 
-    <view class="drawer-mask" v-if="importDrawerVisible || txtVisible" @tap="closePanels"></view>
+    <view class="drawer-mask" v-if="importDrawerVisible || txtVisible || sourceDetailVisible" @tap="closePanels"></view>
 
     <view class="import-drawer app-floating-panel" v-if="importDrawerVisible">
       <view class="drawer-head">
@@ -198,6 +198,75 @@
       <input class="field" v-model="importAuthor" placeholder="作者，可不填" />
       <button class="submit-button" :disabled="!importFileText" @tap="submitImport">加入书架</button>
     </view>
+
+    <view class="import-drawer source-detail-drawer app-floating-panel" v-if="sourceDetailVisible && selectedSource">
+      <view class="drawer-head">
+        <view>
+          <text class="eyebrow">SOURCE DETAIL</text>
+          <view class="drawer-title">{{ selectedSource.name }}</view>
+        </view>
+        <button class="round-action" @tap="closePanels">×</button>
+      </view>
+
+      <view class="detail-status" :class="{ compatible: sourceDiagnostics && sourceDiagnostics.compatible }">
+        <view>
+          <view class="detail-status-title">
+            {{ sourceDiagnostics && sourceDiagnostics.compatible ? '可用于 H5 在线搜索' : 'H5 暂不兼容' }}
+          </view>
+          <text class="detail-status-desc">
+            {{ sourceDiagnostics && sourceDiagnostics.compatible ? '规则结构可解析，启用后会参与发现页搜索。' : sourceReasonText }}
+          </text>
+        </view>
+        <button class="status-switch" :class="{ active: selectedSource.enabled }" @tap="toggleSelectedSource">
+          {{ selectedSource.enabled ? '停用' : '启用' }}
+        </button>
+      </view>
+
+      <view class="detail-grid">
+        <view class="detail-item">
+          <text class="detail-label">分组</text>
+          <text class="detail-value">{{ selectedSource.group || '未分组' }}</text>
+        </view>
+        <view class="detail-item">
+          <text class="detail-label">来源</text>
+          <text class="detail-value">{{ selectedSource.importedAt ? '本地导入' : '内置书源' }}</text>
+        </view>
+        <view class="detail-item wide">
+          <text class="detail-label">地址</text>
+          <text class="detail-value one-line">{{ selectedSource.baseUrl || '无地址' }}</text>
+        </view>
+      </view>
+
+      <view class="rule-summary" v-if="sourceDiagnostics">
+        <view
+          class="rule-pill"
+          v-for="rule in sourceRuleSummary"
+          :key="rule.key"
+          :class="{ active: rule.ready }"
+        >
+          <text>{{ rule.label }}</text>
+          <text>{{ rule.ready ? '已配置' : '缺失' }}</text>
+        </view>
+      </view>
+
+      <view class="test-panel">
+        <view class="test-head">
+          <view>
+            <view class="test-title">单源搜索测试</view>
+            <text class="source-hint">用于确认这个书源能否独立搜索，避免拖慢发现页。</text>
+          </view>
+          <button class="small-action primary" :loading="sourceTesting" @tap="runSourceTest">测试</button>
+        </view>
+        <input class="field compact" v-model="testSourceKeyword" placeholder="输入测试关键词，例如 星轨图书馆" />
+        <view class="test-result" v-if="sourceTestResult">
+          <view class="test-result-title">{{ sourceTestResult.title }}</view>
+          <text class="test-result-desc">{{ sourceTestResult.desc }}</text>
+          <view class="test-book" v-for="item in sourceTestResult.items" :key="item.bookId || item.title">
+            {{ item.title }} · {{ item.subtitle || '在线结果' }}
+          </view>
+        </view>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -205,9 +274,11 @@
 import { importBookFromText, parseTxtChapters } from '../../common/books.js'
 import {
   deleteUserSource,
+  getSourceDiagnostics,
   getSourceConfigs,
   importSourcesFromAny,
-  setSourceEnabled
+  setSourceEnabled,
+  testSourceSearch
 } from '../../common/bookSources.js'
 import {
   importBackendDemoSource,
@@ -227,6 +298,12 @@ export default {
       sourceImportText: '',
       sourceImportUrl: '',
       sourceImporting: false,
+      sourceDetailVisible: false,
+      selectedSource: null,
+      sourceDiagnostics: null,
+      sourceTesting: false,
+      testSourceKeyword: '星轨图书馆',
+      sourceTestResult: null,
       sourceFilter: 'all',
       sourceSort: 'manual',
       sourceKeyword: '',
@@ -274,8 +351,21 @@ export default {
       return {
         total: this.sources.length + this.backendSources.length,
         enabled: this.sources.filter(source => source.enabled).length,
-        incompatible: this.sources.filter(source => !/^v1/.test(source.compatibility)).length
+        incompatible: this.sources.filter(source => !getSourceDiagnostics(source).compatible).length
       }
+    },
+    sourceReasonText() {
+      const reasons = this.sourceDiagnostics && this.sourceDiagnostics.reasons || []
+      return reasons.length ? reasons.join('、') : '包含当前 H5 解析器暂不支持的复杂规则。'
+    },
+    sourceRuleSummary() {
+      const summary = this.sourceDiagnostics && this.sourceDiagnostics.ruleSummary || {}
+      return [
+        { key: 'search', label: '搜索', ready: !!summary.search },
+        { key: 'bookInfo', label: '详情', ready: !!summary.bookInfo },
+        { key: 'toc', label: '目录', ready: !!summary.toc },
+        { key: 'content', label: '正文', ready: !!summary.content }
+      ]
     },
     sourceGroups() {
       const groups = this.sources.map(source => source.group || '未分组')
@@ -287,7 +377,7 @@ export default {
       const list = this.sources.filter(source => {
         if (this.sourceFilter === 'enabled' && !source.enabled) return false
         if (this.sourceFilter === 'disabled' && source.enabled) return false
-        if (this.sourceFilter === 'incompatible' && /^v1/.test(source.compatibility)) return false
+        if (this.sourceFilter === 'incompatible' && getSourceDiagnostics(source).compatible) return false
         if (this.sourceGroupFilter !== '全部分组' && source.group !== this.sourceGroupFilter) return false
         if (!keyword) return true
         return [source.name, source.group, source.baseUrl, source.compatibility]
@@ -343,10 +433,59 @@ export default {
     closePanels() {
       this.importDrawerVisible = false
       this.txtVisible = false
+      this.sourceDetailVisible = false
       this.sourceMenuVisible = false
+      this.selectedSource = null
+      this.sourceDiagnostics = null
+      this.sourceTestResult = null
       this.sourceImportText = ''
       this.sourceImportUrl = ''
       this.sources = getSourceConfigs()
+    },
+    openSourceDetail(source) {
+      this.selectedSource = source
+      this.sourceDiagnostics = getSourceDiagnostics(source)
+      this.sourceTestResult = null
+      this.importDrawerVisible = false
+      this.txtVisible = false
+      this.sourceMenuVisible = false
+      this.sourceDetailVisible = true
+    },
+    refreshSelectedSource() {
+      if (!this.selectedSource) return
+      const latest = getSourceConfigs().find(source => source.id === this.selectedSource.id)
+      if (!latest) {
+        this.closePanels()
+        return
+      }
+      this.selectedSource = latest
+      this.sourceDiagnostics = getSourceDiagnostics(latest)
+    },
+    toggleSelectedSource() {
+      if (!this.selectedSource) return
+      this.toggleSource(this.selectedSource)
+      this.refreshSelectedSource()
+    },
+    async runSourceTest() {
+      if (!this.selectedSource) return
+      this.sourceTesting = true
+      this.sourceTestResult = null
+      try {
+        const result = await testSourceSearch(this.selectedSource.id, this.testSourceKeyword)
+        this.sourceTestResult = {
+          title: `搜索完成：${result.count} 条结果`,
+          desc: result.count ? '当前书源可以参与发现页搜索。' : '请求成功，但这个关键词没有返回书籍。',
+          items: result.results
+        }
+      } catch (error) {
+        this.sourceTestResult = {
+          title: '测试未通过',
+          desc: friendlyErrorMessage(error, '书源测试失败'),
+          items: []
+        }
+      } finally {
+        this.sourceTesting = false
+      }
     },
     async submitSourceImport() {
       const raw = String(this.sourceImportMode === 'json' ? this.sourceImportText : this.sourceImportUrl).trim()
@@ -443,10 +582,14 @@ export default {
     toggleSource(source) {
       setSourceEnabled(source.id, !source.enabled)
       this.sources = getSourceConfigs()
+      this.refreshSelectedSource()
     },
     removeSource(source) {
       deleteUserSource(source.id)
       this.sources = getSourceConfigs()
+      if (this.selectedSource && this.selectedSource.id === source.id) {
+        this.closePanels()
+      }
     },
     scanSourceQr() {
       if (!uni.scanCode) {
@@ -993,6 +1136,146 @@ textarea {
   text-align: left;
 }
 
+.source-detail-drawer {
+  max-height: 82vh;
+}
+
+.detail-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+  margin-top: 22rpx;
+  padding: 20rpx;
+  border: 1rpx solid rgba(230, 105, 74, 0.42);
+  border-radius: 20rpx;
+  background: rgba(230, 105, 74, 0.08);
+}
+
+.detail-status.compatible {
+  border-color: rgba(142, 207, 194, 0.58);
+  background: rgba(142, 207, 194, 0.12);
+}
+
+.detail-status-title,
+.test-title,
+.test-result-title {
+  color: var(--app-text);
+  font-size: 28rpx;
+  font-weight: 850;
+  line-height: 38rpx;
+}
+
+.detail-status-desc,
+.test-result-desc {
+  display: block;
+  margin-top: 8rpx;
+  color: var(--app-muted);
+  font-size: 23rpx;
+  line-height: 34rpx;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12rpx;
+  margin-top: 18rpx;
+}
+
+.detail-item {
+  min-width: 0;
+  padding: 18rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: 18rpx;
+  background: var(--app-panel);
+}
+
+.detail-item.wide {
+  grid-column: 1 / -1;
+}
+
+.detail-label {
+  display: block;
+  color: var(--app-muted);
+  font-size: 22rpx;
+}
+
+.detail-value {
+  display: block;
+  margin-top: 8rpx;
+  color: var(--app-text);
+  font-size: 25rpx;
+  font-weight: 750;
+  line-height: 34rpx;
+}
+
+.one-line {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rule-summary {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10rpx;
+  margin-top: 18rpx;
+}
+
+.rule-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 72rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: 16rpx;
+  color: var(--app-muted);
+  font-size: 22rpx;
+  background: var(--app-panel);
+}
+
+.rule-pill.active {
+  color: var(--app-text);
+  border-color: rgba(142, 207, 194, 0.58);
+  background: rgba(142, 207, 194, 0.12);
+}
+
+.test-panel {
+  margin-top: 18rpx;
+  padding: 18rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: 20rpx;
+  background: var(--app-panel);
+}
+
+.test-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+}
+
+.field.compact {
+  margin-top: 14rpx;
+}
+
+.test-result {
+  margin-top: 16rpx;
+  padding: 16rpx;
+  border-radius: 16rpx;
+  background: var(--app-input);
+}
+
+.test-book {
+  margin-top: 10rpx;
+  padding: 12rpx 14rpx;
+  border-radius: 14rpx;
+  color: var(--app-text);
+  font-size: 23rpx;
+  background: var(--app-panel-strong);
+}
+
 @media (max-width: 760px) {
   .import-page {
     padding-left: 24rpx;
@@ -1008,7 +1291,9 @@ textarea {
 
   .utility-grid,
   .import-methods,
-  .quick-actions {
+  .quick-actions,
+  .detail-grid,
+  .rule-summary {
     grid-template-columns: 1fr;
   }
 
