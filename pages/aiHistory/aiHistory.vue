@@ -14,6 +14,8 @@
       <button class="filter" :class="{ active: filter === 'summary' }" @tap="setFilter('summary')">总结</button>
       <button class="filter" :class="{ active: filter === 'chat' }" @tap="setFilter('chat')">问答</button>
       <button class="filter" :class="{ active: filter === 'call' }" @tap="setFilter('call')">调用</button>
+      <button class="filter" :class="{ active: filter === 'success' }" @tap="setFilter('success')">成功</button>
+      <button class="filter" :class="{ active: filter === 'failed' }" @tap="setFilter('failed')">失败</button>
     </view>
 
     <view class="status-card" v-if="errorMessage">
@@ -35,6 +37,7 @@
         </view>
         <view class="item-title">{{ item.title }}</view>
         <text class="item-content">{{ item.content }}</text>
+        <text class="error-text" v-if="item.errorMessage">失败原因：{{ item.errorMessage }}</text>
         <view class="tag-row" v-if="item.tags.length">
           <text class="tag" v-for="tag in item.tags" :key="tag">{{ tag }}</text>
         </view>
@@ -70,6 +73,9 @@ export default {
     },
     visibleItems() {
       if (this.filter === 'all') return this.items
+      if (this.filter === 'success' || this.filter === 'failed') {
+        return this.items.filter(item => item.status === this.filter)
+      }
       return this.items.filter(item => item.type === this.filter)
     }
   },
@@ -171,7 +177,7 @@ button::after {
 
 .filter-row {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 12rpx;
   margin-top: 30rpx;
 }
@@ -279,6 +285,20 @@ button::after {
   font-size: 22rpx;
   line-height: 32rpx;
   background: rgba(216, 90, 58, 0.18);
+}
+
+.error-text {
+  display: block;
+  margin-top: 12rpx;
+  color: var(--app-accent-3);
+  font-size: 24rpx;
+  line-height: 34rpx;
+}
+
+@media (max-width: 760px) {
+  .filter-row {
+    grid-template-columns: repeat(3, 1fr);
+  }
 }
 
 .provider {

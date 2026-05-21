@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import {
   buildAIHistoryItems,
   formatHistoryTime,
@@ -43,6 +44,17 @@ const callLog = {
   created_at: '2026-05-16T10:36:00'
 }
 
+const failedCallLog = {
+  ...callLog,
+  id: 4,
+  call_type: 'chat',
+  status: 'failed',
+  error_code: 'provider_timeout',
+  error_message: 'AI provider 响应超时',
+  duration_ms: 5000,
+  created_at: '2026-05-16T10:37:00'
+}
+
 function testMappingRecords() {
   const mappedSummary = mapSummaryRecord(summary)
   assert.equal(mappedSummary.id, 'summary:1')
@@ -66,7 +78,18 @@ function testMappingRecords() {
   assert.equal(mappedCallLog.title, 'AI 调用：总结')
   assert.equal(mappedCallLog.content, '调用成功')
   assert.equal(mappedCallLog.provider, 'mock')
+  assert.equal(mappedCallLog.status, 'success')
+  assert.equal(mappedCallLog.callType, 'summary')
   assert.deepEqual(mappedCallLog.tags, ['状态：success', '模型：mock', '耗时：8ms'])
+
+  const mappedFailedCall = mapCallLogRecord(failedCallLog)
+  assert.equal(mappedFailedCall.title, 'AI 调用：问答')
+  assert.equal(mappedFailedCall.content, 'AI provider 响应超时')
+  assert.equal(mappedFailedCall.status, 'failed')
+  assert.equal(mappedFailedCall.callType, 'chat')
+  assert.equal(mappedFailedCall.errorCode, 'provider_timeout')
+  assert.equal(mappedFailedCall.errorMessage, 'AI provider 响应超时')
+  assert.ok(mappedFailedCall.tags.includes('错误：provider_timeout'))
 }
 
 function testBuildHistoryItemsSortsNewestFirst() {
@@ -112,5 +135,12 @@ testMappingRecords()
 testBuildHistoryItemsSortsNewestFirst()
 testFormatHistoryTime()
 await testLoadAIHistoryUsesBackendClient()
+
+const aiHistoryPage = readFileSync(new URL('../pages/aiHistory/aiHistory.vue', import.meta.url), 'utf8')
+assert.match(aiHistoryPage, /setFilter\('success'\)/)
+assert.match(aiHistoryPage, /setFilter\('failed'\)/)
+assert.match(aiHistoryPage, /item.status === this.filter/)
+assert.match(aiHistoryPage, /失败原因/)
+assert.match(aiHistoryPage, /errorMessage/)
 
 console.log('aiHistory tests passed')

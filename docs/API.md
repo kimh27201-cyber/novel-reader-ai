@@ -150,9 +150,18 @@ GET /api/ai/calls?status_value=failed
 - `provider`: `mock`、`deepseek` 或 `openai`
 - `model`: 实际模型名
 - `status`: `success` 或 `failed`
-- `error_code`: 失败分类，例如 `timeout`
+- `error_code`: 失败分类，例如 `timeout`、`provider_error`、`invalid_response`
 - `error_message`: 失败原因
 - `duration_ms`: 调用耗时
+
+AI provider 错误分类：
+
+- `timeout`：AI provider 请求超时，前端应提示稍后重试。
+- `provider_error`：上游服务返回错误或连接失败，前端可展示 `error_message`。
+- `invalid_response`：上游响应格式不符合预期，通常需要检查模型配置或提示词。
+- mock 模式默认返回稳定结果，不依赖真实 API Key，适合 CI、录屏和面试现场演示。
+
+uni-app 的“AI 记录”页会聚合总结、问答和调用日志，并支持按 summary / chat / success / failed 查看记录；失败调用会显示 `error_message`。
 
 ## 4. 数据库查看
 
