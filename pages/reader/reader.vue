@@ -55,13 +55,13 @@
         </view>
       </view>
 
-      <view class="top-chrome reader-safe-top" v-if="controlsVisible || !prefs.immersiveMode">
-        <button class="icon-button" @tap.stop="back">‹</button>
+      <view class="top-chrome reader-safe-top" v-if="controlsVisible">
+        <button class="icon-button touch-hit" @tap.stop="back">‹</button>
         <view class="top-title">
           <view>{{ book.title }}</view>
           <text>{{ chapter.title || `第 ${chapterIndex + 1} 章` }}</text>
         </view>
-        <button class="icon-button" @tap.stop="toggleMore">•••</button>
+        <button class="icon-button touch-hit" @tap.stop="toggleMore">•••</button>
       </view>
 
       <view class="quick-actions" v-if="controlsVisible && !settingsVisible && !catalogVisible && !moreVisible">
@@ -1154,6 +1154,11 @@ export default {
   font-size: 34rpx;
 }
 
+.touch-hit {
+  min-width: 88rpx;
+  min-height: 88rpx;
+}
+
 .top-title {
   min-width: 0;
   text-align: center;
@@ -1586,7 +1591,7 @@ export default {
     left: 24rpx;
     right: 24rpx;
     min-height: 88rpx;
-    grid-template-columns: 88rpx 1fr 88rpx;
+    grid-template-columns: 104rpx 1fr 104rpx;
   }
 
   .reader-safe-top {
@@ -1594,8 +1599,8 @@ export default {
   }
 
   .top-chrome .icon-button {
-    width: 72rpx;
-    height: 72rpx;
+    width: 88rpx;
+    height: 88rpx;
     font-size: 38rpx;
   }
 
