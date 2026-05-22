@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs'
 import {
   buildDemoModeChecklist,
   buildDemoModePreset,
+  buildOfflineDemoStatus,
   getDemoAccount
 } from '../common/demoMode.js'
 
@@ -38,10 +39,39 @@ assert.equal(checklist[1].state, 'action')
 assert.equal(checklist[2].state, 'manual')
 assert.match(checklist[2].detail, /演示源/)
 
+const offlineStatus = buildOfflineDemoStatus({
+  builtInBookCount: 2,
+  hasTxtSample: true,
+  backendReady: false,
+  loggedIn: false
+})
+assert.equal(offlineStatus.ready, true)
+assert.equal(offlineStatus.mode, 'offline')
+assert.match(offlineStatus.summary, /离线演示/)
+assert.deepEqual(
+  offlineStatus.items.map(item => item.id),
+  ['builtin-books', 'txt-sample', 'reader-fallback', 'backend-optional']
+)
+assert.equal(offlineStatus.items[0].state, 'ready')
+assert.equal(offlineStatus.items[1].state, 'ready')
+assert.equal(offlineStatus.items[2].state, 'ready')
+assert.equal(offlineStatus.items[3].state, 'manual')
+
+const onlineStatus = buildOfflineDemoStatus({
+  builtInBookCount: 2,
+  hasTxtSample: true,
+  backendReady: true,
+  loggedIn: true
+})
+assert.equal(onlineStatus.mode, 'online')
+assert.match(onlineStatus.summary, /在线演示/)
+
 const profile = readFileSync(new URL('../pages/profile/profile.vue', import.meta.url), 'utf8')
 assert.match(profile, /demoMode/)
 assert.match(profile, /一键演示准备/)
 assert.match(profile, /applyDemoMode/)
+assert.match(profile, /offlineDemoStatus/)
+assert.match(profile, /离线兜底/)
 
 const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8')
 assert.match(readme, /一键演示准备/)

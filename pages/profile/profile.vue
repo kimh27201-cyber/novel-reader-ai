@@ -60,6 +60,20 @@
           <text class="demo-step-detail">{{ item.detail }}</text>
         </view>
       </view>
+      <view class="offline-zone">
+        <view class="offline-head">
+          <view class="offline-title">离线兜底</view>
+          <text class="offline-mode">{{ offlineDemoStatus.mode === 'online' ? '在线增强' : '离线可演示' }}</text>
+        </view>
+        <text class="offline-summary">{{ offlineDemoStatus.summary }}</text>
+        <view class="demo-step" v-for="item in offlineDemoStatus.items" :key="item.id">
+          <text class="demo-state" :class="item.state">{{ item.label }}</text>
+          <view class="demo-copy">
+            <view class="demo-step-title">{{ item.title }}</view>
+            <text class="demo-step-detail">{{ item.detail }}</text>
+          </view>
+        </view>
+      </view>
     </view>
 
     <view class="apk-card">
@@ -146,7 +160,8 @@ import { appThemes, getAppThemeId, getAppThemeStyle, saveAppTheme } from '../../
 import apiClient from '../../common/apiClient.js'
 import { analyzeBackendBaseUrl, buildBackendStartCommands } from '../../common/backendConnection.js'
 import { getAndroidDemoReadiness } from '../../common/androidReadiness.js'
-import { buildDemoModeChecklist, buildDemoModePreset } from '../../common/demoMode.js'
+import { builtInBooks } from '../../common/books.js'
+import { buildDemoModeChecklist, buildDemoModePreset, buildOfflineDemoStatus } from '../../common/demoMode.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 
 export default {
@@ -207,6 +222,14 @@ export default {
       return buildDemoModeChecklist({
         backendReady: this.backendAddressTip.mobileReady,
         healthReady: !!this.backend.health,
+        loggedIn: !!this.backend.user
+      })
+    },
+    offlineDemoStatus() {
+      return buildOfflineDemoStatus({
+        builtInBookCount: builtInBooks.length,
+        hasTxtSample: true,
+        backendReady: this.backendAddressTip.mobileReady && !!this.backend.health,
         loggedIn: !!this.backend.user
       })
     }
@@ -529,6 +552,43 @@ button::after {
   color: #ffffff;
   font-size: 27rpx;
   font-weight: 900;
+}
+
+.offline-zone {
+  padding-top: 14rpx;
+  margin-top: 10rpx;
+  border-top: 1rpx solid rgba(255, 255, 255, 0.06);
+}
+
+.offline-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+}
+
+.offline-title {
+  color: #ffffff;
+  font-size: 29rpx;
+  font-weight: 900;
+}
+
+.offline-mode {
+  flex-shrink: 0;
+  padding: 8rpx 16rpx;
+  border-radius: 999rpx;
+  color: #0f1a18;
+  font-size: 21rpx;
+  font-weight: 900;
+  background: rgba(143, 201, 189, 0.88);
+}
+
+.offline-summary {
+  display: block;
+  margin: 8rpx 0 4rpx;
+  color: #a9aaa4;
+  font-size: 23rpx;
+  line-height: 34rpx;
 }
 
 .apk-head,
@@ -953,6 +1013,7 @@ button::after {
 .backend-desc,
 .demo-desc,
 .demo-step-detail,
+.offline-summary,
 .apk-desc,
 .apk-check-detail,
 .hint-command,
@@ -988,14 +1049,21 @@ button::after {
 
 .apk-title,
 .demo-title,
+.offline-title,
 .demo-step-title,
 .apk-check-title {
   color: var(--app-text);
 }
 
+.offline-zone,
 .demo-step,
 .apk-check {
   border-top-color: var(--app-border);
+}
+
+.offline-mode {
+  color: var(--app-on-accent);
+  background: var(--app-accent);
 }
 
 .demo-button {

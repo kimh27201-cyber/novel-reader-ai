@@ -74,3 +74,58 @@ export function buildDemoModeChecklist(options = {}) {
     label: labelForState(item.state)
   }))
 }
+
+export function buildOfflineDemoStatus(options = {}) {
+  const builtInBookCount = Math.max(0, Number(options.builtInBookCount) || 0)
+  const hasTxtSample = options.hasTxtSample === true
+  const backendReady = options.backendReady === true
+  const loggedIn = options.loggedIn === true
+  const onlineReady = backendReady && loggedIn
+  const ready = builtInBookCount > 0 && hasTxtSample
+  const items = [
+    {
+      id: 'builtin-books',
+      title: '内置演示书籍',
+      state: builtInBookCount > 0 ? 'ready' : 'action',
+      detail: builtInBookCount > 0
+        ? `已有 ${builtInBookCount} 本内置书籍，可直接进入阅读器。`
+        : '需要至少保留一本内置书籍作为离线兜底。'
+    },
+    {
+      id: 'txt-sample',
+      title: '本地 TXT 示例',
+      state: hasTxtSample ? 'ready' : 'action',
+      detail: hasTxtSample
+        ? '已有 static/test-novel.txt，可用于本地导入演示。'
+        : '缺少本地 TXT 示例文件。'
+    },
+    {
+      id: 'reader-fallback',
+      title: '阅读器兜底',
+      state: ready ? 'ready' : 'action',
+      detail: ready
+        ? '即使后端或第三方站点不可用，也能展示书架和阅读器。'
+        : '离线演示依赖内置书籍和 TXT 示例。'
+    },
+    {
+      id: 'backend-optional',
+      title: '后端增强链路',
+      state: onlineReady ? 'ready' : 'manual',
+      detail: onlineReady
+        ? '后端已连接，可继续展示云端书架和 AI 记录。'
+        : '后端不可用时跳过在线搜索和 AI，先展示离线阅读链路。'
+    }
+  ].map(item => ({
+    ...item,
+    label: labelForState(item.state)
+  }))
+
+  return {
+    ready,
+    mode: onlineReady ? 'online' : 'offline',
+    summary: onlineReady
+      ? '在线演示链路已可用，可展示导入、搜索、阅读器和 AI 记录。'
+      : '离线演示兜底已可用，可先展示书架、本地 TXT 和阅读器。',
+    items
+  }
+}
