@@ -77,5 +77,7 @@ assert.match(reader, /paragraphStyle/)
 assert.match(reader, /textIndent/)
 assert.match(reader, /changeTextIndent/)
 assert.match(reader, /toggleReadAloud/)
+assert.match(reader, /safe-area-inset-top/)
+assert.match(reader, /reader-safe-top/)
 
 console.log('readerExperience tests passed')

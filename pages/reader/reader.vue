@@ -55,7 +55,7 @@
         </view>
       </view>
 
-      <view class="top-chrome" v-if="controlsVisible || !prefs.immersiveMode">
+      <view class="top-chrome reader-safe-top" v-if="controlsVisible || !prefs.immersiveMode">
         <button class="icon-button" @tap.stop="back">‹</button>
         <view class="top-title">
           <view>{{ book.title }}</view>
@@ -1579,7 +1579,24 @@ export default {
   }
 
   .reading-surface {
-    padding-top: 118rpx;
+    padding-top: calc(132rpx + env(safe-area-inset-top));
+  }
+
+  .top-chrome {
+    left: 24rpx;
+    right: 24rpx;
+    min-height: 88rpx;
+    grid-template-columns: 88rpx 1fr 88rpx;
+  }
+
+  .reader-safe-top {
+    top: calc(18rpx + env(safe-area-inset-top));
+  }
+
+  .top-chrome .icon-button {
+    width: 72rpx;
+    height: 72rpx;
+    font-size: 38rpx;
   }
 
   .quick-actions {
