@@ -6,10 +6,15 @@ function hasProtocol(value) {
 
 function getHost(value) {
   try {
-    return new URL(value).hostname
+    if (typeof URL === 'function') {
+      return new URL(value).hostname
+    }
   } catch (error) {
-    return ''
+    // Fall through to the lightweight parser below. Some App runtimes do not
+    // provide a browser-compatible URL constructor.
   }
+  const match = String(value || '').match(/^[a-z][a-z0-9+.-]*:\/\/(\[[^\]]+\]|[^/:?#]+)/i)
+  return match ? match[1].replace(/^\[|\]$/g, '') : ''
 }
 
 export function normalizeBackendBaseUrl(value) {

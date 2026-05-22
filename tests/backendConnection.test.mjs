@@ -21,6 +21,19 @@ const lan = analyzeBackendBaseUrl('http://192.168.1.8:8000')
 assert.equal(lan.mobileReady, true)
 assert.match(lan.message, /适合真机/)
 
+const originalURL = globalThis.URL
+try {
+  globalThis.URL = undefined
+  const appRuntimeLan = analyzeBackendBaseUrl('http://192.168.254.222:8000')
+  assert.equal(appRuntimeLan.host, '192.168.254.222')
+  assert.equal(appRuntimeLan.mobileReady, true)
+  const appRuntimeLoopback = analyzeBackendBaseUrl('http://127.0.0.1:8000')
+  assert.equal(appRuntimeLoopback.host, '127.0.0.1')
+  assert.equal(appRuntimeLoopback.mobileReady, false)
+} finally {
+  globalThis.URL = originalURL
+}
+
 const commands = buildBackendStartCommands('192.168.1.8')
 assert.ok(commands.some(line => line.includes('--host 0.0.0.0')))
 assert.ok(commands.some(line => line.includes('http://192.168.1.8:8000')))
