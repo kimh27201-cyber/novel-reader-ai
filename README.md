@@ -76,6 +76,7 @@
 - 导入页扫码、剪贴板、本地 JSON/TXT 文件选择统一走跨端适配层，便于 Android 真机验证
 - 我的页支持后端地址保存、真机地址风险提示和 `/api/health` 自检
 - 我的页新增 APK 展示准备卡片，集中提示局域网后端、自检、登录、DCloud AppID 和云打包签名状态
+- 我的页新增一键演示准备，预填演示账号、复制后端启动命令，并给出录屏主链路清单
 
 ## 项目结构
 
@@ -153,6 +154,7 @@ cd D:\Codex\novel-reader-uniapp
 node tests/apiClient.test.mjs
 node tests/backendConnection.test.mjs
 node tests/androidReadiness.test.mjs
+node tests/demoMode.test.mjs
 ```
 
 AI 历史和后端适配层测试：
@@ -171,6 +173,7 @@ node tests/aiHistory.test.mjs
 - `pages.json` 解析检查
 - 前端工具测试：`sourceEngine`、`apiClient`、`backendConnection`、`backendLibrary`、`aiHistory`、`importAdapters`
 - Android 展示准备测试：`androidReadiness`
+- 演示模式测试：`demoMode`
 
 ## 错误响应与排查
 

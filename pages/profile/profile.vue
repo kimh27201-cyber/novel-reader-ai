@@ -41,6 +41,27 @@
       </view>
     </view>
 
+    <view class="demo-card">
+      <view class="demo-head">
+        <view>
+          <view class="demo-title">一键演示准备</view>
+          <text class="demo-desc">{{ demoMode.backendMessage }}</text>
+        </view>
+        <button class="demo-button primary" @tap="applyDemoMode">预填</button>
+      </view>
+      <view class="demo-actions">
+        <button class="demo-button" @tap="copyDemoCommands">复制启动命令</button>
+        <button class="demo-button" @tap="goLibrary">去导入页</button>
+      </view>
+      <view class="demo-step" v-for="item in demoModeChecklist" :key="item.id">
+        <text class="demo-state" :class="item.state">{{ item.label }}</text>
+        <view class="demo-copy">
+          <view class="demo-step-title">{{ item.title }}</view>
+          <text class="demo-step-detail">{{ item.detail }}</text>
+        </view>
+      </view>
+    </view>
+
     <view class="apk-card">
       <view class="apk-head">
         <view>
@@ -125,6 +146,7 @@ import { appThemes, getAppThemeId, getAppThemeStyle, saveAppTheme } from '../../
 import apiClient from '../../common/apiClient.js'
 import { analyzeBackendBaseUrl, buildBackendStartCommands } from '../../common/backendConnection.js'
 import { getAndroidDemoReadiness } from '../../common/androidReadiness.js'
+import { buildDemoModeChecklist, buildDemoModePreset } from '../../common/demoMode.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 
 export default {
@@ -176,6 +198,16 @@ export default {
         backendBaseUrl: this.backend.baseUrl,
         backendUser: this.backend.user,
         backendHealth: this.backend.health
+      })
+    },
+    demoMode() {
+      return buildDemoModePreset(this.backend.baseUrl)
+    },
+    demoModeChecklist() {
+      return buildDemoModeChecklist({
+        backendReady: this.backendAddressTip.mobileReady,
+        healthReady: !!this.backend.health,
+        loggedIn: !!this.backend.user
       })
     }
   },
@@ -284,6 +316,23 @@ export default {
         success: () => uni.showToast({ title: 'Swagger 地址已复制', icon: 'none' })
       })
     },
+    applyDemoMode() {
+      const preset = buildDemoModePreset(this.backend.baseUrl)
+      this.backend.username = preset.username
+      this.backend.password = preset.password
+      this.backend.baseUrl = apiClient.setBaseUrl(preset.baseUrl)
+      this.backend.error = ''
+      uni.showToast({
+        title: preset.backendReady ? '演示账号已预填' : '已预填账号，真机请改局域网 IP',
+        icon: 'none'
+      })
+    },
+    copyDemoCommands() {
+      uni.setClipboardData({
+        data: this.backendStartCommands.join('\n'),
+        success: () => uni.showToast({ title: '后端启动命令已复制', icon: 'none' })
+      })
+    },
     openThemePanel() {
       this.themeVisible = true
     },
@@ -379,6 +428,107 @@ button::after {
   border-radius: 22rpx;
   background: rgba(47, 48, 45, 0.94);
   box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.04);
+}
+
+.demo-card {
+  padding: 26rpx;
+  margin-bottom: 28rpx;
+  border: 1rpx solid rgba(255, 255, 255, 0.06);
+  border-radius: 22rpx;
+  background: rgba(47, 48, 45, 0.94);
+  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.04);
+}
+
+.demo-head,
+.demo-step {
+  display: flex;
+  align-items: center;
+}
+
+.demo-head {
+  justify-content: space-between;
+  gap: 18rpx;
+  margin-bottom: 14rpx;
+}
+
+.demo-title {
+  color: #ffffff;
+  font-size: 32rpx;
+  font-weight: 900;
+}
+
+.demo-desc,
+.demo-step-detail {
+  display: block;
+  margin-top: 8rpx;
+  color: #a9aaa4;
+  font-size: 23rpx;
+  line-height: 34rpx;
+}
+
+.demo-actions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12rpx;
+  margin-bottom: 12rpx;
+}
+
+.demo-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 62rpx;
+  border-radius: 16rpx;
+  color: #f4f0e8;
+  font-size: 23rpx;
+  line-height: 1;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.demo-button.primary {
+  flex-shrink: 0;
+  width: 112rpx;
+  color: #ffffff;
+  background: #d85a3a;
+}
+
+.demo-step {
+  gap: 16rpx;
+  padding: 14rpx 0;
+  border-top: 1rpx solid rgba(255, 255, 255, 0.06);
+}
+
+.demo-state {
+  flex-shrink: 0;
+  width: 92rpx;
+  padding: 8rpx 0;
+  border-radius: 999rpx;
+  color: #ffcf9a;
+  font-size: 21rpx;
+  font-weight: 900;
+  text-align: center;
+  background: rgba(216, 90, 58, 0.10);
+}
+
+.demo-state.ready {
+  color: #0f1a18;
+  background: rgba(143, 201, 189, 0.88);
+}
+
+.demo-state.manual {
+  color: #ffffff;
+  background: rgba(96, 117, 125, 0.74);
+}
+
+.demo-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.demo-step-title {
+  color: #ffffff;
+  font-size: 27rpx;
+  font-weight: 900;
 }
 
 .apk-head,
@@ -789,6 +939,7 @@ button::after {
 }
 
 .backend-card,
+.demo-card,
 .apk-card,
 .backend-hint,
 .setting-item,
@@ -800,6 +951,8 @@ button::after {
 }
 
 .backend-desc,
+.demo-desc,
+.demo-step-detail,
 .apk-desc,
 .apk-check-detail,
 .hint-command,
@@ -821,6 +974,7 @@ button::after {
 }
 
 .backend-button.primary,
+.demo-button.primary,
 .backend-status.online {
   color: var(--app-on-accent);
   background: var(--app-accent);
@@ -833,20 +987,30 @@ button::after {
 }
 
 .apk-title,
+.demo-title,
+.demo-step-title,
 .apk-check-title {
   color: var(--app-text);
 }
 
+.demo-step,
 .apk-check {
   border-top-color: var(--app-border);
 }
 
+.demo-button {
+  color: var(--app-text);
+  background: var(--app-panel);
+}
+
 .apk-badge.ready,
+.demo-state.ready,
 .apk-state.ready {
   color: var(--app-on-accent);
   background: var(--app-accent);
 }
 
+.demo-state.manual,
 .apk-state.manual {
   color: var(--app-text);
   background: var(--app-panel);

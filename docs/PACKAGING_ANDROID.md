@@ -13,10 +13,14 @@ cd D:\Codex\novel-reader-uniapp\backend
 
 2. 手机和电脑连接同一局域网，在 App “我的”页填写 `http://电脑局域网IP:8000`。
 3. 在“我的”页点击“保存地址”“自检后端”“登录后端”。
-4. 查看“APK 展示准备”卡片：
+4. 点击“一键演示准备”：
+   - 预填演示账号 `student / secret123`。
+   - 可复制后端启动命令。
+   - 按清单完成导入、搜索、阅读器和 AI 记录演示。
+5. 查看“APK 展示准备”卡片：
    - 前 3 项全部显示“已就绪”后，可以录屏演示主链路。
    - DCloud AppID 和云打包签名是 HBuilderX 发行阶段的手动项。
-5. 使用合法演示书源或本地 TXT，完成导入、批量检测、发现页搜索、阅读器、AI 记录链路。
+6. 使用合法演示书源或本地 TXT，完成导入、批量检测、发现页搜索、阅读器、AI 记录链路。
 
 ## 自动化检查
 
@@ -26,6 +30,7 @@ cd D:\Codex\novel-reader-uniapp\backend
 node tests/importAdapters.test.mjs
 node tests/backendConnection.test.mjs
 node tests/androidReadiness.test.mjs
+node tests/demoMode.test.mjs
 node tests/sourceImport.test.mjs
 node tests/sourceDiagnostics.test.mjs
 node tests/sourceEngine.test.mjs
@@ -60,6 +65,7 @@ cd D:\Codex\novel-reader-uniapp\backend
 
 - 冷启动正常，底部四个 Tab 可切换。
 - “我的”页后端地址保存、自检、登录正常，“APK 展示准备”前 3 项已就绪。
+- “我的”页“一键演示准备”可以预填演示账号、复制启动命令，并显示主链路演示清单。
 - 本地 JSON、剪贴板、扫码导入分别可用；扫码取消有提示。
 - 批量检测书源有进度和结果，失败源不会进入发现页搜索。
 - 发现页搜索、详情、目录、加入书架、进入阅读器完整可跑通。

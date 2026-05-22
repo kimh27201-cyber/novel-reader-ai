@@ -74,6 +74,9 @@ jobs:
       - name: Run Android readiness tests
         run: node tests/androidReadiness.test.mjs
 
+      - name: Run demo mode tests
+        run: node tests/demoMode.test.mjs
+
       - name: Run AI history tests
         run: node tests/aiHistory.test.mjs
 
