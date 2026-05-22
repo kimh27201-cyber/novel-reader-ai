@@ -41,6 +41,25 @@
       </view>
     </view>
 
+    <view class="apk-card">
+      <view class="apk-head">
+        <view>
+          <view class="apk-title">APK 展示准备</view>
+          <text class="apk-desc">{{ androidReadiness.summary }}</text>
+        </view>
+        <text class="apk-badge" :class="{ ready: androidReadiness.canRecordDemo }">
+          {{ androidReadiness.readyCount }}/3
+        </text>
+      </view>
+      <view class="apk-check" v-for="item in androidReadiness.items" :key="item.id">
+        <text class="apk-state" :class="item.state">{{ item.label }}</text>
+        <view class="apk-copy">
+          <view class="apk-check-title">{{ item.title }}</view>
+          <text class="apk-check-detail">{{ item.detail }}</text>
+        </view>
+      </view>
+    </view>
+
     <view class="settings-list">
       <view class="setting-item" v-for="item in mainItems" :key="item.id" @tap="openItem(item.id)">
         <text class="setting-icon">{{ item.icon }}</text>
@@ -105,6 +124,7 @@ import { exportTrackedBooks } from '../../common/tracking.js'
 import { appThemes, getAppThemeId, getAppThemeStyle, saveAppTheme } from '../../common/appTheme.js'
 import apiClient from '../../common/apiClient.js'
 import { analyzeBackendBaseUrl, buildBackendStartCommands } from '../../common/backendConnection.js'
+import { getAndroidDemoReadiness } from '../../common/androidReadiness.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 
 export default {
@@ -150,6 +170,13 @@ export default {
     },
     backendStartCommands() {
       return buildBackendStartCommands(this.backendAddressTip.mobileReady ? this.backendAddressTip.host : '电脑局域网 IP')
+    },
+    androidReadiness() {
+      return getAndroidDemoReadiness({
+        backendBaseUrl: this.backend.baseUrl,
+        backendUser: this.backend.user,
+        backendHealth: this.backend.health
+      })
     }
   },
   onShow() {
@@ -343,6 +370,96 @@ button::after {
   border-radius: 22rpx;
   background: rgba(47, 48, 45, 0.94);
   box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.04);
+}
+
+.apk-card {
+  padding: 26rpx;
+  margin-bottom: 28rpx;
+  border: 1rpx solid rgba(255, 255, 255, 0.06);
+  border-radius: 22rpx;
+  background: rgba(47, 48, 45, 0.94);
+  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.04);
+}
+
+.apk-head,
+.apk-check {
+  display: flex;
+  align-items: center;
+}
+
+.apk-head {
+  justify-content: space-between;
+  gap: 18rpx;
+  margin-bottom: 16rpx;
+}
+
+.apk-title {
+  color: #ffffff;
+  font-size: 32rpx;
+  font-weight: 900;
+}
+
+.apk-desc,
+.apk-check-detail {
+  display: block;
+  margin-top: 8rpx;
+  color: #a9aaa4;
+  font-size: 23rpx;
+  line-height: 34rpx;
+}
+
+.apk-badge {
+  flex-shrink: 0;
+  padding: 10rpx 18rpx;
+  border-radius: 999rpx;
+  color: #ffcf9a;
+  font-size: 22rpx;
+  font-weight: 900;
+  background: rgba(216, 90, 58, 0.10);
+}
+
+.apk-badge.ready {
+  color: #ffffff;
+  background: rgba(112, 173, 159, 0.78);
+}
+
+.apk-check {
+  gap: 16rpx;
+  padding: 16rpx 0;
+  border-top: 1rpx solid rgba(255, 255, 255, 0.06);
+}
+
+.apk-state {
+  flex-shrink: 0;
+  width: 92rpx;
+  padding: 8rpx 0;
+  border-radius: 999rpx;
+  color: #ffcf9a;
+  font-size: 21rpx;
+  font-weight: 900;
+  text-align: center;
+  background: rgba(216, 90, 58, 0.10);
+}
+
+.apk-state.ready {
+  color: #0f1a18;
+  background: rgba(143, 201, 189, 0.88);
+}
+
+.apk-state.manual {
+  color: #ffffff;
+  background: rgba(96, 117, 125, 0.74);
+}
+
+.apk-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.apk-check-title {
+  color: #ffffff;
+  font-size: 27rpx;
+  font-weight: 900;
 }
 
 .backend-head,
@@ -672,6 +789,7 @@ button::after {
 }
 
 .backend-card,
+.apk-card,
 .backend-hint,
 .setting-item,
 .theme-panel,
@@ -682,6 +800,8 @@ button::after {
 }
 
 .backend-desc,
+.apk-desc,
+.apk-check-detail,
 .hint-command,
 .backend-tip,
 .setting-desc,
@@ -709,6 +829,26 @@ button::after {
 .backend-button.ghost,
 .backend-status {
   color: var(--app-muted);
+  background: var(--app-panel);
+}
+
+.apk-title,
+.apk-check-title {
+  color: var(--app-text);
+}
+
+.apk-check {
+  border-top-color: var(--app-border);
+}
+
+.apk-badge.ready,
+.apk-state.ready {
+  color: var(--app-on-accent);
+  background: var(--app-accent);
+}
+
+.apk-state.manual {
+  color: var(--app-text);
   background: var(--app-panel);
 }
 

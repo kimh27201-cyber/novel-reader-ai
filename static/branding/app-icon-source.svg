@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="解码阅读 App 图标源文件">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f4fbf8"/>
+      <stop offset="0.55" stop-color="#b7dcd4"/>
+      <stop offset="1" stop-color="#70ad9f"/>
+    </linearGradient>
+    <linearGradient id="book" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#fff8ec"/>
+    </linearGradient>
+  </defs>
+  <rect width="1024" height="1024" rx="224" fill="url(#bg)"/>
+  <circle cx="806" cy="172" r="92" fill="#e26a4f" opacity="0.92"/>
+  <path d="M220 278c0-45 37-82 82-82h420c45 0 82 37 82 82v488c0 34-28 62-62 62H302c-45 0-82-37-82-82V278z" fill="#20352f" opacity="0.16"/>
+  <path d="M246 238c0-42 34-76 76-76h378c42 0 76 34 76 76v520c0 28-23 50-50 50H322c-42 0-76-34-76-76V238z" fill="url(#book)"/>
+  <path d="M326 252h340c22 0 40 18 40 40v420H326c-22 0-40 18-40 40V292c0-22 18-40 40-40z" fill="#f4fbf8"/>
+  <path d="M360 364h292M360 460h292M360 556h216" stroke="#70ad9f" stroke-width="42" stroke-linecap="round"/>
+  <path d="M286 752c0-22 18-40 40-40h380v80H326c-22 0-40-18-40-40z" fill="#e8f3ef"/>
+  <text x="512" y="900" text-anchor="middle" font-family="KaiTi, STKaiti, Microsoft YaHei, sans-serif" font-size="120" font-weight="700" fill="#20352f">读</text>
+</svg>

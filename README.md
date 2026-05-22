@@ -11,6 +11,7 @@
 - [接口文档](docs/API.md)：后端主要 API、请求示例和演示顺序。
 - [截图清单](docs/SCREENSHOTS.md)：用于 README、简历附件和录屏素材准备。
 - [Android 真机验收清单](docs/ANDROID_VALIDATION.md)：后续 App 端扫码、文件、剪贴板和网络验证步骤。
+- [Android APK 打包说明](docs/PACKAGING_ANDROID.md)：展示 APK、HBuilderX 云打包和正式包预留事项。
 
 ## 项目定位
 
@@ -74,6 +75,7 @@
 - 书源改名、分组管理、当前结果批量启停、删除确认和导入前预览
 - 导入页扫码、剪贴板、本地 JSON/TXT 文件选择统一走跨端适配层，便于 Android 真机验证
 - 我的页支持后端地址保存、真机地址风险提示和 `/api/health` 自检
+- 我的页新增 APK 展示准备卡片，集中提示局域网后端、自检、登录、DCloud AppID 和云打包签名状态
 
 ## 项目结构
 
@@ -84,6 +86,7 @@ novel-reader-uniapp/
   pages/         # uni-app 页面
   preview/       # 浏览器预览页面
   static/        # 静态测试文件
+  static/branding/ # App 图标和启动页源文件
   tests/         # 前端书源引擎测试
   docs/          # 项目文档
 ```
@@ -149,6 +152,7 @@ node tests/importAdapters.test.mjs
 cd D:\Codex\novel-reader-uniapp
 node tests/apiClient.test.mjs
 node tests/backendConnection.test.mjs
+node tests/androidReadiness.test.mjs
 ```
 
 AI 历史和后端适配层测试：
@@ -166,6 +170,7 @@ node tests/aiHistory.test.mjs
 - 后端依赖安装、Alembic 迁移检查、`pytest`
 - `pages.json` 解析检查
 - 前端工具测试：`sourceEngine`、`apiClient`、`backendConnection`、`backendLibrary`、`aiHistory`、`importAdapters`
+- Android 展示准备测试：`androidReadiness`
 
 ## 错误响应与排查
 
@@ -228,11 +233,12 @@ alembic upgrade head
 3. 导入演示书源：`POST /api/sources/import-demo`。
 4. 使用书源搜索、目录解析和正文解析接口。
 5. 在 uni-app “我的”页面登录后端。
-6. 在“导入”页刷新后端书源或导入演示源。
-7. 在“导入”页查看书源诊断，运行单源测试或批量检测，确认发现页只使用测试通过的源。
-8. 在“发现”页查看可用书源数量，搜索书籍，加入云端书架。
-9. 进入阅读器，验证章节解析、阅读进度保存、AI 总结和 AI 问答。
-10. 回到“我的”页打开“AI 记录”，查看总结、问答历史和 AI 调用日志。
+6. 在“我的”页确认“APK 展示准备”前 3 项已就绪。
+7. 在“导入”页刷新后端书源或导入演示源。
+8. 在“导入”页查看书源诊断，运行单源测试或批量检测，确认发现页只使用测试通过的源。
+9. 在“发现”页查看可用书源数量，搜索书籍，加入云端书架。
+10. 进入阅读器，验证章节解析、阅读进度保存、AI 总结和 AI 问答。
+11. 回到“我的”页打开“AI 记录”，查看总结、问答历史和 AI 调用日志。
 
 ## 重要接口
 

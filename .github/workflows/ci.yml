@@ -71,6 +71,9 @@ jobs:
       - name: Run backend connection tests
         run: node tests/backendConnection.test.mjs
 
+      - name: Run Android readiness tests
+        run: node tests/androidReadiness.test.mjs
+
       - name: Run AI history tests
         run: node tests/aiHistory.test.mjs
 

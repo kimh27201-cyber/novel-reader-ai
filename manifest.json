@@ -18,7 +18,9 @@
     "modules": {},
     "distribute": {
       "android": {
-        "permissions": []
+        "permissions": [
+          "android.permission.CAMERA"
+        ]
       }
     }
   },
