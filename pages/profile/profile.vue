@@ -315,7 +315,7 @@ export default {
     },
     openItem(id) {
       if (id === 'source') {
-        uni.switchTab({ url: '/pages/library/library' })
+        this.goLibrary()
         return
       }
       if (id === 'theme') {
@@ -327,6 +327,9 @@ export default {
         return
       }
       if (id === 'web') this.refreshBackendMe()
+    },
+    goLibrary() {
+      uni.switchTab({ url: '/pages/library/library' })
     },
     openSwagger() {
       const url = `${apiClient.getBaseUrl()}/docs`
