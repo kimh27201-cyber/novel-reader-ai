@@ -85,3 +85,6 @@ jobs:
 
       - name: Run import adapter tests
         run: node tests/importAdapters.test.mjs
+
+      - name: Run source market tests
+        run: node tests/sourceMarket.test.mjs

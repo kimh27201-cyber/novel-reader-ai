@@ -5,6 +5,7 @@ import {
   getClipboardText,
   getPickedFileName,
   normalizePickedFile,
+  readAndroidContentUriText,
   readPickedFileText,
   scanImportPayload
 } from '../common/importAdapters.js'
@@ -49,6 +50,58 @@ const picked = await chooseSingleFile({
 })
 assert.equal(picked.name, 'picked.json')
 
+let launchedIntent = null
+const androidRuntime = {
+  plus: {
+    os: { name: 'Android' },
+    android: {
+      importClass(name) {
+        if (name === 'android.content.Intent') {
+          function Intent(action) {
+            this.action = action
+            this.categories = []
+            this.extras = {}
+          }
+          Intent.ACTION_OPEN_DOCUMENT = 'android.intent.action.OPEN_DOCUMENT'
+          Intent.CATEGORY_OPENABLE = 'android.intent.category.OPENABLE'
+          Intent.EXTRA_MIME_TYPES = 'android.intent.extra.MIME_TYPES'
+          Intent.prototype.addCategory = function addCategory(category) {
+            this.categories.push(category)
+          }
+          Intent.prototype.setType = function setType(type) {
+            this.type = type
+          }
+          Intent.prototype.putExtra = function putExtra(name, value) {
+            this.extras[name] = value
+          }
+          return Intent
+        }
+        return function MockClass() {}
+      },
+      runtimeMainActivity() {
+        return {
+          RESULT_OK: -1,
+          startActivityForResult(intent, requestCode) {
+            launchedIntent = { intent, requestCode }
+            this.onActivityResult(requestCode, -1, {
+              getData: () => ({ toString: () => 'content://downloads/document/42' })
+            })
+          }
+        }
+      }
+    }
+  }
+}
+const androidPicked = await chooseSingleFile({}, {
+  extension: ['.txt'],
+  label: 'TXT',
+  runtime: androidRuntime
+})
+assert.equal(androidPicked.path, 'content://downloads/document/42')
+assert.equal(androidPicked.name, 'content://downloads/document/42')
+assert.equal(launchedIntent.intent.action, 'android.intent.action.OPEN_DOCUMENT')
+assert.equal(launchedIntent.intent.type, 'text/plain')
+
 assert.equal(await getClipboardText({
   getClipboardData(options) {
     options.success({ data: '  [{"bookSourceName":"A"}]  ' })
@@ -77,6 +130,51 @@ const fetchedText = await readPickedFileText(
   { fetch: async path => ({ text: async () => `read:${path}` }) }
 )
 assert.equal(fetchedText, 'read:blob:source-json')
+
+assert.equal(await readAndroidContentUriText('content://downloads/document/42', {
+  plus: {
+    android: {
+      importClass(target) {
+        return target
+      },
+      invoke(target, method) {
+        if (method === 'getContentResolver') return 'resolver'
+        if (method === 'parse') return 'uri'
+        if (method === 'openInputStream') {
+          return {
+            offset: 0,
+            bytes: [65, 66, 67],
+            read(buffer) {
+              if (this.offset >= this.bytes.length) return -1
+              buffer[0] = this.bytes[this.offset]
+              this.offset += 1
+              return 1
+            },
+            close() {}
+          }
+        }
+        if (method === 'toByteArray') return [65, 66, 67]
+        return null
+      },
+      newObject(name) {
+        if (name === 'java.io.ByteArrayOutputStream') {
+          return {
+            data: [],
+            write(buffer, offset, length) {
+              this.data.push(...buffer.slice(offset, offset + length))
+            },
+            close() {}
+          }
+        }
+        if (name === 'java.lang.String') return 'ABC'
+        return {}
+      },
+      runtimeMainActivity() {
+        return 'activity'
+      }
+    }
+  }
+}), 'ABC')
 
 await assert.rejects(
   () => readPickedFileText({ name: 'missing.json' }, {}),

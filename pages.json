@@ -15,6 +15,13 @@
       }
     },
     {
+      "path": "pages/sourceMarket/sourceMarket",
+      "style": {
+        "navigationBarTitleText": "源仓库",
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/search/search",
       "style": {
         "navigationBarTitleText": "发现源",

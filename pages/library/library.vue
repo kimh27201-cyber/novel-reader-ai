@@ -156,6 +156,13 @@
           <text class="utility-desc">真机扫描二维码书源</text>
         </view>
       </button>
+      <button class="utility-card" @tap="goSourceMarket">
+        <text class="utility-icon">源</text>
+        <view>
+          <view class="utility-title">源仓库</view>
+          <text class="utility-desc">搜索、预览并导入第三方书源</text>
+        </view>
+      </button>
       <button class="utility-card" :loading="backendLoading" @tap="importBackendDemo">
         <text class="utility-icon">云</text>
         <view>
@@ -217,7 +224,7 @@
         <button class="outline-action" @tap="importFromClipboard">剪贴板</button>
         <button class="outline-action" @tap="chooseSourceJsonFile">本地 JSON</button>
         <button class="outline-action" @tap="scanSourceQr">扫码</button>
-        <button class="outline-action" @tap="openImportDrawer('repo')">源仓库页</button>
+        <button class="outline-action" @tap="goSourceMarket">源仓库页</button>
       </view>
     </view>
 
@@ -353,6 +360,7 @@ import {
   readPickedFileText,
   scanImportPayload
 } from '../../common/importAdapters.js'
+import { resolveMarketScanTarget } from '../../common/sourceMarket.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 
 export default {
@@ -552,7 +560,7 @@ export default {
       this.sourceMenuVisible = false
     },
     openSourcePanel() {
-      this.openImportDrawer('repo')
+      this.goSourceMarket()
     },
     openTxtPanel() {
       this.txtVisible = true
@@ -834,9 +842,18 @@ export default {
         this.closePanels()
       }
     },
+    goSourceMarket(url = '') {
+      const query = url ? `?url=${encodeURIComponent(url)}` : ''
+      uni.navigateTo({ url: `/pages/sourceMarket/sourceMarket${query}` })
+    },
     async scanSourceQr() {
       try {
         const payload = await scanImportPayload(uni)
+        const target = resolveMarketScanTarget(payload)
+        if (target.type === 'detail' || target.type === 'json' || target.type === 'market') {
+          this.goSourceMarket(target.url)
+          return
+        }
         await this.importSourcePayload(payload, '扫码导入')
       } catch (error) {
         uni.showToast({ title: error.message || '未完成扫码', icon: 'none' })
