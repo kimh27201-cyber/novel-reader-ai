@@ -95,6 +95,36 @@
       </view>
     </view>
 
+    <view class="validation-card">
+      <view class="validation-head">
+        <view>
+          <view class="validation-title">真机验收</view>
+          <text class="validation-desc">
+            {{ deviceValidationSummary.complete ? '真机主链路已验收完成。' : `还剩 ${deviceValidationSummary.remaining} 项未验收。` }}
+          </text>
+        </view>
+        <text class="validation-badge" :class="{ ready: deviceValidationSummary.complete }">
+          {{ deviceValidationSummary.passed }}/{{ deviceValidationSummary.total }}
+        </text>
+      </view>
+      <view class="validation-actions">
+        <button class="validation-button" @tap="resetDeviceValidation">重置验收</button>
+      </view>
+      <view
+        class="validation-row"
+        v-for="item in deviceValidationItems"
+        :key="item.id"
+        :class="{ checked: deviceValidationState[item.id] }"
+        @tap="toggleDeviceValidation(item.id)"
+      >
+        <text class="validation-check">{{ deviceValidationState[item.id] ? '通过' : '未验' }}</text>
+        <view class="validation-copy">
+          <view class="validation-item-title">{{ item.title }}</view>
+          <text class="validation-item-desc">{{ item.desc }}</text>
+        </view>
+      </view>
+    </view>
+
     <view class="settings-list">
       <view class="setting-item" v-for="item in mainItems" :key="item.id" @tap="openItem(item.id)">
         <text class="setting-icon">{{ item.icon }}</text>
@@ -161,6 +191,13 @@ import apiClient from '../../common/apiClient.js'
 import { analyzeBackendBaseUrl, buildBackendStartCommands } from '../../common/backendConnection.js'
 import { getAndroidDemoReadiness } from '../../common/androidReadiness.js'
 import { builtInBooks } from '../../common/books.js'
+import {
+  DEVICE_VALIDATION_ITEMS,
+  getDeviceValidationState,
+  getDeviceValidationSummary,
+  resetDeviceValidationState,
+  toggleDeviceValidationItem
+} from '../../common/deviceValidation.js'
 import { buildDemoModeChecklist, buildDemoModePreset, buildOfflineDemoStatus } from '../../common/demoMode.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 
@@ -179,6 +216,8 @@ export default {
         health: '',
         error: ''
       },
+      deviceValidationItems: DEVICE_VALIDATION_ITEMS,
+      deviceValidationState: getDeviceValidationState(),
       mainItems: [
         { id: 'source', icon: '源', title: '书源与导入', desc: '导入演示源、管理外部源和 TXT' },
         { id: 'aiHistory', icon: 'AI', title: 'AI 记录', desc: '查看后端保存的总结和问答历史' },
@@ -232,6 +271,9 @@ export default {
         backendReady: this.backendAddressTip.mobileReady && !!this.backend.health,
         loggedIn: !!this.backend.user
       })
+    },
+    deviceValidationSummary() {
+      return getDeviceValidationSummary(this.deviceValidationState)
     }
   },
   onShow() {
@@ -330,6 +372,13 @@ export default {
     },
     goLibrary() {
       uni.switchTab({ url: '/pages/library/library' })
+    },
+    toggleDeviceValidation(itemId) {
+      this.deviceValidationState = toggleDeviceValidationItem(itemId)
+    },
+    resetDeviceValidation() {
+      this.deviceValidationState = resetDeviceValidationState()
+      uni.showToast({ title: '验收清单已重置', icon: 'none' })
     },
     openSwagger() {
       const url = `${apiClient.getBaseUrl()}/docs`
@@ -454,6 +503,111 @@ button::after {
   border-radius: 22rpx;
   background: rgba(47, 48, 45, 0.94);
   box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.04);
+}
+
+.validation-card {
+  padding: 26rpx;
+  margin-bottom: 28rpx;
+  border: 1rpx solid rgba(255, 255, 255, 0.06);
+  border-radius: 22rpx;
+  background: rgba(47, 48, 45, 0.94);
+  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.04);
+}
+
+.validation-head,
+.validation-row {
+  display: flex;
+  align-items: center;
+}
+
+.validation-head {
+  justify-content: space-between;
+  gap: 18rpx;
+  margin-bottom: 14rpx;
+}
+
+.validation-title {
+  color: #ffffff;
+  font-size: 32rpx;
+  font-weight: 900;
+}
+
+.validation-desc,
+.validation-item-desc {
+  display: block;
+  margin-top: 8rpx;
+  color: #a9aaa4;
+  font-size: 23rpx;
+  line-height: 34rpx;
+}
+
+.validation-badge {
+  flex-shrink: 0;
+  padding: 10rpx 18rpx;
+  border-radius: 999rpx;
+  color: #ffcf9a;
+  font-size: 22rpx;
+  font-weight: 900;
+  background: rgba(216, 90, 58, 0.10);
+}
+
+.validation-badge.ready {
+  color: #ffffff;
+  background: rgba(112, 173, 159, 0.78);
+}
+
+.validation-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 10rpx;
+}
+
+.validation-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 160rpx;
+  height: 58rpx;
+  padding: 0 22rpx;
+  border-radius: 16rpx;
+  color: #f4f0e8;
+  font-size: 23rpx;
+  line-height: 1;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.validation-row {
+  gap: 16rpx;
+  padding: 14rpx 0;
+  border-top: 1rpx solid rgba(255, 255, 255, 0.06);
+}
+
+.validation-check {
+  flex-shrink: 0;
+  width: 92rpx;
+  padding: 8rpx 0;
+  border-radius: 999rpx;
+  color: #ffcf9a;
+  font-size: 21rpx;
+  font-weight: 900;
+  text-align: center;
+  background: rgba(216, 90, 58, 0.10);
+}
+
+.validation-row.checked .validation-check {
+  color: #0f1a18;
+  background: rgba(143, 201, 189, 0.88);
+}
+
+.validation-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.validation-item-title {
+  color: #ffffff;
+  font-size: 27rpx;
+  font-weight: 900;
 }
 
 .demo-card {
@@ -1004,6 +1158,7 @@ button::after {
 .backend-card,
 .demo-card,
 .apk-card,
+.validation-card,
 .backend-hint,
 .setting-item,
 .theme-panel,
@@ -1019,6 +1174,8 @@ button::after {
 .offline-summary,
 .apk-desc,
 .apk-check-detail,
+.validation-desc,
+.validation-item-desc,
 .hint-command,
 .backend-tip,
 .setting-desc,
@@ -1053,6 +1210,8 @@ button::after {
 .apk-title,
 .demo-title,
 .offline-title,
+.validation-title,
+.validation-item-title,
 .demo-step-title,
 .apk-check-title {
   color: var(--app-text);
@@ -1060,8 +1219,14 @@ button::after {
 
 .offline-zone,
 .demo-step,
-.apk-check {
+.apk-check,
+.validation-row {
   border-top-color: var(--app-border);
+}
+
+.validation-button {
+  color: var(--app-text);
+  background: var(--app-panel);
 }
 
 .offline-mode {
@@ -1075,8 +1240,14 @@ button::after {
 }
 
 .apk-badge.ready,
+.validation-badge.ready,
 .demo-state.ready,
 .apk-state.ready {
+  color: var(--app-on-accent);
+  background: var(--app-accent);
+}
+
+.validation-row.checked .validation-check {
   color: var(--app-on-accent);
   background: var(--app-accent);
 }

@@ -77,6 +77,9 @@ jobs:
       - name: Run demo mode tests
         run: node tests/demoMode.test.mjs
 
+      - name: Run device validation tests
+        run: node tests/deviceValidation.test.mjs
+
       - name: Run AI history tests
         run: node tests/aiHistory.test.mjs
 

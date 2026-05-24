@@ -78,6 +78,7 @@
 - 我的页新增 APK 展示准备卡片，集中提示局域网后端、自检、登录、DCloud AppID 和云打包签名状态
 - 我的页新增一键演示准备，预填演示账号、复制后端启动命令，并给出录屏主链路清单
 - 一键演示准备新增离线兜底状态，复用内置书籍和 `static/test-novel.txt`，不额外堆演示数据
+- 我的页新增真机验收清单，逐项记录 Android 基座、后端联调、导入、搜索、阅读器和 AI 记录验收进度
 
 ## 项目结构
 
@@ -156,6 +157,7 @@ node tests/apiClient.test.mjs
 node tests/backendConnection.test.mjs
 node tests/androidReadiness.test.mjs
 node tests/demoMode.test.mjs
+node tests/deviceValidation.test.mjs
 ```
 
 AI 历史和后端适配层测试：
@@ -175,6 +177,7 @@ node tests/aiHistory.test.mjs
 - 前端工具测试：`sourceEngine`、`apiClient`、`backendConnection`、`backendLibrary`、`aiHistory`、`importAdapters`
 - Android 展示准备测试：`androidReadiness`
 - 演示模式测试：`demoMode`
+- 真机验收清单测试：`deviceValidation`
 
 ## 错误响应与排查
 
