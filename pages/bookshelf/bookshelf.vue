@@ -1,14 +1,18 @@
 <template>
   <view class="decoder-page app-page" :style="themeVars">
     <view class="top-zone">
-      <view class="search-pill" @tap="goSearch">
-        <text class="search-icon">⌕</text>
-        <text class="search-text">解码一本书</text>
+      <view class="shelf-filter-active">
+        <text>全部</text>
       </view>
-      <button class="top-icon" @tap="goRecent">◷</button>
-      <button class="top-icon star" @tap="goLibrary">★</button>
-      <button class="top-icon" @tap="goSearch">⌘</button>
-      <button class="top-icon" @tap="goProfile">⚙</button>
+      <button class="top-search-button" @tap="goSearch">⌕</button>
+      <button class="top-more-button" @tap="moreMenuVisible = !moreMenuVisible">⋮</button>
+    </view>
+
+    <view class="more-menu" v-if="moreMenuVisible">
+      <button class="menu-item" @tap="openTool('discover')">发现书源</button>
+      <button class="menu-item" @tap="openTool('import')">导入 TXT</button>
+      <button class="menu-item" @tap="openTool('aiHistory')">AI 记录</button>
+      <button class="menu-item" @tap="openTool('cloud')">后端与设置</button>
     </view>
 
     <view class="tool-grid">
@@ -78,6 +82,7 @@ export default {
     return {
       books: [],
       sources: [],
+      moreMenuVisible: false,
       themeId: getAppThemeId(),
       tools: [
         { id: 'discover', name: '发现书源', desc: '搜索并加入云端书架', icon: '⌕' },
@@ -156,9 +161,6 @@ export default {
     },
     goProfile() {
       uni.switchTab({ url: '/pages/profile/profile' })
-    },
-    goRecent() {
-      uni.showToast({ title: `${this.books.length} 本书 · ${this.sources.filter(item => item.enabled).length} 个启用源`, icon: 'none' })
     }
   }
 }
@@ -181,53 +183,92 @@ button::after {
 }
 
 .top-zone {
-  display: grid;
-  grid-template-columns: 1fr 78rpx 78rpx 78rpx 78rpx;
+  position: relative;
+  z-index: 2;
+  display: flex;
   align-items: center;
-  gap: 24rpx;
+  justify-content: space-between;
   min-height: 116rpx;
   margin: -86rpx -40rpx 34rpx;
-  padding: 86rpx 40rpx 28rpx;
+  padding: 86rpx 38rpx 0;
   background: #60757d;
 }
 
-.search-pill {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  height: 74rpx;
-  padding: 0 28rpx;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.10);
-}
-
-.search-icon,
-.search-text {
-  color: rgba(255, 255, 255, 0.72);
-  font-size: 32rpx;
-}
-
-.search-text {
-  margin-left: 12rpx;
-  font-family: cursive;
-}
-
-.top-icon {
+.shelf-filter-active {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
+  min-width: 88rpx;
+  height: 86rpx;
+  color: rgba(255, 255, 255, 0.84);
+  font-size: 27rpx;
+  font-weight: 800;
+}
+
+.shelf-filter-active::after {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 74rpx;
+  height: 5rpx;
+  border-radius: 999rpx;
+  background: var(--app-accent-3);
+  content: "";
+}
+
+.top-search-button,
+.top-more-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
   width: 78rpx;
-  height: 78rpx;
+  height: 86rpx;
   padding: 0;
-  color: #ffffff;
+  color: rgba(255, 255, 255, 0.90);
   font-size: 54rpx;
   line-height: 1;
   background: transparent;
 }
 
-.top-icon.star {
-  color: #ffffff;
-  font-size: 62rpx;
+.top-search-button {
+  margin-left: auto;
+}
+
+.top-more-button {
+  margin-left: 12rpx;
+  font-size: 58rpx;
+}
+
+.more-menu {
+  position: absolute;
+  z-index: 10;
+  right: 28rpx;
+  top: 122rpx;
+  width: 260rpx;
+  overflow: hidden;
+  border: 1rpx solid rgba(255, 255, 255, 0.08);
+  border-radius: 16rpx;
+  background: rgba(42, 43, 42, 0.98);
+  box-shadow: 0 22rpx 52rpx rgba(0, 0, 0, 0.34);
+}
+
+.menu-item {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  height: 72rpx;
+  padding: 0 24rpx;
+  border-bottom: 1rpx solid rgba(255, 255, 255, 0.06);
+  color: #f2f5f4;
+  font-size: 25rpx;
+  text-align: left;
+  background: transparent;
+}
+
+.menu-item:active {
+  background: rgba(226, 95, 53, 0.16);
 }
 
 .tool-grid {
@@ -474,11 +515,6 @@ button::after {
   box-shadow: 0 10rpx 28rpx rgba(0, 0, 0, 0.20);
 }
 
-.search-pill {
-  background: rgba(255, 255, 255, 0.13);
-  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.08);
-}
-
 .tool-icon,
 .book-row,
 .empty-box {
@@ -524,7 +560,6 @@ button::after {
   box-shadow: var(--app-shadow);
 }
 
-.search-pill,
 .tool-icon,
 .book-row,
 .empty-box {
@@ -533,10 +568,8 @@ button::after {
   box-shadow: var(--app-shadow);
 }
 
-.search-icon,
-.search-text,
-.top-icon,
-.top-icon.star,
+.top-search-button,
+.top-more-button,
 .book-title,
 .empty-title,
 .tab.active {

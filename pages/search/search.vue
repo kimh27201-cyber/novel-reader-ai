@@ -68,7 +68,7 @@
           <view class="source-usage" v-if="lastSearchSourceNames.length">
             本次使用 {{ lastSearchSourceNames.join('、') }}
           </view>
-          <view class="result-card" v-for="item in results" :key="`${item.type}-${item.bookId}-${item.title}`" @tap="openResult(item)">
+          <view class="result-card" v-for="(item, index) in results" :key="buildSearchResultKey(item, index)" @tap="openResult(item)">
             <view class="result-top">
               <view class="result-type">{{ resultTypeLabel(item) }}</view>
               <text class="result-action">查看</text>
@@ -82,8 +82,8 @@
 
         <view class="empty-state" v-else-if="mode === 'cloud' && noAvailableSourceHint && !loading">
           <view class="empty-title">暂无可用书源</view>
-          <text class="empty-desc">请先到导入页完成书源测试。发现页只会使用启用且测试通过的书源。</text>
-          <button class="starter primary" @tap="goLibrary">去导入页批量检测</button>
+          <text class="empty-desc">请先到书源页完成书源测试。发现页只会使用启用且测试通过的书源。</text>
+          <button class="starter primary" @tap="goLibrary">去书源页批量检测</button>
         </view>
 
         <view class="empty-state" v-else-if="!loading">
@@ -105,7 +105,7 @@ import { searchBooks } from '../../common/books.js'
 import { getSourceConfigs, pickOnlineSearchSources, saveOnlineBookDraft, searchOnlineBooks, setSourceEnabled } from '../../common/bookSources.js'
 import apiClient from '../../common/apiClient.js'
 import { searchBackendBooks } from '../../common/backendLibrary.js'
-import { buildSourceToggleState, demoSearchKeywords, sanitizeSearchKeyword } from '../../common/searchHelpers.js'
+import { buildSearchResultKey, buildSourceToggleState, demoSearchKeywords, sanitizeSearchKeyword } from '../../common/searchHelpers.js'
 import { getAppThemeId, getAppThemeStyle } from '../../common/appTheme.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 
@@ -185,6 +185,7 @@ export default {
       }
       uni.showToast({ title: state.toast, icon: 'none' })
     },
+    buildSearchResultKey,
     async runSearch() {
       const word = sanitizeSearchKeyword(this.keyword)
       this.keyword = word
@@ -205,7 +206,7 @@ export default {
       }
 
       if (this.noAvailableSourceHint) {
-        uni.showToast({ title: '暂无可用书源，请先到导入页完成书源测试', icon: 'none' })
+        uni.showToast({ title: '暂无可用书源，请先到书源页完成书源测试', icon: 'none' })
         return
       }
 

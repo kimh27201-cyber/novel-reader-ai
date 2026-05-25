@@ -71,7 +71,7 @@ assert.match(profile, /demoMode/)
 assert.match(profile, /一键演示准备/)
 assert.match(profile, /applyDemoMode/)
 assert.match(profile, /offlineDemoStatus/)
-assert.match(profile, /离线兜底/)
+assert.match(profile, /本地阅读兜底/)
 assert.match(profile, /goLibrary\(\)/)
 
 const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8')

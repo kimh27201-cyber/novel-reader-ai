@@ -276,7 +276,7 @@ POST /api/sources/{source_id}/content
 - 书源搜索、目录解析、正文解析接口响应
 - AI 总结接口响应
 - `GET /api/ai/calls` 调用日志响应
-- uni-app 导入页书源诊断和批量检测
+- uni-app 书源页书源诊断和批量检测
 - uni-app 发现页可用书源提示和搜索结果来源
 - uni-app 书架或阅读器页面
 

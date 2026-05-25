@@ -1,5 +1,5 @@
 const APP_THEME_KEY = 'app:theme'
-const DEFAULT_THEME_ID = 'qinglan'
+const DEFAULT_THEME_ID = 'night'
 
 export const appThemes = [
   {
@@ -89,20 +89,20 @@ export const appThemes = [
     desc: '低亮、护眼、适合夜间',
     swatch: ['#151b20', '#8fc9bd', '#f0b46d'],
     vars: {
-      '--app-bg': 'radial-gradient(circle at 16% 0%, rgba(112, 173, 159, 0.16), transparent 34%), linear-gradient(180deg, #151b20 0%, #101719 54%, #0d1214 100%)',
-      '--app-top': 'linear-gradient(180deg, #2d4544 0%, #263936 100%)',
+      '--app-bg': '#202124',
+      '--app-top': '#60747d',
       '--app-accent': '#8fc9bd',
       '--app-accent-2': '#70ad9f',
-      '--app-accent-3': '#f0b46d',
+      '--app-accent-3': '#e25f35',
       '--app-on-accent': '#0f1a18',
-      '--app-text': '#f4fbf8',
-      '--app-muted': '#a8bab5',
-      '--app-panel': 'rgba(31, 43, 45, 0.82)',
-      '--app-panel-strong': 'rgba(34, 48, 50, 0.94)',
+      '--app-text': '#f3f6f5',
+      '--app-muted': '#b3bebc',
+      '--app-panel': 'rgba(44, 45, 44, 0.92)',
+      '--app-panel-strong': 'rgba(48, 50, 50, 0.96)',
       '--app-input': 'rgba(255, 255, 255, 0.08)',
       '--app-border': 'rgba(255, 255, 255, 0.08)',
-      '--app-shadow': '0 18rpx 44rpx rgba(0, 0, 0, 0.24)',
-      '--app-stage': '#11181a',
+      '--app-shadow': '0 14rpx 32rpx rgba(0, 0, 0, 0.26)',
+      '--app-stage': '#202124',
       '--app-shell-border': 'rgba(255, 255, 255, 0.12)',
       '--app-shell-shadow': '0 28rpx 90rpx rgba(0, 0, 0, 0.34)',
       '--app-floating-shadow': '0 -20rpx 70rpx rgba(0, 0, 0, 0.32)',

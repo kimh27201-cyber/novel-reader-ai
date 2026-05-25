@@ -2,9 +2,9 @@
   <view class="import-page app-page" :style="themeVars">
     <view class="top-zone">
       <view>
-        <text class="eyebrow">IMPORT</text>
-        <view class="title">导入</view>
-        <text class="subtitle">书源规则、TXT、本地与云端演示源</text>
+        <text class="eyebrow">SOURCES</text>
+        <view class="title">书源</view>
+        <text class="subtitle">导入、检测和管理你的阅读来源</text>
       </view>
       <button class="icon-button" @tap="goSearch">⌕</button>
     </view>
@@ -17,7 +17,8 @@
           <text class="section-desc">启用的兼容书源会参与“发现”页在线搜索。</text>
         </view>
         <view class="head-actions">
-          <button class="small-action primary" @tap="openImportDrawer('repo')">导入</button>
+          <button class="small-action primary" @tap="openImportDrawer('repo')">添加书源</button>
+          <button class="small-action" @tap="goSourceMarket">源仓库</button>
           <button class="round-action" @tap="sourceMenuVisible = !sourceMenuVisible">⋯</button>
         </view>
       </view>
@@ -44,67 +45,80 @@
         </button>
       </view>
 
-      <scroll-view class="filter-strip" scroll-x :show-scrollbar="false">
-        <button
-          class="filter-chip"
-          v-for="item in filterOptions"
-          :key="item.value"
-          :class="{ active: sourceFilter === item.value }"
-          @tap="sourceFilter = item.value"
-        >
-          {{ item.label }}
-        </button>
-      </scroll-view>
-
-      <scroll-view class="group-strip" scroll-x :show-scrollbar="false">
-        <button
-          class="group-chip"
-          v-for="group in sourceGroups"
-          :key="group"
-          :class="{ active: sourceGroupFilter === group }"
-          @tap="sourceGroupFilter = group"
-        >
-          {{ group }}
-        </button>
-      </scroll-view>
-
       <view class="summary-row">
         <text>{{ sourceStats.total }} 个书源</text>
         <text>{{ sourceStats.enabled }} 启用</text>
-        <text>{{ sourceStats.incompatible }} 不兼容</text>
         <text>{{ sourceStats.searchable }} 可搜索</text>
-      </view>
-      <view class="summary-row group-summary">
-        <text>分组统计</text>
-        <text v-for="item in sourceGroupStats" :key="item.group">{{ item.group }} {{ item.count }}</text>
+        <text>{{ sourceStats.incompatible }} 不兼容</text>
       </view>
 
-      <view class="bulk-actions">
-        <button class="small-action" @tap="batchToggleVisibleSources(true)">批量启用当前结果</button>
-        <button class="small-action" @tap="batchToggleVisibleSources(false)">批量停用当前结果</button>
-      </view>
-
-      <view class="batch-panel">
-        <view class="batch-head">
+      <view class="management-tools">
+        <view class="tools-head" @tap="toolsExpanded = !toolsExpanded">
           <view>
-            <view class="test-title">批量检测</view>
-            <text class="source-hint">发现页只使用已通过测试的书源。失败源会保留网络失败、规则不兼容、无搜索结果或超时原因。</text>
+            <view class="tools-title">管理工具</view>
+            <text class="source-hint">批量检测、分组筛选、云端演示源和批量启停。</text>
           </view>
-          <view class="batch-actions">
-            <button class="small-action primary" :loading="batchTesting" @tap="runBatchSourceTest('all')">测试全部启用源</button>
-            <button class="small-action" :disabled="sourceGroupFilter === '全部分组'" :loading="batchTesting" @tap="runBatchSourceTest('group')">测试当前分组</button>
+          <text class="tools-toggle">{{ toolsExpanded ? '收起' : '展开' }}</text>
+        </view>
+        <view class="tools-body" v-if="toolsExpanded">
+          <scroll-view class="filter-strip" scroll-x :show-scrollbar="false">
+            <button
+              class="filter-chip"
+              v-for="item in filterOptions"
+              :key="item.value"
+              :class="{ active: sourceFilter === item.value }"
+              @tap="sourceFilter = item.value"
+            >
+              {{ item.label }}
+            </button>
+          </scroll-view>
+
+          <scroll-view class="group-strip" scroll-x :show-scrollbar="false">
+            <button
+              class="group-chip"
+              v-for="group in sourceGroups"
+              :key="group"
+              :class="{ active: sourceGroupFilter === group }"
+              @tap="sourceGroupFilter = group"
+            >
+              {{ group }}
+            </button>
+          </scroll-view>
+
+          <view class="summary-row group-summary">
+            <text>分组统计</text>
+            <text v-for="item in sourceGroupStats" :key="item.group">{{ item.group }} {{ item.count }}</text>
           </view>
-        </view>
-        <input class="field compact" v-model="batchTestKeyword" placeholder="批量测试关键词，例如 星轨图书馆" />
-        <view class="batch-progress" v-if="batchTesting || batchTestResult">
-          <text>{{ batchProgressText }}</text>
-          <text v-if="batchTestResult">通过 {{ batchTestResult.passed }} / 失败 {{ batchTestResult.failed }} / 跳过 {{ batchTestResult.skipped }}</text>
-        </view>
-        <view class="batch-result-list" v-if="batchTestItems.length">
-          <view class="batch-result-row" v-for="item in batchTestItems" :key="item.sourceId">
-            <text class="batch-result-status" :class="item.status">{{ batchStatusLabel(item.status) }}</text>
-            <text class="batch-result-name">{{ item.name }}</text>
-            <text class="batch-result-message">{{ item.message }}</text>
+
+          <view class="bulk-actions tools-bulk-actions">
+            <button class="small-action" @tap="batchToggleVisibleSources(true)">批量启用当前结果</button>
+            <button class="small-action" @tap="batchToggleVisibleSources(false)">批量停用当前结果</button>
+            <button class="small-action" :loading="backendLoading" @tap="importBackendDemo">后端演示源</button>
+          </view>
+
+          <view class="batch-panel tools-batch-panel">
+            <view class="batch-head">
+              <view>
+                <view class="test-title">批量检测</view>
+                <text class="source-hint">发现页只使用已通过测试的书源。失败源会保留网络失败、规则不兼容、无搜索结果或超时原因。</text>
+              </view>
+              <view class="batch-actions">
+                <button class="small-action primary" :loading="batchTesting" @tap="runBatchSourceTest('all')">测试全部启用源</button>
+                <button class="small-action" :disabled="sourceGroupFilter === '全部分组'" :loading="batchTesting" @tap="runBatchSourceTest('group')">测试当前分组</button>
+              </view>
+            </view>
+            <input class="field compact" v-model="batchTestKeyword" placeholder="批量测试关键词，例如 星轨图书馆" />
+            <view class="batch-progress" v-if="batchTesting || batchTestResult">
+              <text>{{ batchProgressText }}</text>
+              <text v-if="batchTestResult">通过 {{ batchTestResult.passed }} / 失败 {{ batchTestResult.failed }} / 跳过 {{ batchTestResult.skipped }}</text>
+            </view>
+            <view class="batch-result-list" v-if="batchTestItems.length">
+              <view class="batch-result-row" v-for="item in batchTestItems" :key="item.sourceId">
+                <text class="batch-result-status" :class="item.status">{{ batchStatusLabel(item.status) }}</text>
+                <text class="batch-result-name">{{ item.name }}</text>
+                <text class="batch-result-message">{{ item.message }}</text>
+              </view>
+            </view>
           </view>
         </view>
       </view>
@@ -119,8 +133,9 @@
           <view class="check-box active">云</view>
           <view class="source-main">
             <view class="source-name">{{ source.name }}</view>
-            <text class="source-meta">后端 · {{ source.group || '云端源' }} · {{ source.compatibility || '可用' }}</text>
+            <text class="source-meta">后端 · {{ source.group || '云端源' }}</text>
           </view>
+          <text class="source-status-label passed">可搜索</text>
           <text class="status-dot active"></text>
         </view>
 
@@ -130,8 +145,9 @@
           </button>
           <view class="source-main">
             <view class="source-name">{{ source.name }}</view>
-            <text class="source-meta">{{ source.group }} · {{ source.compatibility }} · {{ sourceAvailabilityLabel(source) }}</text>
+            <text class="source-meta">{{ source.group || '未分组' }}</text>
           </view>
+          <text class="source-status-label" :class="sourceAvailabilityClass(source)">{{ sourceAvailabilityLabel(source) }}</text>
           <button class="status-switch" :class="{ active: source.enabled }" @tap.stop="toggleSource(source)">
             {{ source.enabled ? '启用' : '停用' }}
           </button>
@@ -147,27 +163,6 @@
         <view>
           <view class="utility-title">本地 TXT</view>
           <text class="utility-desc">选择本地小说并生成章节</text>
-        </view>
-      </button>
-      <button class="utility-card" @tap="scanSourceQr">
-        <text class="utility-icon">▣</text>
-        <view>
-          <view class="utility-title">扫码导入</view>
-          <text class="utility-desc">真机扫描二维码书源</text>
-        </view>
-      </button>
-      <button class="utility-card" @tap="goSourceMarket">
-        <text class="utility-icon">源</text>
-        <view>
-          <view class="utility-title">源仓库</view>
-          <text class="utility-desc">搜索、预览并导入第三方书源</text>
-        </view>
-      </button>
-      <button class="utility-card" :loading="backendLoading" @tap="importBackendDemo">
-        <text class="utility-icon">云</text>
-        <view>
-          <view class="utility-title">后端演示源</view>
-          <text class="utility-desc">登录后导入 FastAPI 示例源</text>
         </view>
       </button>
     </view>
@@ -367,6 +362,7 @@ export default {
   data() {
     return {
       sources: [],
+      toolsExpanded: false,
       importDrawerVisible: false,
       sourceMenuVisible: false,
       txtVisible: false,
@@ -619,10 +615,17 @@ export default {
     },
     sourceAvailabilityLabel(source) {
       const diagnostics = getSourceDiagnostics(source)
-      if (!diagnostics.compatible) return 'H5 不兼容'
-      if (diagnostics.networkStatus === 'passed') return '网络已通过'
-      if (diagnostics.networkStatus === 'failed') return '网络不可用'
-      return '待网络测试'
+      if (!diagnostics.compatible) return '不兼容'
+      if (diagnostics.networkStatus === 'passed') return '可搜索'
+      if (diagnostics.networkStatus === 'failed') return '不可用'
+      return '待检测'
+    },
+    sourceAvailabilityClass(source) {
+      const diagnostics = getSourceDiagnostics(source)
+      if (!diagnostics.compatible) return 'incompatible'
+      if (diagnostics.networkStatus === 'passed') return 'passed'
+      if (diagnostics.networkStatus === 'failed') return 'failed'
+      return 'untested'
     },
     batchStatusLabel(status) {
       if (status === 'passed') return '通过'
@@ -1126,13 +1129,49 @@ textarea {
   font-size: 23rpx;
 }
 
+.management-tools {
+  margin-top: 18rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: 18rpx;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.tools-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+  padding: 18rpx;
+}
+
+.tools-title {
+  color: var(--app-text);
+  font-size: 28rpx;
+  font-weight: 900;
+}
+
+.tools-toggle {
+  flex-shrink: 0;
+  padding: 9rpx 18rpx;
+  border-radius: 999rpx;
+  color: var(--app-on-accent);
+  font-size: 22rpx;
+  font-weight: 900;
+  background: var(--app-accent-3);
+}
+
+.tools-body {
+  padding: 0 18rpx 18rpx;
+  border-top: 1rpx solid var(--app-border);
+}
+
 .group-summary {
   gap: 12rpx;
 }
 
 .bulk-actions {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 12rpx;
   margin-top: 18rpx;
 }
@@ -1241,6 +1280,39 @@ textarea {
 .source-main {
   min-width: 0;
   flex: 1;
+}
+
+.source-status-label {
+  flex-shrink: 0;
+  min-width: 94rpx;
+  padding: 9rpx 14rpx;
+  border-radius: 999rpx;
+  color: var(--app-muted);
+  font-size: 21rpx;
+  font-weight: 900;
+  line-height: 1;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.source-status-label.passed {
+  color: var(--app-on-accent);
+  background: var(--app-accent-3);
+}
+
+.source-status-label.failed {
+  color: #ffd5c8;
+  background: rgba(216, 90, 58, 0.24);
+}
+
+.source-status-label.incompatible {
+  color: #f4f0e8;
+  background: rgba(96, 117, 125, 0.38);
+}
+
+.source-status-label.untested {
+  color: #ffcf9a;
+  background: rgba(216, 90, 58, 0.12);
 }
 
 .source-name {

@@ -20,3 +20,10 @@ export function buildSourceToggleState(source) {
     toast: `${nextEnabled ? '已启用' : '已停用'}${sourceName}`
   }
 }
+
+export function buildSearchResultKey(item, index = 0) {
+  const type = String((item && item.type) || 'result')
+  const stableId = item && (item.bookId || item.chapterId || item.id || item.url)
+  const title = String((item && item.title) || 'untitled')
+  return `${type}-${stableId || index}-${title}`
+}

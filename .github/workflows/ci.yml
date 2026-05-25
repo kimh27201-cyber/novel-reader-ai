@@ -80,6 +80,9 @@ jobs:
       - name: Run device validation tests
         run: node tests/deviceValidation.test.mjs
 
+      - name: Run product shell tests
+        run: node tests/productShell.test.mjs
+
       - name: Run AI history tests
         run: node tests/aiHistory.test.mjs
 

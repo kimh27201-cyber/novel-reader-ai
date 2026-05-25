@@ -27,7 +27,7 @@
       </view>
       <text class="backend-error" v-if="backend.error">{{ backend.error }}</text>
       <text class="backend-health" v-if="backend.health">{{ backend.health }}</text>
-      <view class="backend-hint" v-if="!backend.user">
+      <view class="backend-hint" v-if="!backend.user && debugModeEnabled">
         <view class="hint-title">FastAPI 未启动时</view>
         <text class="hint-command" v-for="line in backendStartCommands" :key="line">{{ line }}</text>
       </view>
@@ -36,91 +36,102 @@
         <button class="backend-button" :loading="backend.loading" @tap="checkBackendHealth">自检后端</button>
         <button class="backend-button primary" :loading="backend.loading" @tap="loginBackend">登录后端</button>
         <button class="backend-button" :loading="backend.loading" @tap="refreshBackendMe">刷新状态</button>
-        <button class="backend-button" @tap="openSwagger">打开 Swagger</button>
+        <button class="backend-button" v-if="debugModeEnabled" @tap="openSwagger">打开 Swagger</button>
         <button class="backend-button ghost" @tap="logoutBackend">退出</button>
       </view>
     </view>
 
-    <view class="demo-card">
-      <view class="demo-head">
+    <view class="development-card" v-if="debugModeEnabled">
+      <view class="development-head">
         <view>
-          <view class="demo-title">一键演示准备</view>
-          <text class="demo-desc">{{ demoMode.backendMessage }}</text>
+          <text class="eyebrow">DEBUG MODE</text>
+          <view class="development-title">开发与验收</view>
+          <text class="development-desc">调试模式已开启。这里保留打包、自检和录屏准备工具。</text>
         </view>
-        <button class="demo-button primary" @tap="applyDemoMode">预填</button>
+        <button class="debug-off-button" @tap="disableDebugMode">关闭</button>
       </view>
-      <view class="demo-actions">
-        <button class="demo-button" @tap="copyDemoCommands">复制启动命令</button>
-        <button class="demo-button" @tap="goLibrary">去导入页</button>
-      </view>
-      <view class="demo-step" v-for="item in demoModeChecklist" :key="item.id">
-        <text class="demo-state" :class="item.state">{{ item.label }}</text>
-        <view class="demo-copy">
-          <view class="demo-step-title">{{ item.title }}</view>
-          <text class="demo-step-detail">{{ item.detail }}</text>
+
+      <view class="dev-panel demo-card">
+        <view class="demo-head">
+          <view>
+            <view class="demo-title">一键演示准备</view>
+            <text class="demo-desc">{{ demoMode.backendMessage }}</text>
+          </view>
+          <button class="demo-button primary" @tap="applyDemoMode">预填</button>
         </view>
-      </view>
-      <view class="offline-zone">
-        <view class="offline-head">
-          <view class="offline-title">离线兜底</view>
-          <text class="offline-mode">{{ offlineDemoStatus.mode === 'online' ? '在线增强' : '离线可演示' }}</text>
+        <view class="demo-actions">
+          <button class="demo-button" @tap="copyDemoCommands">复制启动命令</button>
+          <button class="demo-button" @tap="goLibrary">去书源页</button>
         </view>
-        <text class="offline-summary">{{ offlineDemoStatus.summary }}</text>
-        <view class="demo-step" v-for="item in offlineDemoStatus.items" :key="item.id">
+        <view class="demo-step" v-for="item in demoModeChecklist" :key="item.id">
           <text class="demo-state" :class="item.state">{{ item.label }}</text>
           <view class="demo-copy">
             <view class="demo-step-title">{{ item.title }}</view>
             <text class="demo-step-detail">{{ item.detail }}</text>
           </view>
         </view>
-      </view>
-    </view>
-
-    <view class="apk-card">
-      <view class="apk-head">
-        <view>
-          <view class="apk-title">APK 展示准备</view>
-          <text class="apk-desc">{{ androidReadiness.summary }}</text>
-        </view>
-        <text class="apk-badge" :class="{ ready: androidReadiness.canRecordDemo }">
-          {{ androidReadiness.readyCount }}/3
-        </text>
-      </view>
-      <view class="apk-check" v-for="item in androidReadiness.items" :key="item.id">
-        <text class="apk-state" :class="item.state">{{ item.label }}</text>
-        <view class="apk-copy">
-          <view class="apk-check-title">{{ item.title }}</view>
-          <text class="apk-check-detail">{{ item.detail }}</text>
+        <view class="offline-zone">
+          <view class="offline-head">
+            <view class="offline-title">本地阅读兜底</view>
+            <text class="offline-mode">{{ offlineDemoStatus.mode === 'online' ? '在线增强' : '本地可读' }}</text>
+          </view>
+          <text class="offline-summary">{{ offlineDemoStatus.summary }}</text>
+          <view class="demo-step" v-for="item in offlineDemoStatus.items" :key="item.id">
+            <text class="demo-state" :class="item.state">{{ item.label }}</text>
+            <view class="demo-copy">
+              <view class="demo-step-title">{{ item.title }}</view>
+              <text class="demo-step-detail">{{ item.detail }}</text>
+            </view>
+          </view>
         </view>
       </view>
-    </view>
 
-    <view class="validation-card">
-      <view class="validation-head">
-        <view>
-          <view class="validation-title">真机验收</view>
-          <text class="validation-desc">
-            {{ deviceValidationSummary.complete ? '真机主链路已验收完成。' : `还剩 ${deviceValidationSummary.remaining} 项未验收。` }}
+      <view class="dev-panel apk-card">
+        <view class="apk-head">
+          <view>
+            <view class="apk-title">APK 展示准备</view>
+            <text class="apk-desc">{{ androidReadiness.summary }}</text>
+          </view>
+          <text class="apk-badge" :class="{ ready: androidReadiness.canRecordDemo }">
+            {{ androidReadiness.readyCount }}/3
           </text>
         </view>
-        <text class="validation-badge" :class="{ ready: deviceValidationSummary.complete }">
-          {{ deviceValidationSummary.passed }}/{{ deviceValidationSummary.total }}
-        </text>
+        <view class="apk-check" v-for="item in androidReadiness.items" :key="item.id">
+          <text class="apk-state" :class="item.state">{{ item.label }}</text>
+          <view class="apk-copy">
+            <view class="apk-check-title">{{ item.title }}</view>
+            <text class="apk-check-detail">{{ item.detail }}</text>
+          </view>
+        </view>
       </view>
-      <view class="validation-actions">
-        <button class="validation-button" @tap="resetDeviceValidation">重置验收</button>
-      </view>
-      <view
-        class="validation-row"
-        v-for="item in deviceValidationItems"
-        :key="item.id"
-        :class="{ checked: deviceValidationState[item.id] }"
-        @tap="toggleDeviceValidation(item.id)"
-      >
-        <text class="validation-check">{{ deviceValidationState[item.id] ? '通过' : '未验' }}</text>
-        <view class="validation-copy">
-          <view class="validation-item-title">{{ item.title }}</view>
-          <text class="validation-item-desc">{{ item.desc }}</text>
+
+      <view class="dev-panel validation-card">
+        <view class="validation-head">
+          <view>
+            <view class="validation-title">真机验收</view>
+            <text class="validation-desc">
+              {{ deviceValidationSummary.complete ? '真机主链路已验收完成。' : `还剩 ${deviceValidationSummary.remaining} 项未验收。` }}
+            </text>
+          </view>
+          <text class="validation-badge" :class="{ ready: deviceValidationSummary.complete }">
+            {{ deviceValidationSummary.passed }}/{{ deviceValidationSummary.total }}
+          </text>
+        </view>
+        <view class="validation-actions">
+          <button class="validation-button" @tap="resetDeviceValidation">重置验收</button>
+        </view>
+        <view
+          class="validation-row"
+          v-for="item in deviceValidationItems"
+          :key="item.id"
+          :class="{ checked: deviceValidationState[item.id] }"
+          @tap="toggleDeviceValidation(item.id)"
+        >
+          <text class="validation-check">{{ deviceValidationState[item.id] ? '通过' : '未验' }}</text>
+          <view class="validation-copy">
+            <view class="validation-item-title">{{ item.title }}</view>
+            <text class="validation-item-desc">{{ item.desc }}</text>
+          </view>
         </view>
       </view>
     </view>
@@ -142,7 +153,7 @@
         <text class="setting-icon">▰</text>
         <view class="setting-copy">
           <view class="setting-title">备份与恢复</view>
-          <text class="setting-desc">复制追书记录，旧版数据可在导入页恢复</text>
+          <text class="setting-desc">复制追书记录，旧版数据可在书源页恢复</text>
         </view>
       </view>
       <view class="setting-item" @tap="openThemePanel">
@@ -158,6 +169,14 @@
           <view class="setting-title">其它设置</view>
           <text class="setting-desc">书源解码边界、缓存和兼容说明</text>
         </view>
+      </view>
+      <view class="setting-item about-item" @tap="onVersionTap">
+        <text class="setting-icon">i</text>
+        <view class="setting-copy">
+          <view class="setting-title">关于</view>
+          <text class="setting-desc">{{ debugModeEnabled ? '调试模式已开启' : '连续点击版本号 7 次开启调试模式' }}</text>
+        </view>
+        <view class="setting-extra">V1</view>
       </view>
     </view>
 
@@ -199,6 +218,11 @@ import {
   toggleDeviceValidationItem
 } from '../../common/deviceValidation.js'
 import { buildDemoModeChecklist, buildDemoModePreset, buildOfflineDemoStatus } from '../../common/demoMode.js'
+import {
+  getDebugModeState,
+  setDebugModeEnabled,
+  tapDebugModeVersion
+} from '../../common/debugMode.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 
 export default {
@@ -218,15 +242,19 @@ export default {
       },
       deviceValidationItems: DEVICE_VALIDATION_ITEMS,
       deviceValidationState: getDeviceValidationState(),
+      debugModeState: getDebugModeState(),
       mainItems: [
-        { id: 'source', icon: '源', title: '书源与导入', desc: '导入演示源、管理外部源和 TXT' },
+        { id: 'source', icon: '源', title: '书源管理', desc: '导入、检测和管理外部书源' },
         { id: 'aiHistory', icon: 'AI', title: 'AI 记录', desc: '查看后端保存的总结和问答历史' },
         { id: 'theme', icon: '♜', title: '主题模式', desc: '选择主题模式' },
-        { id: 'web', icon: '◎', title: '后端服务提示', desc: 'Swagger 和 FastAPI 本地联调状态' }
+        { id: 'web', icon: '◎', title: '后端服务', desc: '账号和 AI 增强能力连接状态' }
       ]
     }
   },
   computed: {
+    debugModeEnabled() {
+      return this.debugModeState.enabled
+    },
     themeVars() {
       return getAppThemeStyle(this.themeId)
     },
@@ -278,6 +306,7 @@ export default {
   },
   onShow() {
     this.themeId = getAppThemeId()
+    this.debugModeState = getDebugModeState()
     this.loadBackendState()
   },
   methods: {
@@ -379,6 +408,19 @@ export default {
     resetDeviceValidation() {
       this.deviceValidationState = resetDeviceValidationState()
       uni.showToast({ title: '验收清单已重置', icon: 'none' })
+    },
+    onVersionTap() {
+      const state = tapDebugModeVersion()
+      this.debugModeState = state
+      if (state.enabled) {
+        uni.showToast({ title: '调试模式已开启', icon: 'none' })
+        return
+      }
+      uni.showToast({ title: `再点 ${state.remaining} 次开启调试模式`, icon: 'none' })
+    },
+    disableDebugMode() {
+      this.debugModeState = setDebugModeEnabled(false)
+      uni.showToast({ title: '调试模式已关闭', icon: 'none' })
     },
     openSwagger() {
       const url = `${apiClient.getBaseUrl()}/docs`
@@ -494,6 +536,61 @@ button::after {
   border-radius: 22rpx;
   background: rgba(47, 48, 45, 0.94);
   box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.04);
+}
+
+.development-card {
+  padding: 26rpx;
+  margin-bottom: 28rpx;
+  border: 1rpx solid rgba(226, 106, 79, 0.18);
+  border-radius: 22rpx;
+  background: rgba(38, 39, 37, 0.96);
+  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.04);
+}
+
+.development-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+  margin-bottom: 18rpx;
+}
+
+.development-title {
+  margin-top: 8rpx;
+  color: #ffffff;
+  font-size: 34rpx;
+  font-weight: 900;
+}
+
+.development-desc {
+  display: block;
+  margin-top: 8rpx;
+  color: #a9aaa4;
+  font-size: 23rpx;
+  line-height: 34rpx;
+}
+
+.debug-off-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  min-width: 112rpx;
+  height: 62rpx;
+  padding: 0 20rpx;
+  border-radius: 16rpx;
+  color: #ffffff;
+  font-size: 23rpx;
+  line-height: 1;
+  background: rgba(216, 90, 58, 0.78);
+}
+
+.dev-panel {
+  margin-bottom: 18rpx;
+}
+
+.dev-panel:last-child {
+  margin-bottom: 0;
 }
 
 .apk-card {

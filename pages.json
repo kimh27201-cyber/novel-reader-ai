@@ -10,7 +10,7 @@
     {
       "path": "pages/library/library",
       "style": {
-        "navigationBarTitleText": "导入",
+        "navigationBarTitleText": "书源",
         "navigationStyle": "custom"
       }
     },
@@ -58,26 +58,34 @@
     }
   ],
   "tabBar": {
-    "color": "#6f817b",
-    "selectedColor": "#e26a4f",
-    "backgroundColor": "#f6fbf8",
-    "borderStyle": "white",
+    "color": "#d7dddc",
+    "selectedColor": "#e25f35",
+    "backgroundColor": "#2b2c2b",
+    "borderStyle": "black",
     "list": [
       {
         "pagePath": "pages/bookshelf/bookshelf",
-        "text": "书架"
+        "text": "",
+        "iconPath": "static/tabbar/bookshelf.png",
+        "selectedIconPath": "static/tabbar/bookshelf-active.png"
       },
       {
         "pagePath": "pages/library/library",
-        "text": "导入"
+        "text": "",
+        "iconPath": "static/tabbar/source.png",
+        "selectedIconPath": "static/tabbar/source-active.png"
       },
       {
         "pagePath": "pages/search/search",
-        "text": "发现"
+        "text": "",
+        "iconPath": "static/tabbar/discover.png",
+        "selectedIconPath": "static/tabbar/discover-active.png"
       },
       {
         "pagePath": "pages/profile/profile",
-        "text": "我的"
+        "text": "",
+        "iconPath": "static/tabbar/profile.png",
+        "selectedIconPath": "static/tabbar/profile-active.png"
       }
     ]
   },
