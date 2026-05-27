@@ -428,6 +428,13 @@ export function addOnlineBookToShelf(book) {
   return normalized
 }
 
+export function deleteOnlineBookFromShelf(bookId) {
+  const current = getOnlineShelfBooks()
+  const next = current.filter(book => book.id !== bookId)
+  writeStorage(ONLINE_BOOKS_KEY, next)
+  return next.length !== current.length
+}
+
 export function pickOnlineSearchSources(sources, limit = ONLINE_SOURCE_SEARCH_LIMIT) {
   return sources
     .filter(source => source.enabled && getSourceDiagnostics(source).searchable)

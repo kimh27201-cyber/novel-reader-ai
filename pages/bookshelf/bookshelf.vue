@@ -5,39 +5,18 @@
         <text>全部</text>
       </view>
       <button class="top-search-button" @tap="goSearch">⌕</button>
-      <button class="top-more-button" @tap="moreMenuVisible = !moreMenuVisible">⋮</button>
+      <button class="top-more-button" @tap="toggleMoreMenu">⋮</button>
     </view>
 
     <view class="more-menu" v-if="moreMenuVisible">
-      <button class="menu-item" @tap="openTool('discover')">发现书源</button>
-      <button class="menu-item" @tap="openTool('import')">导入 TXT</button>
-      <button class="menu-item" @tap="openTool('aiHistory')">AI 记录</button>
-      <button class="menu-item" @tap="openTool('cloud')">后端与设置</button>
+      <button class="menu-item" v-for="item in moreActions" :key="item.id" @tap="handleMoreAction(item.id)">
+        <text class="menu-icon">{{ item.icon }}</text>
+        <text>{{ item.label }}</text>
+      </button>
     </view>
 
-    <view class="tool-grid">
-      <view class="tool" v-for="tool in tools" :key="tool.id" @tap="openTool(tool.id)">
-        <view class="tool-icon" :class="tool.id">
-          <text>{{ tool.icon }}</text>
-        </view>
-        <view class="tool-copy">
-          <text class="tool-name">{{ tool.name }}</text>
-          <text class="tool-desc">{{ tool.desc }}</text>
-        </view>
-      </view>
-    </view>
-
-    <view class="shelf-head">
-      <view class="tab-line">
-        <text class="tab active">全部</text>
-        <text class="tab">在线</text>
-        <text class="tab">TXT</text>
-      </view>
-      <button class="mini-action" @tap="goSearch">搜索</button>
-    </view>
-
-    <scroll-view class="book-list" scroll-y :show-scrollbar="false">
-      <view class="book-row" v-for="book in books" :key="book.id" @tap="openBook(book)">
+    <scroll-view class="book-list" :class="shelfLayout" scroll-y :show-scrollbar="false">
+      <view class="book-row" v-for="book in books" :key="book.id" @tap="openBook(book)" @longpress="confirmDeleteBook(book)">
         <view class="cover-wrap">
           <image class="cover-image" v-if="book.coverUrl" :src="book.coverUrl" mode="aspectFill" />
           <text v-else>{{ shortTitle(book.title) }}</text>
@@ -69,13 +48,15 @@
 </template>
 
 <script>
-import { getBooks } from '../../common/books.js'
+import { deleteShelfBook, getBooks } from '../../common/books.js'
 import { getProgress } from '../../common/reader.js'
 import { getSourceConfigs } from '../../common/bookSources.js'
 import { getAppThemeId, getAppThemeStyle } from '../../common/appTheme.js'
 import apiClient from '../../common/apiClient.js'
 import { listBackendBooks } from '../../common/backendLibrary.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
+
+const SHELF_LAYOUT_KEY = 'bookshelf:layout'
 
 export default {
   data() {
@@ -84,12 +65,15 @@ export default {
       sources: [],
       moreMenuVisible: false,
       themeId: getAppThemeId(),
-      tools: [
-        { id: 'discover', name: '发现书源', desc: '搜索并加入云端书架', icon: '⌕' },
-        { id: 'import', name: '导入 TXT', desc: '本地文本目录识别', icon: 'TXT' },
-        { id: 'cloud', name: '后端登录', desc: '启用 AI 与云同步', icon: '☁' },
-        { id: 'aiHistory', name: 'AI 记录', desc: '总结与问答历史', icon: 'AI' },
-        { id: 'help', name: '演示说明', desc: '5 分钟项目流程', icon: '?' }
+      shelfLayout: 'list',
+      moreActions: [
+        { id: 'refresh', label: '更新书架', icon: '↻' },
+        { id: 'sync', label: '同步云端', icon: '☁' },
+        { id: 'stats', label: '书架统计', icon: 'ⓘ' },
+        { id: 'sort', label: '最近优先', icon: '⇅' },
+        { id: 'layout', label: '切换布局', icon: '▤' },
+        { id: 'export', label: '导出书单', icon: '⇩' },
+        { id: 'cache', label: '缓存状态', icon: '◷' }
       ]
     }
   },
@@ -100,6 +84,7 @@ export default {
   },
   onShow() {
     this.themeId = getAppThemeId()
+    this.shelfLayout = uni.getStorageSync(SHELF_LAYOUT_KEY) || 'list'
     this.refreshBooks()
     this.sources = getSourceConfigs()
   },
@@ -134,33 +119,108 @@ export default {
         url: `/pages/reader/reader?bookId=${book.id}`
       })
     },
-    openTool(id) {
-      if (id === 'discover') {
-        this.goSearch()
+    toggleMoreMenu() {
+      this.moreMenuVisible = !this.moreMenuVisible
+    },
+    async handleMoreAction(id) {
+      this.moreMenuVisible = false
+      if (id === 'refresh') {
+        await this.refreshBooks()
+        uni.showToast({ title: '书架已更新', icon: 'none' })
         return
       }
-      if (id === 'import') {
-        this.goLibrary()
+      if (id === 'sync') {
+        if (!apiClient.getToken()) {
+          uni.showToast({ title: '登录后可同步云端书架', icon: 'none' })
+          return
+        }
+        await this.refreshBooks()
+        uni.showToast({ title: '云端书架已同步', icon: 'none' })
         return
       }
-      if (id === 'aiHistory') {
-        uni.navigateTo({ url: '/pages/aiHistory/aiHistory' })
+      if (id === 'stats') {
+        this.showShelfStats()
         return
       }
-      if (id === 'help') {
-        uni.showToast({ title: '导入书源后，在发现页搜索并加入书架', icon: 'none' })
+      if (id === 'sort') {
+        this.sortBooksByRecent()
         return
       }
-      this.goProfile()
+      if (id === 'layout') {
+        this.toggleShelfLayout()
+        return
+      }
+      if (id === 'export') {
+        this.exportShelfList()
+        return
+      }
+      if (id === 'cache') {
+        this.showCacheState()
+      }
+    },
+    showShelfStats() {
+      const onlineCount = this.books.filter(book => book.source === 'online').length
+      const localCount = this.books.filter(book => book.source === 'local').length
+      const backendCount = this.books.filter(book => book.source === 'backend').length
+      uni.showToast({
+        title: `共 ${this.books.length} 本：在线 ${onlineCount} / TXT ${localCount} / 云端 ${backendCount}`,
+        icon: 'none'
+      })
+    },
+    sortBooksByRecent() {
+      this.books = [...this.books].sort((left, right) => {
+        const leftTime = left.updatedAt || left.addedAt || left.importedAt || 0
+        const rightTime = right.updatedAt || right.addedAt || right.importedAt || 0
+        return rightTime - leftTime
+      })
+      uni.showToast({ title: '已按最近加入排序', icon: 'none' })
+    },
+    toggleShelfLayout() {
+      this.shelfLayout = this.shelfLayout === 'compact' ? 'list' : 'compact'
+      uni.setStorageSync(SHELF_LAYOUT_KEY, this.shelfLayout)
+      uni.showToast({ title: this.shelfLayout === 'compact' ? '紧凑布局' : '列表布局', icon: 'none' })
+    },
+    exportShelfList() {
+      if (!this.books.length) {
+        uni.showToast({ title: '书架为空', icon: 'none' })
+        return
+      }
+      const data = this.books
+        .map((book, index) => `${index + 1}. ${book.title} - ${book.author || '未知作者'} [${book.sourceName || book.category || book.source}]`)
+        .join('\n')
+      uni.setClipboardData({
+        data,
+        success: () => uni.showToast({ title: '书单已复制', icon: 'none' })
+      })
+    },
+    showCacheState() {
+      const cachedChapters = this.books.reduce((total, book) => {
+        return total + (book.chapters || []).filter(chapter => chapter.content || chapter.isCached).length
+      }, 0)
+      uni.showToast({ title: `已缓存 ${cachedChapters} 个章节`, icon: 'none' })
+    },
+    confirmDeleteBook(book) {
+      uni.showModal({
+        title: '移出书架',
+        content: `确定将《${book.title}》从书架移出吗？`,
+        confirmText: '删除',
+        confirmColor: '#e25f35',
+        success: result => {
+          if (result.confirm) this.deleteBookFromShelf(book)
+        }
+      })
+    },
+    deleteBookFromShelf(book) {
+      const removed = deleteShelfBook(book)
+      if (!removed) {
+        uni.showToast({ title: '云端书籍暂不支持本机删除', icon: 'none' })
+        return
+      }
+      this.books = this.books.filter(item => item.id !== book.id)
+      uni.showToast({ title: '已从书架移出', icon: 'none' })
     },
     goSearch() {
       uni.switchTab({ url: '/pages/search/search' })
-    },
-    goLibrary() {
-      uni.switchTab({ url: '/pages/library/library' })
-    },
-    goProfile() {
-      uni.switchTab({ url: '/pages/profile/profile' })
     }
   }
 }
@@ -244,25 +304,26 @@ button::after {
 .more-menu {
   position: absolute;
   z-index: 10;
-  right: 28rpx;
-  top: 122rpx;
-  width: 260rpx;
+  right: 0;
+  top: 116rpx;
+  width: 430rpx;
   overflow: hidden;
   border: 1rpx solid rgba(255, 255, 255, 0.08);
-  border-radius: 16rpx;
-  background: rgba(42, 43, 42, 0.98);
-  box-shadow: 0 22rpx 52rpx rgba(0, 0, 0, 0.34);
+  border-radius: 0;
+  background: rgba(33, 34, 33, 0.98);
+  box-shadow: -24rpx 28rpx 64rpx rgba(0, 0, 0, 0.36);
 }
 
 .menu-item {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  height: 72rpx;
-  padding: 0 24rpx;
-  border-bottom: 1rpx solid rgba(255, 255, 255, 0.06);
+  height: 96rpx;
+  padding: 0 30rpx;
+  border-bottom: 0;
   color: #f2f5f4;
-  font-size: 25rpx;
+  font-family: "KaiTi", "STKaiti", "FZKai-Z03", "PingFang SC", cursive;
+  font-size: 29rpx;
   text-align: left;
   background: transparent;
 }
@@ -271,124 +332,20 @@ button::after {
   background: rgba(226, 95, 53, 0.16);
 }
 
-.tool-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 18rpx;
-  margin-top: 34rpx;
-}
-
-.tool {
-  display: flex;
-  align-items: center;
-  min-height: 132rpx;
-  padding: 20rpx;
-  border-radius: 18rpx;
-}
-
-.tool:nth-child(5) {
-  grid-column: 1 / -1;
-}
-
-.tool-icon {
+.menu-icon {
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  width: 86rpx;
-  height: 86rpx;
-  overflow: hidden;
-  border-radius: 18rpx;
-  color: #ffffff;
-  font-size: 28rpx;
-  font-weight: 900;
-  background: linear-gradient(180deg, #505050 0%, #242424 100%);
-}
-
-.tool-icon.repo {
-  color: #a9f060;
-  font-size: 34rpx;
-  background: linear-gradient(180deg, #222 0%, #070707 100%);
-}
-
-.tool-icon.import {
-  color: #ffffff;
-  font-size: 22rpx;
-  background: linear-gradient(145deg, #2d79ff, #1c52d6);
-}
-
-.tool-icon.cloud {
-  color: #fff2df;
-  background: #050505;
-}
-
-.tool-copy {
-  min-width: 0;
-  flex: 1;
-  margin-left: 18rpx;
-}
-
-.tool-name {
-  display: block;
-  overflow: hidden;
-  color: #d4d4d4;
-  font-family: cursive;
-  font-size: 30rpx;
-  font-weight: 900;
-  line-height: 38rpx;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.tool-desc {
-  display: block;
-  overflow: hidden;
-  margin-top: 8rpx;
-  color: #a8a8a8;
-  font-size: 23rpx;
-  line-height: 32rpx;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.shelf-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 76rpx;
-}
-
-.tab-line {
-  display: flex;
-  align-items: center;
-  gap: 42rpx;
-}
-
-.tab {
-  color: #bcbcbc;
-  font-family: cursive;
-  font-size: 30rpx;
-}
-
-.tab.active {
-  color: #ffffff;
-}
-
-.mini-action {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 56rpx;
-  padding: 0 24rpx;
-  border-radius: 999rpx;
-  color: #ffffff;
-  font-size: 24rpx;
-  line-height: 1;
-  background: #3a3a3a;
+  width: 58rpx;
+  margin-right: 22rpx;
+  color: rgba(255, 255, 255, 0.88);
+  font-family: initial;
+  font-size: 42rpx;
 }
 
 .book-list {
-  height: calc(100vh - 560rpx);
+  height: calc(100vh - 280rpx);
   margin-top: 28rpx;
 }
 
@@ -398,6 +355,11 @@ button::after {
   align-items: flex-start;
   min-height: 236rpx;
   margin-bottom: 28rpx;
+}
+
+.book-row:active {
+  transform: scale(0.992);
+  opacity: 0.86;
 }
 
 .cover-wrap {
@@ -532,21 +494,35 @@ button::after {
   border-radius: 18rpx;
 }
 
-.tool-name,
-.tab,
+.book-list.compact .book-row {
+  min-height: 178rpx;
+  margin-bottom: 18rpx;
+}
+
+.book-list.compact .cover-wrap {
+  width: 126rpx;
+  height: 172rpx;
+}
+
+.book-list.compact .book-title {
+  font-size: 34rpx;
+  line-height: 44rpx;
+}
+
+.book-list.compact .meta-line {
+  margin-top: 8rpx;
+  font-size: 25rpx;
+  line-height: 32rpx;
+}
+
 .book-title,
 .meta-line,
 .empty-title {
   font-family: "KaiTi", "STKaiti", "FZKai-Z03", "PingFang SC", cursive;
 }
 
-.chapter-badge,
-.mini-action {
+.chapter-badge {
   background: rgba(255, 255, 255, 0.10);
-}
-
-.tab.active {
-  color: #f4f0e8;
 }
 
 /* Global app theme */
@@ -560,7 +536,6 @@ button::after {
   box-shadow: var(--app-shadow);
 }
 
-.tool-icon,
 .book-row,
 .empty-box {
   border-color: var(--app-border);
@@ -571,43 +546,22 @@ button::after {
 .top-search-button,
 .top-more-button,
 .book-title,
-.empty-title,
-.tab.active {
+.empty-title {
   color: var(--app-text);
 }
 
-.tool-name,
-.tab,
 .meta-line,
 .empty-desc {
   color: var(--app-muted);
 }
 
 .meta-icon,
-.chapter-badge,
-.mini-action {
+.chapter-badge {
   color: var(--app-on-accent);
   background: var(--app-accent);
 }
 
-.tool-icon.repo,
-.tool-icon.import,
-.tool-icon.cloud {
-  color: var(--app-on-accent);
-  background: linear-gradient(145deg, var(--app-accent) 0%, var(--app-accent-2) 100%);
-}
-
 .cover-wrap {
   background: linear-gradient(145deg, var(--app-accent) 0%, var(--app-accent-3) 100%);
-}
-
-.tool {
-  border: 1rpx solid var(--app-border);
-  background: var(--app-panel-strong);
-  box-shadow: var(--app-shadow);
-}
-
-.tool-desc {
-  color: var(--app-muted);
 }
 </style>

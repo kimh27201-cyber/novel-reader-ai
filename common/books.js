@@ -1,6 +1,7 @@
-import { getOnlineBook, getOnlineShelfBooks } from './bookSources.js'
+import { deleteOnlineBookFromShelf, getOnlineBook, getOnlineShelfBooks } from './bookSources.js'
 
 const IMPORTED_BOOKS_KEY = 'books:imported'
+const HIDDEN_BUILTIN_BOOKS_KEY = 'books:hidden-builtin'
 
 export const builtInBooks = [
   {
@@ -72,6 +73,18 @@ function readImportedBooks() {
 
 function saveImportedBooks(books) {
   uni.setStorageSync(IMPORTED_BOOKS_KEY, books)
+}
+
+function readHiddenBuiltinBookIds() {
+  try {
+    return uni.getStorageSync(HIDDEN_BUILTIN_BOOKS_KEY) || []
+  } catch (error) {
+    return []
+  }
+}
+
+function saveHiddenBuiltinBookIds(bookIds) {
+  uni.setStorageSync(HIDDEN_BUILTIN_BOOKS_KEY, bookIds)
 }
 
 function normalizeText(text) {
@@ -169,12 +182,39 @@ export function deleteImportedBook(bookId) {
   saveImportedBooks(imported)
 }
 
+export function deleteShelfBook(bookOrId) {
+  const book = typeof bookOrId === 'object'
+    ? bookOrId
+    : getBooks().find(item => item.id === bookOrId)
+  if (!book || !book.id) return false
+
+  if (book.source === 'local') {
+    deleteImportedBook(book.id)
+    return true
+  }
+
+  if (book.source === 'online') {
+    return deleteOnlineBookFromShelf(book.id)
+  }
+
+  if (book.source === 'builtin') {
+    const hidden = new Set(readHiddenBuiltinBookIds())
+    hidden.add(book.id)
+    saveHiddenBuiltinBookIds(Array.from(hidden))
+    return true
+  }
+
+  return false
+}
+
 export function getImportedBooks() {
   return readImportedBooks()
 }
 
 export function getBooks() {
-  return [...getOnlineShelfBooks(), ...readImportedBooks(), ...builtInBooks]
+  const hiddenBuiltinIds = new Set(readHiddenBuiltinBookIds())
+  const visibleBuiltIns = builtInBooks.filter(book => !hiddenBuiltinIds.has(book.id))
+  return [...getOnlineShelfBooks(), ...readImportedBooks(), ...visibleBuiltIns]
 }
 
 export function getBook(bookId) {
