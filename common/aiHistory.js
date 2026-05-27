@@ -5,6 +5,17 @@ function safeList(value) {
   return Array.isArray(value) ? value.filter(Boolean) : []
 }
 
+function responseList(value, keys = []) {
+  if (Array.isArray(value)) return value.filter(Boolean)
+  if (!value || typeof value !== 'object') return []
+  const found = keys.map(key => value[key]).find(Array.isArray)
+  if (found) return found.filter(Boolean)
+  if (Array.isArray(value.items)) return value.items.filter(Boolean)
+  if (Array.isArray(value.data)) return value.data.filter(Boolean)
+  if (Array.isArray(value.results)) return value.results.filter(Boolean)
+  return []
+}
+
 function normalizeBackendTime(value) {
   const text = String(value || '').trim()
   if (!text) return ''
@@ -109,10 +120,13 @@ export function mapCallLogRecord(record) {
 }
 
 export function buildAIHistoryItems(summaries = [], chats = [], callLogs = []) {
+  const summaryItems = responseList(summaries, ['summaries'])
+  const chatItems = responseList(chats, ['chats'])
+  const callItems = responseList(callLogs, ['calls', 'call_logs', 'callLogs'])
   return [
-    ...summaries.map(mapSummaryRecord),
-    ...chats.map(mapChatRecord),
-    ...callLogs.map(mapCallLogRecord)
+    ...summaryItems.map(mapSummaryRecord),
+    ...chatItems.map(mapChatRecord),
+    ...callItems.map(mapCallLogRecord)
   ].sort((left, right) => {
     return new Date(normalizeBackendTime(right.createdAt)).getTime() - new Date(normalizeBackendTime(left.createdAt)).getTime()
   })
@@ -125,5 +139,5 @@ export async function loadAIHistory(client = apiClient, filters = {}) {
     client.listChats(filters),
     client.listAiCalls(filters)
   ])
-  return buildAIHistoryItems(summaries || [], chats || [], callLogs || [])
+  return buildAIHistoryItems(summaries, chats, callLogs)
 }

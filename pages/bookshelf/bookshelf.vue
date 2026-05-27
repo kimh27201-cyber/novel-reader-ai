@@ -16,7 +16,7 @@
     </view>
 
     <scroll-view class="book-list" :class="shelfLayout" scroll-y :show-scrollbar="false">
-      <view class="book-row" v-for="book in books" :key="book.id" @tap="openBook(book)" @longpress="confirmDeleteBook(book)">
+      <view class="book-row" v-for="book in books" :key="book.id" @tap="openBook(book)" @longpress="openBookActions(book)">
         <view class="cover-wrap">
           <image class="cover-image" v-if="book.coverUrl" :src="book.coverUrl" mode="aspectFill" />
           <text v-else>{{ shortTitle(book.title) }}</text>
@@ -44,6 +44,27 @@
         <text class="empty-desc">先导入书源或 TXT，然后从“发现”搜索一本书加入书架。</text>
       </view>
     </scroll-view>
+
+    <view class="book-action-mask" v-if="bookActionsVisible" @tap="closeBookActions"></view>
+    <view class="book-action-sheet" v-if="bookActionsVisible && selectedBook">
+      <view class="sheet-cover">
+        <image class="sheet-cover-image" v-if="selectedBook.coverUrl" :src="selectedBook.coverUrl" mode="aspectFill" />
+        <text v-else>{{ shortTitle(selectedBook.title) }}</text>
+      </view>
+      <view class="sheet-title">{{ selectedBook.title }}</view>
+      <text class="sheet-desc">{{ selectedBook.author || '未知作者' }} · {{ selectedBook.category || selectedBook.sourceName || '书架书籍' }}</text>
+      <view class="sheet-meta">
+        <text>目录：{{ chapterCount(selectedBook) }}</text>
+        <text>进度：{{ progressText(selectedBook) }}</text>
+      </view>
+      <view class="sheet-actions">
+        <button class="sheet-action primary" @tap="runBookAction('read')">继续阅读</button>
+        <button class="sheet-action" @tap="runBookAction('toc')">查看目录</button>
+        <button class="sheet-action" @tap="runBookAction('info')">书籍信息</button>
+        <button class="sheet-action" @tap="runBookAction('copy')">复制书名</button>
+        <button class="sheet-action danger" @tap="runBookAction('delete')">移出书架</button>
+      </view>
+    </view>
   </view>
 </template>
 
@@ -64,6 +85,8 @@ export default {
       books: [],
       sources: [],
       moreMenuVisible: false,
+      bookActionsVisible: false,
+      selectedBook: null,
       themeId: getAppThemeId(),
       shelfLayout: 'list',
       moreActions: [
@@ -115,8 +138,65 @@ export default {
       return book.latestChapter || '等待目录解码'
     },
     openBook(book) {
+      if (this.bookActionsVisible) return
       uni.navigateTo({
         url: `/pages/reader/reader?bookId=${book.id}`
+      })
+    },
+    openBookActions(book) {
+      this.moreMenuVisible = false
+      this.selectedBook = book
+      this.bookActionsVisible = true
+    },
+    closeBookActions() {
+      this.bookActionsVisible = false
+      this.selectedBook = null
+    },
+    runBookAction(action) {
+      const book = this.selectedBook
+      if (!book) return
+      if (action === 'read') {
+        this.closeBookActions()
+        this.openBook(book)
+        return
+      }
+      if (action === 'toc') {
+        this.showBookToc(book)
+        return
+      }
+      if (action === 'info') {
+        this.showBookInfo(book)
+        return
+      }
+      if (action === 'copy') {
+        this.copyBookTitle(book)
+        return
+      }
+      if (action === 'delete') {
+        this.confirmDeleteSelectedBook(book)
+      }
+    },
+    showBookToc(book) {
+      const chapters = (book.chapters || []).slice(0, 12)
+      uni.showModal({
+        title: '查看目录',
+        content: chapters.length ? chapters.map((chapter, index) => `${index + 1}. ${chapter.title}`).join('\n') : '当前书籍还没有目录。',
+        showCancel: false,
+        confirmText: '知道了'
+      })
+    },
+    showBookInfo(book) {
+      uni.showModal({
+        title: '书籍信息',
+        content: `书名：${book.title}\n作者：${book.author || '未知作者'}\n来源：${book.sourceName || book.category || book.source || '书架'}\n章节：${chapterCount(book)}\n进度：${progressText(book)}`,
+        showCancel: false,
+        confirmText: '知道了'
+      })
+    },
+    copyBookTitle(book) {
+      uni.setClipboardData({
+        data: book.title || '',
+        success: () => uni.showToast({ title: '书名已复制', icon: 'none' })
       })
     },
     toggleMoreMenu() {
@@ -199,24 +279,25 @@ export default {
       }, 0)
       uni.showToast({ title: `已缓存 ${cachedChapters} 个章节`, icon: 'none' })
     },
-    confirmDeleteBook(book) {
+    confirmDeleteSelectedBook(book = this.selectedBook) {
       uni.showModal({
         title: '移出书架',
         content: `确定将《${book.title}》从书架移出吗？`,
         confirmText: '删除',
         confirmColor: '#e25f35',
         success: result => {
-          if (result.confirm) this.deleteBookFromShelf(book)
+          if (result.confirm) this.deleteSelectedBook(book)
         }
       })
     },
-    deleteBookFromShelf(book) {
+    deleteSelectedBook(book = this.selectedBook) {
       const removed = deleteShelfBook(book)
       if (!removed) {
         uni.showToast({ title: '云端书籍暂不支持本机删除', icon: 'none' })
         return
       }
       this.books = this.books.filter(item => item.id !== book.id)
+      this.closeBookActions()
       uni.showToast({ title: '已从书架移出', icon: 'none' })
     },
     goSearch() {
@@ -463,6 +544,111 @@ button::after {
   color: #a8a8a8;
   font-size: 26rpx;
   line-height: 38rpx;
+}
+
+.book-action-mask {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.42);
+}
+
+.book-action-sheet {
+  position: fixed;
+  z-index: 21;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  box-sizing: border-box;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 32rpx 36rpx calc(36rpx + env(safe-area-inset-bottom));
+  border-radius: 34rpx 34rpx 0 0;
+  text-align: center;
+  background: rgba(33, 34, 33, 0.98);
+  box-shadow: 0 -28rpx 72rpx rgba(0, 0, 0, 0.38);
+}
+
+.sheet-cover {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 178rpx;
+  height: 236rpx;
+  margin: 0 auto;
+  overflow: hidden;
+  border-radius: 14rpx;
+  color: #ffffff;
+  font-size: 34rpx;
+  font-weight: 900;
+  background: linear-gradient(145deg, var(--app-accent) 0%, var(--app-accent-3) 100%);
+}
+
+.sheet-cover-image {
+  width: 100%;
+  height: 100%;
+}
+
+.sheet-title {
+  overflow: hidden;
+  margin-top: 22rpx;
+  color: #ffffff;
+  font-family: "KaiTi", "STKaiti", "FZKai-Z03", "PingFang SC", cursive;
+  font-size: 38rpx;
+  font-weight: 900;
+  line-height: 48rpx;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sheet-desc,
+.sheet-meta {
+  margin-top: 10rpx;
+  color: #b8b8b8;
+  font-size: 25rpx;
+  line-height: 36rpx;
+}
+
+.sheet-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4rpx;
+  margin-top: 16rpx;
+}
+
+.sheet-actions {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 14rpx;
+  margin-top: 28rpx;
+}
+
+.sheet-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 78rpx;
+  padding: 0 18rpx;
+  border-radius: 12rpx;
+  color: #f2f2f2;
+  font-size: 26rpx;
+  line-height: 1;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sheet-action.primary {
+  color: var(--app-on-accent);
+  background: var(--app-accent);
+}
+
+.sheet-action.danger {
+  color: #ffffff;
+  background: rgba(226, 95, 53, 0.82);
+}
+
+.sheet-action:active {
+  transform: scale(0.98);
+  opacity: 0.86;
 }
 
 /* Ink theme polish */

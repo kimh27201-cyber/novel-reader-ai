@@ -131,10 +131,29 @@ async function testLoadAIHistoryUsesBackendClient() {
   assert.deepEqual(items.map(item => item.id), ['call:3', 'chat:2', 'summary:1'])
 }
 
+async function testLoadAIHistoryAcceptsWrappedBackendResponses() {
+  const client = {
+    getToken: () => 'token',
+    listSummaries() {
+      return Promise.resolve({ summaries: [summary] })
+    },
+    listChats() {
+      return Promise.resolve({ chats: [chat] })
+    },
+    listAiCalls() {
+      return Promise.resolve({ calls: [callLog] })
+    }
+  }
+
+  const items = await loadAIHistory(client)
+  assert.deepEqual(items.map(item => item.id), ['call:3', 'chat:2', 'summary:1'])
+}
+
 testMappingRecords()
 testBuildHistoryItemsSortsNewestFirst()
 testFormatHistoryTime()
 await testLoadAIHistoryUsesBackendClient()
+await testLoadAIHistoryAcceptsWrappedBackendResponses()
 
 const aiHistoryPage = readFileSync(new URL('../pages/aiHistory/aiHistory.vue', import.meta.url), 'utf8')
 assert.match(aiHistoryPage, /setFilter\('success'\)/)
