@@ -155,8 +155,13 @@ export function toReadingHistoryPayload({ book, chapter = null, chapterIndex = 0
 
 export async function listBackendBooks(client = apiClient) {
   ensureBackendToken(client)
-  const books = await client.listBooks()
-  const mapped = await Promise.all((books || []).map(async book => {
+  const response = await client.listBooks()
+  const books = Array.isArray(response)
+    ? response
+    : Array.isArray(response && response.books)
+      ? response.books
+      : []
+  const mapped = await Promise.all(books.map(async book => {
     const chapters = await client.listChapters(book.id).catch(() => [])
     return mapBackendBook(book, chapters)
   }))

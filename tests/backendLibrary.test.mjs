@@ -4,6 +4,7 @@ import {
   backendChapterId,
   ensureBackendToken,
   isBackendBookId,
+  listBackendBooks,
   mapBackendBook,
   mapBackendChapter,
   mapBackendSource,
@@ -157,9 +158,37 @@ function testSourceMappingAndAuthGuard() {
   assert.throws(() => ensureBackendToken({ getToken: () => '' }), /请先登录后端/)
 }
 
+async function testListBackendBooksAcceptsWrappedBackendResponse() {
+  const calls = []
+  const books = await listBackendBooks({
+    getToken: () => 'token',
+    listBooks: async () => ({
+      books: [{
+        id: 7,
+        title: 'Wrapped Book',
+        author: 'Author',
+        cover_url: '',
+        description: '',
+        book_url: 'https://book',
+        toc_url: '',
+        source_id: 1
+      }]
+    }),
+    listChapters: async bookId => {
+      calls.push(bookId)
+      return []
+    }
+  })
+
+  assert.equal(books.length, 1)
+  assert.equal(books[0].id, 'backend:7')
+  assert.deepEqual(calls, [7])
+}
+
 testBackendIds()
 testMappingBackendBookAndChapter()
 testPayloads()
 testSourceMappingAndAuthGuard()
+await testListBackendBooksAcceptsWrappedBackendResponse()
 
 console.log('backendLibrary tests passed')
