@@ -14,6 +14,7 @@
         <text>{{ item.label }}</text>
       </button>
     </view>
+    <view class="more-menu-mask" v-if="moreMenuVisible" @tap="closeMoreMenu"></view>
 
     <scroll-view class="book-list" :class="shelfLayout" scroll-y :show-scrollbar="false">
       <view class="book-row" v-for="book in books" :key="book.id" @tap="openBook(book)" @longpress="openBookActions(book)">
@@ -69,7 +70,7 @@
 </template>
 
 <script>
-import { deleteShelfBook, getBooks } from '../../common/books.js'
+import { deleteShelfBook, getBooks, mergeShelfBooks } from '../../common/books.js'
 import { getProgress } from '../../common/reader.js'
 import { getSourceConfigs } from '../../common/bookSources.js'
 import { getAppThemeId, getAppThemeStyle } from '../../common/appTheme.js'
@@ -118,7 +119,7 @@ export default {
       if (!apiClient.getToken()) return
       try {
         const backendBooks = await listBackendBooks()
-        this.books = [...backendBooks, ...localBooks]
+        this.books = mergeShelfBooks(backendBooks, localBooks)
       } catch (error) {
         uni.showToast({ title: friendlyErrorMessage(error, '云端书架加载失败'), icon: 'none' })
       }
@@ -201,6 +202,9 @@ export default {
     },
     toggleMoreMenu() {
       this.moreMenuVisible = !this.moreMenuVisible
+    },
+    closeMoreMenu() {
+      this.moreMenuVisible = false
     },
     async handleMoreAction(id) {
       this.moreMenuVisible = false
@@ -393,6 +397,13 @@ button::after {
   border-radius: 0;
   background: rgba(33, 34, 33, 0.98);
   box-shadow: -24rpx 28rpx 64rpx rgba(0, 0, 0, 0.36);
+}
+
+.more-menu-mask {
+  position: fixed;
+  z-index: 9;
+  inset: 0;
+  background: transparent;
 }
 
 .menu-item {

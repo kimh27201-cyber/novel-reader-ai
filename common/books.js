@@ -211,6 +211,24 @@ export function getImportedBooks() {
   return readImportedBooks()
 }
 
+function shelfBookKey(book) {
+  const title = normalizeText(book && book.title).toLowerCase()
+  if (!title) return String(book && book.id || '')
+  const author = normalizeText(book && book.author).toLowerCase()
+  return `${title}::${author}`
+}
+
+export function mergeShelfBooks(...groups) {
+  const seen = new Set()
+  return groups.flat().filter(book => {
+    if (!book) return false
+    const key = shelfBookKey(book)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
 export function getBooks() {
   const hiddenBuiltinIds = new Set(readHiddenBuiltinBookIds())
   const visibleBuiltIns = builtInBooks.filter(book => !hiddenBuiltinIds.has(book.id))
