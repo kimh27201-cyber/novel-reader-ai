@@ -115,12 +115,17 @@ export default {
   methods: {
     async refreshBooks() {
       const localBooks = getBooks()
-      this.books = localBooks
-      if (!apiClient.getToken()) return
+      if (!apiClient.getToken()) {
+        this.books = localBooks
+        return
+      }
       try {
         const backendBooks = await listBackendBooks()
         this.books = mergeShelfBooks(backendBooks, localBooks)
       } catch (error) {
+        if (!this.books.length) {
+          this.books = localBooks
+        }
         uni.showToast({ title: friendlyErrorMessage(error, '云端书架加载失败'), icon: 'none' })
       }
     },
