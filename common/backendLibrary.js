@@ -134,8 +134,15 @@ export function toBackendBookPayload(book) {
 }
 
 export function toBackendChapterPayload(chapter) {
+  const chapterIndex = chapter.chapterIndex !== undefined
+    ? chapter.chapterIndex
+    : chapter.index !== undefined
+      ? chapter.index
+      : chapter.chapter_index !== undefined
+        ? chapter.chapter_index
+        : 0
   return {
-    chapter_index: Number(chapter.chapterIndex ?? chapter.index ?? chapter.chapter_index ?? 0),
+    chapter_index: Number(chapterIndex),
     title: text(chapter.title, '未命名章节'),
     url: chapter.url || '',
     content: chapter.content || '',
@@ -245,14 +252,30 @@ export async function loadBackendSourceContent(book, chapter, client = apiClient
   const result = await client.loadSourceContent(book.sourceId, {
     chapterUrl: chapter.url
   })
-  return result.content || ''
+  const content = result.content || ''
+  const chapterId = backendChapterId(chapter)
+  if (content && chapterId && typeof client.updateChapterContent === 'function') {
+    await client.updateChapterContent(chapterId, content)
+  }
+  return content
 }
 
 export async function addBackendBookWithChapters(book, chapters, client = apiClient) {
   ensureBackendToken(client)
+  const normalizedChapters = [...(chapters || [])]
+  if (book.sourceId && normalizedChapters.length && !normalizedChapters[0].content) {
+    const result = await client.loadSourceContent(book.sourceId, {
+      chapterUrl: normalizedChapters[0].url
+    })
+    normalizedChapters[0] = {
+      ...normalizedChapters[0],
+      content: result.content || '',
+      isCached: !!result.content
+    }
+  }
   const createdBook = await client.createBook(toBackendBookPayload(book))
   const createdChapters = []
-  for (const chapter of chapters) {
+  for (const chapter of normalizedChapters) {
     createdChapters.push(await client.createChapter(createdBook.id, toBackendChapterPayload(chapter)))
   }
   return mapBackendBook(createdBook, createdChapters)

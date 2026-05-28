@@ -1,6 +1,6 @@
-# Android APK 打包说明
+# Android APK v1.0 打包说明
 
-本项目当前打包目标分两步：先产出面试/展示用 APK，再补正式发布包材料。展示包默认使用局域网后端和 HBuilderX 测试证书。
+本项目 v1.0 打包目标分两步：先产出可安装的 Android 展示 APK，再补正式发布包材料。展示包默认使用局域网后端和 HBuilderX 测试证书。
 
 ## 打包前收口
 
@@ -61,7 +61,7 @@ cd D:\Codex\novel-reader-uniapp\backend
 4. Android 权限至少保留相机权限，用于扫码导入。
 5. 菜单选择：`发行` -> `原生App-云打包` -> `Android` -> `APK`。
 6. 签名选择 HBuilderX 测试证书。
-7. 输出文件命名建议：`novel-reader-0.1.0-android-demo.apk`。
+7. 输出文件命名建议：`novel-reader-1.0.0-android-v1.apk`。
 8. APK 产物保留在 HBuilderX 默认输出目录或 `unpackage/release/apk/`，不要提交到 Git。
 
 ## 真机验收

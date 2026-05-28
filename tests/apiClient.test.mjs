@@ -97,6 +97,18 @@ async function testAIHistoryRoutesUseFilters() {
   assert.equal(calls[2].url, 'http://127.0.0.1:8000/api/ai/calls?call_type=summary&status_value=failed')
 }
 
+async function testBaseUrlWhitespaceIsNormalized() {
+  const { client, calls } = createClient(() => ({
+    statusCode: 200,
+    data: { status: 'ok' }
+  }))
+
+  assert.equal(client.setBaseUrl(' http://127.0.0.1: 8000/// '), 'http://127.0.0.1:8000')
+  await client.healthCheck()
+
+  assert.equal(calls[0].url, 'http://127.0.0.1:8000/api/health')
+}
+
 async function testLibraryAndReadingHistoryRoutes() {
   const { client, calls } = createClient(() => ({
     statusCode: 200,
@@ -201,6 +213,7 @@ async function testPromiseRequestAdapterIsSupported() {
 }
 
 await testLoginStoresToken()
+await testBaseUrlWhitespaceIsNormalized()
 await testAuthorizedRequestUsesBearerToken()
 await testSummaryAndChatUseBackendRoutes()
 await testAIHistoryRoutesUseFilters()

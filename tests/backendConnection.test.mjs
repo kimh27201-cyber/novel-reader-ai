@@ -8,6 +8,7 @@ import {
 import { createApiClient } from '../common/apiClient.js'
 
 assert.equal(normalizeBackendBaseUrl(' http://127.0.0.1:8000/// '), 'http://127.0.0.1:8000')
+assert.equal(normalizeBackendBaseUrl(' http://127.0.0.1: 8000/// '), 'http://127.0.0.1:8000')
 assert.equal(normalizeBackendBaseUrl(''), 'http://127.0.0.1:8000')
 assert.equal(normalizeBackendBaseUrl('192.168.1.8:8000'), 'http://192.168.1.8:8000')
 

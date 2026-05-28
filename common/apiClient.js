@@ -21,7 +21,7 @@ function getUni() {
 }
 
 function normalizeBaseUrl(value) {
-  return String(value || DEFAULT_BASE_URL).trim().replace(/\/+$/, '') || DEFAULT_BASE_URL
+  return String(value || DEFAULT_BASE_URL).replace(/\s+/g, '').replace(/\/+$/, '') || DEFAULT_BASE_URL
 }
 
 function defaultRequest(options) {
@@ -180,6 +180,12 @@ export function createApiClient(deps = {}) {
     },
     getChapter(chapterId) {
       return request(`/api/chapters/${chapterId}`)
+    },
+    updateChapterContent(chapterId, content) {
+      return request(`/api/chapters/${chapterId}/content`, {
+        method: 'PATCH',
+        data: { content }
+      })
     },
     saveReadingHistory(payload) {
       return request('/api/reading-history', {

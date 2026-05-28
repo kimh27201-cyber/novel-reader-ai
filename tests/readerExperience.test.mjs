@@ -83,5 +83,7 @@ assert.match(reader, /v-if="controlsVisible"/)
 assert.doesNotMatch(reader, /controlsVisible \|\| !prefs\.immersiveMode/)
 assert.match(reader, /touch-hit/)
 assert.match(reader, /min-width: 88rpx/)
+assert.match(reader, /formatChapterLoadError/)
+assert.match(reader, /章节正文解析为空/)
 
 console.log('readerExperience tests passed')

@@ -400,8 +400,15 @@ async def load_content(source: dict[str, Any], chapter_url: str) -> str:
     if not rule:
         raise SourceParseError("This source has no content rule")
     spec = parse_request_spec(chapter_url, {"chapterUrl": chapter_url}, source["base_url"])
-    payload = parse_response_payload(await request_text(spec))
+    response_text = await request_text(spec)
+    payload = parse_response_payload(response_text)
     content = pick_text(payload, rule, ["content", "text"], {"chapterUrl": chapter_url, "$": payload})
     if not content:
-        raise SourceParseError("Content parsed empty")
+        rule_text = field_rule(rule, ["content", "text"]) or "ruleContent.content"
+        raise SourceParseError(
+            "正文解析为空："
+            f"url={chapter_url}；"
+            f"rule=ruleContent.content({rule_text})；"
+            f"响应长度={len(str(response_text or ''))}"
+        )
     return content

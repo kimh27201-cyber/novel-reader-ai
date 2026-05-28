@@ -18,7 +18,7 @@ function getHost(value) {
 }
 
 export function normalizeBackendBaseUrl(value) {
-  const raw = String(value || '').trim()
+  const raw = String(value || '').replace(/\s+/g, '')
   const withProtocol = raw ? (hasProtocol(raw) ? raw : `http://${raw}`) : DEFAULT_BACKEND_BASE_URL
   return withProtocol.replace(/\/+$/, '') || DEFAULT_BACKEND_BASE_URL
 }

@@ -35,6 +35,8 @@ assert.match(ready.items[3].detail, /DCloud AppID/)
 assert.match(ready.items[4].detail, /HBuilderX/)
 
 const manifest = JSON.parse(readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'))
+assert.equal(manifest.versionName, '1.0.0')
+assert.equal(manifest.versionCode, '10000')
 assert.ok(manifest['app-plus'].distribute.android.permissions.includes('android.permission.CAMERA'))
 
 const profile = readFileSync(new URL('../pages/profile/profile.vue', import.meta.url), 'utf8')
@@ -43,5 +45,8 @@ assert.match(profile, /APK 展示准备/)
 
 const ci = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8')
 assert.match(ci, /androidReadiness\.test\.mjs/)
+
+const packaging = readFileSync(new URL('../docs/PACKAGING_ANDROID.md', import.meta.url), 'utf8')
+assert.match(packaging, /novel-reader-1\.0\.0-android-v1\.apk/)
 
 console.log('androidReadiness tests passed')

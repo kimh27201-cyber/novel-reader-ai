@@ -11,6 +11,11 @@ unpackage/
 .hbuilderx/
 .idea/
 
+# Android local packaging output
+android-webview-shell/assets/
+android-webview-shell/build/
+release/
+
 # OS
 Thumbs.db
 .DS_Store

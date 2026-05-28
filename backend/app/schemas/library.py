@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class BookCreate(BaseModel):
@@ -35,6 +35,17 @@ class ChapterCreate(BaseModel):
     url: str = Field(default="", max_length=1000)
     content: str = ""
     is_cached: bool = False
+
+
+class ChapterContentUpdate(BaseModel):
+    content: str = Field(min_length=1)
+
+    @field_validator("content")
+    @classmethod
+    def content_must_not_be_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("content must not be blank")
+        return value
 
 
 class ChapterRead(BaseModel):

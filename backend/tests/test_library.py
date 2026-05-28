@@ -118,6 +118,52 @@ def test_get_chapter_requires_current_user_ownership():
     assert response.status_code == 404
 
 
+def test_update_chapter_content_caches_owned_chapter():
+    headers = auth_headers()
+    book = create_book(headers)
+    chapter = create_chapter(headers, book["id"])
+
+    response = client.patch(
+        f"/api/chapters/{chapter['id']}/content",
+        headers=headers,
+        json={"content": "新的正文内容\n第二段。"},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["content"] == "新的正文内容\n第二段。"
+    assert body["is_cached"] is True
+
+
+def test_update_chapter_content_rejects_empty_content():
+    headers = auth_headers()
+    book = create_book(headers)
+    chapter = create_chapter(headers, book["id"])
+
+    response = client.patch(
+        f"/api/chapters/{chapter['id']}/content",
+        headers=headers,
+        json={"content": "   "},
+    )
+
+    assert response.status_code == 422
+
+
+def test_update_chapter_content_requires_current_user_ownership():
+    first_headers = auth_headers()
+    second_headers = auth_headers("other", "other@example.com")
+    book = create_book(first_headers)
+    chapter = create_chapter(first_headers, book["id"])
+
+    response = client.patch(
+        f"/api/chapters/{chapter['id']}/content",
+        headers=second_headers,
+        json={"content": "不应该写入的正文"},
+    )
+
+    assert response.status_code == 404
+
+
 def test_save_and_read_reading_history():
     headers = auth_headers()
     book = create_book(headers)

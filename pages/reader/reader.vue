@@ -479,7 +479,7 @@ export default {
         } catch (error) {
           if (this.chapterLoadToken !== token) return
           this.loadingChapter = false
-          this.chapterLoadError = friendlyErrorMessage(error, '请稍后重试，或换一个可用书源。')
+          this.chapterLoadError = this.formatChapterLoadError(error, '请稍后重试，或换一个可用书源。')
           this.pages = ['这一章暂时没有解码成功。你可以轻点重试，或者回到目录换一章。']
         }
         this.pageIndex = Math.max(0, Math.min(this.pageIndex, this.pages.length - 1))
@@ -504,7 +504,7 @@ export default {
         } catch (error) {
           if (this.chapterLoadToken !== token) return
           this.loadingChapter = false
-          this.chapterLoadError = friendlyErrorMessage(error, '后端章节解析失败')
+          this.chapterLoadError = this.formatChapterLoadError(error, '后端章节解析失败')
           this.pages = ['这一章暂时没有解析成功。你可以重试，或回到目录换一章。']
         }
         this.pageIndex = Math.max(0, Math.min(this.pageIndex, this.pages.length - 1))
@@ -517,6 +517,13 @@ export default {
       this.pages = splitChapter(currentChapter.content, this.prefs.fontSize, this.prefs)
       this.pageIndex = Math.max(0, Math.min(this.pageIndex, this.pages.length - 1))
       this.persist()
+    },
+    formatChapterLoadError(error, fallback) {
+      const message = friendlyErrorMessage(error, fallback)
+      if (/Content parsed empty|正文解析为空/i.test(message)) {
+        return '章节正文解析为空。请刷新演示书源、重新加入书架，或换一个通过正文测试的书源。'
+      }
+      return message
     },
     persist() {
       saveProgress(this.bookId, {

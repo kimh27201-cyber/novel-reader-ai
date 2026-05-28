@@ -2,8 +2,8 @@
   "name": "解码阅读",
   "appid": "__UNI__NOVELREADER",
   "description": "阅读书源解码、本地 TXT 导入与在线阅读 App",
-  "versionName": "0.1.0",
-  "versionCode": "100",
+  "versionName": "1.0.0",
+  "versionCode": "10000",
   "transformPx": false,
   "app-plus": {
     "usingComponents": true,

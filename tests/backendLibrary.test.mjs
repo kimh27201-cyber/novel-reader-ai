@@ -4,7 +4,9 @@ import {
   backendChapterId,
   ensureBackendToken,
   isBackendBookId,
+  addBackendBookWithChapters,
   listBackendBooks,
+  loadBackendSourceContent,
   mapBackendBook,
   mapBackendChapter,
   mapBackendSource,
@@ -185,10 +187,62 @@ async function testListBackendBooksAcceptsWrappedBackendResponse() {
   assert.deepEqual(calls, [7])
 }
 
+async function testLoadBackendSourceContentWritesResolvedContentBackToChapter() {
+  const calls = []
+  const content = await loadBackendSourceContent({
+    sourceId: 5
+  }, {
+    backendId: 12,
+    url: 'https://chapter'
+  }, {
+    getToken: () => 'token',
+    loadSourceContent: async (sourceId, payload) => {
+      calls.push(['load', sourceId, payload.chapterUrl])
+      return { content: '解析后的正文' }
+    },
+    updateChapterContent: async (chapterId, contentValue) => {
+      calls.push(['update', chapterId, contentValue])
+      return { id: chapterId, content: contentValue, is_cached: true }
+    }
+  })
+
+  assert.equal(content, '解析后的正文')
+  assert.deepEqual(calls, [
+    ['load', 5, 'https://chapter'],
+    ['update', 12, '解析后的正文']
+  ])
+}
+
+async function testAddBackendBookWithChaptersPreflightsFirstChapterBeforeCreatingBook() {
+  let createBookCalled = false
+  await assert.rejects(() => addBackendBookWithChapters({
+    sourceId: 8,
+    title: 'Book',
+    author: 'Author',
+    bookUrl: 'https://book'
+  }, [{
+    index: 0,
+    title: 'Chapter 1',
+    url: 'https://chapter'
+  }], {
+    getToken: () => 'token',
+    loadSourceContent: async () => {
+      throw new Error('正文解析为空')
+    },
+    createBook: async () => {
+      createBookCalled = true
+      return { id: 1 }
+    }
+  }), /正文解析为空/)
+  assert.equal(createBookCalled, false)
+}
+
 testBackendIds()
 testMappingBackendBookAndChapter()
 testPayloads()
 testSourceMappingAndAuthGuard()
 await testListBackendBooksAcceptsWrappedBackendResponse()
+await testLoadBackendSourceContentWritesResolvedContentBackToChapter()
+await testAddBackendBookWithChaptersPreflightsFirstChapterBeforeCreatingBook()
 
 console.log('backendLibrary tests passed')

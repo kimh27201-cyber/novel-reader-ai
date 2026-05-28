@@ -179,3 +179,26 @@ def test_toc_upstream_request_failure_returns_bad_gateway(monkeypatch):
     body = response.json()
     assert body["error"]["code"] == "bad_gateway"
     assert "Source request failed" in body["error"]["message"]
+
+
+def test_content_empty_error_includes_diagnostics(monkeypatch):
+    headers = auth_headers()
+    source = import_sample_source(headers)
+
+    async def fake_request_text(spec):
+        return "<html><body><main id=\"other\">没有正文命中</main></body></html>"
+
+    monkeypatch.setattr("app.services.source_parser.request_text", fake_request_text)
+
+    response = client.post(
+        f"/api/sources/{source['id']}/content",
+        headers=headers,
+        json={"chapter_url": "https://example.com/book/1/empty"},
+    )
+
+    assert response.status_code == 400
+    detail = response.json()["error"]["message"]
+    assert "正文解析为空" in detail
+    assert "https://example.com/book/1/empty" in detail
+    assert "ruleContent.content" in detail
+    assert "响应长度" in detail

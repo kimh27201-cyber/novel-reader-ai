@@ -7,6 +7,7 @@ from app.models.models import Book, Chapter, ReadingHistory, User
 from app.schemas.library import (
     BookCreate,
     BookRead,
+    ChapterContentUpdate,
     ChapterCreate,
     ChapterRead,
     ReadingHistoryRead,
@@ -124,6 +125,21 @@ def get_chapter(
     current_user: User = Depends(get_current_user),
 ) -> Chapter:
     return get_owned_chapter(chapter_id, current_user.id, db)
+
+
+@router.patch("/api/chapters/{chapter_id}/content", response_model=ChapterRead)
+def update_chapter_content(
+    chapter_id: int,
+    payload: ChapterContentUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> Chapter:
+    chapter = get_owned_chapter(chapter_id, current_user.id, db)
+    chapter.content = payload.content
+    chapter.is_cached = True
+    db.commit()
+    db.refresh(chapter)
+    return chapter
 
 
 @router.post("/api/reading-history", response_model=ReadingHistoryRead)
