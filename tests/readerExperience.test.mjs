@@ -85,5 +85,7 @@ assert.match(reader, /touch-hit/)
 assert.match(reader, /min-width: 88rpx/)
 assert.match(reader, /formatChapterLoadError/)
 assert.match(reader, /章节正文解析为空/)
+assert.match(reader, /loadStatus: 'failed'/)
+assert.match(reader, /errorMessage: this\.chapterLoadError/)
 
 console.log('readerExperience tests passed')

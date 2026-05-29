@@ -46,6 +46,7 @@ export function normalizeSourceConfig(input, defaults = {}) {
     baseUrl: trimTrailingSlash(baseUrl),
     group: raw.bookSourceGroup || raw.group || defaults.group || '用户导入',
     enabled: input.enabled !== undefined ? !!input.enabled : defaults.enabled !== undefined ? !!defaults.enabled : true,
+    recommended: input.recommended !== undefined ? !!input.recommended : raw.recommended !== undefined ? !!raw.recommended : !!defaults.recommended,
     raw,
     compatibility: incompatible ? '不兼容 v1：包含 JS/Cookie/登录类规则' : 'v1 兼容',
     importedAt: input.importedAt !== undefined ? input.importedAt : defaults.importedAt !== undefined ? defaults.importedAt : Date.now(),
@@ -320,8 +321,8 @@ function applySelectorPipeline(input, rule) {
   const tokens = text.split('@').map(item => item.trim()).filter(Boolean)
   let value = input
   tokens.forEach((token, index) => {
-    if (index === 0 && !isAccessor(token)) {
-      value = selectValues(value, token)
+    if ((index === 0 && !isAccessor(token)) || isSelectorToken(token)) {
+      value = selectValues(value, normalizeSelectorToken(token))
       return
     }
     value = applyAccessor(value, token)
@@ -422,7 +423,7 @@ function parseSimpleSelector(selector) {
 
 function applyAccessor(input, accessor) {
   const token = String(accessor || '').replace(/^@/, '')
-  if (token === 'text') return extractText(input)
+  if (token === 'text' || token === 'textNodes' || token === 'ownText') return extractText(input)
   if (token === 'html') return asArray(input).join('')
   if (/^\d+$/.test(token)) return asArray(input)[Number(token)] || ''
   if (token.startsWith('$.')) return readJsonPath(input, token)
@@ -482,7 +483,19 @@ function splitFallbacks(rule) {
 }
 
 function isAccessor(token) {
-  return /^(text|html|href|src|content|value|\d+|\$\.)/.test(token)
+  return /^(text|textNodes|ownText|html|href|src|content|value|\d+|\$\.)/.test(token)
+}
+
+function isSelectorToken(token) {
+  return /^(class\.|id\.|tag\.|#|\.)/.test(String(token || ''))
+}
+
+function normalizeSelectorToken(token) {
+  const value = String(token || '').trim()
+  if (value.startsWith('class.')) return `.${value.slice(6)}`
+  if (value.startsWith('id.')) return `#${value.slice(3)}`
+  if (value.startsWith('tag.')) return value.slice(4)
+  return value
 }
 
 function asArray(value) {

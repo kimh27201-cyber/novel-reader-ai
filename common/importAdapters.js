@@ -1,3 +1,5 @@
+import { detectSourceImportPayload } from './sourceEngine.js'
+
 function getUniApi(api) {
   return api || globalThis.uni || {}
 }
@@ -22,6 +24,40 @@ export function normalizePickedFile(result = {}) {
 
 export function getPickedFileName(file = {}) {
   return String(file.name || file.path || '未命名').split(/[\\/]/).pop()
+}
+
+export function normalizeImportPayload(value, options = {}) {
+  const fileName = String(options.fileName || '').trim()
+  const text = stripTextBom(String(value || '').trim())
+  const importType = String(options.importType || '').trim().toLowerCase()
+
+  if (importType === 'txt' || /\.txt$/i.test(fileName)) {
+    return {
+      type: 'txt',
+      url: '',
+      text,
+      fileName
+    }
+  }
+
+  const payload = detectSourceImportPayload(text)
+  return {
+    type: payload.type,
+    url: payload.type === 'json' ? '' : payload.value,
+    text: payload.type === 'json' ? payload.value : '',
+    fileName
+  }
+}
+
+export async function readImportFilePayload(file = {}, options = {}, env = globalThis) {
+  if (options.extension) {
+    assertFileExtension(file, options.extension, options.message)
+  }
+  const text = await readPickedFileText(file, env)
+  return normalizeImportPayload(text, {
+    fileName: getPickedFileName(file),
+    importType: options.importType
+  })
 }
 
 export function assertFileExtension(file, extension, message) {
@@ -138,10 +174,12 @@ export function getClipboardText(api) {
   })
 }
 
-export function scanImportPayload(api) {
+export function scanImportPayload(api, options = {}) {
   const uniApi = getUniApi(api)
   if (!uniApi.scanCode) {
-    return Promise.reject(new Error('H5 预览不支持扫码，请用真机测试或剪贴板导入'))
+    return scanWithWebBarcodeDetector(options.runtime || globalThis, options).catch(error => {
+      throw new Error(error && error.message ? error.message : '当前环境不支持扫码，请用剪贴板或网络导入')
+    })
   }
 
   return new Promise((resolve, reject) => {
@@ -157,6 +195,104 @@ export function scanImportPayload(api) {
       },
       fail: () => reject(new Error('未完成扫码'))
     })
+  })
+}
+
+export function scanWithWebBarcodeDetector(runtime = globalThis, options = {}) {
+  const detectorClass = runtime.BarcodeDetector || globalThis.BarcodeDetector
+  const mediaDevices = runtime.navigator && runtime.navigator.mediaDevices
+  const documentRef = runtime.document || globalThis.document
+  const requestFrame = runtime.requestAnimationFrame || globalThis.requestAnimationFrame
+  const cancelFrame = runtime.cancelAnimationFrame || globalThis.cancelAnimationFrame
+
+  if (!detectorClass || !mediaDevices || !mediaDevices.getUserMedia || !documentRef || !documentRef.createElement) {
+    return Promise.reject(new Error('当前 WebView 不支持摄像头扫码，请改用剪贴板或网络导入'))
+  }
+
+  return new Promise((resolve, reject) => {
+    let stream = null
+    let frameId = 0
+    let finished = false
+    let overlay = null
+    let video = null
+    let timeoutId = 0
+
+    const finish = (error, value) => {
+      if (finished) return
+      finished = true
+      if (timeoutId) clearTimeout(timeoutId)
+      if (stream && stream.getTracks) {
+        stream.getTracks().forEach(track => {
+          if (track && track.stop) track.stop()
+        })
+      }
+      if (overlay && overlay.remove) overlay.remove()
+      if (frameId && cancelFrame) cancelFrame(frameId)
+      if (error) reject(error)
+      else resolve(value)
+    }
+
+    const buildOverlay = () => {
+      overlay = documentRef.createElement('div')
+      overlay.className = 'novel-scan-overlay'
+      overlay.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#050607;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;'
+
+      video = documentRef.createElement('video')
+      video.playsInline = true
+      video.muted = true
+      video.style.cssText = 'width:100%;height:70%;object-fit:cover;background:#000;'
+
+      const label = documentRef.createElement('div')
+      label.textContent = '将二维码放入取景框'
+      label.style.cssText = 'padding:16px;font-size:16px;'
+
+      const cancel = documentRef.createElement('button')
+      cancel.textContent = '取消扫码'
+      cancel.style.cssText = 'margin-top:12px;padding:10px 18px;border:0;border-radius:6px;background:#e25f35;color:#fff;'
+      if (cancel.addEventListener) {
+        cancel.addEventListener('click', () => finish(new Error('未完成扫码')))
+      }
+
+      overlay.appendChild(video)
+      overlay.appendChild(label)
+      overlay.appendChild(cancel)
+      documentRef.body.appendChild(overlay)
+    }
+
+    const start = async () => {
+      try {
+        buildOverlay()
+        const detector = new detectorClass({ formats: ['qr_code'] })
+        stream = await mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' },
+          audio: false
+        })
+        video.srcObject = stream
+        if (video.play) await video.play()
+
+        const scanFrame = async () => {
+          if (finished) return
+          try {
+            const codes = await detector.detect(video)
+            const raw = codes && codes[0] && (codes[0].rawValue || codes[0].rawData)
+            if (raw) {
+              finish(null, String(raw).trim())
+              return
+            }
+          } catch (error) {
+            // Keep scanning while the video warms up.
+          }
+          frameId = requestFrame ? requestFrame(scanFrame) : setTimeout(scanFrame, 120)
+        }
+
+        frameId = requestFrame ? requestFrame(scanFrame) : setTimeout(scanFrame, 120)
+        timeoutId = setTimeout(() => finish(new Error('扫码超时，请重试或使用剪贴板导入')), options.timeoutMs || 30000)
+      } catch (error) {
+        finish(new Error('无法打开摄像头，请检查相机权限或使用剪贴板导入'))
+      }
+    }
+
+    start()
   })
 }
 
@@ -238,4 +374,8 @@ export function readAndroidContentUriText(path, env = globalThis) {
       reject(new Error('读取文件失败'))
     }
   })
+}
+
+function stripTextBom(value) {
+  return String(value || '').replace(/^\ufeff/, '')
 }

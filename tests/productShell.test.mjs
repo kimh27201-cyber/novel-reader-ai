@@ -42,6 +42,7 @@ resetDebugModeTapState()
 assert.equal(getDebugModeState().tapCount, 0)
 
 const pages = JSON.parse(readFileSync(new URL('../pages.json', import.meta.url), 'utf8'))
+const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8')
 const tabLabels = pages.tabBar.list.map(item => item.text)
 assert.deepEqual(tabLabels, ['', '', '', ''])
 assert.equal(pages.pages.find(item => item.path === 'pages/library/library').style.navigationBarTitleText, '书源')
@@ -101,5 +102,8 @@ assert.doesNotMatch(bookshelf, /AI 记录/)
 assert.doesNotMatch(bookshelf, /后端与设置/)
 assert.doesNotMatch(bookshelf, /goRecent/)
 assert.doesNotMatch(bookshelf, /top-icon star/)
+
+assert.match(readme, /adb reverse tcp:8000 tcp:8000/)
+assert.match(readme, /http:\/\/127\.0\.0\.1:8000/)
 
 console.log('productShell tests passed')

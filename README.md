@@ -108,6 +108,17 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 手机端“我的”页后端地址填写电脑局域网地址，例如 `http://192.168.x.x:8000`。不要在真机里使用 `127.0.0.1` 或 `localhost`。
 
+如果电脑连接的是手机热点，优先使用 USB 调试转发，不依赖局域网 IP：
+
+```powershell
+cd D:\Codex\novel-reader-uniapp\backend
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+D:\program\Android\SDK\platform-tools\adb.exe reverse tcp:8000 tcp:8000
+```
+
+开启转发后，手机端“我的”页后端地址填写 `http://127.0.0.1:8000`。
+如果 `adb` 已加入 PATH，也可以直接运行 `adb reverse tcp:8000 tcp:8000`。
+
 打开：
 
 - Swagger: http://127.0.0.1:8000/docs

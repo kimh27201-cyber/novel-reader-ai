@@ -31,6 +31,15 @@
 
       <view class="section-card">
         <view class="section-title">分类</view>
+        <text class="status-desc market-notice" v-if="marketNotice">{{ marketNotice }}</text>
+        <view class="recommended-block">
+          <text class="status-desc">推荐可用源</text>
+          <view class="chip-grid">
+            <button class="chip recommended" v-for="item in recommendedSources" :key="item.detailUrl" @tap="openRecommendedSource(item)">
+              {{ item.name }}
+            </button>
+          </view>
+        </view>
         <view class="chip-grid">
           <button class="chip" v-for="item in categoryChips" :key="item" @tap="searchCategory(item)">
             {{ item }}
@@ -107,7 +116,8 @@ import { getAppThemeId, getAppThemeStyle } from '../../common/appTheme.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 import {
   fetchMarketSourcePreview,
-  fetchSourceMarketItems,
+  fetchSourceMarketItemsWithFallback,
+  RECOMMENDED_SOURCE_CANDIDATES,
   resolveMarketScanTarget,
   SOURCE_MARKET_PROVIDERS
 } from '../../common/sourceMarket.js'
@@ -122,6 +132,8 @@ export default {
       items: [],
       loading: false,
       error: '',
+      marketNotice: '',
+      recommendedSources: RECOMMENDED_SOURCE_CANDIDATES,
       previewVisible: false,
       previewLoading: false,
       previewError: '',
@@ -181,15 +193,27 @@ export default {
       this.keyword = value
       this.loadMarket()
     },
+    openRecommendedSource(item) {
+      if (item && item.testKeyword) this.keyword = item.testKeyword
+      this.openPreview(item.detailUrl)
+    },
     async loadMarket(url = '') {
       this.loading = true
       this.error = ''
+      this.marketNotice = ''
       try {
-        this.items = await fetchSourceMarketItems({
+        const result = await fetchSourceMarketItemsWithFallback({
           provider: this.provider,
           keyword: this.keyword,
           url
         })
+        this.items = result.items
+        if (result.provider && SOURCE_MARKET_PROVIDERS[result.provider]) {
+          this.provider = result.provider
+        }
+        if (result.fallback) {
+          this.marketNotice = `主仓库暂不可用，已切换备用仓库：${SOURCE_MARKET_PROVIDERS[result.provider].label}`
+        }
       } catch (error) {
         this.items = []
         this.error = friendlyErrorMessage(error, '无法访问源仓库')
@@ -415,6 +439,19 @@ input {
 .status-desc,
 .source-url {
   margin-top: 8rpx;
+}
+
+.market-notice {
+  color: var(--app-accent-3);
+}
+
+.recommended-block {
+  margin-top: 12rpx;
+}
+
+.chip.recommended {
+  color: var(--app-on-accent);
+  background: var(--app-accent-3);
 }
 
 .source-head,

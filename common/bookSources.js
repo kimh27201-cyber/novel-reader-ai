@@ -8,6 +8,7 @@ import {
   normalizeSourceConfig,
   parseRequestSpec,
   parseResponsePayload,
+  renderTemplate,
   parseSourceJson,
   requestText,
   resolveUrl
@@ -117,6 +118,7 @@ const builtInSourceRaws = [
 const builtInSources = builtInSourceRaws.map(raw => normalizeSourceConfig(raw, {
   group: '内置精选',
   enabled: true,
+  recommended: true,
   importedAt: 0
 }))
 
@@ -215,6 +217,65 @@ function writeSourceTestResult(sourceId, result) {
   writeSourceSettings(settings)
 }
 
+function hasNonEmptyField(raw = {}, names = []) {
+  if (!raw || typeof raw !== 'object') return false
+  return names.some(name => {
+    const value = raw[name]
+    if (value === false || value == null) return false
+    return String(value).trim() !== ''
+  })
+}
+
+function parseSourceHeaders(raw = {}, context = {}) {
+  const value = raw.header || raw.headers || raw.httpHeader
+  if (!value) return {}
+  let parsed = value
+  if (typeof value === 'string') {
+    try {
+      parsed = JSON.parse(value)
+    } catch (error) {
+      parsed = value.split(/\r?\n|&&/).reduce((result, line) => {
+        const match = String(line || '').match(/^\s*([^:=]+)\s*[:=]\s*(.+?)\s*$/)
+        if (match) result[match[1].trim()] = match[2].trim()
+        return result
+      }, {})
+    }
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {}
+  return Object.keys(parsed).reduce((result, key) => {
+    const name = String(key || '').trim()
+    const headerValue = parsed[key]
+    if (!name || headerValue == null || headerValue === false) return result
+    result[name] = renderTemplate(String(headerValue), context)
+    return result
+  }, {})
+}
+
+function hasRequiredCookie(raw = {}) {
+  const text = typeof raw === 'string' ? raw : JSON.stringify(raw || {})
+  if (/cookie\./i.test(text)) return true
+  const headers = typeof raw === 'object' ? parseSourceHeaders(raw, {
+    baseUrl: raw.bookSourceUrl || raw.sourceUrl || raw.baseUrl || ''
+  }) : {}
+  return Object.keys(headers).some(key => key.toLowerCase() === 'cookie' && String(headers[key] || '').trim())
+}
+
+function createSourceRequestSpec(source, url, context = {}, baseUrl = '') {
+  const raw = source && (source.raw || source) || {}
+  const requestContext = {
+    baseUrl: source && source.baseUrl || raw.bookSourceUrl || raw.sourceUrl || raw.baseUrl || baseUrl,
+    ...context
+  }
+  const spec = parseRequestSpec(url, requestContext, baseUrl || requestContext.baseUrl)
+  return {
+    ...spec,
+    header: {
+      ...parseSourceHeaders(raw, requestContext),
+      ...(spec.header || {})
+    }
+  }
+}
+
 export function getSourceConfigs() {
   const settings = getSourceSettings()
   return [...builtInSources, ...getUserSources()].map(source => {
@@ -287,16 +348,12 @@ export function getUnsupportedRuleReasons(source) {
   const raw = source && (source.raw || source)
   if (!raw) return []
   const text = typeof raw === 'string' ? raw : JSON.stringify(raw)
-  const checks = [
-    { label: '包含 JS 规则', pattern: /<js>|<\/js>|@js:|java\.|eval\(/i },
-    { label: '依赖 Cookie', pattern: /cookie\.|cookiejar|enabledCookieJar|Cookie/i },
-    { label: '依赖登录', pattern: /loginUrl|loginUi|loginCheck/i },
-    { label: '依赖 WebView', pattern: /webview/i },
-    { label: '包含自定义 Header', pattern: /header\s*=|headers?\s*:/i }
-  ]
-  return checks
-    .filter(check => check.pattern.test(text))
-    .map(check => check.label)
+  const reasons = []
+  if (/<js>|<\/js>|@js:|java\.|eval\(/i.test(text)) reasons.push('包含 JS 规则')
+  if (hasRequiredCookie(raw)) reasons.push('依赖 Cookie')
+  if (hasNonEmptyField(raw, ['loginUrl', 'loginUi', 'loginCheck'])) reasons.push('依赖登录')
+  if (/webview/i.test(text)) reasons.push('依赖 WebView')
+  return reasons
 }
 
 export function getSourceDiagnostics(source) {
@@ -517,6 +574,70 @@ export async function testSourceSearch(sourceId, keyword, options = {}) {
   }
 }
 
+export async function runSourceReadingFlow(sourceId, keyword, options = {}) {
+  const stages = []
+  const runStage = async (id, title, action) => {
+    try {
+      const result = await action()
+      stages.push({ id, title, status: 'passed', message: '通过' })
+      return result
+    } catch (error) {
+      const message = friendlyErrorMessage(error, `${title}失败`)
+      stages.push({ id, title, status: 'failed', message })
+      const wrapped = new Error(`${title}失败：${message}`)
+      wrapped.flowStages = stages
+      throw wrapped
+    }
+  }
+
+  const search = await runStage('search', '搜索', () => testSourceSearch(sourceId, keyword, {
+    timeoutMs: options.timeoutMs,
+    limit: options.limit || 5,
+    failOnEmpty: true
+  }))
+  const first = search.results.find(item => item && item.type === 'online' && item.book)
+  if (!first) {
+    const error = new Error('搜索结果里没有可阅读书籍')
+    error.flowStages = stages
+    throw error
+  }
+
+  const info = await runStage('bookInfo', '详情', () => loadOnlineBookInfo(first.book))
+  const chapters = await runStage('toc', '目录', () => loadOnlineToc(info))
+  if (!chapters.length) {
+    const error = new Error('目录解析为空')
+    error.flowStages = stages
+    throw error
+  }
+
+  const chapterIndex = Math.max(0, Math.min(Number(options.chapterIndex || 0), chapters.length - 1))
+  const loadedChapter = await runStage('content', '正文', () => loadOnlineChapter(info, chapters[chapterIndex]))
+  const shelfChapters = chapters.map((chapter, index) => {
+    if (index !== loadedChapter.index) return chapter
+    return {
+      ...loadedChapter,
+      isCached: true,
+      loadStatus: 'cached',
+      errorMessage: ''
+    }
+  })
+  const shelfBook = await runStage('shelf', '加入书架', () => Promise.resolve(addOnlineBookToShelf({
+    ...info,
+    latestChapter: info.latestChapter || loadedChapter.title,
+    chapters: shelfChapters
+  })))
+
+  return {
+    sourceId,
+    keyword: search.keyword,
+    search,
+    book: shelfBook,
+    chapters: shelfBook.chapters,
+    chapter: loadedChapter,
+    stages
+  }
+}
+
 export async function batchTestSources(options = {}) {
   const word = String(options.keyword || '').trim()
   if (!word) throw new Error('请输入测试关键词')
@@ -611,7 +732,7 @@ export async function loadOnlineBookInfo(book) {
   const rule = normalizeRuleObject(source.raw.ruleBookInfo)
   if (!Object.keys(rule).length) return book
 
-  const html = await requestText(parseRequestSpec(book.bookUrl, {}, source.baseUrl))
+  const html = await requestText(createSourceRequestSpec(source, book.bookUrl, {}, source.baseUrl))
   const payload = parseResponsePayload(html)
   const context = { ...book, $: payload }
   const next = {
@@ -634,7 +755,7 @@ export async function loadOnlineToc(book) {
   if (!Object.keys(rule).length) throw new Error('这个书源没有目录规则')
 
   const tocUrl = book.tocUrl || book.bookUrl
-  const html = await requestText(parseRequestSpec(tocUrl, book, source.baseUrl))
+  const html = await requestText(createSourceRequestSpec(source, tocUrl, book, source.baseUrl))
   const payload = parseResponsePayload(html)
   const listRule = getFieldRule(rule, ['chapterList', 'list', 'toc'])
   const list = applyListRule(payload, listRule, { ...book, $: payload })
@@ -646,7 +767,9 @@ export async function loadOnlineToc(book) {
       title,
       url,
       index,
-      isCached: !!readStorage(chapterCacheKey(book.id, index), '')
+      isCached: !!readStorage(chapterCacheKey(book.id, index), ''),
+      loadStatus: readStorage(chapterCacheKey(book.id, index), '') ? 'cached' : 'idle',
+      errorMessage: ''
     }
   }).filter(chapter => chapter.title && chapter.url)
 
@@ -656,20 +779,20 @@ export async function loadOnlineToc(book) {
 
 export async function loadOnlineChapter(book, chapter) {
   const cached = readStorage(chapterCacheKey(book.id, chapter.index), '')
-  if (cached) return { ...chapter, content: cached, isCached: true }
+  if (cached) return { ...chapter, content: cached, isCached: true, loadStatus: 'cached', errorMessage: '' }
 
   const source = getSourceConfig(book.sourceId)
   if (!source) throw new Error('书源不存在或已删除')
   const rule = normalizeRuleObject(source.raw.ruleContent)
   if (!Object.keys(rule).length) throw new Error('这个书源没有正文规则')
 
-  const html = await requestText(parseRequestSpec(chapter.url, { ...book, ...chapter }, source.baseUrl))
+  const html = await requestText(createSourceRequestSpec(source, chapter.url, { ...book, ...chapter }, source.baseUrl))
   const payload = parseResponsePayload(html)
   const content = pickText(payload, rule, ['content', 'text'], { ...book, ...chapter, $: payload })
   if (!content) throw new Error('正文解析为空，请换一个书源')
 
   writeStorage(chapterCacheKey(book.id, chapter.index), content)
-  return { ...chapter, content, isCached: true }
+  return { ...chapter, content, isCached: true, loadStatus: 'loaded', errorMessage: '' }
 }
 
 async function searchSource(source, keyword) {
@@ -677,7 +800,7 @@ async function searchSource(source, keyword) {
   const rule = normalizeRuleObject(raw.ruleSearch)
   if (!raw.searchUrl || !Object.keys(rule).length) return []
 
-  const html = await requestText(parseRequestSpec(raw.searchUrl, { key: keyword, keyword, page: 1 }, source.baseUrl))
+  const html = await requestText(createSourceRequestSpec(source, raw.searchUrl, { key: keyword, keyword, page: 1 }, source.baseUrl))
   const payload = parseResponsePayload(html)
   const listRule = getFieldRule(rule, ['bookList', 'list', 'books'])
   const list = applyListRule(payload, listRule, { key: keyword, keyword, page: 1, $: payload })
@@ -728,13 +851,21 @@ function normalizeOnlineBookForShelf(book) {
     coverUrl: book.coverUrl || '',
     coverColor: '#506f89',
     accent: '#31584f',
-    chapters: (book.chapters || []).map((chapter, index) => ({
-      title: chapter.title || `第 ${index + 1} 章`,
-      url: chapter.url,
-      index,
-      isCached: !!chapter.isCached,
-      content: chapter.content || ''
-    })),
+    chapters: (book.chapters || []).map((chapter, index) => {
+      const content = chapter.content || ''
+      const errorMessage = cleanText(chapter.errorMessage)
+      const isCached = !!chapter.isCached || !!content || !!readStorage(chapterCacheKey(id, index), '')
+      const loadStatus = chapter.loadStatus || (errorMessage ? 'failed' : content ? 'loaded' : isCached ? 'cached' : 'idle')
+      return {
+        title: chapter.title || `第 ${index + 1} 章`,
+        url: chapter.url,
+        index,
+        isCached,
+        loadStatus,
+        errorMessage,
+        content
+      }
+    }),
     addedAt: book.addedAt || Date.now(),
     updatedAt: Date.now()
   }

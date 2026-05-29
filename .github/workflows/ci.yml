@@ -89,5 +89,11 @@ jobs:
       - name: Run import adapter tests
         run: node tests/importAdapters.test.mjs
 
+      - name: Run import readiness tests
+        run: node tests/importReadiness.test.mjs
+
+      - name: Run online reading flow tests
+        run: node tests/onlineReadingFlow.test.mjs
+
       - name: Run source market tests
         run: node tests/sourceMarket.test.mjs

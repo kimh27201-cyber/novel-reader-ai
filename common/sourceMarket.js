@@ -10,16 +10,64 @@ import {
   resolveUrl
 } from './sourceEngine.js'
 
-export const SOURCE_MARKET_PROVIDERS = {
-  yckceo: {
-    label: '源仓库',
-    baseUrl: 'https://www.yckceo.com/yuedu/shuyuan/index.html'
+export const DEFAULT_SOURCE_MARKET_MANIFEST = [
+  {
+    providerId: 'yckceo',
+    name: '源仓库',
+    baseUrl: 'https://www.yckceo.com/yuedu/shuyuan/index.html',
+    enabled: true,
+    priority: 10,
+    updatedAt: '2026-05-28'
   },
-  yck2026: {
-    label: '备用仓库',
-    baseUrl: 'https://www.yck2026.top/yuedu/shuyuan/index.html'
+  {
+    providerId: 'yck2026',
+    name: '备用仓库',
+    baseUrl: 'https://www.yck2026.top/yuedu/shuyuan/index.html',
+    enabled: true,
+    priority: 20,
+    updatedAt: '2026-05-28'
   }
+]
+
+export const RECOMMENDED_SOURCE_CANDIDATES = [
+  {
+    providerId: 'yckceo',
+    name: '速读谷',
+    detailUrl: 'https://www.yckceo.com/yuedu/shuyuan/content/id/7163.html',
+    baseUrl: 'https://www.sudugu.org/',
+    testKeyword: '斗破苍穹',
+    verifiedAt: '2026-05-29'
+  }
+]
+
+export function normalizeSourceMarketManifest(manifest = DEFAULT_SOURCE_MARKET_MANIFEST) {
+  const list = Array.isArray(manifest) ? manifest : DEFAULT_SOURCE_MARKET_MANIFEST
+  return list
+    .map(item => ({
+      providerId: String(item.providerId || '').trim(),
+      name: cleanText(item.name || item.label || item.providerId),
+      baseUrl: String(item.baseUrl || '').trim(),
+      enabled: item.enabled !== false,
+      priority: Number(item.priority || 100),
+      updatedAt: String(item.updatedAt || '')
+    }))
+    .filter(item => item.providerId && item.name && item.baseUrl && item.enabled)
+    .sort((left, right) => left.priority - right.priority)
 }
+
+export function getSourceMarketProviders(manifest = DEFAULT_SOURCE_MARKET_MANIFEST) {
+  return normalizeSourceMarketManifest(manifest).reduce((result, item) => {
+    result[item.providerId] = {
+      label: item.name,
+      baseUrl: item.baseUrl,
+      priority: item.priority,
+      updatedAt: item.updatedAt
+    }
+    return result
+  }, {})
+}
+
+export const SOURCE_MARKET_PROVIDERS = getSourceMarketProviders()
 
 export function createSourceMarketUrl(options = {}) {
   const provider = SOURCE_MARKET_PROVIDERS[options.provider] || SOURCE_MARKET_PROVIDERS.yckceo
@@ -67,6 +115,50 @@ export async function fetchSourceMarketItems(options = {}) {
   const url = options.url || createSourceMarketUrl(options)
   const text = await requestText(parseRequestSpec(url, {}, url))
   return parseSourceMarketItems(text, url)
+}
+
+export async function fetchSourceMarketItemsWithFallback(options = {}) {
+  if (options.url) {
+    const items = await fetchSourceMarketItems(options)
+    return {
+      items,
+      provider: detectProvider(options.url),
+      url: options.url,
+      fallback: false,
+      errors: []
+    }
+  }
+
+  const providers = Object.keys(SOURCE_MARKET_PROVIDERS)
+  const preferred = SOURCE_MARKET_PROVIDERS[options.provider] ? options.provider : providers[0]
+  const queue = [preferred, ...providers.filter(provider => provider !== preferred)]
+  const errors = []
+  let emptyResult = null
+
+  for (const provider of queue) {
+    const url = createSourceMarketUrl({ ...options, provider })
+    try {
+      const items = await fetchSourceMarketItems({ ...options, provider, url })
+      const result = {
+        items,
+        provider,
+        url,
+        fallback: provider !== preferred,
+        errors
+      }
+      if (items.length) return result
+      if (!emptyResult) emptyResult = result
+    } catch (error) {
+      errors.push({
+        provider,
+        message: error && error.message ? error.message : String(error || 'unknown error')
+      })
+    }
+  }
+
+  if (emptyResult) return { ...emptyResult, errors }
+  const message = errors.map(item => `${item.provider}: ${item.message}`).join('；')
+  throw new Error(message || '无法访问源仓库')
 }
 
 export function resolveMarketScanTarget(payload) {

@@ -6,7 +6,10 @@ import {
   getPickedFileName,
   normalizePickedFile,
   readAndroidContentUriText,
+  readImportFilePayload,
   readPickedFileText,
+  normalizeImportPayload,
+  scanWithWebBarcodeDetector,
   scanImportPayload
 } from '../common/importAdapters.js'
 
@@ -120,10 +123,117 @@ assert.equal(await scanImportPayload({
   }
 }), 'yuedu://source?src=https%3A%2F%2Fexample.com%2Fa.json')
 
+assert.deepEqual(normalizeImportPayload('  [{"bookSourceName":"A"}]  ', { fileName: 'sources.json' }), {
+  type: 'json',
+  url: '',
+  text: '[{"bookSourceName":"A"}]',
+  fileName: 'sources.json'
+})
+
+assert.deepEqual(normalizeImportPayload('legado://import?src=https%3A%2F%2Fexample.com%2Fsources.json'), {
+  type: 'import-link',
+  url: 'https://example.com/sources.json',
+  text: '',
+  fileName: ''
+})
+
+const txtPayload = await readImportFilePayload(
+  { name: 'book.txt', path: 'blob:book-txt' },
+  { extension: ['.txt'], importType: 'txt' },
+  { fetch: async () => ({ text: async () => '\ufeff第一章 开始\n正文内容' }) }
+)
+assert.deepEqual(txtPayload, {
+  type: 'txt',
+  url: '',
+  text: '第一章 开始\n正文内容',
+  fileName: 'book.txt'
+})
+
 await assert.rejects(
   () => scanImportPayload({ scanCode: options => options.success({ result: '   ' }) }),
   /扫码结果为空/
 )
+
+const webScanEvents = []
+const webScanPayload = await scanWithWebBarcodeDetector({
+  navigator: {
+    mediaDevices: {
+      getUserMedia: async constraints => {
+        webScanEvents.push(constraints.video.facingMode)
+        return {
+          getTracks: () => [{ stop: () => webScanEvents.push('stopped') }]
+        }
+      }
+    }
+  },
+  BarcodeDetector: class MockDetector {
+    async detect() {
+      return [{ rawValue: 'https://www.yckceo.com/yuedu/shuyuan/index.html' }]
+    }
+  },
+  document: {
+    body: {
+      appendChild(node) {
+        webScanEvents.push(node.className)
+      }
+    },
+    createElement(tag) {
+      return {
+        tagName: tag,
+        style: {},
+        className: '',
+        textContent: '',
+        playsInline: false,
+        muted: false,
+        srcObject: null,
+        appendChild() {},
+        remove: () => webScanEvents.push(`removed:${tag}`),
+        addEventListener() {},
+        play: async () => webScanEvents.push('played')
+      }
+    }
+  },
+  requestAnimationFrame: callback => {
+    callback()
+    return 1
+  },
+  cancelAnimationFrame: id => webScanEvents.push(`cancel:${id}`)
+}, { timeoutMs: 500 })
+assert.equal(webScanPayload, 'https://www.yckceo.com/yuedu/shuyuan/index.html')
+assert.deepEqual(webScanEvents, ['novel-scan-overlay', 'environment', 'played', 'stopped', 'removed:div', 'cancel:1'])
+
+assert.equal(await scanImportPayload({}, {
+  runtime: {
+    navigator: {
+      mediaDevices: {
+        getUserMedia: async () => ({ getTracks: () => [{ stop() {} }] })
+      }
+    },
+    BarcodeDetector: class MockDetector {
+      async detect() {
+        return [{ rawValue: 'legado://import?src=https%3A%2F%2Fexample.com%2Fs.json' }]
+      }
+    },
+    document: {
+      body: { appendChild() {} },
+      createElement() {
+        return {
+          style: {},
+          appendChild() {},
+          remove() {},
+          addEventListener() {},
+          play: async () => {}
+        }
+      }
+    },
+    requestAnimationFrame: callback => {
+      callback()
+      return 7
+    },
+    cancelAnimationFrame() {}
+  },
+  timeoutMs: 500
+}), 'legado://import?src=https%3A%2F%2Fexample.com%2Fs.json')
 
 const fetchedText = await readPickedFileText(
   { path: 'blob:source-json' },

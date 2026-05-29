@@ -480,6 +480,12 @@ export default {
           if (this.chapterLoadToken !== token) return
           this.loadingChapter = false
           this.chapterLoadError = this.formatChapterLoadError(error, '请稍后重试，或换一个可用书源。')
+          this.book.chapters.splice(this.chapterIndex, 1, {
+            ...currentChapter,
+            loadStatus: 'failed',
+            errorMessage: this.chapterLoadError
+          })
+          addOnlineBookToShelf(this.book)
           this.pages = ['这一章暂时没有解码成功。你可以轻点重试，或者回到目录换一章。']
         }
         this.pageIndex = Math.max(0, Math.min(this.pageIndex, this.pages.length - 1))

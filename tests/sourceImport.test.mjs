@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import {
+  addOnlineBookToShelf,
   batchSetSourcesEnabled,
   getSourceConfigs,
+  getOnlineShelfBooks,
   importSourcesFromAny,
   importSourcesWithStats,
   previewSourcesImport,
@@ -107,9 +109,27 @@ assert.equal(preview.incompatible, 1)
 assert.ok(preview.groups.includes('用户导入'))
 assert.equal(getSourceConfigs().length, beforePreviewCount)
 
+const cachedBook = addOnlineBookToShelf({
+  sourceId: 'source-cache-test',
+  sourceName: '缓存测试源',
+  bookUrl: 'https://cache.example.com/book/1',
+  title: '缓存测试书',
+  chapters: [
+    { title: '第一章', url: 'https://cache.example.com/c/1', isCached: true },
+    { title: '第二章', url: 'https://cache.example.com/c/2', errorMessage: '网络请求失败' }
+  ]
+})
+assert.equal(cachedBook.chapters[0].loadStatus, 'cached')
+assert.equal(cachedBook.chapters[0].errorMessage, '')
+assert.equal(cachedBook.chapters[1].loadStatus, 'failed')
+assert.equal(getOnlineShelfBooks().find(book => book.id === cachedBook.id).chapters[1].errorMessage, '网络请求失败')
+
 const library = readFileSync(new URL('../pages/library/library.vue', import.meta.url), 'utf8')
 assert.match(library, /importFromClipboard/)
 assert.match(library, /chooseSourceJsonFile/)
+assert.match(library, /readImportFilePayload/)
+assert.match(library, /normalizeImportPayload/)
+assert.match(library, /\/pages\/bookshelf\/bookshelf/)
 assert.match(library, /sourceFilter/)
 assert.match(library, /sourceImportMode === 'repo'/)
 assert.match(library, /sourceFilter === 'cloud'/)

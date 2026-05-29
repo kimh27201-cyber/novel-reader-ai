@@ -90,6 +90,23 @@
             <text v-for="item in sourceGroupStats" :key="item.group">{{ item.group }} {{ item.count }}</text>
           </view>
 
+          <view class="batch-panel readiness-panel">
+            <view class="batch-head">
+              <view>
+                <view class="test-title">真实导入自检</view>
+                <text class="source-hint">{{ importReadinessSummaryText }}</text>
+              </view>
+              <button class="small-action" @tap="refreshImportReadiness">刷新</button>
+            </view>
+            <view class="batch-result-list">
+              <view class="batch-result-row" v-for="item in importReadiness.items" :key="item.id">
+                <text class="batch-result-status" :class="item.state">{{ importReadinessLabel(item.state) }}</text>
+                <text class="batch-result-name">{{ item.title }}</text>
+                <text class="batch-result-message">{{ item.detail }}</text>
+              </view>
+            </view>
+          </view>
+
           <view class="bulk-actions tools-bulk-actions">
             <button class="small-action" @tap="batchToggleVisibleSources(true)">批量启用当前结果</button>
             <button class="small-action" @tap="batchToggleVisibleSources(false)">批量停用当前结果</button>
@@ -313,7 +330,10 @@
             <view class="test-title">单源搜索测试</view>
             <text class="source-hint">用于确认这个书源能否独立搜索，避免拖慢发现页。</text>
           </view>
-          <button class="small-action primary" :loading="sourceTesting" @tap="runSourceTest">测试</button>
+          <view class="test-actions">
+            <button class="small-action primary" :loading="sourceTesting" @tap="runSourceTest">搜索测试</button>
+            <button class="small-action" :loading="sourceFlowTesting" @tap="runSourceReadingFlowTest">完整阅读测试</button>
+          </view>
         </view>
         <input class="field compact" v-model="testSourceKeyword" placeholder="输入测试关键词，例如 星轨图书馆" />
         <view class="test-result" v-if="sourceTestResult">
@@ -338,6 +358,7 @@ import {
   getSourceConfigs,
   importSourcesFromAny,
   previewSourcesImport,
+  runSourceReadingFlow,
   setSourceEnabled,
   testSourceSearch,
   updateSourceMetadata
@@ -348,13 +369,17 @@ import {
 } from '../../common/backendLibrary.js'
 import { getAppThemeId, getAppThemeStyle } from '../../common/appTheme.js'
 import {
-  assertFileExtension,
   chooseSingleFile,
   getClipboardText,
   getPickedFileName,
-  readPickedFileText,
+  normalizeImportPayload,
+  readImportFilePayload,
   scanImportPayload
 } from '../../common/importAdapters.js'
+import {
+  buildImportReadiness,
+  summarizeImportReadiness
+} from '../../common/importReadiness.js'
 import { resolveMarketScanTarget } from '../../common/sourceMarket.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 
@@ -379,6 +404,7 @@ export default {
       selectedSource: null,
       sourceDiagnostics: null,
       sourceTesting: false,
+      sourceFlowTesting: false,
       testSourceKeyword: '星轨图书馆',
       sourceTestResult: null,
       batchTesting: false,
@@ -386,6 +412,7 @@ export default {
       batchProgress: { current: 0, total: 0 },
       batchTestResult: null,
       batchTestItems: [],
+      importReadiness: buildImportReadiness(),
       sourceFilter: 'all',
       sourceSort: 'manual',
       sourceKeyword: '',
@@ -446,6 +473,9 @@ export default {
       return Object.keys(counts)
         .sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'))
         .map(group => ({ group, count: counts[group] }))
+    },
+    importReadinessSummaryText() {
+      return summarizeImportReadiness(this.importReadiness).text
     },
     batchProgressText() {
       if (this.batchTesting) {
@@ -530,9 +560,18 @@ export default {
   onShow() {
     this.themeId = getAppThemeId()
     this.sources = getSourceConfigs()
+    this.refreshImportReadiness()
     this.refreshBackendSources({ silent: true })
   },
   methods: {
+    refreshImportReadiness() {
+      this.importReadiness = buildImportReadiness()
+    },
+    importReadinessLabel(state) {
+      if (state === 'ready') return '可用'
+      if (state === 'blocked') return '受限'
+      return '检查'
+    },
     sortSources(list) {
       const next = [...list]
       if (this.sourceSort === 'name') return next.sort((a, b) => String(a.name).localeCompare(String(b.name), 'zh-Hans-CN'))
@@ -713,6 +752,39 @@ export default {
         this.sourceTesting = false
       }
     },
+    async runSourceReadingFlowTest() {
+      if (!this.selectedSource) return
+      this.sourceFlowTesting = true
+      this.sourceTestResult = null
+      try {
+        const result = await runSourceReadingFlow(this.selectedSource.id, this.testSourceKeyword)
+        this.sourceTestResult = {
+          title: `完整阅读测试通过：${result.book.title}`,
+          desc: `已完成搜索、详情、目录、正文，并加入书架缓存：${result.chapter.title}`,
+          items: result.stages.map(stage => ({
+            bookId: stage.id,
+            title: stage.title,
+            subtitle: stage.message
+          }))
+        }
+        uni.showToast({ title: '已加入书架并缓存首章', icon: 'none' })
+      } catch (error) {
+        const stages = Array.isArray(error.flowStages) ? error.flowStages : []
+        this.sourceTestResult = {
+          title: '完整阅读测试未通过',
+          desc: friendlyErrorMessage(error, '真实阅读闭环失败'),
+          items: stages.map(stage => ({
+            bookId: stage.id,
+            title: stage.title,
+            subtitle: stage.message
+          }))
+        }
+      } finally {
+        this.sources = getSourceConfigs()
+        this.refreshSelectedSource()
+        this.sourceFlowTesting = false
+      }
+    },
     async submitSourceImport() {
       const raw = String(this.sourceImportMode === 'json' ? this.sourceImportText : this.sourceImportUrl).trim()
       if (!raw) {
@@ -770,9 +842,11 @@ export default {
           extension: ['.json'],
           label: '本地 JSON'
         })
-        assertFileExtension(file, '.json', '请选择 .json 书源文件')
-        const text = await readPickedFileText(file)
-        await this.importSourcePayload(text, '本地 JSON 导入')
+        const payload = await readImportFilePayload(file, {
+          extension: ['.json'],
+          message: '请选择 .json 书源文件'
+        })
+        await this.importSourcePayload(payload.text || payload.url, '本地 JSON 导入')
       } catch (error) {
         uni.showToast({ title: error.message || '读取 JSON 失败', icon: 'none' })
       }
@@ -852,12 +926,13 @@ export default {
     async scanSourceQr() {
       try {
         const payload = await scanImportPayload(uni)
-        const target = resolveMarketScanTarget(payload)
+        const normalized = normalizeImportPayload(payload)
+        const target = resolveMarketScanTarget(normalized.url || normalized.text)
         if (target.type === 'detail' || target.type === 'json' || target.type === 'market') {
           this.goSourceMarket(target.url)
           return
         }
-        await this.importSourcePayload(payload, '扫码导入')
+        await this.importSourcePayload(normalized.url || normalized.text, '扫码导入')
       } catch (error) {
         uni.showToast({ title: error.message || '未完成扫码', icon: 'none' })
       }
@@ -868,13 +943,15 @@ export default {
           extension: ['.txt'],
           label: 'TXT'
         })
-        const fileName = getPickedFileName(file)
-        assertFileExtension(file, '.txt', '请选择 .txt 文件')
-        const text = await readPickedFileText(file)
-        if (!text || text.trim().length < 20) throw new Error('TXT 内容太短')
-        this.importFileName = fileName
-        this.importFileText = text
-        if (!this.importTitle) this.importTitle = fileName.replace(/\.txt$/i, '').slice(0, 30)
+        const payload = await readImportFilePayload(file, {
+          extension: ['.txt'],
+          importType: 'txt',
+          message: '请选择 .txt 文件'
+        })
+        if (!payload.text || payload.text.trim().length < 20) throw new Error('TXT 内容太短')
+        this.importFileName = payload.fileName || getPickedFileName(file)
+        this.importFileText = payload.text
+        if (!this.importTitle) this.importTitle = this.importFileName.replace(/\.txt$/i, '').slice(0, 30)
       } catch (error) {
         uni.showToast({ title: error.message || '读取失败', icon: 'none' })
       }
@@ -888,6 +965,7 @@ export default {
         })
         this.closePanels()
         uni.showToast({ title: `已导入：${book.title}`, icon: 'none' })
+        uni.switchTab({ url: '/pages/bookshelf/bookshelf' })
       } catch (error) {
         uni.showToast({ title: error.message || '导入失败', icon: 'none' })
       }
@@ -1235,7 +1313,17 @@ textarea {
   background: var(--app-accent);
 }
 
+.batch-result-status.ready {
+  color: var(--app-on-accent);
+  background: var(--app-accent);
+}
+
 .batch-result-status.failed {
+  color: var(--app-on-accent);
+  background: var(--app-accent-3);
+}
+
+.batch-result-status.blocked {
   color: var(--app-on-accent);
   background: var(--app-accent-3);
 }
@@ -1654,6 +1742,12 @@ textarea {
   gap: 18rpx;
 }
 
+.test-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 12rpx;
+}
+
 .field.compact {
   margin-top: 14rpx;
 }
@@ -1699,7 +1793,8 @@ textarea {
 
   .batch-head,
   .batch-progress,
-  .batch-actions {
+  .batch-actions,
+  .test-actions {
     flex-direction: column;
     align-items: stretch;
   }

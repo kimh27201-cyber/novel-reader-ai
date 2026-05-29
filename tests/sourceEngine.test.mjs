@@ -32,6 +32,17 @@ assert.equal(applyRule(items[1], 'h3 a@href'), '/book/2')
 assert.equal(applyRule(items[0], '.missing@text||.author@text'), '作者甲')
 assert.equal(applyRule('作者：张三 / 类型：玄幻', '##.*作者[:： ]*([^\\s/]+).*##$1'), '张三')
 
+const legado3Html = `
+  <div class="book">
+    <a href="/book/3"><span class="name">第三本书</span></a>
+    <span class="author">作者丙</span>
+  </div>
+  <div id="content"><p>第一段</p><p>第二段</p></div>
+`
+assert.equal(applyRule(legado3Html, 'class.book@tag.a@href'), '/book/3')
+assert.equal(applyRule(legado3Html, 'class.book@tag.span.0@text'), '第三本书')
+assert.equal(applyRule(legado3Html, 'id.content@textNodes'), '第一段\n第二段')
+
 const json = { data: { books: [{ name: '书源小说', url: '/novel/9' }] } }
 assert.deepEqual(applyListRule(json, '$.data.books[*]').map(item => item.name), ['书源小说'])
 assert.equal(applyRule(json, '$.data.books[0].name'), '书源小说')
@@ -102,6 +113,13 @@ const sourceJson = JSON.stringify([{
 const parsed = parseSourceJson(sourceJson)
 assert.equal(parsed.length, 1)
 assert.equal(parsed[0].compatibility, 'v1 兼容')
+
+const recommended = parseSourceJson(JSON.stringify([{
+  bookSourceName: '推荐 3.x 源',
+  bookSourceUrl: 'https://recommended.example.com',
+  recommended: true
+}]))
+assert.equal(recommended[0].recommended, true)
 
 const before = getSourceConfigs().length
 assert.equal(importSourcesFromJson(sourceJson), 1)

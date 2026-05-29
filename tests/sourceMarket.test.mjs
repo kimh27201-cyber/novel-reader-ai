@@ -1,9 +1,15 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import {
   createSourceMarketUrl,
+  DEFAULT_SOURCE_MARKET_MANIFEST,
   fetchMarketSourcePreview,
   fetchSourceMarketItems,
+  fetchSourceMarketItemsWithFallback,
+  getSourceMarketProviders,
+  normalizeSourceMarketManifest,
   parseSourceMarketItems,
+  RECOMMENDED_SOURCE_CANDIDATES,
   resolveMarketScanTarget
 } from '../common/sourceMarket.js'
 
@@ -28,6 +34,15 @@ assert.equal(
   createSourceMarketUrl({ provider: 'yckceo', keyword: '书趣阁' }),
   'https://www.yckceo.com/yuedu/shuyuan/index.html?key=%E4%B9%A6%E8%B6%A3%E9%98%81'
 )
+
+assert.ok(DEFAULT_SOURCE_MARKET_MANIFEST.every(item => item.providerId && item.name && item.baseUrl))
+assert.ok(RECOMMENDED_SOURCE_CANDIDATES.some(item => item.name === '速读谷' && item.detailUrl.includes('/id/7163.html') && item.testKeyword === '斗破苍穹'))
+const manifest = normalizeSourceMarketManifest([
+  { providerId: 'disabled', name: '停用仓库', baseUrl: 'https://disabled.example.com', enabled: false, priority: 1, updatedAt: '2026-05-28' },
+  { providerId: 'mirror', name: '镜像仓库', baseUrl: 'https://mirror.example.com/index.html', enabled: true, priority: 2, updatedAt: '2026-05-28' }
+])
+assert.deepEqual(manifest.map(item => item.providerId), ['mirror'])
+assert.equal(getSourceMarketProviders(manifest).mirror.baseUrl, 'https://mirror.example.com/index.html')
 
 assert.deepEqual(resolveMarketScanTarget('https://www.yckceo.com/yuedu/shuyuan/content/id/7285.html'), {
   type: 'detail',
@@ -66,5 +81,24 @@ assert.ok(requested.some(url => url.includes('/json/id/7285.json')))
 globalThis.fetch = async () => ({ text: async () => listHtml })
 const fetchedItems = await fetchSourceMarketItems({ provider: 'yckceo', keyword: '小说' })
 assert.equal(fetchedItems.length, 2)
+
+const fallbackRequests = []
+globalThis.fetch = async url => {
+  fallbackRequests.push(String(url))
+  if (String(url).includes('yckceo.com')) throw new Error('primary down')
+  return { text: async () => listHtml }
+}
+const fallback = await fetchSourceMarketItemsWithFallback({ provider: 'yckceo', keyword: '灏忚' })
+assert.equal(fallback.provider, 'yck2026')
+assert.equal(fallback.items.length, 2)
+assert.ok(fallbackRequests[0].includes('yckceo.com'))
+assert.ok(fallbackRequests.some(url => url.includes('yck2026.top')))
+
+const sourceMarketPage = readFileSync(new URL('../pages/sourceMarket/sourceMarket.vue', import.meta.url), 'utf8')
+assert.match(sourceMarketPage, /fetchSourceMarketItemsWithFallback/)
+assert.match(sourceMarketPage, /marketNotice/)
+assert.match(sourceMarketPage, /备用仓库/)
+assert.match(sourceMarketPage, /recommendedSources/)
+assert.match(sourceMarketPage, /推荐可用源/)
 
 console.log('sourceMarket tests passed')

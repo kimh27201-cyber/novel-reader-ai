@@ -42,17 +42,30 @@ const compatibleSourceTwo = {
   searchUrl: 'https://diagnostic-two.example.com/search?q={{key}}'
 }
 
+const headerSource = {
+  ...compatibleSource,
+  bookSourceName: 'Diagnostic Header 3x',
+  bookSourceUrl: 'https://header-source.example.com',
+  searchUrl: 'https://header-source.example.com/search?q={{key}}',
+  enabledCookieJar: true,
+  header: JSON.stringify({
+    'User-Agent': 'NovelReader Test UA',
+    Referer: '{{baseUrl}}/'
+  })
+}
+
 const incompatibleSource = {
   bookSourceName: 'Diagnostic Unsupported',
   bookSourceUrl: 'https://unsupported.example.com',
   bookSourceGroup: 'Imported',
   searchUrl: 'https://unsupported.example.com/search',
   enabledCookieJar: true,
+  header: JSON.stringify({ Cookie: 'sid=required' }),
   loginUrl: 'https://unsupported.example.com/login',
   ruleSearch: '<js>java.ajax()</js>'
 }
 
-importSourcesWithStats(JSON.stringify([compatibleSource, compatibleSourceTwo, incompatibleSource]))
+importSourcesWithStats(JSON.stringify([compatibleSource, compatibleSourceTwo, headerSource, incompatibleSource]))
 
 const sources = pickOnlineSearchSources(Object.values(store['sources:user']))
 assert.equal(sources.length, 0)
@@ -74,6 +87,11 @@ await assert.rejects(
 
 const compatible = Object.values(store['sources:user']).find(source => source.name === 'Diagnostic Compatible')
 const compatibleTwo = Object.values(store['sources:user']).find(source => source.name === 'Diagnostic Compatible Two')
+const header3x = Object.values(store['sources:user']).find(source => source.name === 'Diagnostic Header 3x')
+
+const headerDiagnostics = getSourceDiagnostics(header3x)
+assert.equal(headerDiagnostics.compatible, true)
+assert.deepEqual(headerDiagnostics.reasons, [])
 
 globalThis.fetch = async () => {
   throw new Error('network down')
@@ -106,6 +124,23 @@ assert.equal(passed.searchable, true)
 assert.equal(passed.networkStatus, 'passed')
 assert.equal(getSourceConfig(compatible.id).lastTest.status, 'passed')
 assert.equal(pickOnlineSearchSources(getSourceConfigs()).some(source => source.id === compatible.id), true)
+
+let headerRequest = null
+globalThis.fetch = async (url, options = {}) => {
+  headerRequest = { url: String(url), headers: options.headers || {} }
+  return {
+    text: async () => JSON.stringify({
+      items: [
+        { name: 'Header 3x Book', author: 'Header Author', url: '/book/header' }
+      ]
+    })
+  }
+}
+
+const headerResult = await testSourceSearch(header3x.id, 'Header 3x')
+assert.equal(headerResult.count, 1)
+assert.equal(headerRequest.headers['User-Agent'], 'NovelReader Test UA')
+assert.equal(headerRequest.headers.Referer, 'https://header-source.example.com/')
 
 let batchRequests = []
 globalThis.fetch = async url => {
@@ -142,8 +177,9 @@ assert.equal(pickOnlineSearchSources(getSourceConfigs()).some(source => source.i
 
 batchRequests = []
 const onlineResults = await searchOnlineBooks('星轨图书馆', { limit: 5, timeoutMs: 1000 })
-assert.equal(onlineResults.length, 1)
+assert.equal(onlineResults.length, 2)
 assert.ok(batchRequests.every(url => !url.includes('diagnostic-two')))
+assert.ok(batchRequests.some(url => url.includes('header-source')))
 
 const library = readFileSync(new URL('../pages/library/library.vue', import.meta.url), 'utf8')
 assert.match(library, /openSourceDetail/)
