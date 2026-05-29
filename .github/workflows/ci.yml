@@ -56,44 +56,37 @@ jobs:
         with:
           node-version: "20"
 
-      - name: Validate pages.json
-        run: node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('pages.json','utf8'));"
+      - name: Validate uni-app JSON config
+        run: node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('pages.json','utf8')); JSON.parse(fs.readFileSync('manifest.json','utf8'));"
 
-      - name: Run source engine tests
-        run: node tests/sourceEngine.test.mjs
-
-      - name: Run API client tests
-        run: node tests/apiClient.test.mjs
-
-      - name: Run backend adapter tests
-        run: node tests/backendLibrary.test.mjs
-
-      - name: Run backend connection tests
-        run: node tests/backendConnection.test.mjs
-
-      - name: Run Android readiness tests
-        run: node tests/androidReadiness.test.mjs
-
-      - name: Run demo mode tests
-        run: node tests/demoMode.test.mjs
-
-      - name: Run device validation tests
-        run: node tests/deviceValidation.test.mjs
-
-      - name: Run product shell tests
-        run: node tests/productShell.test.mjs
-
-      - name: Run AI history tests
-        run: node tests/aiHistory.test.mjs
-
-      - name: Run import adapter tests
-        run: node tests/importAdapters.test.mjs
-
-      - name: Run import readiness tests
-        run: node tests/importReadiness.test.mjs
-
-      - name: Run online reading flow tests
-        run: node tests/onlineReadingFlow.test.mjs
-
-      - name: Run source market tests
-        run: node tests/sourceMarket.test.mjs
+      - name: Run all frontend utility tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          test_files=(
+            tests/aiHistory.test.mjs
+            tests/androidReadiness.test.mjs
+            tests/apiClient.test.mjs
+            tests/appTheme.test.mjs
+            tests/backendConnection.test.mjs
+            tests/backendLibrary.test.mjs
+            tests/demoMode.test.mjs
+            tests/deviceValidation.test.mjs
+            tests/h5Shell.test.mjs
+            tests/importAdapters.test.mjs
+            tests/importReadiness.test.mjs
+            tests/onlineReadingFlow.test.mjs
+            tests/productShell.test.mjs
+            tests/readerExperience.test.mjs
+            tests/searchHelpers.test.mjs
+            tests/shelfDeletion.test.mjs
+            tests/sourceDiagnostics.test.mjs
+            tests/sourceEngine.test.mjs
+            tests/sourceImport.test.mjs
+            tests/sourceMarket.test.mjs
+            tests/uiFeedback.test.mjs
+          )
+          for test_file in "${test_files[@]}"; do
+            echo "Running ${test_file}"
+            node "${test_file}"
+          done

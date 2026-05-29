@@ -2,97 +2,66 @@
 
 ![CI](https://github.com/kimh27201-cyber/novel-reader-ai/actions/workflows/ci.yml/badge.svg)
 
-一个面向学习和求职展示的阅读助手项目。项目保留原有 uni-app 客户端，同时新增 Python FastAPI 后端，把核心能力逐步迁移到后端：用户系统、书架管理、阅读记录、动态书源解析、AI 章节总结和 AI 问答。
+一个基于 `uni-app + Vue 2 + FastAPI` 的阅读助手项目，面向学习、实习求职展示和自用 APK 验收。项目已经从早期本地原型推进到可打包 Android WebView APK，并补齐了真实书源导入、源仓库浏览、在线搜索、目录解析、正文阅读、TXT 导入和 AI 阅读辅助的闭环。
 
-## 求职展示入口
+> 合规说明：仓库不内置版权小说正文，不提供盗版内容，不绕过登录、会员、付费章节、广告或站点限制。内置的是书源规则导入能力、源仓库入口和兼容性检测机制。
 
-- [项目演示脚本](docs/DEMO_GUIDE.md)：面试或录屏时按步骤展示 Swagger、登录鉴权、书源、阅读器和 AI 功能。
-- [简历与面试讲解稿](docs/INTERVIEW_NOTES.md)：可直接改写到简历里的项目描述、亮点和常见追问答案。
-- [接口文档](docs/API.md)：后端主要 API、请求示例和演示顺序。
-- [截图清单](docs/SCREENSHOTS.md)：用于 README、简历附件和录屏素材准备。
-- [Android 真机验收清单](docs/ANDROID_VALIDATION.md)：后续 App 端扫码、文件、剪贴板和网络验证步骤。
-- [Android APK 打包说明](docs/PACKAGING_ANDROID.md)：展示 APK、HBuilderX 云打包和正式包预留事项。
+## 当前状态
 
-## 项目定位
+- Android WebView APK 已完成 v1.0 打包验收，并在 v1.1-v1.4 阶段补齐真实阅读体验。
+- 前端工具测试覆盖导入、书源解析、源仓库、阅读器体验、产品外壳、真机验收清单等模块。
+- 后端提供用户系统、书架、章节、阅读历史、书源解析 API、AI 总结/问答和统一错误响应。
+- 默认 AI 使用 mock 模式，没有真实 API Key 也可以本地运行和测试。
+- 推荐源检测已跑通真实流程：源仓库拉取、书源导入、小说搜索、详情、目录、正文、加入书架。
+- 调试模式内置“一键演示准备”“APK 展示准备”“真机验收清单”，方便录屏和现场验收。
 
-这个项目不是小说资源站，也不内置盗版书源。它的定位是一个“阅读工具 + AI 应用后端”：
-
-- uni-app 客户端负责页面展示和本地阅读体验
-- FastAPI 后端负责用户、数据、书源解析和 AI 能力
-- SQLite 方便本地开发，后续可切换 PostgreSQL
-- AI 功能默认支持 mock 模式，没有 API Key 也能运行和测试
-
-## 技术栈
-
-后端：
-
-- Python
-- FastAPI
-- SQLAlchemy
-- SQLite
-- JWT
-- Pydantic
-- httpx
-- python-dotenv
-- pytest
+## 核心功能
 
 客户端：
 
-- uni-app
-- Vue 2
-- 本地 TXT 阅读
-- 本地书源解析原型
+- 书架、发现、阅读器、书源市场、我的页面
+- 本地 TXT 文件导入、章节识别、加入书架、继续阅读
+- JSON / Legado / 阅读 3.x 书源导入
+- 扫码、剪贴板、文件选择统一导入入口
+- yckceo / yck2026 源仓库入口、详情预览、一键导入
+- 单源测试、批量检测、失败诊断、推荐可用源
+- 在线书籍搜索、详情、目录、正文缓存和阅读器失败提示
+- Android 真机后端地址自检、导入功能自检、完整阅读测试入口
 
-## 当前功能
-
-后端已实现：
+后端：
 
 - 用户注册、登录、JWT 鉴权
-- 书架管理
-- 章节管理
-- 阅读记录管理
-- JSON 书源导入
-- 动态书源搜索、目录、正文解析
-- 本地演示书源，方便 Swagger 直接测试
-- AI 章节总结
-- AI 小说问答
-- AI 总结、问答历史和调用日志查询
-- AI 超时、上游错误、返回格式异常分类处理
-- 统一错误响应、`X-Request-ID` 和请求日志
-- 自动化测试
+- 书架、章节、阅读历史管理
+- 动态书源导入、搜索、目录、正文解析
+- 本地演示书源，方便 Swagger 和面试录屏演示
+- AI 章节总结、AI 小说问答、AI 历史和调用日志
+- 统一错误响应、`X-Request-ID`、CORS 和 pytest 覆盖
 
-客户端已保留：
+Android APK：
 
-- 书架页面
-- 搜索页面
-- 阅读器页面
-- 书源管理页面
-- TXT 本地阅读相关原型
-- 我的页面后端登录入口
-- 阅读器内 AI 总结和问答入口
-- AI 记录页展示总结、问答和调用日志
-- 书源导入、兼容性诊断、单源测试、批量检测和发现页可用源引导
-- 书源改名、分组管理、当前结果批量启停、删除确认和导入前预览
-- 书源页扫码、剪贴板、本地 JSON/TXT 文件选择统一走跨端适配层，便于 Android 真机验证
-- 我的页支持后端地址保存、真机地址风险提示和 `/api/health` 自检
-- 书源页默认保持简洁，批量检测、分组筛选、批量启停和后端演示源收进“管理工具”
-- 我的页通过“关于”版本号连续点击 7 次开启调试模式，调试模式下显示 APK 展示准备、一键演示准备和真机验收清单
+- WebView 壳工程：`android-webview-shell/`
+- 构建脚本：`scripts/build_android_webview_apk.ps1`
+- 打包说明：[docs/PACKAGING_ANDROID.md](docs/PACKAGING_ANDROID.md)
+- 真机验收清单：[docs/ANDROID_VALIDATION.md](docs/ANDROID_VALIDATION.md)
+- WebView APK 说明：[docs/ANDROID_WEBVIEW_APK.md](docs/ANDROID_WEBVIEW_APK.md)
 
 ## 项目结构
 
 ```text
 novel-reader-uniapp/
-  backend/       # Python FastAPI 后端
-  common/        # uni-app 公共逻辑
-  pages/         # uni-app 页面
-  preview/       # 浏览器预览页面
-  static/        # 静态测试文件
-  static/branding/ # App 图标和启动页源文件
-  tests/         # 前端书源引擎测试
-  docs/          # 项目文档
+  backend/                 # FastAPI 后端
+  common/                  # uni-app 公共逻辑、书源引擎、导入适配、缓存
+  pages/                   # uni-app 页面
+  android-webview-shell/   # Android WebView APK 壳工程
+  scripts/                 # 打包和辅助脚本
+  static/                  # 图标、tabbar、静态资源
+  docs/                    # API、演示、打包、验收文档
+  tests/                   # 前端工具和产品行为测试
 ```
 
-## 后端启动
+## 快速启动
+
+后端：
 
 ```powershell
 cd D:\Codex\novel-reader-uniapp\backend
@@ -100,15 +69,12 @@ cd D:\Codex\novel-reader-uniapp\backend
 uvicorn app.main:app --reload --port 8000
 ```
 
-Android 真机联调时使用：
+打开：
 
-```powershell
-uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
+- Swagger: http://127.0.0.1:8000/docs
+- 健康检查: http://127.0.0.1:8000/api/health
 
-手机端“我的”页后端地址填写电脑局域网地址，例如 `http://192.168.x.x:8000`。不要在真机里使用 `127.0.0.1` 或 `localhost`。
-
-如果电脑连接的是手机热点，优先使用 USB 调试转发，不依赖局域网 IP：
+Android 真机通过 USB 调试连接本机后端：
 
 ```powershell
 cd D:\Codex\novel-reader-uniapp\backend
@@ -116,195 +82,95 @@ cd D:\Codex\novel-reader-uniapp\backend
 D:\program\Android\SDK\platform-tools\adb.exe reverse tcp:8000 tcp:8000
 ```
 
-开启转发后，手机端“我的”页后端地址填写 `http://127.0.0.1:8000`。
-如果 `adb` 已加入 PATH，也可以直接运行 `adb reverse tcp:8000 tcp:8000`。
-
-打开：
-
-- Swagger: http://127.0.0.1:8000/docs
-- 健康检查: http://127.0.0.1:8000/api/health
-
-正式数据库迁移流程：
-
-```powershell
-cd D:\Codex\novel-reader-uniapp\backend
-.\.venv\Scripts\Activate.ps1
-alembic upgrade head
-```
-
-如果本地 SQLite 已经用 `python scripts/init_db.py` 建过表，第一次接入 Alembic 时不要直接升级，先标记当前库已经处在初始版本：
-
-```powershell
-alembic stamp head
-alembic upgrade head
-```
-
-## 后端测试
-
-```powershell
-cd D:\Codex\novel-reader-uniapp\backend
-.\.venv\Scripts\Activate.ps1
-pytest
-```
-
-前端书源引擎测试：
-
-```powershell
-cd D:\Codex\novel-reader-uniapp
-node tests/sourceEngine.test.mjs
-node tests/sourceImport.test.mjs
-node tests/sourceDiagnostics.test.mjs
-node tests/searchHelpers.test.mjs
-node tests/importAdapters.test.mjs
-```
-
-前端后端 API client 测试：
-
-```powershell
-cd D:\Codex\novel-reader-uniapp
-node tests/apiClient.test.mjs
-node tests/backendConnection.test.mjs
-node tests/androidReadiness.test.mjs
-node tests/demoMode.test.mjs
-node tests/deviceValidation.test.mjs
-node tests/productShell.test.mjs
-```
-
-AI 历史和后端适配层测试：
-
-```powershell
-cd D:\Codex\novel-reader-uniapp
-node tests/backendLibrary.test.mjs
-node tests/aiHistory.test.mjs
-```
-
-## GitHub Actions CI
-
-仓库已提供 `.github/workflows/ci.yml`，推送到 `main` 或提交 Pull Request 时会自动执行：
-
-- 后端依赖安装、Alembic 迁移检查、`pytest`
-- `pages.json` 解析检查
-- 前端工具测试：`sourceEngine`、`apiClient`、`backendConnection`、`backendLibrary`、`aiHistory`、`importAdapters`
-- Android 展示准备测试：`androidReadiness`
-- 演示模式测试：`demoMode`
-- 真机验收清单测试：`deviceValidation`
-- 产品外壳测试：`productShell`
-
-## 错误响应与排查
-
-后端所有请求都会返回 `X-Request-ID` 响应头。客户端也可以传入 `X-Request-ID`，方便把前端报错、Swagger 调试和后端日志对应起来。
-
-错误响应会保留 FastAPI 兼容字段 `detail`，并额外提供统一的 `error` 对象：
-
-```json
-{
-  "error": {
-    "code": "validation_error",
-    "message": "Request validation failed",
-    "request_id": "example-request-id"
-  },
-  "detail": []
-}
-```
-
-## Docker 本地部署
-
-项目根目录提供 `docker-compose.yml`，用于一键启动 FastAPI 后端和 PostgreSQL：
-
-```powershell
-cd D:\Codex\novel-reader-uniapp
-docker compose up --build
-```
-
-启动后打开：
-
-- Swagger: http://127.0.0.1:8000/docs
-- 健康检查: http://127.0.0.1:8000/api/health
-
-Docker 使用的环境变量示例在：
+手机端“我的”页面后端地址填写：
 
 ```text
-backend\.env.docker.example
+http://127.0.0.1:8000
 ```
 
-默认 Docker 配置使用 PostgreSQL：
+如果不用 USB 转发，也可以把后端启动在 `0.0.0.0:8000`，手机端填写电脑局域网 IP，例如 `http://192.168.x.x:8000`。
 
-```env
-DATABASE_URL=postgresql+psycopg://novel_reader:novel_reader_password@db:5432/novel_reader
-AI_PROVIDER=mock
+## Android APK 打包
+
+```powershell
+cd D:\Codex\novel-reader-uniapp
+powershell -ExecutionPolicy Bypass -File .\scripts\build_android_webview_apk.ps1
 ```
 
-容器启动时会自动执行：
+默认产物：
 
 ```text
-alembic upgrade head
+release\android-v1\novel-reader-1.0.0-android-webview-v1.apk
 ```
 
-如果要接入真实 AI 服务，请复制并修改环境变量，不要提交真实 API Key。
+安装和启动：
 
-## 演示流程
+```powershell
+adb install -r .\release\android-v1\novel-reader-1.0.0-android-webview-v1.apk
+adb reverse tcp:8000 tcp:8000
+adb shell monkey -p com.novelreader.v1 1
+```
 
-适合面试或项目展示的完整流程：
+## 测试
 
-1. 启动后端，打开 Swagger。
-2. 注册并登录用户，复制 JWT。
-3. 导入演示书源：`POST /api/sources/import-demo`。
-4. 使用书源搜索、目录解析和正文解析接口。
-5. 在 uni-app “我的”页面登录后端。
-6. 如需录屏或打包验收，在“我的 > 关于”连续点击版本号 7 次开启调试模式，再查看“一键演示准备”和“APK 展示准备”。
-7. 在“书源”页添加书源、进入源仓库或展开“管理工具”刷新后端演示源。
-8. 在“书源”页查看书源诊断，运行单源测试或批量检测，确认发现页只使用测试通过的源。
-9. 在“发现”页查看可用书源数量，搜索书籍，加入云端书架。
-10. 进入阅读器，验证章节解析、阅读进度保存、AI 总结和 AI 问答。
-11. 回到“我的”页打开“AI 记录”，查看总结、问答历史和 AI 调用日志。
+后端：
 
-## 重要接口
+```powershell
+cd D:\Codex\novel-reader-uniapp
+backend\.venv\Scripts\python.exe -m pytest
+```
 
-鉴权：
+前端工具测试：
 
-- `POST /api/auth/register`
-- `POST /api/auth/login`
-- `GET /api/auth/me`
+```powershell
+cd D:\Codex\novel-reader-uniapp
+Get-ChildItem tests -Filter *.test.mjs | Sort-Object Name | ForEach-Object { node $_.FullName }
+```
 
-书架与阅读：
+配置解析：
 
-- `GET /api/books`
-- `POST /api/books`
-- `GET /api/books/{book_id}/chapters`
-- `POST /api/books/{book_id}/chapters`
-- `GET /api/chapters/{chapter_id}`
-- `POST /api/reading-history`
-- `GET /api/reading-history`
+```powershell
+node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('pages.json','utf8')); JSON.parse(fs.readFileSync('manifest.json','utf8')); console.log('json config ok')"
+```
 
-书源解析：
+GitHub Actions 会在 `main` 推送和 Pull Request 时自动运行后端 pytest、uni-app 配置解析和全部前端 `.test.mjs`。
 
-- `POST /api/sources/import`
-- `POST /api/sources/import-demo`
-- `GET /api/sources`
-- `POST /api/sources/{source_id}/search`
-- `POST /api/sources/{source_id}/toc`
-- `POST /api/sources/{source_id}/content`
+## 演示入口
 
-AI：
+- [项目演示脚本](docs/DEMO_GUIDE.md)：适合面试、录屏、答辩展示。
+- [接口文档](docs/API.md)：后端 API、请求示例和演示顺序。
+- [Android 真机验收清单](docs/ANDROID_VALIDATION.md)：扫码、文件、剪贴板、后端、网络和缓存验收。
+- [Android APK 打包说明](docs/PACKAGING_ANDROID.md)：APK 构建、签名、安装和常见问题。
+- [简历与面试讲解稿](docs/INTERVIEW_NOTES.md)：项目亮点、技术难点和追问答案。
+- [截图清单](docs/SCREENSHOTS.md)：README、简历附件和录屏素材准备。
 
-- `POST /api/ai/summary`
-- `GET /api/ai/summaries`
-- `POST /api/ai/chat`
-- `GET /api/ai/chats`
-- `GET /api/ai/calls`
+## 真实书源路线
 
-更详细接口说明见 [docs/API.md](docs/API.md)。
+已完成：
+
+- v1.0.1：APK 重新打包、后端 URL 容错、USB `adb reverse` 说明
+- v1.1：扫码、剪贴板、JSON、TXT 统一导入闭环
+- v1.2：Legado / 阅读 3.x 常见规则兼容和阶段化诊断
+- v1.3：内置 yckceo / yck2026 源仓库入口、推荐源、预览和一键导入
+- v1.4：在线书详情、目录、正文缓存、阅读器失败状态和完整阅读测试
+
+仍需手动验收：
+
+- 手机 UI 上扫码 yck 仓库二维码并进入源仓库页
+- 手机 UI 上点击推荐源导入并完成真实搜索阅读
+- 手机 UI 上选择本地 `.txt`，分章、加入书架、继续阅读
+- 断网状态下验证已缓存章节可读、未缓存章节错误可理解
 
 ## AI 配置
 
-默认使用 mock 模式，不需要花钱：
+默认使用 mock 模式：
 
 ```env
 AI_PROVIDER=mock
 AI_API_KEY=
 ```
 
-如果后续要接 DeepSeek：
+后续接入 DeepSeek 示例：
 
 ```env
 AI_PROVIDER=deepseek
@@ -313,23 +179,21 @@ AI_BASE_URL=https://api.deepseek.com
 AI_MODEL=deepseek-chat
 ```
 
-真实 `.env` 不要提交到 GitHub。
+真实 `.env` 和 API Key 不应提交到 GitHub。
 
 ## 合规边界
 
-本项目不提供、不维护、不内置任何盗版书源：
+本项目是阅读工具和书源规则兼容性实验，不是内容分发站点：
 
-- 不执行书源里的 JS、登录、Cookie、WebView 或付费绕过规则
-- 不解析付费章节
-- 不绕过登录、会员、广告或版权限制
 - 不在仓库内放置未经授权的小说正文
+- 不内置版权内容下载地址
+- 不执行第三方书源中的 JS、登录、Cookie 或 WebView 绕过逻辑
+- 不解析付费章节，不规避站点访问控制
+- 第三方书源和 TXT 文件应来自用户自己有权使用的内容
 
-用户导入的第三方书源和 TXT 文件应来自用户自己有权使用的内容。
+## 后续计划
 
-## 后续方向
-
-- v1.0.1：书源失败诊断面板，展示最近失败 URL、规则、状态码和可操作建议。
-- v1.1：书源市场、推荐源、失败源一键禁用和导入冲突处理。
-- v1.2：整本离线缓存、缓存进度和弱网阅读兜底。
-- v1.3：AI 总结/问答与章节缓存联动，完善面试演示闭环。
-- v2.0：正式签名包、公网 HTTPS 后端、隐私政策、商店截图和发布材料。
+- 完成 Android 真机 UI 逐项验收，并补充截图到 `docs/SCREENSHOTS.md`
+- 将推荐源检测结果做成更直观的首启向导
+- 增加换源入口、下一章预加载和整本离线缓存进度
+- 准备正式签名包、公网 HTTPS 后端、隐私政策和发布截图
