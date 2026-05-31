@@ -39,6 +39,7 @@
       >
         <text class="chapter-index">{{ chapter.index + 1 }}</text>
         <text class="chapter-title">{{ chapter.title }}</text>
+        <text class="chapter-state" :class="chapterStateClass(chapter)">{{ chapterStateLabel(chapter) }}</text>
       </view>
     </scroll-view>
   </view>
@@ -88,6 +89,16 @@ export default {
   methods: {
     shortTitle(title) {
       return String(title || '').slice(0, 4)
+    },
+    chapterStateLabel(chapter) {
+      if (chapter.errorMessage || chapter.loadStatus === 'failed') return '解析失败'
+      if (chapter.isCached || chapter.loadStatus === 'cached' || chapter.loadStatus === 'loaded') return '已缓存'
+      return '待解码'
+    },
+    chapterStateClass(chapter) {
+      if (chapter.errorMessage || chapter.loadStatus === 'failed') return 'failed'
+      if (chapter.isCached || chapter.loadStatus === 'cached' || chapter.loadStatus === 'loaded') return 'cached'
+      return 'pending'
     },
     async reload() {
       if (!this.book) return
@@ -313,6 +324,27 @@ button::after {
   font-size: 26rpx;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.chapter-state {
+  flex-shrink: 0;
+  min-width: 92rpx;
+  padding: 8rpx 12rpx;
+  border-radius: 999rpx;
+  color: var(--app-muted);
+  font-size: 21rpx;
+  text-align: center;
+  background: var(--app-input);
+}
+
+.chapter-state.cached {
+  color: var(--app-on-accent);
+  background: var(--app-accent);
+}
+
+.chapter-state.failed {
+  color: var(--app-on-accent);
+  background: var(--app-accent-3);
 }
 
 /* Decoder mode override */

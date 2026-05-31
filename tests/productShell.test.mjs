@@ -84,6 +84,12 @@ assert.match(search, /本次使用/)
 assert.match(search, /去书源页批量检测/)
 assert.match(search, /只使用已通过测试的书源/)
 
+const sourceBookPage = readFileSync(new URL('../pages/sourceBook/sourceBook.vue', import.meta.url), 'utf8')
+assert.match(sourceBookPage, /书源详情/)
+assert.match(sourceBookPage, /chapter-state/)
+assert.match(sourceBookPage, /重新解析/)
+assert.match(sourceBookPage, /加入书架/)
+
 const bookshelf = readFileSync(new URL('../pages/bookshelf/bookshelf.vue', import.meta.url), 'utf8')
 assert.match(bookshelf, /shelf-filter-active/)
 assert.match(bookshelf, /top-search-button/)

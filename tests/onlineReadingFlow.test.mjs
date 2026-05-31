@@ -123,4 +123,11 @@ assert.match(library, /runSourceReadingFlow/)
 assert.match(library, /完整阅读测试/)
 assert.match(library, /sourceFlowTesting/)
 
+const sourceBook = readFileSync(new URL('../pages/sourceBook/sourceBook.vue', import.meta.url), 'utf8')
+assert.match(sourceBook, /chapterStateLabel/)
+assert.match(sourceBook, /chapter-state/)
+assert.match(sourceBook, /待解码/)
+assert.match(sourceBook, /已缓存/)
+assert.match(sourceBook, /解析失败/)
+
 console.log('onlineReadingFlow tests passed')
