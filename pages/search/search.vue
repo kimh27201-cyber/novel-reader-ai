@@ -82,7 +82,7 @@
 
         <view class="empty-state" v-else-if="mode === 'cloud' && noAvailableSourceHint && !loading">
           <view class="empty-title">暂无可用书源</view>
-          <text class="empty-desc">请先到书源页完成书源测试。发现页只会使用启用且测试通过的书源。</text>
+          <text class="empty-desc">请先到书源页完成书源测试。发现页只使用已通过测试的书源。</text>
           <button class="starter primary" @tap="goLibrary">去书源页批量检测</button>
         </view>
 

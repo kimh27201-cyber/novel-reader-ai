@@ -367,6 +367,27 @@ export function getSourceDiagnostics(source) {
   const ruleToc = normalizeRuleObject(raw.ruleToc)
   const ruleContent = normalizeRuleObject(raw.ruleContent)
   const ruleBookInfo = normalizeRuleObject(raw.ruleBookInfo)
+  const ruleSummary = {
+    search: compatible && !!(raw.searchUrl && Object.keys(ruleSearch).length),
+    bookInfo: compatible && !!Object.keys(ruleBookInfo).length,
+    toc: compatible && !!Object.keys(ruleToc).length,
+    content: compatible && !!Object.keys(ruleContent).length,
+    explore: compatible && !!raw.ruleExplore
+  }
+  const statusTitle = !compatible
+    ? '规则不兼容'
+    : lastTest.status === 'passed'
+      ? '已通过网络测试'
+      : lastTest.status === 'failed'
+        ? '网络测试失败'
+        : '规则兼容，待网络测试'
+  const statusDesc = !compatible
+    ? (reasons.length ? reasons.join('、') : '包含 H5 暂不支持的复杂规则')
+    : lastTest.status === 'passed'
+      ? `发现页会使用它，最近返回 ${lastTest.count || 0} 条结果。`
+      : lastTest.status === 'failed'
+        ? `${lastTest.message || '网络是否可用以单源测试为准'}，发现页会跳过它。`
+        : '网络是否可用以单源测试为准，测试通过后发现页会使用它。'
   return {
     id: source && source.id || '',
     name: source && source.name || raw.bookSourceName || '未命名书源',
@@ -378,15 +399,11 @@ export function getSourceDiagnostics(source) {
     searchable,
     networkStatus,
     compatibility: compatible ? 'v1 兼容' : '不兼容',
+    statusTitle,
+    statusDesc,
     lastTest,
     reasons: compatible ? [] : (reasons.length ? reasons : ['包含 H5 暂不支持的复杂规则']),
-    ruleSummary: {
-      search: compatible && !!(raw.searchUrl && Object.keys(ruleSearch).length),
-      bookInfo: compatible && !!Object.keys(ruleBookInfo).length,
-      toc: compatible && !!Object.keys(ruleToc).length,
-      content: compatible && !!Object.keys(ruleContent).length,
-      explore: compatible && !!raw.ruleExplore
-    }
+    ruleSummary
   }
 }
 

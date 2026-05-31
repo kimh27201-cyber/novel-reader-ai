@@ -117,7 +117,7 @@
             <view class="batch-head">
               <view>
                 <view class="test-title">批量检测</view>
-                <text class="source-hint">发现页只使用已通过测试的书源。失败源会保留网络失败、规则不兼容、无搜索结果或超时原因。</text>
+                <text class="source-hint">发现页只使用已通过测试的书源；发现页会使用已通过测试的书源。失败源会保留网络失败、规则不兼容、无搜索结果或超时原因。</text>
               </view>
               <view class="batch-actions">
                 <button class="small-action primary" :loading="batchTesting" @tap="runBatchSourceTest('all')">测试全部启用源</button>
@@ -312,6 +312,10 @@
         </view>
       </view>
 
+      <view class="rule-state-head" v-if="sourceDiagnostics">
+        <view class="test-title">规则状态</view>
+        <text class="source-hint">搜索、详情、目录和正文规则决定真实阅读闭环能否跑通。</text>
+      </view>
       <view class="rule-summary" v-if="sourceDiagnostics">
         <view
           class="rule-pill"
@@ -501,24 +505,11 @@ export default {
     },
     sourceStatusTitle() {
       if (!this.sourceDiagnostics) return '书源状态'
-      if (!this.sourceDiagnostics.compatible) return 'H5 暂不兼容'
-      if (this.sourceDiagnostics.networkStatus === 'passed') return '已通过网络测试'
-      if (this.sourceDiagnostics.networkStatus === 'failed') return '网络测试未通过'
-      return '规则兼容，待网络测试'
+      return this.sourceDiagnostics.statusTitle || '规则兼容，待网络测试'
     },
     sourceStatusDesc() {
       if (!this.sourceDiagnostics) return ''
-      if (!this.sourceDiagnostics.compatible) return this.sourceReasonText
-      const lastTest = this.sourceDiagnostics.lastTest || {}
-      if (this.sourceDiagnostics.networkStatus === 'passed') {
-        const suffix = lastTest.keyword ? `关键词：${lastTest.keyword}` : '可参与发现页搜索'
-        return `已通过网络测试，发现页会使用它搜索。${suffix}`
-      }
-      if (this.sourceDiagnostics.networkStatus === 'failed') {
-        const message = lastTest.message || '最近网络测试失败'
-        return `${message}。规则本身仍兼容，发现页会跳过它。`
-      }
-      return '规则结构可解析；网络是否可用以单源测试为准。'
+      return this.sourceDiagnostics.statusDesc || '网络是否可用以单源测试为准'
     },
     sourceRuleSummary() {
       const summary = this.sourceDiagnostics && this.sourceDiagnostics.ruleSummary || {}
