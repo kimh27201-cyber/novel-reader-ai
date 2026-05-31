@@ -1,7 +1,34 @@
 const APP_THEME_KEY = 'app:theme'
-const DEFAULT_THEME_ID = 'night'
+const DEFAULT_THEME_ID = 'xuanye'
 
 export const appThemes = [
+  {
+    id: 'xuanye',
+    name: '玄夜',
+    desc: '高级、暗黑、神秘，适合默认展示和夜间解码',
+    swatch: ['#080b10', '#67fff2', '#d8a75f'],
+    vars: {
+      '--app-bg': 'radial-gradient(circle at 14% -8%, rgba(103, 255, 242, 0.14), transparent 30%), radial-gradient(circle at 86% 8%, rgba(143, 109, 255, 0.14), transparent 28%), linear-gradient(180deg, #080b10 0%, #0d111a 48%, #121017 100%)',
+      '--app-top': 'linear-gradient(180deg, rgba(18, 24, 34, 0.98) 0%, rgba(10, 14, 22, 0.96) 100%)',
+      '--app-accent': '#67fff2',
+      '--app-accent-2': '#8f6dff',
+      '--app-accent-3': '#d8a75f',
+      '--app-on-accent': '#071014',
+      '--app-text': '#f4f1e8',
+      '--app-muted': '#8f9bad',
+      '--app-panel': 'rgba(17, 22, 32, 0.74)',
+      '--app-panel-strong': 'rgba(20, 25, 36, 0.92)',
+      '--app-input': 'rgba(255, 255, 255, 0.07)',
+      '--app-border': 'rgba(153, 231, 255, 0.14)',
+      '--app-shadow': '0 18rpx 52rpx rgba(0, 0, 0, 0.34), inset 0 1rpx 0 rgba(255, 255, 255, 0.04)',
+      '--app-stage': '#070a0f',
+      '--app-shell-border': 'rgba(153, 231, 255, 0.18)',
+      '--app-shell-shadow': '0 30rpx 96rpx rgba(0, 0, 0, 0.48)',
+      '--app-floating-shadow': '0 -22rpx 76rpx rgba(0, 0, 0, 0.44)',
+      '--app-reader-control': 'rgba(12, 17, 25, 0.94)',
+      '--app-reader-control-text': '#f4f1e8'
+    }
+  },
   {
     id: 'qinglan',
     name: '清岚',
