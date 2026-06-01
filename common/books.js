@@ -2,6 +2,9 @@ import { deleteOnlineBookFromShelf, getOnlineBook, getOnlineShelfBooks } from '.
 
 const IMPORTED_BOOKS_KEY = 'books:imported'
 const HIDDEN_BUILTIN_BOOKS_KEY = 'books:hidden-builtin'
+const LOCAL_CHAPTER_KEY_PREFIX = 'books:local-chapter'
+const LOCAL_CHAPTER_SEGMENT_SIZE = 180000
+const memoryStore = {}
 
 export const builtInBooks = [
   {
@@ -64,15 +67,11 @@ export const builtInBooks = [
 const coverColors = ['#7aa095', '#6e7f9f', '#9b7f78', '#728b75', '#8b789b', '#9a8a62']
 
 function readImportedBooks() {
-  try {
-    return uni.getStorageSync(IMPORTED_BOOKS_KEY) || []
-  } catch (error) {
-    return []
-  }
+  return readStorage(IMPORTED_BOOKS_KEY, [])
 }
 
 function saveImportedBooks(books) {
-  uni.setStorageSync(IMPORTED_BOOKS_KEY, books)
+  writeStorage(IMPORTED_BOOKS_KEY, books)
 }
 
 function readHiddenBuiltinBookIds() {
@@ -84,7 +83,39 @@ function readHiddenBuiltinBookIds() {
 }
 
 function saveHiddenBuiltinBookIds(bookIds) {
-  uni.setStorageSync(HIDDEN_BUILTIN_BOOKS_KEY, bookIds)
+  writeStorage(HIDDEN_BUILTIN_BOOKS_KEY, bookIds)
+}
+
+function readStorage(key, fallback) {
+  try {
+    if (typeof uni !== 'undefined' && uni.getStorageSync) {
+      const value = uni.getStorageSync(key)
+      return value === '' || value == null ? fallback : value
+    }
+  } catch (error) {
+    return fallback
+  }
+  return Object.prototype.hasOwnProperty.call(memoryStore, key) ? memoryStore[key] : fallback
+}
+
+function writeStorage(key, value) {
+  if (typeof uni !== 'undefined' && uni.setStorageSync) {
+    uni.setStorageSync(key, value)
+    return
+  }
+  memoryStore[key] = value
+}
+
+function removeStorage(key) {
+  try {
+    if (typeof uni !== 'undefined' && uni.removeStorageSync) {
+      uni.removeStorageSync(key)
+      return
+    }
+  } catch (error) {
+    // keep memory cleanup below as a fallback for tests and non-uni runtimes
+  }
+  delete memoryStore[key]
 }
 
 function normalizeText(text) {
@@ -104,6 +135,43 @@ function inferTitle(text) {
 
 function createBookId() {
   return `local-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
+function localChapterKey(bookId, chapterIndex, segmentIndex = 0) {
+  return `${LOCAL_CHAPTER_KEY_PREFIX}:${bookId}:${chapterIndex}:${segmentIndex}`
+}
+
+function removeLocalChapterStorage(book) {
+  ;(book.chapters || []).forEach(chapter => {
+    ;(chapter.contentKeys || []).forEach(key => removeStorage(key))
+    if (chapter.contentKey) removeStorage(chapter.contentKey)
+  })
+}
+
+function persistLocalChapter(bookId, chapter, index, storedKeys) {
+  const content = normalizeText(chapter.content)
+  const keys = []
+  const segmentCount = Math.max(1, Math.ceil(content.length / LOCAL_CHAPTER_SEGMENT_SIZE))
+
+  for (let segmentIndex = 0; segmentIndex < segmentCount; segmentIndex += 1) {
+    const key = localChapterKey(bookId, index, segmentIndex)
+    const start = segmentIndex * LOCAL_CHAPTER_SEGMENT_SIZE
+    const segment = content.slice(start, start + LOCAL_CHAPTER_SEGMENT_SIZE)
+    writeStorage(key, segment)
+    keys.push(key)
+    storedKeys.push(key)
+  }
+
+  return {
+    title: chapter.title || `第 ${index + 1} 章`,
+    index,
+    content: '',
+    contentKey: keys.length === 1 ? keys[0] : '',
+    contentKeys: keys,
+    wordCount: content.replace(/\s/g, '').length,
+    preview: content.replace(/\s+/g, ' ').slice(0, 80),
+    isCached: true
+  }
 }
 
 export function parseTxtChapters(text) {
@@ -158,10 +226,13 @@ export function importBookFromText({ title, author, text }) {
   }
 
   const imported = readImportedBooks()
-  const chapters = parseTxtChapters(normalized)
+  const rawChapters = parseTxtChapters(normalized)
   const bookTitle = String(title || '').trim() || inferTitle(normalized)
+  const bookId = createBookId()
+  const storedKeys = []
+  const chapters = rawChapters.map((chapter, index) => persistLocalChapter(bookId, chapter, index, storedKeys))
   const book = {
-    id: createBookId(),
+    id: bookId,
     source: 'local',
     title: bookTitle,
     author: String(author || '').trim() || '本地导入',
@@ -173,13 +244,42 @@ export function importBookFromText({ title, author, text }) {
     importedAt: Date.now()
   }
 
-  saveImportedBooks([book, ...imported])
-  return book
+  try {
+    saveImportedBooks([book, ...imported])
+    return book
+  } catch (error) {
+    storedKeys.forEach(key => removeStorage(key))
+    throw new Error('本地存储空间不足，TXT 加入书架失败。请清理缓存后重试。')
+  }
 }
 
 export function deleteImportedBook(bookId) {
-  const imported = readImportedBooks().filter(book => book.id !== bookId)
-  saveImportedBooks(imported)
+  const imported = readImportedBooks()
+  const book = imported.find(item => item.id === bookId)
+  if (book) removeLocalChapterStorage(book)
+  saveImportedBooks(imported.filter(item => item.id !== bookId))
+}
+
+export function loadLocalChapterContent(bookOrId, chapter) {
+  if (chapter && chapter.content) return chapter.content
+
+  const keys = chapter && Array.isArray(chapter.contentKeys) && chapter.contentKeys.length
+    ? chapter.contentKeys
+    : chapter && chapter.contentKey
+      ? [chapter.contentKey]
+      : []
+
+  const content = keys.map(key => readStorage(key, '')).join('')
+  if (content) return content
+
+  const bookId = typeof bookOrId === 'object' ? bookOrId.id : bookOrId
+  const index = chapter && chapter.index !== undefined ? Number(chapter.index) : -1
+  if (bookId && index >= 0) {
+    const fallback = readStorage(localChapterKey(bookId, index, 0), '')
+    if (fallback) return fallback
+  }
+
+  throw new Error('本地章节正文不存在，请重新导入 TXT 文件')
 }
 
 export function deleteShelfBook(bookOrId) {

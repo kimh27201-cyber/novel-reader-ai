@@ -272,7 +272,7 @@
 </template>
 
 <script>
-import { getBook } from '../../common/books.js'
+import { getBook, loadLocalChapterContent } from '../../common/books.js'
 import { addOnlineBookToShelf, loadOnlineChapter } from '../../common/bookSources.js'
 import {
   getBrightnessOverlayOpacity,
@@ -513,6 +513,31 @@ export default {
           this.loadingChapter = false
           this.chapterLoadError = this.formatChapterLoadError(error, '后端章节解析失败')
           this.pages = ['这一章暂时没有解析成功。你可以重试，或回到目录换一章。']
+        }
+        this.pageIndex = Math.max(0, Math.min(this.pageIndex, this.pages.length - 1))
+        this.persist()
+        return
+      }
+
+      if (this.book.source === 'local' && currentChapter && !currentChapter.content) {
+        this.loadingChapter = true
+        this.loadingText = '正在读取本地章节...'
+        this.pages = ['请稍候，正在读取本地 TXT 正文。']
+        try {
+          const content = loadLocalChapterContent(this.book, currentChapter)
+          if (this.chapterLoadToken !== token) return
+          this.book.chapters.splice(this.chapterIndex, 1, {
+            ...currentChapter,
+            content,
+            isCached: true
+          })
+          this.pages = splitChapter(content, this.prefs.fontSize, this.prefs)
+          this.loadingChapter = false
+        } catch (error) {
+          if (this.chapterLoadToken !== token) return
+          this.loadingChapter = false
+          this.chapterLoadError = friendlyErrorMessage(error, '本地章节读取失败，请重新导入 TXT 文件。')
+          this.pages = ['这一章暂时无法读取。请重新导入 TXT 文件后再试。']
         }
         this.pageIndex = Math.max(0, Math.min(this.pageIndex, this.pages.length - 1))
         this.persist()
@@ -768,6 +793,8 @@ export default {
       const chapter = this.book.chapters[item.index] || item
       const length = String(chapter.content || '').length
       if (length) return `${length} 字 · 已缓存`
+      if (chapter.wordCount) return `${chapter.wordCount} 字 · 本地`
+      if (chapter.contentKey || (chapter.contentKeys && chapter.contentKeys.length)) return '本地'
       if (chapter.isCached) return '已缓存'
       if (this.book.source === 'online' || this.book.source === 'backend') return '待解码'
       return '本地'
@@ -847,6 +874,13 @@ export default {
       this.rebuildPages()
     },
     getCurrentChapterText() {
+      if (this.book.source === 'local' && this.chapter && !this.chapter.content) {
+        try {
+          return loadLocalChapterContent(this.book, this.chapter)
+        } catch (error) {
+          return this.pageContent || ''
+        }
+      }
       return (this.chapter && this.chapter.content) || this.pageContent || ''
     },
     ensureBackendReady() {

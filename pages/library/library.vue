@@ -954,6 +954,10 @@ export default {
           author: this.importAuthor,
           text: this.importFileText
         })
+        this.importFileName = ''
+        this.importFileText = ''
+        this.importTitle = ''
+        this.importAuthor = ''
         this.closePanels()
         uni.showToast({ title: `已导入：${book.title}`, icon: 'none' })
         uni.switchTab({ url: '/pages/bookshelf/bookshelf' })
