@@ -15,6 +15,7 @@
 
         <view class="chapter-meta" v-if="prefs.showChapterInfo">
           <text class="source-badge">{{ sourceLabel }}</text>
+          <text class="source-badge">{{ chapterState({ index: chapterIndex }) }}</text>
           <text>{{ chapterIndex + 1 }}/{{ totalChapters }}</text>
         </view>
         <view class="chapter-title">{{ chapter.title || `第 ${chapterIndex + 1} 章` }}</view>
@@ -27,7 +28,7 @@
         <view class="error-card" v-if="chapterLoadError">
           <view>
             <view class="error-title">章节解码失败</view>
-            <text class="error-desc">{{ chapterLoadError }}</text>
+            <text class="error-desc">{{ sourceLabel }} · {{ chapterLoadError }}</text>
           </view>
           <button class="retry-button" @tap.stop="retryChapter">重试</button>
         </view>
