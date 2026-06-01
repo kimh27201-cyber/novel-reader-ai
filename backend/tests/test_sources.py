@@ -5,10 +5,13 @@ from pathlib import Path
 
 import httpx
 
-BACKEND_DIR = Path(__file__).resolve().parents[1]
+TESTS_DIR = Path(__file__).resolve().parent
+sys.path.append(str(TESTS_DIR))
 
-os.environ["DATABASE_URL"] = f"sqlite:///{BACKEND_DIR / 'data' / 'test_novel_reader.db'}"
-os.environ["JWT_SECRET_KEY"] = "test-secret-key"
+from helpers import configure_test_environment
+
+
+BACKEND_DIR = configure_test_environment(__file__)
 
 sys.path.append(str(BACKEND_DIR))
 
