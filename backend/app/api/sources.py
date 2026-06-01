@@ -8,6 +8,8 @@ from app.api.auth import get_current_user
 from app.db.session import get_db
 from app.models.models import BookSource, User
 from app.schemas.sources import (
+    SourceBookInfoRequest,
+    SourceBookInfoResponse,
     SourceContentRequest,
     SourceContentResponse,
     SourceImportRequest,
@@ -19,7 +21,14 @@ from app.schemas.sources import (
     SourceTocResponse,
 )
 from app.services.demo_source import build_demo_source_content
-from app.services.source_parser import SourceParseError, load_content, load_toc, parse_source_json, search_source
+from app.services.source_parser import (
+    SourceParseError,
+    load_book_info,
+    load_content,
+    load_toc,
+    parse_source_json,
+    search_source,
+)
 
 
 router = APIRouter(prefix="/api/sources", tags=["sources"])
@@ -142,6 +151,28 @@ async def search_books_from_source(
         book["source_id"] = source.id
         book["source_name"] = source.name
     return SourceSearchResponse(books=books)
+
+
+@router.post("/{source_id}/book-info", response_model=SourceBookInfoResponse)
+async def parse_book_info_from_source(
+    source_id: int,
+    payload: SourceBookInfoRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> SourceBookInfoResponse:
+    source = get_owned_source(source_id, current_user.id, db)
+    try:
+        book = await load_book_info(source_to_parser_dict(source), payload.model_dump())
+    except (SourceParseError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except httpx.HTTPError as exc:
+        raise_source_bad_gateway(exc)
+
+    return SourceBookInfoResponse(
+        source_id=source.id,
+        source_name=source.name,
+        **book,
+    )
 
 
 @router.post("/{source_id}/toc", response_model=SourceTocResponse)

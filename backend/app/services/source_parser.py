@@ -368,6 +368,55 @@ async def search_source(source: dict[str, Any], keyword: str, page: int) -> list
     return books
 
 
+async def load_book_info(source: dict[str, Any], book: dict[str, Any]) -> dict[str, str]:
+    raw = source["raw"]
+    rule = raw.get("ruleBookInfo") or {}
+    if isinstance(rule, str):
+        rule = json.loads(rule)
+
+    book_url = str(book.get("book_url") or book.get("bookUrl") or "").strip()
+    if not book_url:
+        raise SourceParseError("Book url is required")
+
+    fallback = {
+        "title": clean_text(book.get("title") or book.get("name") or "Untitled"),
+        "author": clean_text(book.get("author") or "Unknown author"),
+        "book_url": book_url,
+        "toc_url": str(book.get("toc_url") or book.get("tocUrl") or book_url).strip(),
+        "kind": clean_text(book.get("kind") or book.get("category") or ""),
+        "latest_chapter": clean_text(book.get("latest_chapter") or book.get("latestChapter") or ""),
+        "intro": clean_text(book.get("intro") or book.get("description") or ""),
+        "cover_url": str(book.get("cover_url") or book.get("coverUrl") or "").strip(),
+    }
+    if not rule:
+        return fallback
+
+    context = {
+        **book,
+        "bookUrl": book_url,
+        "tocUrl": fallback["toc_url"],
+        "latestChapter": fallback["latest_chapter"],
+        "coverUrl": fallback["cover_url"],
+    }
+    spec = parse_request_spec(book_url, context, source["base_url"])
+    payload = parse_response_payload(await request_text(spec))
+    context = {**context, "$": payload}
+
+    return {
+        "title": pick_text(payload, rule, ["name", "bookName", "title"], context) or fallback["title"],
+        "author": pick_text(payload, rule, ["author", "bookAuthor"], context) or fallback["author"],
+        "book_url": book_url,
+        "toc_url": pick_url(payload, rule, ["tocUrl", "chapterUrl", "catalogUrl"], context, book_url)
+        or fallback["toc_url"],
+        "kind": pick_text(payload, rule, ["kind", "category", "type"], context) or fallback["kind"],
+        "latest_chapter": pick_text(payload, rule, ["latestChapter", "lastChapter", "last"], context)
+        or fallback["latest_chapter"],
+        "intro": pick_text(payload, rule, ["intro", "description", "desc"], context) or fallback["intro"],
+        "cover_url": pick_url(payload, rule, ["coverUrl", "cover", "image"], context, source["base_url"])
+        or fallback["cover_url"],
+    }
+
+
 async def load_toc(source: dict[str, Any], book_url: str, toc_url: str | None = None) -> list[dict[str, Any]]:
     raw = source["raw"]
     rule = raw.get("ruleToc") or {}

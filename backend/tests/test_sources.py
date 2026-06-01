@@ -54,6 +54,14 @@ def sample_source_json():
                 "author": ".author@text",
                 "bookUrl": "h3 a@href",
             },
+            "ruleBookInfo": {
+                "name": "h1@text",
+                "author": ".author@text",
+                "intro": "#intro@text",
+                "coverUrl": ".cover img@src",
+                "tocUrl": ".catalog@href",
+                "latestChapter": ".latest@text",
+            },
             "ruleToc": {
                 "chapterList": ".chapter-list a",
                 "chapterName": "@text",
@@ -119,6 +127,50 @@ def test_search_source_parses_html_results(monkeypatch):
     assert books[0]["title"] == "星轨图书馆"
     assert books[0]["author"] == "示例作者"
     assert books[0]["book_url"] == "https://example.com/book/1"
+
+
+def test_book_info_parser_endpoint_enriches_search_result(monkeypatch):
+    headers = auth_headers()
+    source = import_sample_source(headers)
+
+    html = """
+    <section>
+      <h1>Star Archive</h1>
+      <span class="author">Example Author</span>
+      <div class="cover"><img src="/cover/star.jpg" /></div>
+      <a class="catalog" href="/book/1/catalog">Catalog</a>
+      <p class="latest">Chapter 2: Dream Index</p>
+      <div id="intro">A test novel decoded from a source detail page.</div>
+    </section>
+    """
+
+    async def fake_request_text(spec):
+        assert spec["url"] == "https://example.com/book/1"
+        return html
+
+    monkeypatch.setattr("app.services.source_parser.request_text", fake_request_text)
+
+    response = client.post(
+        f"/api/sources/{source['id']}/book-info",
+        headers=headers,
+        json={
+            "book_url": "https://example.com/book/1",
+            "title": "Fallback",
+            "author": "Unknown",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["source_id"] == source["id"]
+    assert body["source_name"] == source["name"]
+    assert body["title"] == "Star Archive"
+    assert body["author"] == "Example Author"
+    assert body["book_url"] == "https://example.com/book/1"
+    assert body["toc_url"] == "https://example.com/book/1/catalog"
+    assert body["cover_url"] == "https://example.com/cover/star.jpg"
+    assert body["latest_chapter"] == "Chapter 2: Dream Index"
+    assert body["intro"] == "A test novel decoded from a source detail page."
 
 
 def test_toc_and_content_parser_endpoints(monkeypatch):

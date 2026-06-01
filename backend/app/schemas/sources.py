@@ -46,6 +46,30 @@ class SourceSearchResponse(BaseModel):
     books: list[SourceBookResult]
 
 
+class SourceBookInfoRequest(BaseModel):
+    book_url: str = Field(min_length=1)
+    title: str = ""
+    author: str = ""
+    toc_url: str | None = None
+    kind: str = ""
+    latest_chapter: str = ""
+    intro: str = ""
+    cover_url: str = ""
+
+
+class SourceBookInfoResponse(BaseModel):
+    source_id: int
+    source_name: str
+    title: str
+    author: str
+    book_url: str
+    toc_url: str
+    kind: str = ""
+    latest_chapter: str = ""
+    intro: str = ""
+    cover_url: str = ""
+
+
 class SourceTocRequest(BaseModel):
     book_url: str = Field(min_length=1)
     toc_url: str | None = None
