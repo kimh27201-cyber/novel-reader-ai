@@ -94,10 +94,15 @@ assert.equal(
 )
 assert.equal(JSON.parse(extractJsonPayload(yckDetailHtml)).bookSourceName, 'YCK Detail Source')
 
-globalThis.window = {}
+globalThis.window = { location: { protocol: 'http:' } }
 assert.equal(
   getRuntimeRequestUrl('https://www.yck2026.top/yuedu/shuyuan/content/id/7274.html'),
   '/yck2026-proxy/yuedu/shuyuan/content/id/7274.html'
+)
+globalThis.window = { location: { protocol: 'file:' } }
+assert.equal(
+  getRuntimeRequestUrl('https://www.yck2026.top/yuedu/shuyuan/content/id/7274.html'),
+  'https://www.yck2026.top/yuedu/shuyuan/content/id/7274.html'
 )
 delete globalThis.window
 

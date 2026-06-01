@@ -253,6 +253,8 @@ export function requestText(spec) {
 export function getRuntimeRequestUrl(url) {
   const value = String(url || '')
   if (typeof window === 'undefined') return value
+  const protocol = window.location && window.location.protocol
+  if (protocol !== 'http:' && protocol !== 'https:') return value
 
   try {
     const parsed = new URL(value)

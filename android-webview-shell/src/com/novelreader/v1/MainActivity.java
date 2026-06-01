@@ -23,6 +23,11 @@ import android.webkit.WebViewClient;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.util.HashMap;
+import java.util.Locale;
+import java.util.Map;
 
 public class MainActivity extends Activity {
     private static final String TAG = "NovelReaderWebView";
@@ -149,6 +154,10 @@ public class MainActivity extends Activity {
             @Override
             public WebResourceResponse shouldInterceptRequest(WebView view, WebResourceRequest request) {
                 WebResourceResponse response = interceptAsset(request.getUrl());
+                if (response != null) {
+                    return response;
+                }
+                response = interceptExternalRequest(request);
                 return response != null ? response : super.shouldInterceptRequest(view, request);
             }
 
@@ -234,6 +243,121 @@ public class MainActivity extends Activity {
             Log.e(TAG, "asset intercept failed: " + assetPath + " " + error.getMessage());
             return null;
         }
+    }
+
+    private WebResourceResponse interceptExternalRequest(WebResourceRequest request) {
+        if (request == null || request.getUrl() == null) {
+            return null;
+        }
+        Uri uri = request.getUrl();
+        String scheme = uri.getScheme();
+        if (!"http".equalsIgnoreCase(scheme) && !"https".equalsIgnoreCase(scheme)) {
+            return null;
+        }
+        if (!"GET".equalsIgnoreCase(request.getMethod())) {
+            return null;
+        }
+        String host = uri.getHost();
+        if (host == null || isLocalHost(host)) {
+            return null;
+        }
+
+        try {
+            HttpURLConnection connection = (HttpURLConnection) new URL(uri.toString()).openConnection();
+            connection.setInstanceFollowRedirects(true);
+            connection.setConnectTimeout(12000);
+            connection.setReadTimeout(12000);
+            connection.setRequestMethod("GET");
+            connection.setRequestProperty("Accept-Encoding", "identity");
+            connection.setRequestProperty(
+                "User-Agent",
+                "Mozilla/5.0 (Linux; Android) AppleWebKit/537.36 NovelReader/1.0"
+            );
+            Map<String, String> headers = request.getRequestHeaders();
+            if (headers != null) {
+                for (Map.Entry<String, String> entry : headers.entrySet()) {
+                    String key = entry.getKey();
+                    if (key == null || entry.getValue() == null) {
+                        continue;
+                    }
+                    String lower = key.toLowerCase(Locale.ROOT);
+                    if ("host".equals(lower) || "accept-encoding".equals(lower)
+                            || "origin".equals(lower) || "referer".equals(lower)) {
+                        continue;
+                    }
+                    connection.setRequestProperty(key, entry.getValue());
+                }
+            }
+
+            int statusCode = connection.getResponseCode();
+            InputStream stream = statusCode >= 400 ? connection.getErrorStream() : connection.getInputStream();
+            if (stream == null) {
+                return null;
+            }
+            String contentType = connection.getContentType();
+            String mime = parseMimeType(contentType);
+            String charset = parseCharset(contentType);
+            Map<String, String> responseHeaders = new HashMap<>();
+            responseHeaders.put("Access-Control-Allow-Origin", "*");
+            responseHeaders.put("Access-Control-Allow-Methods", "GET, OPTIONS");
+            responseHeaders.put("Access-Control-Allow-Headers", "*");
+            responseHeaders.put("Cache-Control", "no-cache");
+            return new WebResourceResponse(
+                mime,
+                charset,
+                statusCode,
+                connection.getResponseMessage() != null ? connection.getResponseMessage() : "OK",
+                responseHeaders,
+                stream
+            );
+        } catch (Exception error) {
+            Log.e(TAG, "external request failed: " + uri + " " + error.getMessage());
+            return null;
+        }
+    }
+
+    private boolean isLocalHost(String host) {
+        String value = host.toLowerCase(Locale.ROOT);
+        return "localhost".equals(value)
+            || value.startsWith("127.")
+            || value.startsWith("10.")
+            || value.startsWith("192.168.")
+            || value.startsWith("172.16.")
+            || value.startsWith("172.17.")
+            || value.startsWith("172.18.")
+            || value.startsWith("172.19.")
+            || value.startsWith("172.20.")
+            || value.startsWith("172.21.")
+            || value.startsWith("172.22.")
+            || value.startsWith("172.23.")
+            || value.startsWith("172.24.")
+            || value.startsWith("172.25.")
+            || value.startsWith("172.26.")
+            || value.startsWith("172.27.")
+            || value.startsWith("172.28.")
+            || value.startsWith("172.29.")
+            || value.startsWith("172.30.")
+            || value.startsWith("172.31.");
+    }
+
+    private String parseMimeType(String contentType) {
+        if (contentType == null || contentType.trim().isEmpty()) {
+            return "text/plain";
+        }
+        return contentType.split(";", 2)[0].trim();
+    }
+
+    private String parseCharset(String contentType) {
+        if (contentType == null) {
+            return "UTF-8";
+        }
+        for (String part : contentType.split(";")) {
+            String value = part.trim();
+            if (value.toLowerCase(Locale.ROOT).startsWith("charset=")) {
+                return value.substring("charset=".length()).trim();
+            }
+        }
+        return "UTF-8";
     }
 
     private String mimeType(String path) {
