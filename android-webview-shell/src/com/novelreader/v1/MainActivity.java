@@ -8,10 +8,12 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.util.Base64;
 import android.util.Log;
 import android.view.ViewGroup;
 import android.webkit.ValueCallback;
 import android.webkit.ConsoleMessage;
+import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceError;
@@ -21,6 +23,10 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -71,6 +77,7 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         }
+        view.addJavascriptInterface(new LocalChapterBridge(), "NovelReaderLocalStorage");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             WebView.setWebContentsDebuggingEnabled(false);
         }
@@ -172,6 +179,96 @@ public class MainActivity extends Activity {
                 return false;
             }
         });
+    }
+
+    public class LocalChapterBridge {
+        private File chapterRoot() {
+            File root = new File(getFilesDir(), "local_txt_chapters");
+            if (!root.exists()) {
+                root.mkdirs();
+            }
+            return root;
+        }
+
+        private File fileForKey(String key) {
+            String name = Base64.encodeToString(
+                String.valueOf(key).getBytes(),
+                Base64.URL_SAFE | Base64.NO_WRAP
+            );
+            return new File(chapterRoot(), name + ".txt");
+        }
+
+        @JavascriptInterface
+        public boolean writeChapter(String key, String content) {
+            FileOutputStream output = null;
+            try {
+                File file = fileForKey(key);
+                output = new FileOutputStream(file, false);
+                output.write(String.valueOf(content).getBytes("UTF-8"));
+                output.flush();
+                return true;
+            } catch (Exception error) {
+                Log.e(TAG, "local chapter write failed: " + error.getMessage());
+                return false;
+            } finally {
+                if (output != null) {
+                    try {
+                        output.close();
+                    } catch (IOException ignored) {
+                    }
+                }
+            }
+        }
+
+        @JavascriptInterface
+        public String readChapter(String key) {
+            FileInputStream input = null;
+            ByteArrayOutputStream output = null;
+            try {
+                File file = fileForKey(key);
+                if (!file.exists()) {
+                    return "";
+                }
+                input = new FileInputStream(file);
+                output = new ByteArrayOutputStream();
+                byte[] buffer = new byte[8192];
+                while (true) {
+                    int length = input.read(buffer);
+                    if (length < 0) {
+                        break;
+                    }
+                    output.write(buffer, 0, length);
+                }
+                return output.toString("UTF-8");
+            } catch (Exception error) {
+                Log.e(TAG, "local chapter read failed: " + error.getMessage());
+                return "";
+            } finally {
+                if (input != null) {
+                    try {
+                        input.close();
+                    } catch (IOException ignored) {
+                    }
+                }
+                if (output != null) {
+                    try {
+                        output.close();
+                    } catch (IOException ignored) {
+                    }
+                }
+            }
+        }
+
+        @JavascriptInterface
+        public boolean removeChapter(String key) {
+            try {
+                File file = fileForKey(key);
+                return !file.exists() || file.delete();
+            } catch (Exception error) {
+                Log.e(TAG, "local chapter remove failed: " + error.getMessage());
+                return false;
+            }
+        }
     }
 
     @Override

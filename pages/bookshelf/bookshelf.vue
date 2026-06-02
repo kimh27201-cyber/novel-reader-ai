@@ -134,13 +134,14 @@ export default {
     },
     chapterCount(book) {
       const count = (book.chapters || []).length
-      return count ? String(count) : '...'
+      return count ? String(count) : String(book.chapterCount || '...')
     },
     progressText(book) {
       const chapters = book.chapters || []
       const progress = getProgress(book.id)
       const chapter = chapters[progress.chapterIndex] || chapters[0]
       if (chapter) return chapter.title || `第 ${progress.chapterIndex + 1} 章`
+      if (book.firstChapterTitle) return book.firstChapterTitle
       return book.latestChapter || '等待目录解码'
     },
     openBook(book) {
@@ -483,8 +484,11 @@ button::after {
 .book-info {
   min-width: 0;
   flex: 1;
+  max-width: calc(100% - 238rpx);
   padding-top: 4rpx;
   margin-left: 34rpx;
+  padding-right: 126rpx;
+  box-sizing: border-box;
 }
 
 .book-title {
@@ -530,8 +534,13 @@ button::after {
   align-items: center;
   justify-content: center;
   min-width: 72rpx;
+  max-width: 116rpx;
   height: 48rpx;
   padding: 0 18rpx;
+  box-sizing: border-box;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   border-radius: 999rpx;
   color: #f4f4f4;
   font-family: cursive;

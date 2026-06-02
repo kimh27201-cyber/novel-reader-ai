@@ -4,6 +4,9 @@ const IMPORTED_BOOKS_KEY = 'books:imported'
 const HIDDEN_BUILTIN_BOOKS_KEY = 'books:hidden-builtin'
 const LOCAL_CHAPTER_KEY_PREFIX = 'books:local-chapter'
 const LOCAL_CHAPTER_SEGMENT_SIZE = 180000
+const LOCAL_CHAPTER_DB_NAME = 'novel-reader-local-txt'
+const LOCAL_CHAPTER_DB_VERSION = 1
+const LOCAL_CHAPTER_STORE_NAME = 'chapters'
 const memoryStore = {}
 
 export const builtInBooks = [
@@ -67,7 +70,16 @@ export const builtInBooks = [
 const coverColors = ['#7aa095', '#6e7f9f', '#9b7f78', '#728b75', '#8b789b', '#9a8a62']
 
 function readImportedBooks() {
-  return readStorage(IMPORTED_BOOKS_KEY, [])
+  const nativeBooks = readNativeKeyValue(IMPORTED_BOOKS_KEY)
+  const legacyBooks = readLegacyStorage(IMPORTED_BOOKS_KEY, [])
+  const merged = mergeStoredImportedBooks(
+    Array.isArray(nativeBooks) ? nativeBooks : [],
+    Array.isArray(legacyBooks) ? legacyBooks : []
+  )
+  if (merged.length && JSON.stringify(nativeBooks || []) !== JSON.stringify(merged)) {
+    writeNativeKeyValue(IMPORTED_BOOKS_KEY, merged)
+  }
+  return merged
 }
 
 function saveImportedBooks(books) {
@@ -87,6 +99,13 @@ function saveHiddenBuiltinBookIds(bookIds) {
 }
 
 function readStorage(key, fallback) {
+  const nativeValue = readNativeKeyValue(key)
+  if (nativeValue !== null) return nativeValue
+
+  return readLegacyStorage(key, fallback)
+}
+
+function readLegacyStorage(key, fallback) {
   try {
     if (typeof uni !== 'undefined' && uni.getStorageSync) {
       const value = uni.getStorageSync(key)
@@ -98,7 +117,18 @@ function readStorage(key, fallback) {
   return Object.prototype.hasOwnProperty.call(memoryStore, key) ? memoryStore[key] : fallback
 }
 
+function mergeStoredImportedBooks(...groups) {
+  const seen = new Set()
+  return groups.flat().filter(book => {
+    if (!book || !book.id || seen.has(book.id)) return false
+    seen.add(book.id)
+    return true
+  })
+}
+
 function writeStorage(key, value) {
+  if (writeNativeKeyValue(key, value)) return
+
   if (typeof uni !== 'undefined' && uni.setStorageSync) {
     uni.setStorageSync(key, value)
     return
@@ -107,6 +137,8 @@ function writeStorage(key, value) {
 }
 
 function removeStorage(key) {
+  if (removeNativeKeyValue(key)) return
+
   try {
     if (typeof uni !== 'undefined' && uni.removeStorageSync) {
       uni.removeStorageSync(key)
@@ -116,6 +148,47 @@ function removeStorage(key) {
     // keep memory cleanup below as a fallback for tests and non-uni runtimes
   }
   delete memoryStore[key]
+}
+
+function canUseNativeKeyValue(key) {
+  return key === IMPORTED_BOOKS_KEY
+}
+
+function nativeKeyValueKey(key) {
+  return `kv:${key}`
+}
+
+function readNativeKeyValue(key) {
+  if (!canUseNativeKeyValue(key)) return null
+  const storage = getNativeChapterStorage()
+  if (!storage || typeof storage.readChapterSync !== 'function') return null
+  const raw = storage.readChapterSync(nativeKeyValueKey(key))
+  if (!raw) return null
+  try {
+    return JSON.parse(raw)
+  } catch (error) {
+    return null
+  }
+}
+
+function writeNativeKeyValue(key, value) {
+  if (!canUseNativeKeyValue(key)) return false
+  const storage = getNativeChapterStorage()
+  if (!storage || typeof storage.writeChapter !== 'function') return false
+  try {
+    storage.writeChapter(nativeKeyValueKey(key), JSON.stringify(value))
+    return true
+  } catch (error) {
+    return false
+  }
+}
+
+function removeNativeKeyValue(key) {
+  if (!canUseNativeKeyValue(key)) return false
+  const storage = getNativeChapterStorage()
+  if (!storage || typeof storage.removeChapter !== 'function') return false
+  storage.removeChapter(nativeKeyValueKey(key)).catch(() => {})
+  return true
 }
 
 function normalizeText(text) {
@@ -141,11 +214,141 @@ function localChapterKey(bookId, chapterIndex, segmentIndex = 0) {
   return `${LOCAL_CHAPTER_KEY_PREFIX}:${bookId}:${chapterIndex}:${segmentIndex}`
 }
 
+function localChapterRecordKey(bookId, chapterIndex) {
+  return `${bookId}:${chapterIndex}`
+}
+
+function localCatalogRecordKey(bookId) {
+  return `${bookId}:catalog`
+}
+
+function getNativeChapterStorage() {
+  const bridge = typeof globalThis !== 'undefined' && globalThis.NovelReaderLocalStorage
+  if (!bridge || typeof bridge.writeChapter !== 'function' || typeof bridge.readChapter !== 'function') return null
+  return {
+    name: 'native-file',
+    async writeChapter(key, content) {
+      const ok = bridge.writeChapter(String(key), String(content || ''))
+      if (!ok) throw new Error('本机章节文件写入失败')
+    },
+    async readChapter(key) {
+      return String(bridge.readChapter(String(key)) || '')
+    },
+    readChapterSync(key) {
+      return String(bridge.readChapter(String(key)) || '')
+    },
+    async removeChapter(key) {
+      if (typeof bridge.removeChapter === 'function') bridge.removeChapter(String(key))
+    }
+  }
+}
+
+function openLocalChapterDb() {
+  const idb = typeof indexedDB !== 'undefined' ? indexedDB : null
+  if (!idb) return Promise.reject(new Error('当前 WebView 不支持大容量 TXT 存储'))
+
+  return new Promise((resolve, reject) => {
+    const request = idb.open(LOCAL_CHAPTER_DB_NAME, LOCAL_CHAPTER_DB_VERSION)
+    request.onupgradeneeded = () => {
+      const db = request.result
+      if (!db.objectStoreNames.contains(LOCAL_CHAPTER_STORE_NAME)) {
+        db.createObjectStore(LOCAL_CHAPTER_STORE_NAME, { keyPath: 'key' })
+      }
+    }
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error || new Error('大容量 TXT 存储打开失败'))
+  })
+}
+
+function runLocalChapterDb(mode, operation) {
+  return openLocalChapterDb().then(db => new Promise((resolve, reject) => {
+    const transaction = db.transaction(LOCAL_CHAPTER_STORE_NAME, mode)
+    const store = transaction.objectStore(LOCAL_CHAPTER_STORE_NAME)
+    let request = null
+    try {
+      request = operation(store)
+    } catch (error) {
+      db.close()
+      reject(error)
+      return
+    }
+    request.onsuccess = () => resolve(request.result)
+    request.onerror = () => reject(request.error || new Error('大容量 TXT 存储失败'))
+    transaction.oncomplete = () => db.close()
+    transaction.onerror = () => {
+      db.close()
+      reject(transaction.error || new Error('大容量 TXT 存储事务失败'))
+    }
+  }))
+}
+
+function getIndexedDbChapterStorage() {
+  if (typeof indexedDB === 'undefined') return null
+  return {
+    name: 'indexeddb',
+    async writeChapter(key, content) {
+      await runLocalChapterDb('readwrite', store => store.put({
+        key: String(key),
+        content: String(content || ''),
+        updatedAt: Date.now()
+      }))
+    },
+    async readChapter(key) {
+      const record = await runLocalChapterDb('readonly', store => store.get(String(key)))
+      return record && record.content ? String(record.content) : ''
+    },
+    async removeChapter(key) {
+      await runLocalChapterDb('readwrite', store => store.delete(String(key)))
+    }
+  }
+}
+
+function getDefaultChapterStorage() {
+  return getNativeChapterStorage() || getIndexedDbChapterStorage()
+}
+
+function readLargeStoreSync(storageName, key) {
+  if (storageName !== 'native-file') return ''
+  const storage = getNativeChapterStorage()
+  if (!storage || typeof storage.readChapterSync !== 'function') return ''
+  return storage.readChapterSync(key)
+}
+
+function parseStoredCatalog(raw) {
+  try {
+    const chapters = JSON.parse(String(raw || ''))
+    return Array.isArray(chapters) ? chapters : []
+  } catch (error) {
+    return []
+  }
+}
+
+function hydrateLocalBookCatalog(book) {
+  if (!book || book.source !== 'local' || (book.chapters || []).length || !book.catalogKey) return book
+  const raw = readLargeStoreSync(book.catalogStorage, book.catalogKey)
+  const chapters = parseStoredCatalog(raw)
+  return chapters.length ? { ...book, chapters } : book
+}
+
 function removeLocalChapterStorage(book) {
-  ;(book.chapters || []).forEach(chapter => {
+  const hydrated = hydrateLocalBookCatalog(book)
+  ;(hydrated.chapters || []).forEach(chapter => {
+    if (chapter.contentStorage === 'native-file' || chapter.contentStorage === 'indexeddb') {
+      const storage = getDefaultChapterStorage()
+      if (storage && typeof storage.removeChapter === 'function') {
+        storage.removeChapter(chapter.contentKey).catch(() => {})
+      }
+      return
+    }
     ;(chapter.contentKeys || []).forEach(key => removeStorage(key))
     if (chapter.contentKey) removeStorage(chapter.contentKey)
   })
+  if (book.catalogKey && (book.catalogStorage === 'native-file' || book.catalogStorage === 'indexeddb')) {
+    const storage = getDefaultChapterStorage()
+    if (storage && typeof storage.removeChapter === 'function') {
+      storage.removeChapter(book.catalogKey).catch(() => {})
+    }
+  }
 }
 
 function persistLocalChapter(bookId, chapter, index, storedKeys) {
@@ -172,6 +375,52 @@ function persistLocalChapter(bookId, chapter, index, storedKeys) {
     preview: content.replace(/\s+/g, ' ').slice(0, 80),
     isCached: true
   }
+}
+
+async function persistLocalChapterAsync(bookId, chapter, index, storedRefs, chapterStorage = getDefaultChapterStorage()) {
+  if (!chapterStorage || typeof chapterStorage.writeChapter !== 'function') {
+    const storedKeys = []
+    const metadata = persistLocalChapter(bookId, chapter, index, storedKeys)
+    storedKeys.forEach(key => storedRefs.push({ type: 'storage', key }))
+    return metadata
+  }
+
+  const content = normalizeText(chapter.content)
+  const key = localChapterRecordKey(bookId, index)
+  await chapterStorage.writeChapter(key, content)
+  storedRefs.push({ type: 'large-store', key, chapterStorage })
+
+  return {
+    title: chapter.title || `第 ${index + 1} 章`,
+    index,
+    content: '',
+    contentStorage: chapterStorage.name || 'large-store',
+    contentKey: key,
+    wordCount: content.replace(/\s/g, '').length,
+    preview: content.replace(/\s+/g, ' ').slice(0, 80),
+    isCached: true
+  }
+}
+
+async function persistLocalCatalogAsync(bookId, chapters, storedRefs, chapterStorage = getDefaultChapterStorage()) {
+  if (!chapterStorage || typeof chapterStorage.writeChapter !== 'function') return null
+  const key = localCatalogRecordKey(bookId)
+  await chapterStorage.writeChapter(key, JSON.stringify(chapters))
+  storedRefs.push({ type: 'large-store', key, chapterStorage })
+  return {
+    catalogKey: key,
+    catalogStorage: chapterStorage.name || 'large-store'
+  }
+}
+
+async function cleanupStoredChapterRefs(storedRefs) {
+  await Promise.all(storedRefs.map(ref => {
+    if (ref.type === 'large-store' && ref.chapterStorage && typeof ref.chapterStorage.removeChapter === 'function') {
+      return ref.chapterStorage.removeChapter(ref.key).catch(() => {})
+    }
+    removeStorage(ref.key)
+    return Promise.resolve()
+  }))
 }
 
 export function parseTxtChapters(text) {
@@ -253,6 +502,55 @@ export function importBookFromText({ title, author, text }) {
   }
 }
 
+export async function importBookFromTextAsync({ title, author, text }, options = {}) {
+  const normalized = normalizeText(text)
+  if (!normalized || normalized.length < 20) {
+    throw new Error('请选择完整的 TXT 小说文件')
+  }
+
+  const imported = readImportedBooks()
+  const rawChapters = parseTxtChapters(normalized)
+  const bookTitle = String(title || '').trim() || inferTitle(normalized)
+  const bookId = createBookId()
+  const storedRefs = []
+
+  try {
+    const chapterStorage = options.chapterStorage || getDefaultChapterStorage()
+    const chapters = []
+    for (let index = 0; index < rawChapters.length; index += 1) {
+      chapters.push(await persistLocalChapterAsync(bookId, rawChapters[index], index, storedRefs, chapterStorage))
+    }
+    const catalogRef = await persistLocalCatalogAsync(bookId, chapters, storedRefs, chapterStorage)
+    const shelfChapters = catalogRef ? [] : chapters
+
+    const book = {
+      id: bookId,
+      source: 'local',
+      title: bookTitle,
+      author: String(author || '').trim() || '本地导入',
+      category: '本地 TXT',
+      coverColor: coverColors[imported.length % coverColors.length],
+      accent: '#31584f',
+      description: `本地导入 · ${chapters.length} 章 · 纯本地阅读`,
+      chapters: shelfChapters,
+      chapterCount: chapters.length,
+      latestChapter: chapters[0] && chapters[0].title ? chapters[0].title : '',
+      firstChapterTitle: chapters[0] && chapters[0].title ? chapters[0].title : '',
+      ...catalogRef,
+      importedAt: Date.now()
+    }
+
+    saveImportedBooks([book, ...imported])
+    return { ...book, chapters }
+  } catch (error) {
+    await cleanupStoredChapterRefs(storedRefs)
+    if (/本机章节文件写入失败|大容量 TXT|quota|storage/i.test(error && error.message)) {
+      throw new Error('本地大容量存储不可用，TXT 加入书架失败。请清理缓存后重试。')
+    }
+    throw error
+  }
+}
+
 export function deleteImportedBook(bookId) {
   const imported = readImportedBooks()
   const book = imported.find(item => item.id === bookId)
@@ -282,6 +580,38 @@ export function loadLocalChapterContent(bookOrId, chapter) {
   throw new Error('本地章节正文不存在，请重新导入 TXT 文件')
 }
 
+export async function loadLocalChapterContentAsync(bookOrId, chapter, options = {}) {
+  if (chapter && chapter.content) return chapter.content
+
+  if (chapter && (chapter.contentStorage === 'native-file' || chapter.contentStorage === 'indexeddb' || chapter.contentStorage === 'large-store' || chapter.contentStorage === 'test-large-store')) {
+    const chapterStorage = options.chapterStorage || getDefaultChapterStorage()
+    if (!chapterStorage || typeof chapterStorage.readChapter !== 'function') {
+      throw new Error('当前 WebView 无法读取本地大容量章节')
+    }
+    const content = await chapterStorage.readChapter(chapter.contentKey)
+    if (content) return content
+    throw new Error('本地章节正文不存在，请重新导入 TXT 文件')
+  }
+
+  return loadLocalChapterContent(bookOrId, chapter)
+}
+
+export async function loadLocalBookCatalog(book, options = {}) {
+  if (!book || book.source !== 'local' || (book.chapters || []).length || !book.catalogKey) return book
+
+  if (book.catalogStorage === 'native-file') {
+    const raw = readLargeStoreSync(book.catalogStorage, book.catalogKey)
+    const chapters = parseStoredCatalog(raw)
+    if (chapters.length) return { ...book, chapters }
+  }
+
+  const chapterStorage = options.chapterStorage || getDefaultChapterStorage()
+  if (!chapterStorage || typeof chapterStorage.readChapter !== 'function') return book
+  const raw = await chapterStorage.readChapter(book.catalogKey)
+  const chapters = parseStoredCatalog(raw)
+  return chapters.length ? { ...book, chapters } : book
+}
+
 export function deleteShelfBook(bookOrId) {
   const book = typeof bookOrId === 'object'
     ? bookOrId
@@ -308,7 +638,7 @@ export function deleteShelfBook(bookOrId) {
 }
 
 export function getImportedBooks() {
-  return readImportedBooks()
+  return readImportedBooks().map(hydrateLocalBookCatalog)
 }
 
 function shelfBookKey(book) {
@@ -332,11 +662,12 @@ export function mergeShelfBooks(...groups) {
 export function getBooks() {
   const hiddenBuiltinIds = new Set(readHiddenBuiltinBookIds())
   const visibleBuiltIns = builtInBooks.filter(book => !hiddenBuiltinIds.has(book.id))
-  return [...getOnlineShelfBooks(), ...readImportedBooks(), ...visibleBuiltIns]
+  return [...getOnlineShelfBooks(), ...readImportedBooks().map(hydrateLocalBookCatalog), ...visibleBuiltIns]
 }
 
 export function getBook(bookId) {
-  return getOnlineBook(bookId) || getBooks().find(book => book.id === bookId) || getBooks()[0]
+  const book = getOnlineBook(bookId) || getBooks().find(item => item.id === bookId) || getBooks()[0]
+  return hydrateLocalBookCatalog(book)
 }
 
 export function searchBooks(keyword) {

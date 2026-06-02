@@ -353,7 +353,7 @@
 </template>
 
 <script>
-import { importBookFromText, parseTxtChapters } from '../../common/books.js'
+import { importBookFromTextAsync, parseTxtChapters } from '../../common/books.js'
 import {
   batchTestSources,
   batchSetSourcesEnabled,
@@ -947,9 +947,10 @@ export default {
         uni.showToast({ title: error.message || '读取失败', icon: 'none' })
       }
     },
-    submitImport() {
+    async submitImport() {
       try {
-        const book = importBookFromText({
+        uni.showLoading({ title: '正在加入书架...' })
+        const book = await importBookFromTextAsync({
           title: this.importTitle,
           author: this.importAuthor,
           text: this.importFileText
@@ -963,6 +964,8 @@ export default {
         uni.switchTab({ url: '/pages/bookshelf/bookshelf' })
       } catch (error) {
         uni.showToast({ title: error.message || '导入失败', icon: 'none' })
+      } finally {
+        uni.hideLoading()
       }
     },
     goSearch() {

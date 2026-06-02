@@ -21,6 +21,7 @@ const {
   deleteShelfBook,
   getBook,
   importBookFromText,
+  importBookFromTextAsync,
   loadLocalChapterContent
 } = await import('../common/books.js')
 
@@ -48,5 +49,42 @@ assert.ok(chapterKeys.length >= 2)
 
 assert.equal(deleteShelfBook(book), true)
 assert.equal(Object.keys(store).some(key => key.startsWith(`books:local-chapter:${book.id}:`)), false)
+
+const largeStore = {}
+const largeKeys = []
+const asyncBook = await importBookFromTextAsync({
+  title: 'Huge TXT',
+  author: 'Async Author',
+  text: `Chapter 1\n${firstChapter}\nChapter 2\n${secondChapter}`
+}, {
+  chapterStorage: {
+    name: 'test-large-store',
+    async writeChapter(key, content) {
+      largeStore[key] = content
+      largeKeys.push(key)
+    },
+    async readChapter(key) {
+      return largeStore[key] || ''
+    },
+    async removeChapter(key) {
+      delete largeStore[key]
+    }
+  }
+})
+
+const asyncIndex = JSON.stringify(store['books:imported'])
+assert.ok(asyncIndex.length < 5000)
+assert.equal(asyncIndex.includes(firstChapter.slice(0, 200)), false)
+assert.equal(asyncBook.chapters[0].contentStorage, 'test-large-store')
+assert.ok(largeKeys.some(key => key.endsWith(':catalog')))
+assert.equal(store['books:imported'][0].chapterCount, 2)
+assert.deepEqual(store['books:imported'][0].chapters, [])
+assert.equal(await import('../common/books.js').then(mod => mod.loadLocalChapterContentAsync(asyncBook, asyncBook.chapters[0], {
+  chapterStorage: {
+    async readChapter(key) {
+      return largeStore[key] || ''
+    }
+  }
+})), firstChapter)
 
 console.log('txtImport tests passed')

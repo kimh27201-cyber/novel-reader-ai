@@ -34,8 +34,8 @@ function clampNumber(value, min, max, fallback) {
 
 function normalizePrefs(raw) {
   const prefs = { ...defaultPrefs, ...(raw || {}), readingMode: 'page' }
-  prefs.fontSize = Math.round(clampNumber(prefs.fontSize, 16, 30, defaultPrefs.fontSize))
-  prefs.lineHeight = Number(clampNumber(prefs.lineHeight, 1.45, 2.4, defaultPrefs.lineHeight).toFixed(2))
+  prefs.fontSize = Math.round(clampNumber(prefs.fontSize, 16, 20, defaultPrefs.fontSize))
+  prefs.lineHeight = Number(clampNumber(prefs.lineHeight, 1.45, 1.86, defaultPrefs.lineHeight).toFixed(2))
   prefs.paragraphSpacing = Number(clampNumber(prefs.paragraphSpacing, 0, 2.2, defaultPrefs.paragraphSpacing).toFixed(2))
   prefs.textIndent = Number(clampNumber(prefs.textIndent, 0, 4, defaultPrefs.textIndent).toFixed(1))
   prefs.contentWidth = Math.round(clampNumber(prefs.contentWidth, 62, 96, defaultPrefs.contentWidth))
@@ -133,10 +133,10 @@ export function splitParagraphs(content) {
 
 export function splitChapter(content, fontSize, prefs = {}) {
   const normalized = String(content || '').trim()
-  const safeFontSize = Math.max(16, Math.min(Number(fontSize) || 20, 30))
+  const safeFontSize = Math.max(16, Math.min(Number(fontSize) || 20, 20))
   const widthFactor = Math.max(0.68, Math.min(1, (Number(prefs.contentWidth) || defaultPrefs.contentWidth) / 82))
   const lineFactor = Math.max(0.75, Math.min(1.12, defaultPrefs.lineHeight / (Number(prefs.lineHeight) || defaultPrefs.lineHeight)))
-  const size = Math.max(360, Math.floor((1180 - (safeFontSize - 16) * 42) * widthFactor * lineFactor))
+  const size = Math.max(110, Math.floor((280 - (safeFontSize - 16) * 32) * widthFactor * lineFactor))
   const pages = []
   let start = 0
 

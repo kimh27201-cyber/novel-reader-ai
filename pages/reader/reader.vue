@@ -129,7 +129,7 @@
           <view class="control-row">
             <text>字号</text>
             <button class="step-button" @tap.stop="changeFont(-1)">−</button>
-            <slider class="reader-slider" :value="prefs.fontSize" min="16" max="30" activeColor="#df7458" @change="changeFontSlider" />
+            <slider class="reader-slider" :value="prefs.fontSize" min="16" max="20" activeColor="#df7458" @change="changeFontSlider" />
             <button class="step-button" @tap.stop="changeFont(1)">＋</button>
             <text class="control-value">{{ prefs.fontSize }}</text>
           </view>
@@ -137,7 +137,7 @@
           <view class="control-row">
             <text>行距</text>
             <button class="step-button" @tap.stop="changeLineHeight(-0.08)">−</button>
-            <slider class="reader-slider" :value="lineHeightSlider" min="145" max="240" activeColor="#df7458" @change="changeLineHeightSlider" />
+            <slider class="reader-slider" :value="lineHeightSlider" min="145" max="186" activeColor="#df7458" @change="changeLineHeightSlider" />
             <button class="step-button" @tap.stop="changeLineHeight(0.08)">＋</button>
             <text class="control-value">{{ prefs.lineHeight.toFixed(2) }}</text>
           </view>
@@ -272,7 +272,7 @@
 </template>
 
 <script>
-import { getBook, loadLocalChapterContent } from '../../common/books.js'
+import { getBook, loadLocalBookCatalog, loadLocalChapterContent, loadLocalChapterContentAsync } from '../../common/books.js'
 import { addOnlineBookToShelf, loadOnlineChapter } from '../../common/bookSources.js'
 import {
   getBrightnessOverlayOpacity,
@@ -448,6 +448,7 @@ export default {
           this.pageIndex = Number(options.pageIndex !== undefined ? options.pageIndex : (backendProgress && backendProgress.page_index !== undefined ? backendProgress.page_index : fallbackProgress.pageIndex)) || 0
         } else {
           this.book = getBook(this.bookId)
+          this.book = await loadLocalBookCatalog(this.book)
           const progress = getProgress(this.bookId)
           this.chapterIndex = Number(options.chapterIndex !== undefined ? options.chapterIndex : progress.chapterIndex) || 0
           this.pageIndex = Number(options.pageIndex !== undefined ? options.pageIndex : progress.pageIndex) || 0
@@ -524,7 +525,7 @@ export default {
         this.loadingText = '正在读取本地章节...'
         this.pages = ['请稍候，正在读取本地 TXT 正文。']
         try {
-          const content = loadLocalChapterContent(this.book, currentChapter)
+          const content = await loadLocalChapterContentAsync(this.book, currentChapter)
           if (this.chapterLoadToken !== token) return
           this.book.chapters.splice(this.chapterIndex, 1, {
             ...currentChapter,
@@ -1061,7 +1062,7 @@ export default {
 .reading-surface {
   position: absolute;
   inset: 0;
-  padding: 128rpx 0 174rpx;
+  padding: 128rpx 0 330rpx;
   box-sizing: border-box;
   transition: background 0.2s ease, color 0.2s ease;
 }
@@ -1128,7 +1129,9 @@ export default {
 .reader-content {
   display: block;
   min-height: 420rpx;
-  margin-top: 38rpx;
+  margin-top: 30rpx;
+  padding-bottom: 34rpx;
+  box-sizing: border-box;
   transition: opacity 0.2s ease, max-width 0.2s ease;
 }
 
@@ -1145,7 +1148,7 @@ export default {
   position: absolute;
   left: 9%;
   right: 9%;
-  bottom: 112rpx;
+  bottom: 68rpx;
   display: flex;
   align-items: center;
   gap: 18rpx;
@@ -1227,18 +1230,19 @@ export default {
 
 .quick-actions {
   position: absolute;
-  right: 34rpx;
-  bottom: 252rpx;
+  right: 22rpx;
+  bottom: 318rpx;
   z-index: 9;
   display: grid;
-  gap: 16rpx;
+  gap: 12rpx;
 }
 
 .quick-action {
-  width: 72rpx;
-  height: 72rpx;
+  width: 60rpx;
+  height: 60rpx;
   background: var(--app-reader-control);
   box-shadow: var(--app-floating-shadow);
+  font-size: 28rpx;
 }
 
 .bottom-chrome,
@@ -1257,7 +1261,7 @@ export default {
 }
 
 .bottom-chrome {
-  padding: 20rpx;
+  padding: 16rpx 18rpx 18rpx;
 }
 
 .chapter-row {
@@ -1265,9 +1269,9 @@ export default {
 }
 
 .chapter-button {
-  min-width: 118rpx;
-  height: 52rpx;
-  border-radius: 18rpx;
+  min-width: 112rpx;
+  height: 48rpx;
+  border-radius: 16rpx;
   color: var(--app-text);
   background: var(--app-panel);
   font-size: 24rpx;
@@ -1275,23 +1279,23 @@ export default {
 
 .dock-actions {
   gap: 12rpx;
-  margin-top: 18rpx;
+  margin-top: 14rpx;
 }
 
 .dock-tool {
   flex: 1;
   min-width: 0;
-  min-height: 82rpx;
+  min-height: 68rpx;
   flex-direction: column;
-  gap: 8rpx;
-  border-radius: 18rpx;
+  gap: 5rpx;
+  border-radius: 16rpx;
   color: var(--app-text);
   background: var(--app-panel);
   font-size: 22rpx;
 }
 
 .dock-icon {
-  font-size: 32rpx;
+  font-size: 28rpx;
   font-weight: 800;
 }
 
@@ -1653,8 +1657,8 @@ export default {
   }
 
   .quick-actions {
-    right: 22rpx;
-    bottom: 240rpx;
+    right: 16rpx;
+    bottom: 310rpx;
   }
 
   .bottom-chrome,
