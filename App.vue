@@ -18,9 +18,7 @@ page {
 html,
 body {
   min-height: 100%;
-  background:
-    radial-gradient(circle at 50% -8%, rgba(117, 173, 159, 0.22), transparent 38%),
-    linear-gradient(90deg, #dce9e5 0%, #edf5f2 18%, #edf5f2 82%, #dce9e5 100%);
+  background: #f4fbf8;
 }
 
 uni-page-body {
@@ -29,10 +27,7 @@ uni-page-body {
   min-height: 100vh;
   margin: 0 auto;
   overflow-x: hidden;
-  border-left: 1rpx solid rgba(73, 114, 105, 0.18);
-  border-right: 1rpx solid rgba(73, 114, 105, 0.18);
   background: #f4fbf8;
-  box-shadow: 0 28rpx 90rpx rgba(51, 83, 76, 0.20);
 }
 
 uni-tabbar .uni-tabbar {
@@ -41,26 +36,13 @@ uni-tabbar .uni-tabbar {
   width: min(100vw, 1120px) !important;
   max-width: 1120px;
   overflow: hidden;
-  border-left: 1rpx solid rgba(73, 114, 105, 0.18);
-  border-right: 1rpx solid rgba(73, 114, 105, 0.18);
   border-radius: 22rpx 22rpx 0 0;
   box-shadow: 0 -16rpx 54rpx rgba(42, 62, 57, 0.16);
   transform: translateX(-50%);
 }
 /* #endif */
 
-/* H5 preview shell: keep the app visually separate from the browser chrome. */
-.decoder-page,
-.import-page,
-.discover-page,
-.profile-page,
-.source-book-page,
-.history-page,
-.reader-page {
-  border-left: 1rpx solid var(--app-shell-border, rgba(60, 84, 78, 0.16));
-  border-right: 1rpx solid var(--app-shell-border, rgba(60, 84, 78, 0.16));
-  box-shadow: var(--app-shell-shadow, 0 24rpx 80rpx rgba(42, 62, 57, 0.18));
-}
+/* H5 preview shell: keep page roots flush with the viewport edges. */
 
 .app-page,
 .reader-page {

@@ -1,6 +1,6 @@
 <template>
   <view class="reader-page" :style="pageStyle">
-    <view class="reader-embed" :class="{ immersive: prefs.immersiveMode }">
+    <view class="reader-embed text-only-reader" :class="{ immersive: prefs.immersiveMode }">
       <view
         class="reading-surface"
         :style="readerSurfaceStyle"
@@ -8,18 +8,6 @@
         @touchstart="onTouchStart"
         @touchend="onTouchEnd"
       >
-        <view class="page-head" v-if="prefs.showChapterInfo">
-          <text class="book-name">{{ book.title }}</text>
-          <text class="page-count">{{ pageIndex + 1 }}/{{ pages.length }}</text>
-        </view>
-
-        <view class="chapter-meta" v-if="prefs.showChapterInfo">
-          <text class="source-badge">{{ sourceLabel }}</text>
-          <text class="source-badge">{{ chapterState({ index: chapterIndex }) }}</text>
-          <text>{{ chapterIndex + 1 }}/{{ totalChapters }}</text>
-        </view>
-        <view class="chapter-title">{{ chapter.title || `第 ${chapterIndex + 1} 章` }}</view>
-
         <view class="loading-card" v-if="loadingChapter">
           <view class="loading-dot"></view>
           <text>{{ loadingText }}</text>
@@ -48,62 +36,56 @@
           </text>
         </view>
 
-        <view class="page-foot" v-if="prefs.showProgress">
-          <view class="foot-line">
-            <view class="foot-progress" :style="{ width: pageProgressPercent + '%' }"></view>
-          </view>
-          <text>{{ progressPercent }}%</text>
-        </view>
       </view>
 
       <view class="top-chrome reader-safe-top" v-if="controlsVisible">
-        <button class="icon-button touch-hit" @tap.stop="back">‹</button>
+        <button class="icon-button touch-hit" aria-label="返回" @tap.stop="back">‹</button>
         <view class="top-title">
           <view>{{ book.title }}</view>
           <text>{{ chapter.title || `第 ${chapterIndex + 1} 章` }}</text>
         </view>
-        <button class="icon-button touch-hit" @tap.stop="toggleMore">•••</button>
+        <button class="icon-button touch-hit" aria-label="更多操作" @tap.stop="toggleMore">•••</button>
       </view>
 
       <view class="quick-actions" v-if="controlsVisible && !settingsVisible && !catalogVisible && !moreVisible">
-        <button class="quick-action" @tap.stop="openCatalog">☰</button>
-        <button class="quick-action" @tap.stop="searchInChapter">⌕</button>
-        <button class="quick-action" @tap.stop="retryChapter">↻</button>
-        <button class="quick-action" @tap.stop="adjustBrightness">◐</button>
+        <button class="quick-action touch-hit" aria-label="目录" @tap.stop="openCatalog">☰</button>
+        <button class="quick-action touch-hit" aria-label="搜索本章" @tap.stop="searchInChapter">⌕</button>
+        <button class="quick-action touch-hit" aria-label="重新解码" @tap.stop="retryChapter">↻</button>
+        <button class="quick-action touch-hit" aria-label="调节亮度" @tap.stop="adjustBrightness">◐</button>
       </view>
 
       <view class="more-menu" v-if="moreVisible">
-        <button class="more-item" @tap.stop="aiSummarizeChapter">AI 总结本章</button>
-        <button class="more-item" @tap.stop="aiAskChapter">AI 问答本章</button>
-        <button class="more-item" @tap.stop="toggleCurrentBookmark">{{ currentBookmarkActive ? '取消书签' : '加入书签' }}</button>
-        <button class="more-item" @tap.stop="copyProgress">复制进度</button>
-        <button class="more-item" @tap.stop="retryChapter">重新解码本章</button>
-        <button class="more-item" @tap.stop="showSourceInfo">来源信息</button>
-        <button class="more-item" @tap.stop="back">回到书架</button>
+        <button class="more-item touch-hit" @tap.stop="aiSummarizeChapter">AI 总结本章</button>
+        <button class="more-item touch-hit" @tap.stop="aiAskChapter">AI 问答本章</button>
+        <button class="more-item touch-hit" @tap.stop="toggleCurrentBookmark">{{ currentBookmarkActive ? '取消书签' : '加入书签' }}</button>
+        <button class="more-item touch-hit" @tap.stop="copyProgress">复制进度</button>
+        <button class="more-item touch-hit" @tap.stop="retryChapter">重新解码本章</button>
+        <button class="more-item touch-hit" @tap.stop="showSourceInfo">来源信息</button>
+        <button class="more-item touch-hit" @tap.stop="back">回到书架</button>
       </view>
 
       <view class="bottom-chrome" v-if="controlsVisible && !settingsVisible && !catalogVisible">
         <view class="chapter-row">
-          <button class="chapter-button" @tap.stop="prevChapter">上一章</button>
+          <button class="chapter-button touch-hit" :disabled="chapterIndex <= 0" @tap.stop="prevChapter">上一章</button>
           <view class="chapter-track" @tap.stop>
             <view class="chapter-track-fill" :style="{ width: progressPercent + '%' }"></view>
           </view>
-          <button class="chapter-button" @tap.stop="nextChapter">下一章</button>
+          <button class="chapter-button touch-hit" :disabled="chapterIndex >= totalChapters - 1" @tap.stop="nextChapter">下一章</button>
         </view>
         <view class="dock-actions">
-          <button class="dock-tool" @tap.stop="openCatalog">
+          <button class="dock-tool touch-hit" aria-label="目录" @tap.stop="openCatalog">
             <text class="dock-icon">☰</text>
             <text>目录</text>
           </button>
-          <button class="dock-tool" @tap.stop="toggleReadAloud">
+          <button class="dock-tool touch-hit" aria-label="听读" @tap.stop="toggleReadAloud">
             <text class="dock-icon">◉</text>
             <text>{{ speaking ? '停止' : '听读' }}</text>
           </button>
-          <button class="dock-tool" @tap.stop="openInterfaceSettings">
+          <button class="dock-tool touch-hit" aria-label="界面设置" @tap.stop="openInterfaceSettings">
             <text class="dock-icon">Aa</text>
             <text>界面</text>
           </button>
-          <button class="dock-tool" @tap.stop="openBehaviorSettings">
+          <button class="dock-tool touch-hit" aria-label="阅读设置" @tap.stop="openBehaviorSettings">
             <text class="dock-icon">⚙</text>
             <text>设置</text>
           </button>
@@ -116,7 +98,7 @@
             <view class="panel-title">{{ settingsMode === 'interface' ? '界面设置' : '阅读设置' }}</view>
             <text class="panel-desc">{{ settingsSummary }}</text>
           </view>
-          <button class="close-button" @tap.stop="closeSettings">×</button>
+          <button class="close-button touch-hit" aria-label="关闭设置" @tap.stop="closeSettings">×</button>
         </view>
 
         <view class="interface-tabs">
@@ -161,7 +143,7 @@
           <view class="control-row">
             <text>边距</text>
             <button class="step-button" @tap.stop="changeContentWidth(-4)">−</button>
-            <slider class="reader-slider" :value="prefs.contentWidth" min="62" max="96" activeColor="#df7458" @change="changeContentWidthSlider" />
+            <slider class="reader-slider" :value="prefs.contentWidth" min="72" max="98" activeColor="#df7458" @change="changeContentWidthSlider" />
             <button class="step-button" @tap.stop="changeContentWidth(4)">＋</button>
             <text class="control-value">{{ prefs.contentWidth }}%</text>
           </view>
@@ -193,14 +175,6 @@
             <button :class="{ active: prefs.pageTurnMode === 'none' }" @tap.stop="setPageTurnMode('none')">无动画</button>
           </view>
           <view class="setting-item">
-            <text>显示章节信息</text>
-            <switch :checked="prefs.showChapterInfo" color="#7cc1b6" @change="togglePref('showChapterInfo', $event)" />
-          </view>
-          <view class="setting-item">
-            <text>显示阅读进度</text>
-            <switch :checked="prefs.showProgress" color="#7cc1b6" @change="togglePref('showProgress', $event)" />
-          </view>
-          <view class="setting-item">
             <text>沉浸模式</text>
             <switch :checked="prefs.immersiveMode" color="#7cc1b6" @change="togglePref('immersiveMode', $event)" />
           </view>
@@ -218,7 +192,7 @@
               <view class="panel-title">目录与书签</view>
               <text class="panel-desc">{{ sourceLabel }} · {{ totalChapters }} 章 · 当前 {{ chapterIndex + 1 }}</text>
             </view>
-            <button class="close-button" @tap.stop="closeCatalog">×</button>
+            <button class="close-button touch-hit" aria-label="关闭目录" @tap.stop="closeCatalog">×</button>
           </view>
 
           <view class="catalog-tabs">
@@ -1053,31 +1027,21 @@ export default {
   min-height: 760rpx;
   margin: 0 auto;
   overflow: hidden;
-  border: 1rpx solid var(--app-shell-border);
   border-radius: 24rpx;
   background: var(--app-panel);
-  box-shadow: var(--app-floating-shadow);
 }
 
 .reading-surface {
   position: absolute;
   inset: 0;
-  padding: 128rpx 0 330rpx;
+  display: flex;
+  flex-direction: column;
+  padding: calc(56rpx + env(safe-area-inset-top)) 0 calc(56rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
   transition: background 0.2s ease, color 0.2s ease;
 }
 
-.page-head,
-.chapter-meta,
-.reader-content,
-.chapter-title {
-  width: 82%;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.page-head,
-.chapter-meta,
+/* Shared flex-row utilities */
 .panel-head,
 .chapter-row,
 .dock-actions,
@@ -1090,8 +1054,6 @@ export default {
   align-items: center;
 }
 
-.page-head,
-.chapter-meta,
 .panel-head,
 .chapter-row,
 .setting-item,
@@ -1099,65 +1061,26 @@ export default {
   justify-content: space-between;
 }
 
-.page-head {
-  min-height: 32rpx;
-  color: currentColor;
-  opacity: 0.58;
-  font-size: 23rpx;
-}
-
-.chapter-meta {
-  gap: 14rpx;
-  justify-content: flex-start;
-  margin-top: 26rpx;
-  color: var(--app-accent);
-  font-size: 22rpx;
-}
-
-.source-badge {
-  padding: 6rpx 14rpx;
-  border-radius: 999rpx;
-  background: rgba(255, 255, 255, 0.18);
-}
-
-.chapter-title {
-  margin-top: 18rpx;
-  font-size: 34rpx;
-  font-weight: 800;
-}
-
+/* ── Reader content (merged — was duplicated) ── */
 .reader-content {
   display: block;
-  min-height: 420rpx;
-  margin-top: 30rpx;
-  padding-bottom: 34rpx;
+  flex: 1;
+  width: 88%;
+  margin-left: auto;
+  margin-right: auto;
+  padding-bottom: 0;
   box-sizing: border-box;
   transition: opacity 0.2s ease, max-width 0.2s ease;
 }
 
+
 .reader-paragraph {
   display: block;
   white-space: pre-wrap;
+  font-family: "KaiTi", "STKaiti", "FZKai-Z03", "PingFang SC", "Microsoft YaHei", serif;
 }
 
-.reader-content.quiet {
-  opacity: 0.42;
-}
 
-.page-foot {
-  position: absolute;
-  left: 9%;
-  right: 9%;
-  bottom: 68rpx;
-  display: flex;
-  align-items: center;
-  gap: 18rpx;
-  color: currentColor;
-  font-size: 22rpx;
-  opacity: 0.58;
-}
-
-.foot-line,
 .chapter-track,
 .font-meter {
   position: relative;
@@ -1168,7 +1091,6 @@ export default {
   background: rgba(128, 128, 128, 0.22);
 }
 
-.foot-progress,
 .chapter-track-fill,
 .font-meter-fill {
   height: 100%;
@@ -1190,6 +1112,8 @@ export default {
   border: 1rpx solid var(--app-border);
   border-radius: 999rpx;
   color: var(--app-reader-control-text);
+  /* color-mix with solid fallback for older WebViews */
+  background: var(--app-reader-control);
   background: color-mix(in srgb, var(--app-reader-control) 88%, transparent);
   box-shadow: var(--app-floating-shadow);
 }
@@ -1203,6 +1127,27 @@ export default {
   color: var(--app-reader-control-text);
   background: rgba(255, 255, 255, 0.24);
   font-size: 34rpx;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.icon-button:active,
+.quick-action:active,
+.close-button:active {
+  opacity: 0.64;
+  transform: scale(0.93);
+}
+
+/* Focus-visible ring for keyboard navigation */
+.icon-button:focus-visible,
+.quick-action:focus-visible,
+.close-button:focus-visible,
+.chapter-button:focus-visible,
+.dock-tool:focus-visible,
+.more-item:focus-visible,
+.theme-chip:focus-visible,
+.retry-button:focus-visible {
+  outline: 2px solid var(--app-accent);
+  outline-offset: 2px;
 }
 
 .touch-hit {
@@ -1238,11 +1183,11 @@ export default {
 }
 
 .quick-action {
-  width: 60rpx;
-  height: 60rpx;
+  width: 88rpx;
+  height: 88rpx;
   background: var(--app-reader-control);
   box-shadow: var(--app-floating-shadow);
-  font-size: 28rpx;
+  font-size: 32rpx;
 }
 
 .bottom-chrome,
@@ -1256,6 +1201,7 @@ export default {
   border: 1rpx solid var(--app-border);
   border-radius: 28rpx;
   color: var(--app-reader-control-text);
+  background: var(--app-reader-control);
   background: color-mix(in srgb, var(--app-reader-control) 94%, transparent);
   box-shadow: var(--app-floating-shadow);
 }
@@ -1275,6 +1221,16 @@ export default {
   color: var(--app-text);
   background: var(--app-panel);
   font-size: 24rpx;
+  transition: opacity 0.15s ease;
+}
+
+.chapter-button:active {
+  opacity: 0.64;
+}
+
+.chapter-button[disabled] {
+  opacity: 0.32;
+  pointer-events: none;
 }
 
 .dock-actions {
@@ -1291,7 +1247,13 @@ export default {
   border-radius: 16rpx;
   color: var(--app-text);
   background: var(--app-panel);
-  font-size: 22rpx;
+  font-size: 23rpx;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.dock-tool:active {
+  opacity: 0.68;
+  transform: scale(0.96);
 }
 
 .dock-icon {
@@ -1321,6 +1283,11 @@ export default {
   color: var(--app-text);
   background: transparent;
   font-size: 24rpx;
+  transition: background 0.12s ease;
+}
+
+.more-item:active {
+  background: rgba(128, 128, 128, 0.12);
 }
 
 .settings-panel {
@@ -1363,6 +1330,13 @@ export default {
   color: var(--app-text);
   background: var(--app-panel);
   font-size: 23rpx;
+  transition: opacity 0.12s ease, background 0.15s ease, color 0.15s ease;
+}
+
+.interface-tabs button:active,
+.catalog-tabs button:active,
+.turn-row button:active {
+  opacity: 0.68;
 }
 
 .interface-tabs button.active,
@@ -1399,6 +1373,11 @@ export default {
   color: var(--app-text);
   background: var(--app-panel);
   font-size: 28rpx;
+  transition: opacity 0.12s ease;
+}
+
+.step-button:active {
+  opacity: 0.6;
 }
 
 .control-value {
@@ -1421,6 +1400,11 @@ export default {
   border: 2rpx solid transparent;
   border-radius: 999rpx;
   font-size: 23rpx;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+}
+
+.theme-chip:active {
+  transform: scale(0.94);
 }
 
 .theme-chip.active {
@@ -1566,7 +1550,7 @@ export default {
 
 .loading-card,
 .error-card {
-  width: 82%;
+  width: 88%;
   margin: 44rpx auto 0;
   padding: 24rpx;
   border-radius: 22rpx;
@@ -1586,6 +1570,12 @@ export default {
   height: 16rpx;
   border-radius: 999rpx;
   background: var(--app-accent);
+  animation: dotPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes dotPulse {
+  0%, 100% { opacity: 0.32; transform: scale(0.8); }
+  50%      { opacity: 1;    transform: scale(1.2); }
 }
 
 .error-card {
@@ -1612,6 +1602,12 @@ export default {
   border-radius: 16rpx;
   color: var(--app-on-accent);
   background: var(--app-accent);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.retry-button:active {
+  opacity: 0.76;
+  transform: scale(0.95);
 }
 
 .brightness-mask {
@@ -1619,8 +1615,9 @@ export default {
   inset: 0;
   z-index: 2;
   pointer-events: none;
-  background: #000000;
+  background: var(--app-brightness-overlay, #000000);
 }
+/* Note: --app-brightness-overlay falls back to #000 for older themes */
 
 @media (max-width: 760px) {
   .reader-page {
@@ -1636,7 +1633,8 @@ export default {
   }
 
   .reading-surface {
-    padding-top: calc(132rpx + env(safe-area-inset-top));
+    padding-top: calc(54rpx + env(safe-area-inset-top));
+    padding-bottom: calc(54rpx + env(safe-area-inset-bottom));
   }
 
   .top-chrome {
@@ -1668,11 +1666,8 @@ export default {
     bottom: 18rpx;
   }
 
-  .page-head,
-  .chapter-meta,
-  .reader-content,
-  .chapter-title {
-    width: 88%;
+  .reader-content {
+    width: 92%;
   }
 }
 </style>

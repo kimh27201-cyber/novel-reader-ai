@@ -17,6 +17,14 @@
     },
     "modules": {},
     "distribute": {
+      "icons": {
+        "android": {
+          "hdpi": "static/branding/icon-hdpi.png",
+          "xhdpi": "static/branding/icon-xhdpi.png",
+          "xxhdpi": "static/branding/icon-xxhdpi.png",
+          "xxxhdpi": "static/branding/icon-xxxhdpi.png"
+        }
+      },
       "android": {
         "permissions": [
           "android.permission.CAMERA"

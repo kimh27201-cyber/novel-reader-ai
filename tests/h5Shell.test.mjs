@@ -6,7 +6,7 @@ const profile = readFileSync(new URL('../pages/profile/profile.vue', import.meta
 const mainActivity = readFileSync(new URL('../android-webview-shell/src/com/novelreader/v1/MainActivity.java', import.meta.url), 'utf8')
 const webviewManifest = readFileSync(new URL('../android-webview-shell/AndroidManifest.xml', import.meta.url), 'utf8')
 
-assert.match(reader, /class="reader-embed"/)
+assert.match(reader, /class="[^"]*reader-embed[^"]*"/)
 assert.match(reader, /\.reader-embed\s*\{[\s\S]*position:\s*relative;/)
 assert.match(reader, /\.top-chrome\s*\{[\s\S]*position:\s*absolute;/)
 assert.match(reader, /\.bottom-chrome,[\s\S]*\.settings-panel[\s\S]*\{[\s\S]*position:\s*absolute;/)

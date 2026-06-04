@@ -7,12 +7,12 @@ const defaultPrefs = {
   lineHeight: 1.86,
   paragraphSpacing: 0.8,
   textIndent: 2,
-  contentWidth: 82,
+  contentWidth: 88,
   theme: 'eye',
   brightness: 86,
   pageTurnMode: 'slide',
-  showProgress: true,
-  showChapterInfo: true,
+  showProgress: false,
+  showChapterInfo: false,
   immersiveMode: false,
   autoSyncProgress: true,
   readingMode: 'page'
@@ -38,11 +38,11 @@ function normalizePrefs(raw) {
   prefs.lineHeight = Number(clampNumber(prefs.lineHeight, 1.45, 1.86, defaultPrefs.lineHeight).toFixed(2))
   prefs.paragraphSpacing = Number(clampNumber(prefs.paragraphSpacing, 0, 2.2, defaultPrefs.paragraphSpacing).toFixed(2))
   prefs.textIndent = Number(clampNumber(prefs.textIndent, 0, 4, defaultPrefs.textIndent).toFixed(1))
-  prefs.contentWidth = Math.round(clampNumber(prefs.contentWidth, 62, 96, defaultPrefs.contentWidth))
+  prefs.contentWidth = Math.round(clampNumber(prefs.contentWidth, 72, 98, defaultPrefs.contentWidth))
   prefs.brightness = Math.round(clampNumber(prefs.brightness, 40, 100, defaultPrefs.brightness))
   if (!['slide', 'cover', 'none'].includes(prefs.pageTurnMode)) prefs.pageTurnMode = defaultPrefs.pageTurnMode
-  prefs.showProgress = prefs.showProgress !== false
-  prefs.showChapterInfo = prefs.showChapterInfo !== false
+  prefs.showProgress = prefs.showProgress === true
+  prefs.showChapterInfo = prefs.showChapterInfo === true
   prefs.immersiveMode = prefs.immersiveMode === true
   prefs.autoSyncProgress = prefs.autoSyncProgress !== false
   if (!themes.some(theme => theme.id === prefs.theme)) {
@@ -136,7 +136,7 @@ export function splitChapter(content, fontSize, prefs = {}) {
   const safeFontSize = Math.max(16, Math.min(Number(fontSize) || 20, 20))
   const widthFactor = Math.max(0.68, Math.min(1, (Number(prefs.contentWidth) || defaultPrefs.contentWidth) / 82))
   const lineFactor = Math.max(0.75, Math.min(1.12, defaultPrefs.lineHeight / (Number(prefs.lineHeight) || defaultPrefs.lineHeight)))
-  const size = Math.max(110, Math.floor((280 - (safeFontSize - 16) * 32) * widthFactor * lineFactor))
+  const size = Math.max(220, Math.floor((520 - (safeFontSize - 16) * 52) * widthFactor * lineFactor))
   const pages = []
   let start = 0
 

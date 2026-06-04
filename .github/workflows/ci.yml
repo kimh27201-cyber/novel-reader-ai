@@ -67,6 +67,7 @@ jobs:
             tests/aiHistory.test.mjs
             tests/androidReadiness.test.mjs
             tests/apiClient.test.mjs
+            tests/appShellBranding.test.mjs
             tests/appTheme.test.mjs
             tests/backendConnection.test.mjs
             tests/backendLibrary.test.mjs
