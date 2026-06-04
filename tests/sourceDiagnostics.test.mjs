@@ -65,7 +65,20 @@ const incompatibleSource = {
   ruleSearch: '<js>java.ajax()</js>'
 }
 
-importSourcesWithStats(JSON.stringify([compatibleSource, compatibleSourceTwo, headerSource, incompatibleSource]))
+const legado3Source = {
+  ...compatibleSource,
+  bookSourceName: 'Diagnostic Legado 3X',
+  bookSourceUrl: 'https://legado3-diagnostic.example.com',
+  bookSourceGroup: '3X Group',
+  bookSourceType: 0,
+  comment: '3X comment',
+  weight: 9,
+  exploreUrl: 'https://legado3-diagnostic.example.com/explore',
+  loginUrl: 'https://legado3-diagnostic.example.com/login',
+  loginUi: [{ name: '账号', type: 'text' }]
+}
+
+importSourcesWithStats(JSON.stringify([compatibleSource, compatibleSourceTwo, headerSource, incompatibleSource, legado3Source]))
 
 const sources = pickOnlineSearchSources(Object.values(store['sources:user']))
 assert.equal(sources.length, 0)
@@ -92,6 +105,15 @@ const header3x = Object.values(store['sources:user']).find(source => source.name
 const headerDiagnostics = getSourceDiagnostics(header3x)
 assert.equal(headerDiagnostics.compatible, true)
 assert.deepEqual(headerDiagnostics.reasons, [])
+
+const legado3Diagnostics = getSourceDiagnostics(Object.values(store['sources:user']).find(source => source.name === 'Diagnostic Legado 3X'))
+assert.equal(legado3Diagnostics.formatVersion, '3.x')
+assert.equal(legado3Diagnostics.weight, 9)
+assert.equal(legado3Diagnostics.comment, '3X comment')
+assert.equal(legado3Diagnostics.featureFlags.explore, true)
+assert.equal(legado3Diagnostics.featureFlags.login, true)
+assert.equal(legado3Diagnostics.ruleSummary.explore, true)
+assert.equal(legado3Diagnostics.compatible, false)
 
 globalThis.fetch = async () => {
   throw new Error('network down')
@@ -191,6 +213,8 @@ assert.ok(batchRequests.some(url => url.includes('header-source')))
 const library = readFileSync(new URL('../pages/library/library.vue', import.meta.url), 'utf8')
 assert.match(library, /openSourceDetail/)
 assert.match(library, /sourceDiagnostics/)
+assert.match(library, /formatVersion/)
+assert.match(library, /featureFlags/)
 assert.match(library, /runSourceTest/)
 assert.match(library, /runBatchSourceTest/)
 assert.match(library, /testSourceKeyword/)

@@ -41,12 +41,17 @@ export function normalizeSourceConfig(input, defaults = {}) {
   const baseUrl = raw.bookSourceUrl || raw.sourceUrl || raw.baseUrl || defaults.baseUrl || ''
   const id = input.id || defaults.id || createSourceId(raw)
   const incompatible = hasUnsupportedRule(raw)
+  const features = detectSourceFeatures(raw)
 
   return {
     id,
     name,
     baseUrl: trimTrailingSlash(baseUrl),
     group: raw.bookSourceGroup || raw.group || defaults.group || '用户导入',
+    formatVersion: detectSourceFormat(raw),
+    features,
+    comment: raw.comment || raw.bookSourceComment || raw.sourceComment || '',
+    weight: Number(raw.weight || raw.customOrder || defaults.weight || 0),
     enabled: input.enabled !== undefined ? !!input.enabled : defaults.enabled !== undefined ? !!defaults.enabled : true,
     recommended: input.recommended !== undefined ? !!input.recommended : raw.recommended !== undefined ? !!raw.recommended : !!defaults.recommended,
     raw,
@@ -54,6 +59,46 @@ export function normalizeSourceConfig(input, defaults = {}) {
     importedAt: input.importedAt !== undefined ? input.importedAt : defaults.importedAt !== undefined ? defaults.importedAt : Date.now(),
     updatedAt: Date.now()
   }
+}
+
+export function detectSourceFormat(raw = {}) {
+  if (!raw || typeof raw !== 'object') return 'legacy'
+  const legado3Fields = [
+    'bookSourceType',
+    'bookSourceComment',
+    'customOrder',
+    'enabledCookieJar',
+    'exploreUrl',
+    'lastUpdateTime',
+    'loginCheck',
+    'loginUi',
+    'loginUrl',
+    'weight'
+  ]
+  return legado3Fields.some(field => Object.prototype.hasOwnProperty.call(raw, field)) ? '3.x' : 'legacy'
+}
+
+export function detectSourceFeatures(raw = {}) {
+  const text = typeof raw === 'string' ? raw : JSON.stringify(raw || {})
+  return {
+    login: hasNonEmptySourceField(raw, ['loginUrl', 'loginUi', 'loginCheck']),
+    explore: hasNonEmptySourceField(raw, ['exploreUrl', 'ruleExplore']),
+    cookie: /cookie\./i.test(text) || !!raw.enabledCookieJar,
+    headers: hasNonEmptySourceField(raw, ['header', 'headers', 'httpHeader']),
+    webView: /webview/i.test(text),
+    jsRule: /<js>|<\/js>|@js:|java\.|eval\(/i.test(text)
+  }
+}
+
+function hasNonEmptySourceField(raw = {}, names = []) {
+  if (!raw || typeof raw !== 'object') return false
+  return names.some(name => {
+    const value = raw[name]
+    if (value === false || value == null) return false
+    if (Array.isArray(value)) return value.length > 0
+    if (typeof value === 'object') return Object.keys(value).length > 0
+    return String(value).trim() !== ''
+  })
 }
 
 export function parseSourceJson(text) {

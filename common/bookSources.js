@@ -2,6 +2,8 @@ import {
   applyListRule,
   applyRule,
   cleanText,
+  detectSourceFeatures,
+  detectSourceFormat,
   detectSourceImportPayload,
   extractRepositorySourceUrl,
   hasUnsupportedRule,
@@ -363,6 +365,8 @@ export function getSourceDiagnostics(source) {
   const lastTest = normalizeSourceTest(source && source.lastTest)
   const networkStatus = compatible ? lastTest.status : 'incompatible'
   const searchable = compatible && networkStatus === 'passed'
+  const featureFlags = source && source.features || detectSourceFeatures(raw)
+  const formatVersion = source && source.formatVersion || detectSourceFormat(raw)
   const ruleSearch = normalizeRuleObject(raw.ruleSearch)
   const ruleToc = normalizeRuleObject(raw.ruleToc)
   const ruleContent = normalizeRuleObject(raw.ruleContent)
@@ -372,7 +376,7 @@ export function getSourceDiagnostics(source) {
     bookInfo: compatible && !!Object.keys(ruleBookInfo).length,
     toc: compatible && !!Object.keys(ruleToc).length,
     content: compatible && !!Object.keys(ruleContent).length,
-    explore: compatible && !!raw.ruleExplore
+    explore: !!(raw.exploreUrl || raw.ruleExplore)
   }
   const statusTitle = !compatible
     ? '规则不兼容'
@@ -393,6 +397,10 @@ export function getSourceDiagnostics(source) {
     name: source && source.name || raw.bookSourceName || '未命名书源',
     group: source && source.group || raw.bookSourceGroup || '用户导入',
     baseUrl: source && source.baseUrl || raw.bookSourceUrl || raw.sourceUrl || '',
+    formatVersion,
+    featureFlags,
+    comment: source && source.comment || raw.comment || raw.bookSourceComment || raw.sourceComment || '',
+    weight: Number(source && source.weight || raw.weight || raw.customOrder || 0),
     enabled: !!(source && source.enabled),
     imported: !!(source && source.importedAt),
     compatible,
@@ -424,6 +432,23 @@ export function previewSourcesImport(text) {
   }
 }
 
+export async function previewSourcesFromAny(input) {
+  const payload = detectSourceImportPayload(input)
+  if (payload.type === 'json') return previewSourcesImport(payload.value)
+  if (payload.type === 'import-link' || payload.type === 'json-url' || payload.type === 'repository-page' || payload.type === 'url') {
+    return previewSourcesFromUrl(payload.value)
+  }
+  throw new Error('没有识别到可预览的书源 JSON 或 URL')
+}
+
+export async function previewSourcesFromUrl(url) {
+  const loaded = await loadSourceImportTextFromUrl(url)
+  return {
+    ...previewSourcesImport(loaded.text),
+    sourceUrl: loaded.sourceUrl
+  }
+}
+
 export function importSourcesWithStats(text) {
   const sources = parseSourceJson(text)
   const current = getUserSources()
@@ -447,26 +472,47 @@ export async function importSourcesFromUrl(url) {
 }
 
 export async function importSourcesFromUrlWithStats(url) {
+  const loaded = await loadSourceImportTextFromUrl(url)
+  return importSourcesWithStats(loaded.text)
+}
+
+async function loadSourceImportTextFromUrl(url) {
   const spec = parseRequestSpec(url, {}, url)
   const text = await requestText(spec)
   const pageJsonUrl = /^\s*</.test(String(text || '')) ? extractJsonLink(text, spec.url) || extractRepositorySourceUrl(text, spec.url) : ''
   if (pageJsonUrl) {
     if (/^data:application\/json,/i.test(pageJsonUrl)) {
-      return importSourcesWithStats(decodeURIComponent(pageJsonUrl.replace(/^data:application\/json,/i, '')))
+      return {
+        text: decodeURIComponent(pageJsonUrl.replace(/^data:application\/json,/i, '')),
+        sourceUrl: pageJsonUrl
+      }
     }
     const jsonText = await requestText(parseRequestSpec(pageJsonUrl, {}, pageJsonUrl))
-    return importSourcesWithStats(jsonText)
+    return {
+      text: jsonText,
+      sourceUrl: pageJsonUrl
+    }
   }
   try {
-    return importSourcesWithStats(text)
+    parseSourceJson(text)
+    return {
+      text,
+      sourceUrl: spec.url
+    }
   } catch (error) {
     const directJsonUrl = extractJsonLink(text, spec.url) || extractRepositorySourceUrl(text, spec.url)
     if (!directJsonUrl) throw error
     if (/^data:application\/json,/i.test(directJsonUrl)) {
-      return importSourcesWithStats(decodeURIComponent(directJsonUrl.replace(/^data:application\/json,/i, '')))
+      return {
+        text: decodeURIComponent(directJsonUrl.replace(/^data:application\/json,/i, '')),
+        sourceUrl: directJsonUrl
+      }
     }
     const jsonText = await requestText(parseRequestSpec(directJsonUrl, {}, directJsonUrl))
-    return importSourcesWithStats(jsonText)
+    return {
+      text: jsonText,
+      sourceUrl: directJsonUrl
+    }
   }
 }
 

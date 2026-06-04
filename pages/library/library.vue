@@ -162,7 +162,7 @@
           </button>
           <view class="source-main">
             <view class="source-name">{{ source.name }}</view>
-            <text class="source-meta">{{ source.group || '未分组' }}</text>
+            <text class="source-meta">{{ source.group || '未分组' }} · {{ source.formatVersion || 'legacy' }}</text>
           </view>
           <text class="source-status-label" :class="sourceAvailabilityClass(source)">{{ sourceAvailabilityLabel(source) }}</text>
           <button class="status-switch" :class="{ active: source.enabled }" @tap.stop="toggleSource(source)">
@@ -228,8 +228,9 @@
         <view class="test-title">导入前预览</view>
         <text class="source-hint">新增 {{ sourceImportPreview.imported }} / 覆盖 {{ sourceImportPreview.updated }} / 不兼容 {{ sourceImportPreview.incompatible }}</text>
         <text class="source-hint">分组：{{ sourceImportPreview.groups.join('、') || '未分组' }}</text>
+        <text class="source-hint" v-if="sourceImportPreview.sourceUrl">JSON：{{ sourceImportPreview.sourceUrl }}</text>
       </view>
-      <button class="outline-action wide" @tap="previewSourceImport">导入前预览</button>
+      <button class="outline-action wide" :loading="sourceImportPreviewing" @tap="previewSourceImport">导入前预览</button>
       <button class="submit-button" :loading="sourceImporting" @tap="submitSourceImport">导入书源</button>
 
       <view class="quick-actions">
@@ -306,9 +307,21 @@
           <text class="detail-label">来源</text>
           <text class="detail-value">{{ selectedSource.importedAt ? '本地导入' : '内置书源' }}</text>
         </view>
+        <view class="detail-item">
+          <text class="detail-label">格式</text>
+          <text class="detail-value">{{ sourceDiagnostics.formatVersion || 'legacy' }}</text>
+        </view>
+        <view class="detail-item">
+          <text class="detail-label">权重</text>
+          <text class="detail-value">{{ sourceDiagnostics.weight || 0 }}</text>
+        </view>
         <view class="detail-item wide">
           <text class="detail-label">地址</text>
           <text class="detail-value one-line">{{ selectedSource.baseUrl || '无地址' }}</text>
+        </view>
+        <view class="detail-item wide" v-if="sourceDiagnostics.comment">
+          <text class="detail-label">备注</text>
+          <text class="detail-value">{{ sourceDiagnostics.comment }}</text>
         </view>
       </view>
 
@@ -325,6 +338,12 @@
         >
           <text>{{ rule.label }}</text>
           <text>{{ rule.ready ? '已配置' : '缺失' }}</text>
+        </view>
+      </view>
+      <view class="rule-summary feature-summary" v-if="sourceFeatureTags.length">
+        <view class="rule-pill active" v-for="feature in sourceFeatureTags" :key="feature">
+          <text>{{ feature }}</text>
+          <text>3.X</text>
         </view>
       </view>
 
@@ -361,6 +380,7 @@ import {
   getSourceDiagnostics,
   getSourceConfigs,
   importSourcesFromAny,
+  previewSourcesFromAny,
   previewSourcesImport,
   runSourceReadingFlow,
   setSourceEnabled,
@@ -399,6 +419,7 @@ export default {
       sourceImportText: '',
       sourceImportUrl: '',
       sourceImporting: false,
+      sourceImportPreviewing: false,
       sourceImportPreview: null,
       sourceDetailVisible: false,
       sourceEditVisible: false,
@@ -457,8 +478,8 @@ export default {
     },
     sourceImportHint() {
       if (this.sourceImportMode === 'json') return '支持单个对象、数组、sources 包装结构和一键导入链接。'
-      if (this.sourceImportMode === 'repo') return '粘贴 yck2026/yckceo 详情页，系统会优先读取页面里的 JSON 下载地址。'
-      return '支持直接 JSON 链接、yuedu://、legado:// 和包含 src= 的链接。'
+      if (this.sourceImportMode === 'repo') return '粘贴 yck2026/yckceo 详情页，系统会通过后端代理下载页面并优先读取 JSON 地址。'
+      return '支持直接 JSON 链接、yuedu://、legado:// 和包含 src= 的链接；网络内容会通过后端代理下载。'
     },
     sourceStats() {
       return {
@@ -517,8 +538,20 @@ export default {
         { key: 'search', label: '搜索', ready: !!summary.search },
         { key: 'bookInfo', label: '详情', ready: !!summary.bookInfo },
         { key: 'toc', label: '目录', ready: !!summary.toc },
-        { key: 'content', label: '正文', ready: !!summary.content }
+        { key: 'content', label: '正文', ready: !!summary.content },
+        { key: 'explore', label: '发现', ready: !!summary.explore }
       ]
+    },
+    sourceFeatureTags() {
+      const flags = this.sourceDiagnostics && this.sourceDiagnostics.featureFlags || {}
+      return [
+        flags.login ? '登录' : '',
+        flags.explore ? '发现' : '',
+        flags.cookie ? 'Cookie' : '',
+        flags.headers ? 'Headers' : '',
+        flags.webView ? 'WebView' : '',
+        flags.jsRule ? 'JS 规则' : ''
+      ].filter(Boolean)
     },
     sourceGroups() {
       const groups = this.sources.map(source => source.group || '未分组')
@@ -577,6 +610,7 @@ export default {
     },
     setImportMode(mode) {
       this.sourceImportMode = mode
+      this.sourceImportPreview = null
     },
     openImportDrawer(mode = this.sourceImportMode) {
       this.sourceImportMode = mode
@@ -789,17 +823,22 @@ export default {
         this.sourceImportPreview = null
       }
     },
-    previewSourceImport() {
+    async previewSourceImport() {
       const raw = String(this.sourceImportMode === 'json' ? this.sourceImportText : this.sourceImportUrl).trim()
       if (!raw) {
         uni.showToast({ title: '请先粘贴书源内容或 URL', icon: 'none' })
         return
       }
+      this.sourceImportPreviewing = true
       try {
-        this.sourceImportPreview = previewSourcesImport(raw)
+        this.sourceImportPreview = this.sourceImportMode === 'json'
+          ? previewSourcesImport(raw)
+          : await previewSourcesFromAny(raw)
       } catch (error) {
         this.sourceImportPreview = null
-        uni.showToast({ title: friendlyErrorMessage(error, '当前内容无法预览，请确认是书源 JSON'), icon: 'none' })
+        uni.showToast({ title: friendlyErrorMessage(error, '当前内容无法预览，请确认是书源 JSON 或 URL'), icon: 'none' })
+      } finally {
+        this.sourceImportPreviewing = false
       }
     },
     async importSourcePayload(raw, successPrefix = '已导入') {

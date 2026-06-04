@@ -7,6 +7,7 @@ import {
   getOnlineShelfBooks,
   importSourcesFromAny,
   importSourcesWithStats,
+  previewSourcesFromAny,
   previewSourcesImport,
   updateSourceMetadata
 } from '../common/bookSources.js'
@@ -78,6 +79,32 @@ assert.equal(yckDetail.imported, 1)
 assert.ok(requestedUrls.some(url => url.includes('/json/id/7274.json')))
 assert.ok(!requestedUrls.some(url => url.endsWith('/yuedu/shuyuan/index.html')))
 
+const beforeNetworkPreviewCount = getSourceConfigs().length
+const proxyRequests = []
+globalThis.uni.request = options => {
+  proxyRequests.push(options)
+  const targetUrl = String(options.data && options.data.url || '')
+  options.success({
+    statusCode: 200,
+    data: {
+      text: targetUrl.includes('/repo/page.html')
+        ? '<input id="jsonurl" value="https://cdn.example.com/bookSources.json">'
+        : JSON.stringify([{ ...source, bookSourceName: 'Network Preview Source', bookSourceUrl: 'https://network-preview.example.com' }]),
+      status_code: 200,
+      final_url: targetUrl
+    }
+  })
+}
+const networkPreview = await previewSourcesFromAny('https://www.yck2026.top/repo/page.html')
+assert.equal(networkPreview.imported, 1)
+assert.equal(networkPreview.updated, 0)
+assert.equal(networkPreview.sources[0].name, 'Network Preview Source')
+assert.equal(networkPreview.sourceUrl, 'https://cdn.example.com/bookSources.json')
+assert.equal(getSourceConfigs().length, beforeNetworkPreviewCount)
+assert.ok(proxyRequests.length >= 2)
+assert.ok(proxyRequests.every(call => call.url === 'http://127.0.0.1:8000/api/proxy/fetch'))
+delete globalThis.uni.request
+
 const builtIn = getSourceConfigs().find(item => !item.importedAt)
 const builtInRawName = builtIn.raw.bookSourceName
 updateSourceMetadata(builtIn.id, { name: '展示用内置源', group: '演示分组' })
@@ -139,7 +166,10 @@ assert.match(library, /openSourceEdit/)
 assert.match(library, /saveSourceEdit/)
 assert.match(library, /batchToggleVisibleSources/)
 assert.match(library, /confirmRemoveSource/)
+assert.match(library, /previewSourcesFromAny/)
+assert.match(library, /sourceImportPreviewing/)
 assert.match(library, /previewSourceImport/)
+assert.match(library, /后端代理下载/)
 assert.match(library, /导入前预览/)
 assert.match(library, /批量启用当前结果/)
 assert.match(library, /批量停用当前结果/)

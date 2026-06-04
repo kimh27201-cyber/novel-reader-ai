@@ -157,6 +157,26 @@ const recommended = parseSourceJson(JSON.stringify([{
 }]))
 assert.equal(recommended[0].recommended, true)
 
+const legado3 = parseSourceJson(JSON.stringify([{
+  bookSourceName: 'Legado 3X Source',
+  bookSourceUrl: 'https://legado3.example.com',
+  bookSourceGroup: '3X 分组',
+  bookSourceType: 0,
+  comment: '需要登录后使用',
+  weight: 7,
+  exploreUrl: 'https://legado3.example.com/explore',
+  loginUrl: 'https://legado3.example.com/login',
+  loginUi: [{ name: '账号', type: 'text' }]
+}]))[0]
+assert.equal(legado3.formatVersion, '3.x')
+assert.equal(legado3.group, '3X 分组')
+assert.equal(legado3.comment, '需要登录后使用')
+assert.equal(legado3.weight, 7)
+assert.equal(legado3.features.explore, true)
+assert.equal(legado3.features.login, true)
+assert.equal(legado3.features.webView, false)
+assert.match(legado3.compatibility, /不兼容/)
+
 const before = getSourceConfigs().length
 assert.equal(importSourcesFromJson(sourceJson), 1)
 assert.equal(getSourceConfigs().length, before + 1)
