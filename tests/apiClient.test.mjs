@@ -168,6 +168,32 @@ async function testSourceRoutes() {
   assert.deepEqual(calls[5].data, { chapter_url: 'https://example.com/chapter' })
 }
 
+async function testProxyFetchUsesBackendProxyRoute() {
+  const { client, calls } = createClient(() => ({
+    statusCode: 200,
+    data: { text: '<html>ok</html>', status_code: 200, final_url: 'https://example.com/search' }
+  }))
+
+  const result = await client.proxyFetch('https://example.com/search', {
+    method: 'POST',
+    headers: { Referer: 'https://example.com' },
+    body: 'q=星轨',
+    charset: 'gbk'
+  })
+
+  assert.equal(result.text, '<html>ok</html>')
+  assert.equal(calls[0].url, 'http://127.0.0.1:8000/api/proxy/fetch')
+  assert.equal(calls[0].method, 'POST')
+  assert.deepEqual(calls[0].data, {
+    url: 'https://example.com/search',
+    method: 'POST',
+    headers: { Referer: 'https://example.com' },
+    body: 'q=星轨',
+    charset: 'gbk'
+  })
+  assert.equal(calls[0].header.Authorization, undefined)
+}
+
 async function testUnauthorizedClearsToken() {
   const { client } = createClient(() => ({
     statusCode: 401,
@@ -219,6 +245,7 @@ await testSummaryAndChatUseBackendRoutes()
 await testAIHistoryRoutesUseFilters()
 await testLibraryAndReadingHistoryRoutes()
 await testSourceRoutes()
+await testProxyFetchUsesBackendProxyRoute()
 await testUnauthorizedClearsToken()
 await testUnifiedErrorMessageIsPreferred()
 await testPromiseRequestAdapterIsSupported()

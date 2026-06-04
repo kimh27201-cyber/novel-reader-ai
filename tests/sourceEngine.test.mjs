@@ -8,6 +8,7 @@ import {
   getRuntimeRequestUrl,
   parseRequestSpec,
   parseSourceJson,
+  requestText,
   renderTemplate,
   resolveUrl
 } from '../common/sourceEngine.js'
@@ -105,6 +106,36 @@ assert.equal(
   'https://www.yck2026.top/yuedu/shuyuan/content/id/7274.html'
 )
 delete globalThis.window
+
+const proxyCalls = []
+globalThis.uni = {
+  request(options) {
+    proxyCalls.push(options)
+    options.success({
+      statusCode: 200,
+      data: { text: '<html>proxied</html>', status_code: 200, final_url: options.data.url }
+    })
+  }
+}
+assert.equal(
+  await requestText({
+    url: 'https://novel.example.com/search',
+    method: 'POST',
+    header: { Referer: 'https://novel.example.com' },
+    data: 'q=abc',
+    charset: 'gbk'
+  }),
+  '<html>proxied</html>'
+)
+assert.equal(proxyCalls[0].url, 'http://127.0.0.1:8000/api/proxy/fetch')
+assert.deepEqual(proxyCalls[0].data, {
+  url: 'https://novel.example.com/search',
+  method: 'POST',
+  headers: { Referer: 'https://novel.example.com' },
+  body: 'q=abc',
+  charset: 'gbk'
+})
+delete globalThis.uni
 
 const sourceJson = JSON.stringify([{
   bookSourceName: '测试源',

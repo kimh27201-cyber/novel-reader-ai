@@ -210,6 +210,19 @@ export function createApiClient(deps = {}) {
         data: { content }
       })
     },
+    proxyFetch(url, options = {}) {
+      return request('/api/proxy/fetch', {
+        method: 'POST',
+        auth: false,
+        data: {
+          url,
+          method: String(options.method || 'GET').toUpperCase(),
+          headers: options.headers || options.header || {},
+          body: options.body !== undefined ? options.body : options.data || '',
+          charset: options.charset || ''
+        }
+      })
+    },
     searchSource(sourceId, { keyword, page = 1 }) {
       return request(`/api/sources/${sourceId}/search`, {
         method: 'POST',

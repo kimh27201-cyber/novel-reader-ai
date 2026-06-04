@@ -7,6 +7,7 @@ from app.api.ai import router as ai_router
 from app.api.auth import router as auth_router
 from app.api.demo import router as demo_router
 from app.api.library import router as library_router
+from app.api.proxy import router as proxy_router
 from app.api.sources import router as sources_router
 from app.core.config import get_settings
 from app.core.observability import (
@@ -53,3 +54,4 @@ app.include_router(library_router)
 app.include_router(sources_router)
 app.include_router(demo_router)
 app.include_router(ai_router)
+app.include_router(proxy_router)

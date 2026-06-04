@@ -1,3 +1,5 @@
+import apiClient from './apiClient.js'
+
 export const unsupportedRulePattern = /(<js>|<\/js>|@js:|java\.|cookie\.|webview|loginUrl|header\s*=|eval\()/i
 
 export function cleanText(value) {
@@ -221,6 +223,22 @@ export function parseRequestSpec(spec, context = {}, baseUrl = '') {
 
 export function requestText(spec) {
   const requestUrl = getRuntimeRequestUrl(spec.url)
+  if (shouldUseBackendProxy(spec.url)) {
+    return apiClient.proxyFetch(spec.url, {
+      method: spec.method || 'GET',
+      headers: spec.header || {},
+      body: spec.data || '',
+      charset: spec.charset || ''
+    }).then(data => {
+      if (data && typeof data.text === 'string') return data.text
+      return typeof data === 'string' ? data : JSON.stringify(data || '')
+    }).catch(() => directRequestText(requestUrl, spec))
+  }
+
+  return directRequestText(requestUrl, spec)
+}
+
+function directRequestText(requestUrl, spec) {
   if (typeof uni !== 'undefined' && uni.request) {
     return new Promise((resolve, reject) => {
       uni.request({
@@ -248,6 +266,10 @@ export function requestText(spec) {
   }
 
   return Promise.reject(new Error('当前环境不支持网络请求'))
+}
+
+function shouldUseBackendProxy(url) {
+  return /^https?:\/\//i.test(String(url || ''))
 }
 
 export function getRuntimeRequestUrl(url) {

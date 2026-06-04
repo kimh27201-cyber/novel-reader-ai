@@ -195,3 +195,45 @@ D:\Codex\novel-reader-uniapp\backend\data\novel_reader.db
 - `ai_summaries`
 - `chat_records`
 - `ai_call_logs`
+
+## 5. HTTP Proxy
+
+The H5 reader can call the backend proxy when direct requests to third-party novel sites are blocked by CORS.
+
+### GET /api/proxy/health
+
+```json
+{
+  "status": "ok"
+}
+```
+
+### POST /api/proxy/fetch
+
+```json
+{
+  "url": "https://example.com/search?q=book",
+  "method": "GET",
+  "headers": {
+    "User-Agent": "Mozilla/5.0",
+    "Referer": "https://example.com"
+  },
+  "body": "",
+  "charset": "gbk"
+}
+```
+
+Response:
+
+```json
+{
+  "text": "<html>...</html>",
+  "status_code": 200,
+  "final_url": "https://example.com/search?q=book",
+  "headers": {
+    "content-type": "text/html; charset=gbk"
+  }
+}
+```
+
+Only `http` and `https` targets are accepted. The proxy throttles requests by target host to roughly 2 requests per second and decodes UTF-8/GBK/GB2312/GB18030 responses into text.
