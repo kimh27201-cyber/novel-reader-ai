@@ -325,7 +325,7 @@ export default {
       try {
         this.backend.baseUrl = apiClient.setBaseUrl(this.backend.baseUrl)
         await apiClient.login(this.backend.username.trim(), this.backend.password)
-        await this.refreshBackendMe({ silent: true })
+        await this.refreshBackendMe({ silent: true, throwOnError: true })
         uni.showToast({ title: '后端登录成功', icon: 'none' })
       } catch (error) {
         this.backend.user = null
@@ -348,6 +348,7 @@ export default {
       } catch (error) {
         this.backend.user = null
         this.backend.error = friendlyErrorMessage(error, '后端未连接')
+        if (options.throwOnError) throw error
         if (!options.silent) {
           uni.showToast({ title: this.backend.error, icon: 'none' })
         }

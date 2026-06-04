@@ -62,6 +62,8 @@ const profile = readFileSync(new URL('../pages/profile/profile.vue', import.meta
 assert.match(profile, /checkBackendHealth/)
 assert.match(profile, /saveBackendBaseUrl/)
 assert.match(profile, /backendAddressTip/)
+assert.match(profile, /refreshBackendMe\(\{ silent: true, throwOnError: true \}\)/)
+assert.match(profile, /if \(options\.throwOnError\) throw error/)
 assert.match(profile, /真机/)
 
 console.log('backendConnection tests passed')
