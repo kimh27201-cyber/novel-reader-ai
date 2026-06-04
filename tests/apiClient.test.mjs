@@ -52,6 +52,18 @@ async function testLoginStoresToken() {
   assert.deepEqual(calls[0].data, { username: 'student', password: 'secret123' })
 }
 
+async function testLoginParsesStringJsonResponse() {
+  const { client } = createClient(() => ({
+    statusCode: 200,
+    data: '{"access_token":"token-from-string","token_type":"bearer"}'
+  }))
+
+  const result = await client.login('student', 'secret123')
+
+  assert.equal(result.access_token, 'token-from-string')
+  assert.equal(client.getToken(), 'token-from-string')
+}
+
 async function testAuthorizedRequestUsesBearerToken() {
   const { client, calls } = createClient(() => ({
     statusCode: 200,
@@ -239,6 +251,7 @@ async function testPromiseRequestAdapterIsSupported() {
 }
 
 await testLoginStoresToken()
+await testLoginParsesStringJsonResponse()
 await testBaseUrlWhitespaceIsNormalized()
 await testAuthorizedRequestUsesBearerToken()
 await testSummaryAndChatUseBackendRoutes()

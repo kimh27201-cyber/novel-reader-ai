@@ -46,6 +46,21 @@ function getErrorMessage(data, fallback) {
   return fallback
 }
 
+function parseResponseData(data) {
+  if (typeof data !== 'string') {
+    return data
+  }
+  const text = data.trim()
+  if (!text || !/^[\[{]/.test(text)) {
+    return data
+  }
+  try {
+    return JSON.parse(text)
+  } catch (error) {
+    return data
+  }
+}
+
 function storageGetter(deps, methodName) {
   const uniApi = getUni()
   return deps[methodName] || (uniApi && uniApi[methodName] ? uniApi[methodName].bind(uniApi) : null)
@@ -101,13 +116,15 @@ export function createApiClient(deps = {}) {
         header,
         success(response) {
           const statusCode = Number(response.statusCode || 0)
+          const data = parseResponseData(response.data)
           if (statusCode >= 200 && statusCode < 300) {
-            resolve(response.data)
+            resolve(data)
             return
           }
           if (statusCode === 401) {
             clearToken()
           }
+          response.data = data
           reject(new ApiError(getErrorMessage(response.data, `请求失败：${statusCode}`), statusCode, response.data))
         },
         fail(error) {
@@ -117,13 +134,15 @@ export function createApiClient(deps = {}) {
       if (maybePromise && typeof maybePromise.then === 'function') {
         maybePromise.then(response => {
           const statusCode = Number(response.statusCode || 0)
+          const data = parseResponseData(response.data)
           if (statusCode >= 200 && statusCode < 300) {
-            resolve(response.data)
+            resolve(data)
             return
           }
           if (statusCode === 401) {
             clearToken()
           }
+          response.data = data
           reject(new ApiError(getErrorMessage(response.data, `请求失败：${statusCode}`), statusCode, response.data))
         }).catch(error => {
           reject(error instanceof ApiError ? error : new ApiError(friendlyErrorMessage(error, '网络请求失败'), 0, error))
