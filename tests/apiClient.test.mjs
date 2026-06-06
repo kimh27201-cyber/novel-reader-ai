@@ -91,6 +91,23 @@ async function testAuthorizedRequestUsesBearerToken() {
   assert.equal(calls[0].url, 'http://127.0.0.1:8000/api/auth/me?access_token=token-abc')
 }
 
+async function testDiagnosticsRedactAccessToken() {
+  const { client } = createClient(() => ({
+    statusCode: 200,
+    data: { username: 'student' }
+  }))
+  client.setToken('token-secret')
+
+  await client.getMe()
+
+  const diagnostics = client.getDiagnostics()
+  assert.equal(diagnostics.length, 1)
+  assert.equal(diagnostics[0].statusCode, 200)
+  assert.equal(diagnostics[0].sentAccessTokenQuery, true)
+  assert.match(diagnostics[0].url, /access_token=<redacted>/)
+  assert.doesNotMatch(diagnostics[0].url, /token-secret/)
+}
+
 async function testSummaryAndChatUseBackendRoutes() {
   const { client, calls } = createClient(() => ({
     statusCode: 201,
@@ -269,6 +286,7 @@ await testLoginParsesStringJsonResponse()
 await testLoginCanReadTokenFromResponseHeader()
 await testBaseUrlWhitespaceIsNormalized()
 await testAuthorizedRequestUsesBearerToken()
+await testDiagnosticsRedactAccessToken()
 await testSummaryAndChatUseBackendRoutes()
 await testAIHistoryRoutesUseFilters()
 await testLibraryAndReadingHistoryRoutes()

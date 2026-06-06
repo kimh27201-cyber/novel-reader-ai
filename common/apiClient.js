@@ -3,6 +3,7 @@ import { friendlyErrorMessage } from './uiFeedback.js'
 const DEFAULT_BASE_URL = 'http://127.0.0.1:8000'
 const BASE_URL_KEY = 'novelReaderBackendBaseUrl'
 const TOKEN_KEY = 'novelReaderBackendToken'
+const DIAGNOSTIC_LIMIT = 20
 
 export class ApiError extends Error {
   constructor(message, statusCode, data) {
@@ -93,6 +94,14 @@ function appendAccessToken(path, token) {
   return `${path}${separator}access_token=${encodeURIComponent(token)}`
 }
 
+function redactUrl(value) {
+  return String(value || '').replace(/access_token=[^&]+/g, 'access_token=<redacted>')
+}
+
+function responseKeys(data) {
+  return data && typeof data === 'object' && !Array.isArray(data) ? Object.keys(data).slice(0, 8) : []
+}
+
 function storageGetter(deps, methodName) {
   const uniApi = getUni()
   return deps[methodName] || (uniApi && uniApi[methodName] ? uniApi[methodName].bind(uniApi) : null)
@@ -103,6 +112,21 @@ export function createApiClient(deps = {}) {
   const setStorageSync = storageGetter(deps, 'setStorageSync') || (() => {})
   const removeStorageSync = storageGetter(deps, 'removeStorageSync') || (() => {})
   const requestAdapter = deps.request || (options => defaultRequest(options))
+  const diagnostics = []
+
+  function recordDiagnostic(entry) {
+    const safeEntry = {
+      time: new Date().toISOString(),
+      ...entry
+    }
+    diagnostics.push(safeEntry)
+    if (diagnostics.length > DIAGNOSTIC_LIMIT) {
+      diagnostics.shift()
+    }
+    if (typeof console !== 'undefined' && console.info) {
+      console.info('[NovelReaderApi]', JSON.stringify(safeEntry))
+    }
+  }
 
   function getBaseUrl() {
     return normalizeBaseUrl(getStorageSync(BASE_URL_KEY))
@@ -141,16 +165,28 @@ export function createApiClient(deps = {}) {
       header['X-Access-Token'] = getToken()
     }
     const requestPath = auth ? appendAccessToken(path, getToken()) : path
+    const requestUrl = `${getBaseUrl()}${requestPath}`
 
     return new Promise((resolve, reject) => {
       const maybePromise = requestAdapter({
-        url: `${getBaseUrl()}${requestPath}`,
+        url: requestUrl,
         method,
         data: options.data,
         header,
         success(response) {
           const statusCode = Number(response.statusCode || 0)
           const data = mergeLoginTokenFromHeader(path, parseResponseData(response.data), response)
+          recordDiagnostic({
+            event: 'response',
+            method,
+            path,
+            url: redactUrl(requestUrl),
+            statusCode,
+            auth,
+            hasStoredToken: !!getToken(),
+            sentAccessTokenQuery: requestUrl.includes('access_token='),
+            responseKeys: responseKeys(data)
+          })
           if (statusCode >= 200 && statusCode < 300) {
             resolve(data)
             return
@@ -162,6 +198,16 @@ export function createApiClient(deps = {}) {
           reject(new ApiError(getErrorMessage(response.data, `请求失败：${statusCode}`), statusCode, response.data))
         },
         fail(error) {
+          recordDiagnostic({
+            event: 'fail',
+            method,
+            path,
+            url: redactUrl(requestUrl),
+            auth,
+            hasStoredToken: !!getToken(),
+            sentAccessTokenQuery: requestUrl.includes('access_token='),
+            message: friendlyErrorMessage(error, 'network request failed')
+          })
           reject(new ApiError(friendlyErrorMessage(error, '网络请求失败'), 0, error))
         }
       })
@@ -169,6 +215,17 @@ export function createApiClient(deps = {}) {
         maybePromise.then(response => {
           const statusCode = Number(response.statusCode || 0)
           const data = mergeLoginTokenFromHeader(path, parseResponseData(response.data), response)
+          recordDiagnostic({
+            event: 'response',
+            method,
+            path,
+            url: redactUrl(requestUrl),
+            statusCode,
+            auth,
+            hasStoredToken: !!getToken(),
+            sentAccessTokenQuery: requestUrl.includes('access_token='),
+            responseKeys: responseKeys(data)
+          })
           if (statusCode >= 200 && statusCode < 300) {
             resolve(data)
             return
@@ -191,6 +248,12 @@ export function createApiClient(deps = {}) {
     getToken,
     setToken,
     clearToken,
+    getDiagnostics() {
+      return diagnostics.slice()
+    },
+    clearDiagnostics() {
+      diagnostics.splice(0, diagnostics.length)
+    },
     request,
     login(username, password) {
       return request('/api/auth/login', {

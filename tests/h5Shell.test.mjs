@@ -29,5 +29,7 @@ assert.match(mainActivity, /interceptExternalRequest/)
 assert.match(mainActivity, /HttpURLConnection/)
 assert.match(mainActivity, /Access-Control-Allow-Origin/)
 assert.match(mainActivity, /isLocalHost/)
+assert.match(mainActivity, /setCacheMode\(WebSettings\.LOAD_NO_CACHE\)/)
+assert.match(mainActivity, /clearCache\(true\)/)
 
 console.log('h5Shell tests passed')

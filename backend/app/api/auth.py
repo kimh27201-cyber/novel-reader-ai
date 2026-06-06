@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt import InvalidTokenError
@@ -12,6 +14,7 @@ from app.schemas.auth import Token, UserLogin, UserRead, UserRegister
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 bearer_scheme = HTTPBearer(auto_error=False)
+logger = logging.getLogger("novel_reader.auth")
 
 
 def normalize_bearer_token(value: str) -> str:
@@ -27,6 +30,8 @@ def get_current_user(
     access_token: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> User:
+    token_source = "authorization" if credentials else "x-access-token" if x_access_token else "query" if access_token else "missing"
+    logger.info("auth token source=%s", token_source)
     token = credentials.credentials if credentials else x_access_token or access_token
     if not token:
         raise HTTPException(

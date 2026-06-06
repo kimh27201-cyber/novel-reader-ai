@@ -36,6 +36,7 @@
         <button class="backend-button" :loading="backend.loading" @tap="checkBackendHealth">自检后端</button>
         <button class="backend-button primary" :loading="backend.loading" @tap="loginBackend">登录后端</button>
         <button class="backend-button" :loading="backend.loading" @tap="refreshBackendMe">刷新状态</button>
+        <button class="backend-button" @tap="copyBackendDiagnostics">复制日志</button>
         <button class="backend-button" v-if="debugModeEnabled" @tap="openSwagger">打开 Swagger</button>
         <button class="backend-button ghost" @tap="logoutBackend">退出</button>
       </view>
@@ -384,6 +385,16 @@ export default {
       this.backend.error = ''
       this.backend.health = ''
       uni.showToast({ title: '已退出后端登录', icon: 'none' })
+    },
+    copyBackendDiagnostics() {
+      const diagnostics = apiClient.getDiagnostics ? apiClient.getDiagnostics() : []
+      const payload = diagnostics.length
+        ? JSON.stringify(diagnostics, null, 2)
+        : '暂无 API 诊断日志。请先点“自检后端”或“登录后端”后再复制。'
+      uni.setClipboardData({
+        data: payload,
+        success: () => uni.showToast({ title: '诊断日志已复制', icon: 'none' })
+      })
     },
     openItem(id) {
       if (id === 'source') {
