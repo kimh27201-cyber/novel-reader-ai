@@ -83,6 +83,7 @@ def test_login_returns_bearer_token():
     body = response.json()
     assert body["token_type"] == "bearer"
     assert body["access_token"]
+    assert response.headers["X-Access-Token"] == body["access_token"]
 
 
 def test_login_rejects_wrong_password():
@@ -122,6 +123,51 @@ def test_me_returns_current_user_with_token():
         "/api/auth/me",
         headers={"Authorization": f"Bearer {token}"},
     )
+
+    assert response.status_code == 200
+    assert response.json()["username"] == "reader"
+
+
+def test_me_accepts_x_access_token_header():
+    client.post(
+        "/api/auth/register",
+        json={
+            "username": "reader",
+            "email": "reader@example.com",
+            "password": "secret123",
+        },
+    )
+    login = client.post(
+        "/api/auth/login",
+        json={"username": "reader", "password": "secret123"},
+    )
+    token = login.json()["access_token"]
+
+    response = client.get(
+        "/api/auth/me",
+        headers={"X-Access-Token": token},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["username"] == "reader"
+
+
+def test_me_accepts_access_token_query_parameter():
+    client.post(
+        "/api/auth/register",
+        json={
+            "username": "reader",
+            "email": "reader@example.com",
+            "password": "secret123",
+        },
+    )
+    login = client.post(
+        "/api/auth/login",
+        json={"username": "reader", "password": "secret123"},
+    )
+    token = login.json()["access_token"]
+
+    response = client.get(f"/api/auth/me?access_token={token}")
 
     assert response.status_code == 200
     assert response.json()["username"] == "reader"

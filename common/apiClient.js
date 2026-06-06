@@ -61,6 +61,38 @@ function parseResponseData(data) {
   }
 }
 
+function getHeaderValue(headers, name) {
+  if (!headers || typeof headers !== 'object') {
+    return ''
+  }
+  const expected = String(name).toLowerCase()
+  const key = Object.keys(headers).find(item => item.toLowerCase() === expected)
+  return key ? String(headers[key] || '') : ''
+}
+
+function mergeLoginTokenFromHeader(path, data, response) {
+  if (path !== '/api/auth/login' || (data && data.access_token)) {
+    return data
+  }
+  const token = getHeaderValue(response.header || response.headers, 'X-Access-Token')
+  if (!token) {
+    return data
+  }
+  return {
+    ...(data && typeof data === 'object' ? data : {}),
+    access_token: token,
+    token_type: 'bearer'
+  }
+}
+
+function appendAccessToken(path, token) {
+  if (!token) {
+    return path
+  }
+  const separator = path.includes('?') ? '&' : '?'
+  return `${path}${separator}access_token=${encodeURIComponent(token)}`
+}
+
 function storageGetter(deps, methodName) {
   const uniApi = getUni()
   return deps[methodName] || (uniApi && uniApi[methodName] ? uniApi[methodName].bind(uniApi) : null)
@@ -106,17 +138,19 @@ export function createApiClient(deps = {}) {
     }
     if (auth && getToken()) {
       header.Authorization = `Bearer ${getToken()}`
+      header['X-Access-Token'] = getToken()
     }
+    const requestPath = auth ? appendAccessToken(path, getToken()) : path
 
     return new Promise((resolve, reject) => {
       const maybePromise = requestAdapter({
-        url: `${getBaseUrl()}${path}`,
+        url: `${getBaseUrl()}${requestPath}`,
         method,
         data: options.data,
         header,
         success(response) {
           const statusCode = Number(response.statusCode || 0)
-          const data = parseResponseData(response.data)
+          const data = mergeLoginTokenFromHeader(path, parseResponseData(response.data), response)
           if (statusCode >= 200 && statusCode < 300) {
             resolve(data)
             return
@@ -134,7 +168,7 @@ export function createApiClient(deps = {}) {
       if (maybePromise && typeof maybePromise.then === 'function') {
         maybePromise.then(response => {
           const statusCode = Number(response.statusCode || 0)
-          const data = parseResponseData(response.data)
+          const data = mergeLoginTokenFromHeader(path, parseResponseData(response.data), response)
           if (statusCode >= 200 && statusCode < 300) {
             resolve(data)
             return

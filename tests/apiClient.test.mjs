@@ -64,6 +64,19 @@ async function testLoginParsesStringJsonResponse() {
   assert.equal(client.getToken(), 'token-from-string')
 }
 
+async function testLoginCanReadTokenFromResponseHeader() {
+  const { client } = createClient(() => ({
+    statusCode: 200,
+    data: {},
+    header: { 'X-Access-Token': 'token-from-header' }
+  }))
+
+  const result = await client.login('student', 'secret123')
+
+  assert.equal(result.access_token, 'token-from-header')
+  assert.equal(client.getToken(), 'token-from-header')
+}
+
 async function testAuthorizedRequestUsesBearerToken() {
   const { client, calls } = createClient(() => ({
     statusCode: 200,
@@ -74,7 +87,8 @@ async function testAuthorizedRequestUsesBearerToken() {
   await client.getMe()
 
   assert.equal(calls[0].header.Authorization, 'Bearer token-abc')
-  assert.equal(calls[0].url, 'http://127.0.0.1:8000/api/auth/me')
+  assert.equal(calls[0].header['X-Access-Token'], 'token-abc')
+  assert.equal(calls[0].url, 'http://127.0.0.1:8000/api/auth/me?access_token=token-abc')
 }
 
 async function testSummaryAndChatUseBackendRoutes() {
@@ -87,9 +101,9 @@ async function testSummaryAndChatUseBackendRoutes() {
   await client.summarizeChapter({ chapterText: '正文', bookId: null, chapterId: null })
   await client.chatWithAI({ question: '问题', context: '上下文', bookId: null, chapterId: null })
 
-  assert.equal(calls[0].url, 'http://127.0.0.1:8000/api/ai/summary')
+  assert.equal(calls[0].url, 'http://127.0.0.1:8000/api/ai/summary?access_token=token-abc')
   assert.deepEqual(calls[0].data, { chapter_text: '正文', book_id: null, chapter_id: null })
-  assert.equal(calls[1].url, 'http://127.0.0.1:8000/api/ai/chat')
+  assert.equal(calls[1].url, 'http://127.0.0.1:8000/api/ai/chat?access_token=token-abc')
   assert.deepEqual(calls[1].data, { question: '问题', context: '上下文', book_id: null, chapter_id: null })
 }
 
@@ -104,9 +118,9 @@ async function testAIHistoryRoutesUseFilters() {
   await client.listChats({ book_id: 12 })
   await client.listAiCalls({ call_type: 'summary', status_value: 'failed' })
 
-  assert.equal(calls[0].url, 'http://127.0.0.1:8000/api/ai/summaries?book_id=12&chapter_id=34')
-  assert.equal(calls[1].url, 'http://127.0.0.1:8000/api/ai/chats?book_id=12')
-  assert.equal(calls[2].url, 'http://127.0.0.1:8000/api/ai/calls?call_type=summary&status_value=failed')
+  assert.equal(calls[0].url, 'http://127.0.0.1:8000/api/ai/summaries?book_id=12&chapter_id=34&access_token=token-abc')
+  assert.equal(calls[1].url, 'http://127.0.0.1:8000/api/ai/chats?book_id=12&access_token=token-abc')
+  assert.equal(calls[2].url, 'http://127.0.0.1:8000/api/ai/calls?call_type=summary&status_value=failed&access_token=token-abc')
 }
 
 async function testBaseUrlWhitespaceIsNormalized() {
@@ -137,20 +151,20 @@ async function testLibraryAndReadingHistoryRoutes() {
   await client.saveReadingHistory({ book_id: 12, chapter_index: 2, page_index: 3, progress_percent: 50 })
   await client.getReadingHistory(12)
 
-  assert.equal(calls[0].url, 'http://127.0.0.1:8000/api/books')
+  assert.equal(calls[0].url, 'http://127.0.0.1:8000/api/books?access_token=token-abc')
   assert.equal(calls[1].method, 'POST')
-  assert.equal(calls[1].url, 'http://127.0.0.1:8000/api/books')
+  assert.equal(calls[1].url, 'http://127.0.0.1:8000/api/books?access_token=token-abc')
   assert.deepEqual(calls[1].data, { title: 'Book', author: 'Author' })
-  assert.equal(calls[2].url, 'http://127.0.0.1:8000/api/books/12')
-  assert.equal(calls[3].url, 'http://127.0.0.1:8000/api/books/12/chapters')
+  assert.equal(calls[2].url, 'http://127.0.0.1:8000/api/books/12?access_token=token-abc')
+  assert.equal(calls[3].url, 'http://127.0.0.1:8000/api/books/12/chapters?access_token=token-abc')
   assert.equal(calls[4].method, 'POST')
-  assert.equal(calls[4].url, 'http://127.0.0.1:8000/api/books/12/chapters')
+  assert.equal(calls[4].url, 'http://127.0.0.1:8000/api/books/12/chapters?access_token=token-abc')
   assert.deepEqual(calls[4].data, { chapter_index: 0, title: 'Start' })
-  assert.equal(calls[5].url, 'http://127.0.0.1:8000/api/chapters/34')
+  assert.equal(calls[5].url, 'http://127.0.0.1:8000/api/chapters/34?access_token=token-abc')
   assert.equal(calls[6].method, 'POST')
-  assert.equal(calls[6].url, 'http://127.0.0.1:8000/api/reading-history')
+  assert.equal(calls[6].url, 'http://127.0.0.1:8000/api/reading-history?access_token=token-abc')
   assert.deepEqual(calls[6].data, { book_id: 12, chapter_index: 2, page_index: 3, progress_percent: 50 })
-  assert.equal(calls[7].url, 'http://127.0.0.1:8000/api/reading-history?book_id=12')
+  assert.equal(calls[7].url, 'http://127.0.0.1:8000/api/reading-history?book_id=12&access_token=token-abc')
 }
 
 async function testSourceRoutes() {
@@ -167,16 +181,16 @@ async function testSourceRoutes() {
   await client.loadSourceToc(5, { bookUrl: 'https://example.com/book', tocUrl: 'https://example.com/toc' })
   await client.loadSourceContent(5, { chapterUrl: 'https://example.com/chapter' })
 
-  assert.equal(calls[0].url, 'http://127.0.0.1:8000/api/sources')
+  assert.equal(calls[0].url, 'http://127.0.0.1:8000/api/sources?access_token=token-abc')
   assert.equal(calls[1].method, 'POST')
-  assert.equal(calls[1].url, 'http://127.0.0.1:8000/api/sources/import-demo')
+  assert.equal(calls[1].url, 'http://127.0.0.1:8000/api/sources/import-demo?access_token=token-abc')
   assert.equal(calls[2].method, 'POST')
   assert.deepEqual(calls[2].data, { content: '[{}]' })
-  assert.equal(calls[3].url, 'http://127.0.0.1:8000/api/sources/5/search')
+  assert.equal(calls[3].url, 'http://127.0.0.1:8000/api/sources/5/search?access_token=token-abc')
   assert.deepEqual(calls[3].data, { keyword: 'star', page: 2 })
-  assert.equal(calls[4].url, 'http://127.0.0.1:8000/api/sources/5/toc')
+  assert.equal(calls[4].url, 'http://127.0.0.1:8000/api/sources/5/toc?access_token=token-abc')
   assert.deepEqual(calls[4].data, { book_url: 'https://example.com/book', toc_url: 'https://example.com/toc' })
-  assert.equal(calls[5].url, 'http://127.0.0.1:8000/api/sources/5/content')
+  assert.equal(calls[5].url, 'http://127.0.0.1:8000/api/sources/5/content?access_token=token-abc')
   assert.deepEqual(calls[5].data, { chapter_url: 'https://example.com/chapter' })
 }
 
@@ -252,6 +266,7 @@ async function testPromiseRequestAdapterIsSupported() {
 
 await testLoginStoresToken()
 await testLoginParsesStringJsonResponse()
+await testLoginCanReadTokenFromResponseHeader()
 await testBaseUrlWhitespaceIsNormalized()
 await testAuthorizedRequestUsesBearerToken()
 await testSummaryAndChatUseBackendRoutes()
