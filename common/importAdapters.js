@@ -1,5 +1,7 @@
 import { detectSourceImportPayload } from './sourceEngine.js'
 
+const NATIVE_SCAN_TIMEOUT_MS = 2500
+
 function getUniApi(api) {
   return api || globalThis.uni || {}
 }
@@ -176,24 +178,49 @@ export function getClipboardText(api) {
 
 export function scanImportPayload(api, options = {}) {
   const uniApi = getUniApi(api)
+  const fallbackToWebScanner = error => scanWithWebBarcodeDetector(options.runtime || globalThis, options).catch(webError => {
+    throw new Error(
+      webError && webError.message
+        ? webError.message
+        : error && error.message
+          ? error.message
+          : 'Scan is not available. Use clipboard or URL import.'
+    )
+  })
+
   if (!uniApi.scanCode) {
-    return scanWithWebBarcodeDetector(options.runtime || globalThis, options).catch(error => {
-      throw new Error(error && error.message ? error.message : '当前环境不支持扫码，请用剪贴板或网络导入')
-    })
+    return fallbackToWebScanner(new Error('uni.scanCode is not available'))
   }
 
   return new Promise((resolve, reject) => {
+    let finished = false
+    const timeoutId = setTimeout(() => {
+      if (finished) return
+      finished = true
+      fallbackToWebScanner(new Error('Native scan did not respond')).then(resolve).catch(reject)
+    }, options.nativeTimeoutMs || NATIVE_SCAN_TIMEOUT_MS)
+
+    const finish = (error, value) => {
+      if (finished) return
+      finished = true
+      clearTimeout(timeoutId)
+      if (error) reject(error)
+      else resolve(value)
+    }
+
     uniApi.scanCode({
       onlyFromCamera: false,
       success: result => {
         const payload = String(result && result.result || '').trim()
         if (!payload) {
-          reject(new Error('扫码结果为空'))
+          finish(new Error('Scan result is empty'))
           return
         }
-        resolve(payload)
+        finish(null, payload)
       },
-      fail: () => reject(new Error('未完成扫码'))
+      fail: error => {
+        fallbackToWebScanner(error).then(value => finish(null, value)).catch(finish)
+      }
     })
   })
 }

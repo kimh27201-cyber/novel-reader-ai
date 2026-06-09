@@ -223,7 +223,9 @@ export default {
     },
     async scanQr() {
       try {
+        uni.showLoading({ title: 'Scan', mask: true })
         const payload = await scanImportPayload(uni)
+        uni.hideLoading()
         const target = resolveMarketScanTarget(payload)
         if (target.type === 'detail' || target.type === 'json') {
           await this.openPreview(target.url)
@@ -235,6 +237,7 @@ export default {
         }
         uni.showToast({ title: '没有识别到源仓库二维码', icon: 'none' })
       } catch (error) {
+        uni.hideLoading()
         uni.showToast({ title: error.message || '未完成扫码', icon: 'none' })
       }
     },

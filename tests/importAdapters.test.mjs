@@ -151,7 +151,7 @@ assert.deepEqual(txtPayload, {
 
 await assert.rejects(
   () => scanImportPayload({ scanCode: options => options.success({ result: '   ' }) }),
-  /扫码结果为空/
+  /Scan result is empty/
 )
 
 const webScanEvents = []
@@ -234,6 +234,44 @@ assert.equal(await scanImportPayload({}, {
   },
   timeoutMs: 500
 }), 'legado://import?src=https%3A%2F%2Fexample.com%2Fs.json')
+
+assert.equal(await scanImportPayload({
+  scanCode() {
+    // Simulate Android WebView exposing uni.scanCode but never calling success/fail.
+  }
+}, {
+  nativeTimeoutMs: 1,
+  runtime: {
+    navigator: {
+      mediaDevices: {
+        getUserMedia: async () => ({ getTracks: () => [{ stop() {} }] })
+      }
+    },
+    BarcodeDetector: class MockDetector {
+      async detect() {
+        return [{ rawValue: 'https://example.com/fallback-sources.json' }]
+      }
+    },
+    document: {
+      body: { appendChild() {} },
+      createElement() {
+        return {
+          style: {},
+          appendChild() {},
+          remove() {},
+          addEventListener() {},
+          play: async () => {}
+        }
+      }
+    },
+    requestAnimationFrame: callback => {
+      callback()
+      return 9
+    },
+    cancelAnimationFrame() {}
+  },
+  timeoutMs: 500
+}), 'https://example.com/fallback-sources.json')
 
 const fetchedText = await readPickedFileText(
   { path: 'blob:source-json' },

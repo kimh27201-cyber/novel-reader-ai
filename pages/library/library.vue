@@ -955,7 +955,9 @@ export default {
     },
     async scanSourceQr() {
       try {
+        uni.showLoading({ title: 'Scan', mask: true })
         const payload = await scanImportPayload(uni)
+        uni.hideLoading()
         const normalized = normalizeImportPayload(payload)
         const target = resolveMarketScanTarget(normalized.url || normalized.text)
         if (target.type === 'detail' || target.type === 'json' || target.type === 'market') {
@@ -964,6 +966,7 @@ export default {
         }
         await this.importSourcePayload(normalized.url || normalized.text, '扫码导入')
       } catch (error) {
+        uni.hideLoading()
         uni.showToast({ title: error.message || '未完成扫码', icon: 'none' })
       }
     },
