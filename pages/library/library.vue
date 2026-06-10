@@ -1,31 +1,23 @@
 <template>
-  <view class="import-page app-page" :style="themeVars">
-    <view class="top-zone">
-      <view>
-        <text class="eyebrow">SOURCES</text>
-        <view class="title">书源</view>
-        <text class="subtitle">导入、检测和管理你的阅读来源</text>
+  <view class="decoder-source-page app-page" :style="themeVars">
+    <view class="source-discover-top">
+      <view class="source-search-pill">
+        <text class="source-search-icon">⌕</text>
+        <input
+          class="source-search-input"
+          v-model="sourceKeyword"
+          placeholder="筛选发现源"
+          confirm-type="search"
+        />
       </view>
-      <button class="icon-button" @tap="goSearch">⌕</button>
+      <button class="source-import-scan" @tap="scanSourceQr">⌘</button>
     </view>
 
-    <view class="source-manager">
-      <view class="manager-head">
-        <view>
-          <text class="eyebrow">BOOK SOURCES</text>
-          <view class="section-title">书源管理</view>
-          <text class="section-desc">启用的兼容书源会参与“发现”页在线搜索。</text>
-        </view>
-        <view class="head-actions">
-          <button class="small-action primary" @tap="openImportDrawer('repo')">添加书源</button>
-          <button class="small-action" @tap="goSourceMarket">源仓库</button>
-          <button class="round-action" @tap="sourceMenuVisible = !sourceMenuVisible">⋯</button>
-        </view>
-      </view>
-
-      <view class="search-bar">
-        <text class="search-icon">⌕</text>
-        <input class="search-input" v-model="sourceKeyword" placeholder="搜索书源名称、分组或地址" />
+    <scroll-view class="decoder-source-scroll" scroll-y :show-scrollbar="false">
+      <view class="source-select-card" @tap="sourceMenuVisible = !sourceMenuVisible">
+        <text class="source-select-icon">📖</text>
+        <text class="source-select-name">{{ sourceSelectLabel }}</text>
+        <text class="source-select-arrow">{{ sourceMenuVisible ? '⌃' : '⌄' }}</text>
       </view>
 
       <view class="menu-popover" v-if="sourceMenuVisible">
@@ -39,24 +31,102 @@
           <text>{{ option.label }}</text>
           <text>{{ sourceSort === option.value ? '●' : '○' }}</text>
         </button>
-        <button class="menu-row" @tap="refreshBackendSources">
-          <text>刷新云端源</text>
-          <text>↻</text>
+        <button class="menu-row" @tap="openImportDrawer('repo')">
+          <text>扫码/链接添加书源</text>
+          <text>＋</text>
         </button>
       </view>
 
-      <view class="summary-row">
-        <text>{{ sourceStats.total }} 个书源</text>
-        <text>{{ sourceStats.enabled }} 启用</text>
-        <text>{{ sourceStats.searchable }} 可搜索</text>
-        <text>{{ sourceStats.incompatible }} 不兼容</text>
+      <view class="source-hero-card">
+        <view>
+          <text class="eyebrow">REAL SOURCE</text>
+          <view class="source-hero-title">扫码导入真实书源</view>
+          <text class="source-hero-desc">支持阅读 3.x、Legado、yuedu://、JSON 链接和源仓库详情页。</text>
+        </view>
+        <view class="source-hero-actions">
+          <button class="source-hero-action primary" @tap="scanSourceQr">扫码</button>
+          <button class="source-hero-action" @tap="openImportDrawer('repo')">链接</button>
+        </view>
+      </view>
+
+      <view class="pill-section-title">分类</view>
+      <view class="category-grid">
+        <button
+          class="soft-pill"
+          v-for="entry in categoryButtons"
+          :key="entry.id"
+          :class="{ disabled: entry.disabled }"
+          @tap="openExploreEntry(entry)"
+        >
+          {{ entry.title }}
+        </button>
+      </view>
+
+      <view class="pill-section-title">排行榜</view>
+      <view class="rank-grid">
+        <button
+          class="soft-pill"
+          v-for="entry in rankButtons"
+          :key="entry.id"
+          :class="{ disabled: entry.disabled }"
+          @tap="openExploreEntry(entry)"
+        >
+          {{ entry.title }}
+        </button>
+      </view>
+
+      <button
+        class="latest-entry"
+        v-for="entry in latestButtons"
+        :key="entry.id"
+        :class="{ disabled: entry.disabled }"
+        @tap="openExploreEntry(entry)"
+      >
+        {{ entry.title }}
+      </button>
+
+      <view class="explore-loading" v-if="sourceExploreLoading">
+        <view class="loading-dot"></view>
+        <text>正在打开 {{ activeExploreEntry && activeExploreEntry.title }}</text>
+      </view>
+
+      <view class="explore-results" v-if="sourceExploreResults.length">
+        <view
+          class="result-source-row"
+          v-for="item in sourceExploreResults"
+          :key="item.bookId || item.title"
+          @tap="openOnlineResult(item)"
+        >
+          <view class="source-row-icon">书</view>
+          <view class="source-main">
+            <view class="source-name">{{ item.title }}</view>
+            <text class="source-meta">{{ item.subtitle || resultSourceName(item) }}</text>
+          </view>
+          <text class="chevron">›</text>
+        </view>
+      </view>
+
+      <view class="installed-source-list">
+        <view
+          class="installed-source-row"
+          v-for="source in v2SourceRows"
+          :key="source.rowKey"
+          @tap="openSourceRow(source)"
+        >
+          <view class="source-row-icon" :class="source.iconClass">{{ source.icon }}</view>
+          <view class="source-main">
+            <view class="source-name">{{ source.name }}</view>
+            <text class="source-meta">{{ source.meta }}</text>
+          </view>
+          <text class="chevron">›</text>
+        </view>
       </view>
 
       <view class="management-tools">
         <view class="tools-head" @tap="toolsExpanded = !toolsExpanded">
           <view>
             <view class="tools-title">管理工具</view>
-            <text class="source-hint">批量检测、分组筛选、云端演示源和批量启停。</text>
+            <text class="source-hint">批量检测、分组筛选和批量启停。</text>
           </view>
           <text class="tools-toggle">{{ toolsExpanded ? '收起' : '展开' }}</text>
         </view>
@@ -110,7 +180,6 @@
           <view class="bulk-actions tools-bulk-actions">
             <button class="small-action" @tap="batchToggleVisibleSources(true)">批量启用当前结果</button>
             <button class="small-action" @tap="batchToggleVisibleSources(false)">批量停用当前结果</button>
-            <button class="small-action" :loading="backendLoading" @tap="importBackendDemo">后端演示源</button>
           </view>
 
           <view class="batch-panel tools-batch-panel">
@@ -139,50 +208,7 @@
           </view>
         </view>
       </view>
-
-      <scroll-view class="source-list" scroll-y :show-scrollbar="false">
-        <view class="source-empty" v-if="!visibleSources.length && !visibleBackendSources.length">
-          <view class="empty-title">没有匹配的书源</view>
-          <text class="empty-desc">换一个筛选条件，或点击“导入”添加 JSON / 源仓库页。</text>
-        </view>
-
-        <view class="source-row cloud" v-for="source in visibleBackendSources" :key="`cloud-${source.id}`">
-          <view class="check-box active">云</view>
-          <view class="source-main">
-            <view class="source-name">{{ source.name }}</view>
-            <text class="source-meta">后端 · {{ source.group || '云端源' }}</text>
-          </view>
-          <text class="source-status-label passed">可搜索</text>
-          <text class="status-dot active"></text>
-        </view>
-
-        <view class="source-row" v-for="source in visibleSources" :key="source.id" @tap="openSourceDetail(source)">
-          <button class="check-box" :class="{ active: source.enabled }" @tap.stop="toggleSource(source)">
-            {{ source.enabled ? '✓' : '' }}
-          </button>
-          <view class="source-main">
-            <view class="source-name">{{ source.name }}</view>
-            <text class="source-meta">{{ source.group || '未分组' }} · {{ source.formatVersion || 'legacy' }}</text>
-          </view>
-          <text class="source-status-label" :class="sourceAvailabilityClass(source)">{{ sourceAvailabilityLabel(source) }}</text>
-          <button class="status-switch" :class="{ active: source.enabled }" @tap.stop="toggleSource(source)">
-            {{ source.enabled ? '启用' : '停用' }}
-          </button>
-          <button class="row-action" @tap.stop="openSourceEdit(source)">编</button>
-          <button class="row-action" v-if="source.importedAt" @tap.stop="confirmRemoveSource(source)">删</button>
-        </view>
-      </scroll-view>
-    </view>
-
-    <view class="utility-grid">
-      <button class="utility-card" @tap="openTxtPanel">
-        <text class="utility-icon">TXT</text>
-        <view>
-          <view class="utility-title">本地 TXT</view>
-          <text class="utility-desc">选择本地小说并生成章节</text>
-        </view>
-      </button>
-    </view>
+    </scroll-view>
 
     <view class="drawer-mask" v-if="importDrawerVisible || txtVisible || sourceDetailVisible || sourceEditVisible" @tap="closePanels"></view>
 
@@ -377,20 +403,19 @@ import {
   batchTestSources,
   batchSetSourcesEnabled,
   deleteUserSource,
+  exploreOnlineBooks,
+  getOnlineExploreEntries,
   getSourceDiagnostics,
   getSourceConfigs,
   importSourcesFromAny,
   previewSourcesFromAny,
   previewSourcesImport,
   runSourceReadingFlow,
+  saveOnlineBookDraft,
   setSourceEnabled,
   testSourceSearch,
   updateSourceMetadata
 } from '../../common/bookSources.js'
-import {
-  importBackendDemoSource,
-  listBackendSources
-} from '../../common/backendLibrary.js'
 import { getAppThemeId, getAppThemeStyle } from '../../common/appTheme.js'
 import {
   chooseSingleFile,
@@ -442,8 +467,10 @@ export default {
       sourceSort: 'manual',
       sourceKeyword: '',
       sourceGroupFilter: '全部分组',
-      backendSources: [],
-      backendLoading: false,
+      exploreEntries: [],
+      sourceExploreLoading: false,
+      sourceExploreResults: [],
+      activeExploreEntry: null,
       themeId: getAppThemeId(),
       importTitle: '',
       importAuthor: '',
@@ -453,8 +480,7 @@ export default {
         { label: '全部', value: 'all' },
         { label: '启用', value: 'enabled' },
         { label: '停用', value: 'disabled' },
-        { label: '不兼容', value: 'incompatible' },
-        { label: '云端', value: 'cloud' }
+        { label: '不兼容', value: 'incompatible' }
       ],
       sortOptions: [
         { label: '手动排序', value: 'manual' },
@@ -483,11 +509,51 @@ export default {
     },
     sourceStats() {
       return {
-        total: this.sources.length + this.backendSources.length,
+        total: this.sources.length,
         enabled: this.sources.filter(source => source.enabled).length,
         incompatible: this.sources.filter(source => !getSourceDiagnostics(source).compatible).length,
         searchable: this.sources.filter(source => getSourceDiagnostics(source).searchable).length
       }
+    },
+    sourceSelectLabel() {
+      const first = this.visibleSources.find(source => source.enabled) || this.sources.find(source => source.enabled) || this.sources[0]
+      return first ? first.name : '扫码导入书源'
+    },
+    categoryButtons() {
+      return this.decorateExploreButtons(
+        this.exploreEntries.filter(entry => entry.kind === 'category'),
+        ['玄幻', '修真', '都市', '历史', '网游', '科幻', '悬疑', '同人', '轻小说', '女生', '短篇', '其他'],
+        'category'
+      ).slice(0, 12)
+    },
+    rankButtons() {
+      return this.decorateExploreButtons(
+        this.exploreEntries.filter(entry => entry.kind === 'rank'),
+        ['总点击榜', '月点击榜', '周点击榜', '日点击榜', '推荐数榜', '收藏数榜', '下载数榜', '评论数榜', '评分榜'],
+        'rank'
+      ).slice(0, 9)
+    },
+    latestButtons() {
+      return this.decorateExploreButtons(
+        this.exploreEntries.filter(entry => entry.kind === 'latest'),
+        ['最新入库'],
+        'latest'
+      ).slice(0, 1)
+    },
+    v2SourceRows() {
+      const rows = [
+        ...this.visibleSources.map((source, index) => ({
+          rowKey: source.id,
+          type: 'source',
+          id: source.id,
+          name: source.name,
+          meta: `${source.group || '未分组'} · ${source.enabled ? '已启用' : '已停用'}`,
+          icon: this.sourceListIcon(index),
+          iconClass: this.sourceListIconClass(index),
+          raw: source
+        }))
+      ]
+      return rows.slice(0, 30)
     },
     sourceGroupStats() {
       const counts = {}
@@ -558,7 +624,6 @@ export default {
       return ['全部分组', ...Array.from(new Set(groups))]
     },
     visibleSources() {
-      if (this.sourceFilter === 'cloud') return []
       const keyword = this.sourceKeyword.trim().toLowerCase()
       const list = this.sources.filter(source => {
         if (this.sourceFilter === 'enabled' && !source.enabled) return false
@@ -570,24 +635,37 @@ export default {
           .some(value => String(value || '').toLowerCase().includes(keyword))
       })
       return this.sortSources(list)
-    },
-    visibleBackendSources() {
-      if (!(this.sourceFilter === 'all' || this.sourceFilter === 'cloud')) return []
-      const keyword = this.sourceKeyword.trim().toLowerCase()
-      return this.backendSources.filter(source => {
-        if (!keyword) return true
-        return [source.name, source.group, source.compatibility]
-          .some(value => String(value || '').toLowerCase().includes(keyword))
-      })
     }
   },
   onShow() {
     this.themeId = getAppThemeId()
     this.sources = getSourceConfigs()
+    this.refreshExploreEntries()
     this.refreshImportReadiness()
-    this.refreshBackendSources({ silent: true })
   },
   methods: {
+    refreshExploreEntries() {
+      this.exploreEntries = getOnlineExploreEntries({ sources: this.sources })
+    },
+    decorateExploreButtons(entries, fallbackTitles, kind) {
+      if (entries.length) return entries
+      return fallbackTitles.map((title, index) => ({
+        id: `fallback-${kind}-${index}`,
+        title,
+        kind,
+        disabled: true
+      }))
+    },
+    sourceListIcon(index) {
+      const icons = ['📘', '☯', '🌈', '八', '⑬']
+      return icons[index % icons.length]
+    },
+    sourceListIconClass(index) {
+      return ['blue', 'ink', 'rainbow', 'plain', 'red'][index % 5]
+    },
+    resultSourceName(item) {
+      return item.sourceName || (item.book && item.book.sourceName) || ''
+    },
     refreshImportReadiness() {
       this.importReadiness = buildImportReadiness()
     },
@@ -642,6 +720,7 @@ export default {
       this.sourceImportText = ''
       this.sourceImportUrl = ''
       this.sources = getSourceConfigs()
+      this.refreshExploreEntries()
     },
     openSourceDetail(source) {
       this.selectedSource = source
@@ -652,6 +731,40 @@ export default {
       this.sourceEditVisible = false
       this.sourceMenuVisible = false
       this.sourceDetailVisible = true
+    },
+    openSourceRow(row) {
+      if (!row) return
+      this.openSourceDetail(row.raw)
+    },
+    async openExploreEntry(entry) {
+      if (!entry || entry.disabled) {
+        uni.showToast({ title: '请先扫码或导入带发现入口的书源', icon: 'none' })
+        this.openImportDrawer('repo')
+        return
+      }
+      this.sourceExploreLoading = true
+      this.activeExploreEntry = entry
+      this.sourceExploreResults = []
+      try {
+        const results = await exploreOnlineBooks(entry)
+        this.sourceExploreResults = results
+        if (!results.length) {
+          uni.showToast({ title: '当前入口暂无可解析书籍', icon: 'none' })
+        }
+      } catch (error) {
+        uni.showToast({ title: friendlyErrorMessage(error, '发现入口打开失败'), icon: 'none' })
+      } finally {
+        this.sourceExploreLoading = false
+      }
+    },
+    openOnlineResult(item) {
+      if (!item) return
+      if (item.type === 'online' && item.book) {
+        saveOnlineBookDraft(item.book)
+        uni.navigateTo({ url: '/pages/sourceBook/sourceBook' })
+        return
+      }
+      uni.showToast({ title: item.snippet || '无法打开结果', icon: 'none' })
     },
     openSourceEdit(source) {
       this.editingSource = source
@@ -671,6 +784,7 @@ export default {
           group: this.sourceEditGroup
         })
         this.sources = getSourceConfigs()
+        this.refreshExploreEntries()
         uni.showToast({ title: '书源信息已保存', icon: 'none' })
         this.closePanels()
       } catch (error) {
@@ -729,6 +843,7 @@ export default {
         this.batchTestResult = result
         this.batchTestItems = result.results
         this.sources = getSourceConfigs()
+        this.refreshExploreEntries()
         uni.showToast({ title: `检测完成：通过 ${result.passed} / 失败 ${result.failed}`, icon: 'none' })
       } catch (error) {
         uni.showToast({ title: friendlyErrorMessage(error, '批量检测失败'), icon: 'none' })
@@ -773,6 +888,7 @@ export default {
         }
       } finally {
         this.sources = getSourceConfigs()
+        this.refreshExploreEntries()
         this.refreshSelectedSource()
         this.sourceTesting = false
       }
@@ -806,6 +922,7 @@ export default {
         }
       } finally {
         this.sources = getSourceConfigs()
+        this.refreshExploreEntries()
         this.refreshSelectedSource()
         this.sourceFlowTesting = false
       }
@@ -846,6 +963,7 @@ export default {
       try {
         const result = await importSourcesFromAny(raw)
         this.sources = getSourceConfigs()
+        this.refreshExploreEntries()
         uni.showToast({
           title: `${successPrefix}：${result.imported} 新增 / ${result.updated} 覆盖 / ${result.incompatible} 不兼容`,
           icon: 'none'
@@ -881,37 +999,10 @@ export default {
         uni.showToast({ title: error.message || '读取 JSON 失败', icon: 'none' })
       }
     },
-    async refreshBackendSources(options = {}) {
-      this.backendLoading = true
-      try {
-        this.backendSources = await listBackendSources()
-        if (!options.silent) {
-          uni.showToast({ title: `云端书源 ${this.backendSources.length} 个`, icon: 'none' })
-        }
-      } catch (error) {
-        this.backendSources = []
-        if (!options.silent) {
-          uni.showToast({ title: friendlyErrorMessage(error, '请先登录后端'), icon: 'none' })
-        }
-      } finally {
-        this.backendLoading = false
-      }
-    },
-    async importBackendDemo() {
-      this.backendLoading = true
-      try {
-        const result = await importBackendDemoSource()
-        this.backendSources = result.sources
-        uni.showToast({ title: `已导入后端演示源 ${result.importedCount} 个`, icon: 'none' })
-      } catch (error) {
-        uni.showToast({ title: friendlyErrorMessage(error, '导入后端演示源失败'), icon: 'none' })
-      } finally {
-        this.backendLoading = false
-      }
-    },
     toggleSource(source) {
       setSourceEnabled(source.id, !source.enabled)
       this.sources = getSourceConfigs()
+      this.refreshExploreEntries()
       this.refreshSelectedSource()
     },
     batchToggleVisibleSources(enabled) {
@@ -922,6 +1013,7 @@ export default {
       }
       const result = batchSetSourcesEnabled(ids, enabled)
       this.sources = getSourceConfigs()
+      this.refreshExploreEntries()
       this.refreshSelectedSource()
       uni.showToast({ title: `${enabled ? '已启用' : '已停用'} ${result.updated} 个书源`, icon: 'none' })
     },
@@ -945,6 +1037,7 @@ export default {
     removeSource(source) {
       deleteUserSource(source.id)
       this.sources = getSourceConfigs()
+      this.refreshExploreEntries()
       if (this.selectedSource && this.selectedSource.id === source.id) {
         this.closePanels()
       }
@@ -960,7 +1053,7 @@ export default {
         uni.hideLoading()
         const normalized = normalizeImportPayload(payload)
         const target = resolveMarketScanTarget(normalized.url || normalized.text)
-        if (target.type === 'detail' || target.type === 'json' || target.type === 'market') {
+        if (target.type === 'market') {
           this.goSourceMarket(target.url)
           return
         }
@@ -1026,6 +1119,311 @@ export default {
   padding: 86rpx 40rpx 132rpx;
   margin: 0 auto;
   background: var(--app-bg);
+}
+
+.decoder-source-page {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1120px;
+  min-height: 100vh;
+  padding: 0 30rpx 128rpx;
+  margin: 0 auto;
+  color: var(--app-text);
+  background: var(--app-bg);
+}
+
+.source-discover-top {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 64rpx;
+  gap: 22rpx;
+  align-items: center;
+  min-height: 122rpx;
+  margin: 0 -30rpx 28rpx;
+  padding: 48rpx 30rpx 20rpx;
+  background: var(--app-top);
+  box-shadow: var(--app-shadow);
+}
+
+.source-search-pill {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  height: 60rpx;
+  padding: 0 22rpx;
+  border-radius: 999rpx;
+  border: 1rpx solid var(--app-border);
+  background: var(--app-input);
+}
+
+.source-search-icon {
+  flex-shrink: 0;
+  color: var(--app-muted);
+  font-size: 30rpx;
+}
+
+.source-search-input {
+  min-width: 0;
+  flex: 1;
+  height: 60rpx;
+  padding-left: 12rpx;
+  color: var(--app-text);
+  font-family: "KaiTi", "STKaiti", "PingFang SC", serif;
+  font-size: 25rpx;
+}
+
+.source-import-scan {
+  width: 64rpx;
+  height: 64rpx;
+  padding: 0;
+  color: var(--app-text);
+  font-size: 42rpx;
+  line-height: 1;
+  background: transparent;
+}
+
+.decoder-source-scroll {
+  height: calc(100vh - 236rpx);
+}
+
+.source-select-card {
+  display: flex;
+  align-items: center;
+  height: 72rpx;
+  padding: 0 24rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: 18rpx;
+  background: var(--app-panel-strong);
+  box-shadow: var(--app-shadow);
+}
+
+.source-select-icon {
+  flex-shrink: 0;
+  margin-right: 10rpx;
+  font-size: 28rpx;
+}
+
+.source-select-name {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  color: var(--app-text);
+  font-family: "KaiTi", "STKaiti", "PingFang SC", serif;
+  font-size: 28rpx;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-select-arrow {
+  flex-shrink: 0;
+  color: var(--app-muted);
+  font-size: 30rpx;
+}
+
+.source-hero-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22rpx;
+  margin-top: 22rpx;
+  padding: 26rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: 24rpx;
+  background: var(--app-panel-strong);
+  box-shadow: var(--app-shadow);
+}
+
+.source-hero-title {
+  margin-top: 8rpx;
+  color: var(--app-text);
+  font-size: 34rpx;
+  font-weight: 900;
+  line-height: 42rpx;
+}
+
+.source-hero-desc {
+  display: block;
+  margin-top: 8rpx;
+  color: var(--app-muted);
+  font-size: 23rpx;
+  line-height: 32rpx;
+}
+
+.source-hero-actions {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  gap: 12rpx;
+}
+
+.source-hero-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 106rpx;
+  height: 58rpx;
+  margin: 0;
+  padding: 0 22rpx;
+  border-radius: 999rpx;
+  color: var(--app-text);
+  font-size: 24rpx;
+  font-weight: 800;
+  background: var(--app-panel);
+}
+
+.source-hero-action.primary {
+  color: var(--app-on-accent);
+  background: var(--app-accent);
+}
+
+.pill-section-title,
+.latest-entry {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 58rpx;
+  margin-top: 22rpx;
+  border-radius: 999rpx;
+  color: var(--app-text);
+  font-family: "KaiTi", "STKaiti", "PingFang SC", serif;
+  font-size: 27rpx;
+  font-weight: 800;
+  border: 1rpx solid var(--app-border);
+  background: var(--app-panel);
+}
+
+.category-grid,
+.rank-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20rpx 28rpx;
+  margin: 22rpx 18rpx 0;
+}
+
+.soft-pill {
+  min-width: 0;
+  height: 58rpx;
+  padding: 0 12rpx;
+  overflow: hidden;
+  border-radius: 999rpx;
+  color: var(--app-text);
+  font-family: "KaiTi", "STKaiti", "PingFang SC", serif;
+  font-size: 27rpx;
+  font-weight: 800;
+  border: 1rpx solid var(--app-border);
+  background: var(--app-panel);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.soft-pill.disabled,
+.latest-entry.disabled {
+  opacity: 0.72;
+}
+
+.latest-entry {
+  width: auto;
+  margin: 22rpx 18rpx 0;
+  padding: 0;
+}
+
+.explore-loading {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  min-height: 62rpx;
+  margin: 18rpx 0;
+  color: var(--app-muted);
+  font-size: 24rpx;
+}
+
+.explore-results,
+.installed-source-list {
+  margin-top: 22rpx;
+}
+
+.result-source-row,
+.installed-source-row {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  min-height: 72rpx;
+  padding: 0 18rpx;
+  margin-bottom: 18rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: 18rpx;
+  background: var(--app-panel-strong);
+}
+
+.source-row-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 36rpx;
+  height: 36rpx;
+  border-radius: 8rpx;
+  color: var(--app-on-accent);
+  font-size: 20rpx;
+  font-weight: 900;
+  background: var(--app-accent);
+}
+
+.source-row-icon.ink {
+  color: var(--app-text);
+  background: transparent;
+}
+
+.source-row-icon.rainbow {
+  background: linear-gradient(135deg, #4aa3ff 0%, #58d268 45%, #ffb43a 100%);
+}
+
+.source-row-icon.plain {
+  color: var(--app-text);
+  background: transparent;
+}
+
+.source-row-icon.red {
+  background: #cf4e43;
+}
+
+.decoder-source-page .source-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.decoder-source-page .source-name {
+  overflow: hidden;
+  color: var(--app-text);
+  font-family: "KaiTi", "STKaiti", "PingFang SC", serif;
+  font-size: 27rpx;
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.decoder-source-page .source-meta {
+  display: block;
+  margin-top: 3rpx;
+  overflow: hidden;
+  color: var(--app-muted);
+  font-size: 20rpx;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron {
+  flex-shrink: 0;
+  color: var(--app-muted);
+  font-size: 44rpx;
+  line-height: 1;
+}
+
+.decoder-source-page .management-tools {
+  margin: 20rpx 0 0;
+  border: 1rpx solid var(--app-border);
+  border-radius: 18rpx;
+  background: var(--app-panel);
 }
 
 button::after {

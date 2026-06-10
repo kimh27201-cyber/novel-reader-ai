@@ -113,6 +113,7 @@ export function createApiClient(deps = {}) {
   const removeStorageSync = storageGetter(deps, 'removeStorageSync') || (() => {})
   const requestAdapter = deps.request || (options => defaultRequest(options))
   const diagnostics = []
+  let memoryToken = ''
 
   function recordDiagnostic(entry) {
     const safeEntry = {
@@ -139,14 +140,25 @@ export function createApiClient(deps = {}) {
   }
 
   function getToken() {
-    return String(getStorageSync(TOKEN_KEY) || '')
+    const storedToken = String(getStorageSync(TOKEN_KEY) || '')
+    if (storedToken) {
+      memoryToken = storedToken
+      return storedToken
+    }
+    return memoryToken
   }
 
   function setToken(token) {
-    setStorageSync(TOKEN_KEY, String(token || ''))
+    memoryToken = String(token || '')
+    setStorageSync(TOKEN_KEY, memoryToken)
+    recordDiagnostic({
+      event: 'token-store',
+      hasMemoryToken: !!memoryToken
+    })
   }
 
   function clearToken() {
+    memoryToken = ''
     removeStorageSync(TOKEN_KEY)
   }
 

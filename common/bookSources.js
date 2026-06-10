@@ -27,103 +27,6 @@ const chapterCacheKey = (bookId, chapterIndex) => `sources:chapter:${bookId}:${c
 
 const memoryStore = {}
 
-const builtInSourceRaws = [
-  {
-    bookSourceName: '小说之家',
-    bookSourceUrl: 'https://www.xszj.org',
-    bookSourceGroup: '内置精选',
-    searchUrl: 'https://www.xszj.org/search.html?keyword={{key}}',
-    ruleSearch: {
-      bookList: '.novelslist2 li||.search-list li||.result-list li',
-      name: 'h3 a@text||a@text',
-      author: '.s1@text||.author@text',
-      kind: '.s2@text||.kind@text',
-      latestChapter: '.s3 a@text||.last a@text',
-      bookUrl: 'h3 a@href||a@href'
-    },
-    ruleBookInfo: {
-      name: 'h1@text||.book-title@text',
-      author: '.info@text##.*作者[:： ]*([^\\s/]+).*##$1||.author@text',
-      coverUrl: '.cover img@src||img@src',
-      intro: '#intro@text||.intro@text||.book-intro@text',
-      tocUrl: '.list a@href'
-    },
-    ruleToc: {
-      chapterList: '.chapterlist li a||.listmain dd a||.chapter-list a',
-      chapterName: '@text||a@text',
-      chapterUrl: '@href||a@href'
-    },
-    ruleContent: {
-      content: '#content@text||.content@text||.chapter-content@text'
-    }
-  },
-  {
-    bookSourceName: '友友小说',
-    bookSourceUrl: 'https://www.youyouxs.com',
-    bookSourceGroup: '内置精选',
-    searchUrl: 'https://www.youyouxs.com/search.html?keyword={{key}}',
-    ruleSearch: {
-      bookList: '.result-list li||.bookbox||.search-list li',
-      name: 'h3 a@text||h4 a@text||a@text',
-      author: '.author@text||.s1@text',
-      kind: '.kind@text||.s2@text',
-      latestChapter: '.last a@text||.s3 a@text',
-      bookUrl: 'h3 a@href||h4 a@href||a@href'
-    },
-    ruleBookInfo: {
-      name: 'h1@text||.book-name@text',
-      author: '.author@text||.info@text##.*作者[:： ]*([^\\s/]+).*##$1',
-      coverUrl: '.cover img@src||img@src',
-      intro: '.intro@text||#intro@text',
-      tocUrl: '.catalog a@href||.list a@href'
-    },
-    ruleToc: {
-      chapterList: '.catalog-list a||.chapter-list a||.listmain dd a',
-      chapterName: '@text',
-      chapterUrl: '@href'
-    },
-    ruleContent: {
-      content: '#content@text||.content@text||.read-content@text'
-    }
-  },
-  {
-    bookSourceName: '卡夜阁',
-    bookSourceUrl: 'https://m.kayege.info',
-    bookSourceGroup: '内置精选',
-    searchUrl: 'https://m.kayege.info/search.html?keyword={{key}}',
-    ruleSearch: {
-      bookList: '.bookbox||.result-item||.search-list li',
-      name: '.bookname a@text||h4 a@text||a@text',
-      author: '.author@text||.bookilnk@text##.*作者[:： ]*([^\\s/]+).*##$1',
-      kind: '.cat@text||.kind@text',
-      latestChapter: '.update a@text||.last a@text',
-      bookUrl: '.bookname a@href||h4 a@href||a@href'
-    },
-    ruleBookInfo: {
-      name: 'h1@text||.bookname@text',
-      author: '.author@text||.info@text##.*作者[:： ]*([^\\s/]+).*##$1',
-      coverUrl: '.bookimg img@src||.cover img@src||img@src',
-      intro: '.intro@text||#intro@text',
-      tocUrl: '.readbtn a@href||.list a@href'
-    },
-    ruleToc: {
-      chapterList: '.chapter li a||.listmain dd a||.chapter-list a',
-      chapterName: '@text',
-      chapterUrl: '@href'
-    },
-    ruleContent: {
-      content: '#chaptercontent@text||#content@text||.content@text'
-    }
-  }
-]
-
-const builtInSources = builtInSourceRaws.map(raw => normalizeSourceConfig(raw, {
-  group: '内置精选',
-  enabled: true,
-  recommended: true,
-  importedAt: 0
-}))
-
 function readStorage(key, fallback) {
   try {
     if (typeof uni !== 'undefined' && uni.getStorageSync) {
@@ -280,7 +183,7 @@ function createSourceRequestSpec(source, url, context = {}, baseUrl = '') {
 
 export function getSourceConfigs() {
   const settings = getSourceSettings()
-  return [...builtInSources, ...getUserSources()].map(source => {
+  return getUserSources().map(source => {
     const saved = settings[source.id] || {}
     return {
       ...source,
@@ -561,6 +464,15 @@ export function pickOnlineSearchSources(sources, limit = ONLINE_SOURCE_SEARCH_LI
     .slice(0, limit)
 }
 
+export function getOnlineExploreEntries(options = {}) {
+  const sources = options.sources || getSourceConfigs()
+  const limit = Number(options.limit || 0)
+  const entries = sources
+    .filter(source => source.enabled && getSourceDiagnostics(source).compatible)
+    .flatMap(source => parseExploreEntries(source))
+  return limit > 0 ? entries.slice(0, limit) : entries
+}
+
 function withTimeout(promise, ms, sourceName) {
   return Promise.race([
     promise,
@@ -568,6 +480,12 @@ function withTimeout(promise, ms, sourceName) {
       setTimeout(() => reject(new Error(`${sourceName || '书源'}响应超时`)), ms)
     })
   ])
+}
+
+export async function exploreOnlineBooks(entry, options = {}) {
+  if (!entry || !entry.sourceId || !entry.url) return []
+  const timeoutMs = options.timeoutMs || ONLINE_SOURCE_TIMEOUT_MS
+  return withTimeout(exploreSourceEntry(entry, options), timeoutMs, entry.sourceName)
 }
 
 export async function searchOnlineBooks(keyword, options = {}) {
@@ -588,6 +506,108 @@ export async function searchOnlineBooks(keyword, options = {}) {
   }))
   const groups = await Promise.all(searches)
   return groups.flat().slice(0, 80)
+}
+
+function parseExploreEntries(source) {
+  const raw = source && (source.raw || source) || {}
+  const value = raw.exploreUrl || raw.ruleExploreUrl || raw.explore
+  const entries = Array.isArray(value)
+    ? value.flatMap((item, index) => parseExploreEntryValue(item, index))
+    : String(value || '').split(/\r?\n|\\n|&&/).flatMap((line, index) => parseExploreEntryValue(line, index))
+
+  return entries
+    .filter(entry => entry.url)
+    .map((entry, index) => ({
+      id: `${source.id}:explore:${index}`,
+      sourceId: source.id,
+      sourceName: source.name,
+      sourceGroup: source.group,
+      title: entry.title || `Explore ${index + 1}`,
+      group: entry.group || inferExploreKind(entry.title, entry.url),
+      kind: entry.kind || inferExploreKind(entry.title, entry.url),
+      url: resolveUrl(entry.url, source.baseUrl)
+    }))
+}
+
+function parseExploreEntryValue(value, index = 0) {
+  if (!value) return []
+  if (typeof value === 'object') {
+    const title = cleanText(value.title || value.name || value.label || value.group || '')
+    const url = String(value.url || value.href || value.link || value.value || '').trim()
+    return url ? [{ title: title || `Explore ${index + 1}`, url, kind: inferExploreKind(title, url) }] : []
+  }
+
+  const text = String(value || '').trim()
+  if (!text) return []
+  const parts = text.split('::').map(item => cleanText(item)).filter(Boolean)
+  if (parts.length >= 3) {
+    const url = parts[parts.length - 1]
+    const title = parts[parts.length - 2]
+    return [{ group: parts.slice(0, -2).join(' / '), title, url, kind: inferExploreKind(title, url) }]
+  }
+  if (parts.length === 2) {
+    return [{ title: parts[0], url: parts[1], kind: inferExploreKind(parts[0], parts[1]) }]
+  }
+  if (/^https?:\/\//i.test(text) || /^\//.test(text)) {
+    return [{ title: `Explore ${index + 1}`, url: text, kind: inferExploreKind('', text) }]
+  }
+  return []
+}
+
+function inferExploreKind(title, url) {
+  const text = `${title || ''} ${url || ''}`
+  if (/(latest|new|update|\u6700\u8fd1|\u6700\u65b0|\u66f4\u65b0|\u5165\u5e93)/i.test(text)) return 'latest'
+  if (/(rank|top|hot|\u6392\u884c|\u699c|\u70b9\u51fb|\u6536\u85cf|\u63a8\u8350|\u8bc4\u5206|\u65e5\u699c|\u5468\u699c|\u6708\u699c)/i.test(text)) return 'rank'
+  return 'category'
+}
+
+async function exploreSourceEntry(entry, options = {}) {
+  const source = getSourceConfig(entry.sourceId)
+  if (!source) throw new Error('source not found')
+  const diagnostics = getSourceDiagnostics(source)
+  if (!diagnostics.compatible) throw new Error(`source incompatible: ${diagnostics.reasons.join(', ')}`)
+
+  const raw = source.raw || {}
+  const rule = normalizeRuleObject(raw.ruleExplore || raw.ruleSearch)
+  if (!Object.keys(rule).length) throw new Error('source has no explore rule')
+
+  const page = Number(options.page || 1)
+  const html = await requestText(createSourceRequestSpec(source, entry.url, {
+    key: entry.title,
+    keyword: entry.title,
+    page
+  }, source.baseUrl))
+  const payload = parseResponsePayload(html)
+  const listRule = getFieldRule(rule, ['bookList', 'list', 'books'])
+  const list = applyListRule(payload, listRule, { key: entry.title, keyword: entry.title, page, $: payload })
+
+  return list.map(item => {
+    const context = { key: entry.title, keyword: entry.title, page, $: item }
+    const book = normalizeOnlineBookForShelf({
+      sourceId: source.id,
+      sourceName: source.name,
+      sourceGroup: source.group,
+      bookUrl: pickUrl(item, rule, ['bookUrl', 'url', 'link'], context, source.baseUrl),
+      title: pickText(item, rule, ['name', 'bookName', 'title'], context),
+      author: pickText(item, rule, ['author', 'bookAuthor'], context) || 'Unknown',
+      kind: pickText(item, rule, ['kind', 'category', 'type'], context) || entry.title || 'Explore',
+      latestChapter: pickText(item, rule, ['latestChapter', 'lastChapter', 'last'], context),
+      intro: pickText(item, rule, ['intro', 'description', 'desc'], context),
+      coverUrl: pickUrl(item, rule, ['coverUrl', 'cover', 'image'], context, source.baseUrl)
+    })
+
+    return {
+      type: 'online',
+      bookId: book.id,
+      title: book.title,
+      subtitle: `${book.author} · ${source.name}`,
+      snippet: book.latestChapter || book.kind || 'Explore result',
+      sourceId: source.id,
+      sourceName: source.name,
+      exploreTitle: entry.title,
+      book
+    }
+  }).filter(result => result.book.bookUrl && result.book.title).slice(0, options.limit || 80)
 }
 
 export async function testSourceSearch(sourceId, keyword, options = {}) {

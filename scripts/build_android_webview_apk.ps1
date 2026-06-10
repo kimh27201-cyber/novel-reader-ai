@@ -13,7 +13,9 @@ $ShellRoot = Join-Path $RepoRoot "android-webview-shell"
 $H5Root = Join-Path $RepoRoot "unpackage\dist\build\h5"
 $BuildRoot = Join-Path $ShellRoot "build"
 $AssetsRoot = Join-Path $ShellRoot "assets\www"
-$ReleaseRoot = Join-Path $RepoRoot "release\android-v1"
+$ReleaseRoot = Join-Path $RepoRoot "release\android-v2"
+$Keystore = Join-Path $RepoRoot "release\novel-reader-update.keystore"
+$LegacyUpdateKeystore = Join-Path $RepoRoot "release\android-v1\novel-reader-v1-test.keystore"
 
 function Assert-RepoPath([string]$Path) {
     $full = [System.IO.Path]::GetFullPath($Path)
@@ -100,6 +102,8 @@ Require-File $NodePath
 Assert-RepoPath $BuildRoot
 Assert-RepoPath $AssetsRoot
 Assert-RepoPath $ReleaseRoot
+Assert-RepoPath $Keystore
+Assert-RepoPath $LegacyUpdateKeystore
 
 foreach ($path in @($BuildRoot, $AssetsRoot)) {
     if (Test-Path $path) {
@@ -130,8 +134,7 @@ $ClassesRoot = Join-Path $BuildRoot "classes"
 $DexRoot = Join-Path $BuildRoot "dex"
 $UnsignedApk = Join-Path $BuildRoot "novel-reader-unsigned.apk"
 $AlignedApk = Join-Path $BuildRoot "novel-reader-aligned.apk"
-$FinalApk = Join-Path $ReleaseRoot "novel-reader-1.0.0-android-webview-v1.apk"
-$Keystore = Join-Path $ReleaseRoot "novel-reader-v1-test.keystore"
+$FinalApk = Join-Path $ReleaseRoot "V2.apk"
 
 New-Item -ItemType Directory -Force -Path $GenRoot, $ClassesRoot, $DexRoot | Out-Null
 
@@ -158,6 +161,10 @@ try {
 }
 finally {
     Pop-Location
+}
+
+if ((-not (Test-Path $Keystore -PathType Leaf)) -and (Test-Path $LegacyUpdateKeystore -PathType Leaf)) {
+    Copy-Item -LiteralPath $LegacyUpdateKeystore -Destination $Keystore -Force
 }
 
 if (-not (Test-Path $Keystore -PathType Leaf)) {

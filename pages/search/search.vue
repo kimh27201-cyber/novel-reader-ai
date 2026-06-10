@@ -29,8 +29,8 @@
     </view>
 
     <view class="tip-card" v-if="mode === 'cloud'">
-      <view class="tip-title">优先搜索后端演示源</view>
-      <text class="tip-desc">登录后走 FastAPI 后端书源；未登录时只搜索最多 3 个启用外部源，当前可用书源 {{ availableSourceCount }} 个。</text>
+      <view class="tip-title">书源发现</view>
+      <text class="tip-desc">导入带 exploreUrl 的书源后，分类、榜单和最新入库会直接请求对应书源页面。当前可搜索 {{ availableSourceCount }} 个，可发现 {{ availableExploreCount }} 个入口。</text>
       <text class="tip-desc" v-if="availableSourceNames">可用书源：{{ availableSourceNames }}</text>
     </view>
 
@@ -59,8 +59,66 @@
         <view class="loading-card" v-if="loading">
           <view class="loading-dot"></view>
           <view>
-            <view class="loading-title">{{ mode === 'cloud' ? '正在搜索云端书源' : '正在搜索本地书架' }}</view>
+            <view class="loading-title">{{ loadingTitle }}</view>
             <text class="loading-desc">{{ mode === 'cloud' ? '演示建议搜索“星轨图书馆”，外部源最多等待 5 秒。' : '本地搜索只查已加入书架的 TXT 和云端书籍缓存。' }}</text>
+          </view>
+        </view>
+
+        <view class="discover-source-list" v-if="mode === 'cloud' && exploreEntries.length && !results.length">
+          <view class="section-head">
+            <view>
+              <view class="section-title">分类</view>
+              <text class="section-desc">来自已导入书源的发现入口。</text>
+            </view>
+            <text class="source-count">{{ exploreCategoryEntries.length }}</text>
+          </view>
+          <view class="explore-grid" v-if="exploreCategoryEntries.length">
+            <button
+              class="explore-entry"
+              v-for="entry in exploreCategoryEntries"
+              :key="entry.id"
+              @tap="openExploreEntry(entry)"
+            >
+              {{ entry.title }}
+            </button>
+          </view>
+
+          <view class="explore-heading" v-if="exploreRankEntries.length">排行榜</view>
+          <view class="explore-grid" v-if="exploreRankEntries.length">
+            <button
+              class="explore-entry"
+              v-for="entry in exploreRankEntries"
+              :key="entry.id"
+              @tap="openExploreEntry(entry)"
+            >
+              {{ entry.title }}
+            </button>
+          </view>
+
+          <view class="explore-heading" v-if="latestExploreEntries.length">最新入库</view>
+          <view class="explore-grid wide" v-if="latestExploreEntries.length">
+            <button
+              class="explore-entry"
+              v-for="entry in latestExploreEntries"
+              :key="entry.id"
+              @tap="openExploreEntry(entry)"
+            >
+              {{ entry.title }}
+            </button>
+          </view>
+
+          <view class="explore-heading" v-if="sourceExploreRows.length">书源入口</view>
+          <view
+            class="source-entry"
+            v-for="source in sourceExploreRows"
+            :key="source.sourceId"
+            @tap="openExploreEntry(source.firstEntry)"
+          >
+            <view class="source-main">
+              <view class="source-name">{{ source.sourceName }}</view>
+              <text class="source-desc">{{ source.sourceGroup }} · {{ source.count }} 个发现入口</text>
+            </view>
+            <text class="result-action">进入</text>
           </view>
         </view>
 
@@ -102,7 +160,7 @@
 
 <script>
 import { searchBooks } from '../../common/books.js'
-import { getSourceConfigs, pickOnlineSearchSources, saveOnlineBookDraft, searchOnlineBooks, setSourceEnabled } from '../../common/bookSources.js'
+import { exploreOnlineBooks, getOnlineExploreEntries, getSourceConfigs, pickOnlineSearchSources, saveOnlineBookDraft, searchOnlineBooks, setSourceEnabled } from '../../common/bookSources.js'
 import apiClient from '../../common/apiClient.js'
 import { searchBackendBooks } from '../../common/backendLibrary.js'
 import { buildSearchResultKey, buildSourceToggleState, demoSearchKeywords, sanitizeSearchKeyword } from '../../common/searchHelpers.js'
@@ -119,6 +177,8 @@ export default {
       loading: false,
       searchToken: 0,
       lastSearchSourceNames: [],
+      exploreEntries: [],
+      activeExploreEntry: null,
       themeId: getAppThemeId(),
       starterKeywords: demoSearchKeywords
     }
@@ -143,16 +203,50 @@ export default {
     availableSourceCount() {
       return this.availableSearchSources.length
     },
+    availableExploreCount() {
+      return this.exploreEntries.length
+    },
     availableSourceNames() {
       return this.availableSearchSources.map(source => source.name).join('、')
     },
+    exploreCategoryEntries() {
+      return this.exploreEntries.filter(entry => entry.kind === 'category').slice(0, 12)
+    },
+    exploreRankEntries() {
+      return this.exploreEntries.filter(entry => entry.kind === 'rank').slice(0, 9)
+    },
+    latestExploreEntries() {
+      return this.exploreEntries.filter(entry => entry.kind === 'latest').slice(0, 6)
+    },
+    sourceExploreRows() {
+      const rows = []
+      this.exploreEntries.forEach(entry => {
+        const found = rows.find(row => row.sourceId === entry.sourceId)
+        if (found) {
+          found.count += 1
+          return
+        }
+        rows.push({
+          sourceId: entry.sourceId,
+          sourceName: entry.sourceName,
+          sourceGroup: entry.sourceGroup,
+          firstEntry: entry,
+          count: 1
+        })
+      })
+      return rows.slice(0, 8)
+    },
+    loadingTitle() {
+      if (this.activeExploreEntry) return `正在打开 ${this.activeExploreEntry.title}`
+      return this.mode === 'cloud' ? '正在搜索云端书源' : '正在搜索本地书架'
+    },
     noAvailableSourceHint() {
-      return this.availableSourceCount === 0 && !apiClient.getToken()
+      return this.availableSourceCount === 0 && this.availableExploreCount === 0 && !apiClient.getToken()
     },
     modeHint() {
       if (this.mode === 'source') return '管理外部书源'
       if (this.mode === 'local') return '只查本地书架'
-      return `可用书源 ${this.availableSourceCount} 个`
+      return `可搜索 ${this.availableSourceCount} · 可发现 ${this.availableExploreCount}`
     },
     searchPlaceholder() {
       if (this.mode === 'source') return '筛选书源名称'
@@ -163,13 +257,18 @@ export default {
   onShow() {
     this.themeId = getAppThemeId()
     this.sources = getSourceConfigs()
+    this.refreshExploreEntries()
   },
   methods: {
+    refreshExploreEntries() {
+      this.exploreEntries = getOnlineExploreEntries({ sources: this.sources })
+    },
     setMode(mode) {
       this.mode = mode
       this.results = []
       this.loading = false
       this.lastSearchSourceNames = []
+      this.activeExploreEntry = null
       if (mode === 'local' && this.keyword) this.runSearch()
     },
     useStarter(keyword) {
@@ -182,10 +281,33 @@ export default {
       if (state.sourceId) {
         setSourceEnabled(state.sourceId, state.nextEnabled)
         this.sources = getSourceConfigs()
+        this.refreshExploreEntries()
       }
       uni.showToast({ title: state.toast, icon: 'none' })
     },
     buildSearchResultKey,
+    async openExploreEntry(entry) {
+      if (!entry) return
+      const token = Date.now()
+      this.mode = 'cloud'
+      this.searchToken = token
+      this.results = []
+      this.keyword = ''
+      this.loading = true
+      this.activeExploreEntry = entry
+      this.lastSearchSourceNames = [`${entry.sourceName} · ${entry.title}`]
+      try {
+        const results = await exploreOnlineBooks(entry)
+        if (this.searchToken === token) this.results = results
+      } catch (error) {
+        if (this.searchToken === token) {
+          this.results = []
+          uni.showToast({ title: friendlyErrorMessage(error, '发现入口打开失败'), icon: 'none' })
+        }
+      } finally {
+        if (this.searchToken === token) this.loading = false
+      }
+    },
     async runSearch() {
       const word = sanitizeSearchKeyword(this.keyword)
       this.keyword = word
@@ -193,6 +315,7 @@ export default {
       this.searchToken = token
       this.results = []
       this.lastSearchSourceNames = []
+      this.activeExploreEntry = null
 
       if (this.mode === 'source') return
       if (!word) {
@@ -450,6 +573,54 @@ button {
 .source-main {
   min-width: 0;
   flex: 1;
+}
+
+.discover-source-list {
+  margin-bottom: 22rpx;
+}
+
+.explore-heading {
+  margin: 26rpx 0 14rpx;
+  color: var(--app-text);
+  font-size: 27rpx;
+  font-weight: 900;
+}
+
+.explore-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14rpx;
+  margin-bottom: 14rpx;
+}
+
+.explore-grid.wide {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.explore-entry {
+  min-width: 0;
+  height: 62rpx;
+  padding: 0 12rpx;
+  overflow: hidden;
+  border-radius: 999rpx;
+  color: var(--app-text);
+  font-size: 24rpx;
+  background: var(--app-panel);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.source-entry {
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  min-height: 78rpx;
+  padding: 18rpx 22rpx;
+  margin-bottom: 14rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: 16rpx;
+  background: var(--app-panel-strong);
+  box-shadow: var(--app-shadow);
 }
 
 .source-name,

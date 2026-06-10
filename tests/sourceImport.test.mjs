@@ -3,8 +3,8 @@ import { readFileSync } from 'node:fs'
 import {
   addOnlineBookToShelf,
   batchSetSourcesEnabled,
-  getSourceConfigs,
   getOnlineShelfBooks,
+  getSourceConfigs,
   importSourcesFromAny,
   importSourcesWithStats,
   previewSourcesFromAny,
@@ -25,6 +25,7 @@ globalThis.uni = {
 const source = {
   bookSourceName: 'Stats Test Source',
   bookSourceUrl: 'https://stats.example.com',
+  bookSourceGroup: 'User Import',
   searchUrl: 'https://stats.example.com/search?q={{key}}',
   ruleSearch: { bookList: '$.items[*]', name: '$.name', bookUrl: '$.url' },
   ruleToc: { chapterList: '$.chapters[*]', chapterName: '$.title', chapterUrl: '$.url' },
@@ -36,6 +37,8 @@ const incompatible = {
   searchUrl: 'https://bad.example.com/search',
   ruleSearch: '<js>java.ajax()</js>'
 }
+
+assert.deepEqual(getSourceConfigs(), [])
 
 const first = importSourcesWithStats(JSON.stringify([source, incompatible]))
 assert.equal(first.imported, 2)
@@ -105,23 +108,14 @@ assert.ok(proxyRequests.length >= 2)
 assert.ok(proxyRequests.every(call => call.url === 'http://127.0.0.1:8000/api/proxy/fetch'))
 delete globalThis.uni.request
 
-const builtIn = getSourceConfigs().find(item => !item.importedAt)
-const builtInRawName = builtIn.raw.bookSourceName
-updateSourceMetadata(builtIn.id, { name: '展示用内置源', group: '演示分组' })
-const renamedBuiltIn = getSourceConfigs().find(item => item.id === builtIn.id)
-assert.equal(renamedBuiltIn.name, '展示用内置源')
-assert.equal(renamedBuiltIn.group, '演示分组')
-assert.equal(renamedBuiltIn.raw.bookSourceName, builtInRawName)
-
 const imported = getSourceConfigs().find(item => item.name === 'Stats Test Source')
-updateSourceMetadata(imported.id, { name: '改名书源', group: '测试分组' })
+updateSourceMetadata(imported.id, { name: 'Renamed Source', group: 'Real Import Group' })
 const renamedImported = getSourceConfigs().find(item => item.id === imported.id)
-assert.equal(renamedImported.name, '改名书源')
-assert.equal(renamedImported.group, '测试分组')
+assert.equal(renamedImported.name, 'Renamed Source')
+assert.equal(renamedImported.group, 'Real Import Group')
 
-const bulkResult = batchSetSourcesEnabled([builtIn.id, imported.id], false)
-assert.equal(bulkResult.updated, 2)
-assert.equal(getSourceConfigs().find(item => item.id === builtIn.id).enabled, false)
+const bulkResult = batchSetSourcesEnabled([imported.id], false)
+assert.equal(bulkResult.updated, 1)
 assert.equal(getSourceConfigs().find(item => item.id === imported.id).enabled, false)
 
 const beforePreviewCount = getSourceConfigs().length
@@ -133,23 +127,23 @@ const preview = previewSourcesImport(JSON.stringify([
 assert.equal(preview.imported, 1)
 assert.equal(preview.updated, 2)
 assert.equal(preview.incompatible, 1)
-assert.ok(preview.groups.includes('用户导入'))
+assert.ok(preview.groups.includes('User Import'))
 assert.equal(getSourceConfigs().length, beforePreviewCount)
 
 const cachedBook = addOnlineBookToShelf({
   sourceId: 'source-cache-test',
-  sourceName: '缓存测试源',
+  sourceName: 'Cache Test Source',
   bookUrl: 'https://cache.example.com/book/1',
-  title: '缓存测试书',
+  title: 'Cache Test Book',
   chapters: [
-    { title: '第一章', url: 'https://cache.example.com/c/1', isCached: true },
-    { title: '第二章', url: 'https://cache.example.com/c/2', errorMessage: '网络请求失败' }
+    { title: 'Chapter 1', url: 'https://cache.example.com/c/1', isCached: true },
+    { title: 'Chapter 2', url: 'https://cache.example.com/c/2', errorMessage: 'network failed' }
   ]
 })
 assert.equal(cachedBook.chapters[0].loadStatus, 'cached')
 assert.equal(cachedBook.chapters[0].errorMessage, '')
 assert.equal(cachedBook.chapters[1].loadStatus, 'failed')
-assert.equal(getOnlineShelfBooks().find(book => book.id === cachedBook.id).chapters[1].errorMessage, '网络请求失败')
+assert.equal(getOnlineShelfBooks().find(book => book.id === cachedBook.id).chapters[1].errorMessage, 'network failed')
 
 const library = readFileSync(new URL('../pages/library/library.vue', import.meta.url), 'utf8')
 assert.match(library, /importFromClipboard/)
@@ -159,7 +153,6 @@ assert.match(library, /normalizeImportPayload/)
 assert.match(library, /\/pages\/bookshelf\/bookshelf/)
 assert.match(library, /sourceFilter/)
 assert.match(library, /sourceImportMode === 'repo'/)
-assert.match(library, /sourceFilter === 'cloud'/)
 assert.match(library, /sourceSort/)
 assert.match(library, /sourceMenuVisible/)
 assert.match(library, /openSourceEdit/)
@@ -169,11 +162,7 @@ assert.match(library, /confirmRemoveSource/)
 assert.match(library, /previewSourcesFromAny/)
 assert.match(library, /sourceImportPreviewing/)
 assert.match(library, /previewSourceImport/)
-assert.match(library, /后端代理下载/)
-assert.match(library, /导入前预览/)
-assert.match(library, /批量启用当前结果/)
-assert.match(library, /批量停用当前结果/)
-assert.match(library, /确认删除/)
-assert.match(library, /分组统计/)
+assert.match(library, /source-hero-card/)
+assert.doesNotMatch(library, /importBackendDemo|后端演示源|sourceFilter === 'cloud'|visibleBackendSources/)
 
 console.log('sourceImport tests passed')

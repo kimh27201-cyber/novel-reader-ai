@@ -91,6 +91,39 @@ async function testAuthorizedRequestUsesBearerToken() {
   assert.equal(calls[0].url, 'http://127.0.0.1:8000/api/auth/me?access_token=token-abc')
 }
 
+async function testLoginUsesMemoryTokenWhenStorageReadBackFails() {
+  const calls = []
+  const client = createApiClient({
+    getStorageSync(key) {
+      return key === 'novelReaderBackendBaseUrl' ? 'http://127.0.0.1:8000' : ''
+    },
+    setStorageSync() {},
+    removeStorageSync() {},
+    request(options) {
+      calls.push(options)
+      if (options.url.endsWith('/api/auth/login')) {
+        options.success({
+          statusCode: 200,
+          data: { access_token: 'token-memory', token_type: 'bearer' }
+        })
+        return
+      }
+      options.success({
+        statusCode: 200,
+        data: { username: 'student' }
+      })
+    }
+  })
+
+  await client.login('student', 'secret123')
+  await client.getMe()
+
+  assert.equal(client.getToken(), 'token-memory')
+  assert.equal(calls[1].header.Authorization, 'Bearer token-memory')
+  assert.equal(calls[1].header['X-Access-Token'], 'token-memory')
+  assert.equal(calls[1].url, 'http://127.0.0.1:8000/api/auth/me?access_token=token-memory')
+}
+
 async function testDiagnosticsRedactAccessToken() {
   const { client } = createClient(() => ({
     statusCode: 200,
@@ -100,7 +133,7 @@ async function testDiagnosticsRedactAccessToken() {
 
   await client.getMe()
 
-  const diagnostics = client.getDiagnostics()
+  const diagnostics = client.getDiagnostics().filter(item => item.event === 'response')
   assert.equal(diagnostics.length, 1)
   assert.equal(diagnostics[0].statusCode, 200)
   assert.equal(diagnostics[0].sentAccessTokenQuery, true)
@@ -286,6 +319,7 @@ await testLoginParsesStringJsonResponse()
 await testLoginCanReadTokenFromResponseHeader()
 await testBaseUrlWhitespaceIsNormalized()
 await testAuthorizedRequestUsesBearerToken()
+await testLoginUsesMemoryTokenWhenStorageReadBackFails()
 await testDiagnosticsRedactAccessToken()
 await testSummaryAndChatUseBackendRoutes()
 await testAIHistoryRoutesUseFilters()
