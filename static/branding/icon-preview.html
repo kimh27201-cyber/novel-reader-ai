@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>解码阅读 App Icon Preview</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #0d1117;
+    color: #e6edf3;
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 40px 20px;
+    min-height: 100vh;
+  }
+  h1 {
+    font-size: 28px;
+    font-weight: 700;
+    margin-bottom: 8px;
+    background: linear-gradient(135deg, #67fff2, #e25f35);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .subtitle {
+    color: #8b949e;
+    font-size: 14px;
+    margin-bottom: 32px;
+  }
+  .preview-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 32px;
+    justify-content: center;
+    align-items: flex-start;
+  }
+  .preview-card {
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 16px;
+    padding: 24px;
+    text-align: center;
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .preview-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 12px 40px rgba(103, 255, 242, 0.12);
+  }
+  .preview-card h3 {
+    font-size: 14px;
+    color: #8b949e;
+    margin-bottom: 16px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .preview-card img {
+    border-radius: 12px;
+    display: block;
+  }
+  .size-label {
+    font-size: 12px;
+    color: #484f58;
+    margin-top: 8px;
+  }
+
+  /* Phone mockup */
+  .phone-mockup {
+    position: relative;
+    margin-top: 40px;
+    background: #161b22;
+    border: 2px solid #30363d;
+    border-radius: 40px;
+    padding: 20px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+  }
+  .phone-screen {
+    width: 300px;
+    height: 640px;
+    background: #20211f;
+    border-radius: 24px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  .phone-statusbar {
+    width: 100%;
+    height: 32px;
+    background: #20211f;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    font-size: 11px;
+    color: #d7dddc;
+  }
+  .phone-home {
+    flex: 1;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    align-content: flex-start;
+    padding: 20px 16px;
+    gap: 16px;
+  }
+  .app-icon-spot {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+  }
+  .app-icon-spot img {
+    width: 60px;
+    height: 60px;
+    border-radius: 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  .app-icon-spot span {
+    font-size: 10px;
+    color: #d7dddc;
+    text-align: center;
+    max-width: 64px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .design-notes {
+    margin-top: 40px;
+    max-width: 600px;
+    background: #161b22;
+    border: 1px solid #30363d;
+    border-radius: 16px;
+    padding: 24px;
+    font-size: 14px;
+    line-height: 1.8;
+  }
+  .design-notes h2 {
+    font-size: 18px;
+    margin-bottom: 12px;
+    color: #67fff2;
+  }
+  .design-notes ul {
+    list-style: none;
+    padding: 0;
+  }
+  .design-notes li::before {
+    content: "▸ ";
+    color: #e25f35;
+  }
+  .design-notes .color-dot {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 3px;
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+</style>
+</head>
+<body>
+
+<h1>解码阅读</h1>
+<p class="subtitle">Neon Decode Book — Premium App Icon</p>
+
+<div class="preview-grid">
+  <div class="preview-card">
+    <h3>Source (1024×1024)</h3>
+    <img src="app-icon-1024.png" width="256" height="256" alt="Icon 1024">
+    <p class="size-label">31.5 KB</p>
+  </div>
+  <div class="preview-card">
+    <h3>Preview (512×512)</h3>
+    <img src="icon-preview-512.png" width="256" height="256" alt="Icon 512">
+    <p class="size-label">35.6 KB</p>
+  </div>
+  <div class="preview-card">
+    <h3>xxxhdpi (192×192)</h3>
+    <img src="icon-xxxhdpi.png" width="192" height="192" alt="Icon xxxhdpi">
+    <p class="size-label">13.4 KB</p>
+  </div>
+</div>
+
+<!-- Phone mockup: how it looks on your device -->
+<div class="phone-mockup">
+  <div class="phone-screen">
+    <div class="phone-statusbar">
+      <span>08:30</span>
+      <span>🔋 ▮▮▮▮</span>
+    </div>
+    <div class="phone-home">
+      <div class="app-icon-spot">
+        <img src="icon-xxxhdpi.png" width="60" height="60" alt="App Icon">
+        <span>解码阅读</span>
+      </div>
+      <div class="app-icon-spot" style="opacity:0.4">
+        <div style="width:60px;height:60px;border-radius:14px;background:#333;"></div>
+        <span>其他应用</span>
+      </div>
+      <div class="app-icon-spot" style="opacity:0.4">
+        <div style="width:60px;height:60px;border-radius:14px;background:#333;"></div>
+        <span>其他应用</span>
+      </div>
+      <div class="app-icon-spot" style="opacity:0.4">
+        <div style="width:60px;height:60px;border-radius:14px;background:#333;"></div>
+        <span>其他应用</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="design-notes">
+  <h2>设计说明</h2>
+  <ul>
+    <li>
+      <span class="color-dot" style="background:#67fff2;"></span>
+      <strong>霓虹青 #67fff2</strong> — 书本发光边缘、扫描线、解码环
+    </li>
+    <li>
+      <span class="color-dot" style="background:#e25f35;"></span>
+      <strong>暖橙 #e25f35</strong> — 解码 V 形标记、环心点缀
+    </li>
+    <li>
+      <span class="color-dot" style="background:#0d1117;"></span>
+      <strong>深黑底</strong> — 与 app 暗色 UI 主题一致
+    </li>
+    <li><strong>打开的书本</strong> — 几何化的书页 + 文字行 + 书脊</li>
+    <li><strong>解码 V 形符</strong> — 书本中央的 V 形橙色标记，代表「解码」</li>
+    <li><strong>扫描线</strong> — 横贯书本的青色光线，代表数字扫描/解析</li>
+    <li><strong>解码环</strong> — 右上角的圆形瞄准/解码器图标</li>
+    <li><strong>圆角 216px</strong> — Android 自适应图标规范</li>
+  </ul>
+</div>
+
+</body>
+</html>

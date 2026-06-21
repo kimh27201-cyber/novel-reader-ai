@@ -10,7 +10,7 @@
 
     <view class="hero-card" v-if="book">
       <view class="cover">
-        <image class="cover-image" v-if="book.coverUrl" :src="book.coverUrl" mode="aspectFill" />
+        <image class="cover-image" v-if="book.coverUrl" :src="book.coverUrl" mode="aspectFill" lazy-load />
         <text v-else>{{ shortTitle(book.title) }}</text>
       </view>
       <view class="hero-copy">
@@ -30,10 +30,43 @@
       <button class="primary-action" :disabled="!chapters.length" @tap="addAndRead">加入书架</button>
     </view>
 
-    <scroll-view class="chapter-list" scroll-y :show-scrollbar="false" v-if="chapters.length">
+    <view class="cache-card" v-if="book">
+      <view class="cache-head">
+        <view>
+          <view class="cache-title">章节缓存</view>
+          <text class="cache-desc">已缓存 {{ cacheStats.cachedChapters }} 章 · {{ cacheStats.totalChars }} 字</text>
+        </view>
+        <switch :checked="cacheSettings.offlineMode" color="#7cc1b6" @change="toggleOfflineMode" />
+      </view>
+      <view class="cache-grid">
+        <view class="cache-field">
+          <text>预加载</text>
+          <view class="cache-stepper">
+            <button @tap="adjustCacheSetting('preloadCount', -1)">-</button>
+            <text>{{ cacheSettings.preloadCount }}</text>
+            <button @tap="adjustCacheSetting('preloadCount', 1)">+</button>
+          </view>
+        </view>
+        <view class="cache-field">
+          <text>容量</text>
+          <view class="cache-stepper">
+            <button @tap="adjustCacheSetting('maxChapters', -10)">-</button>
+            <text>{{ cacheSettings.maxChapters }}</text>
+            <button @tap="adjustCacheSetting('maxChapters', 10)">+</button>
+          </view>
+        </view>
+      </view>
+      <view class="cache-actions">
+        <button class="plain-action" @tap="exportCachedTxt">导出 TXT</button>
+        <button class="plain-action" @tap="clearCache">清理缓存</button>
+      </view>
+      <text class="cache-desc">{{ cacheSettings.offlineMode ? '离线模式：只读取已缓存章节' : '在线模式：阅读时自动预加载后续章节' }}</text>
+    </view>
+
+    <scroll-view class="chapter-list" scroll-y :show-scrollbar="false" v-if="chapters.length" @scrolltolower="loadMoreChapters">
       <view
         class="chapter-item"
-        v-for="chapter in chapters.slice(0, 80)"
+        v-for="chapter in visibleChapters"
         :key="chapter.index"
         @tap="addAndRead(chapter.index)"
       >
@@ -48,9 +81,14 @@
 <script>
 import {
   addOnlineBookToShelf,
+  clearOnlineChapterCache,
+  exportOnlineBookTxt,
+  getChapterCacheSettings,
+  getOnlineChapterCacheStats,
   getOnlineBookDraft,
   loadOnlineBookInfo,
-  loadOnlineToc
+  loadOnlineToc,
+  saveChapterCacheSettings
 } from '../../common/bookSources.js'
 import { getAppThemeId, getAppThemeStyle } from '../../common/appTheme.js'
 import {
@@ -59,19 +97,27 @@ import {
 } from '../../common/backendLibrary.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 
+const CHAPTER_BATCH_SIZE = 80
+
 export default {
   data() {
     return {
       book: null,
       chapters: [],
+      visibleChapterCount: CHAPTER_BATCH_SIZE,
       loading: false,
       errorMessage: '',
+      cacheSettings: getChapterCacheSettings(),
+      cacheStats: { books: 0, cachedChapters: 0, totalChars: 0 },
       themeId: getAppThemeId()
     }
   },
   computed: {
     themeVars() {
       return getAppThemeStyle(this.themeId)
+    },
+    visibleChapters() {
+      return this.chapters.slice(0, this.visibleChapterCount)
     }
   },
   onLoad() {
@@ -100,6 +146,47 @@ export default {
       if (chapter.isCached || chapter.loadStatus === 'cached' || chapter.loadStatus === 'loaded') return 'cached'
       return 'pending'
     },
+    refreshCacheStats() {
+      this.cacheSettings = getChapterCacheSettings()
+      this.cacheStats = this.book ? getOnlineChapterCacheStats(this.book.id) : { books: 0, cachedChapters: 0, totalChars: 0 }
+    },
+    adjustCacheSetting(field, delta) {
+      const next = {
+        ...this.cacheSettings,
+        [field]: Number(this.cacheSettings[field] || 0) + delta
+      }
+      this.cacheSettings = saveChapterCacheSettings(next)
+      this.refreshCacheStats()
+    },
+    toggleOfflineMode(event) {
+      this.cacheSettings = saveChapterCacheSettings({
+        ...this.cacheSettings,
+        offlineMode: !!(event && event.detail && event.detail.value)
+      })
+      this.refreshCacheStats()
+    },
+    exportCachedTxt() {
+      try {
+        const result = exportOnlineBookTxt(this.book.id)
+        uni.setClipboardData({
+          data: result.text,
+          success: () => uni.showToast({ title: 'TXT 已复制', icon: 'none' })
+        })
+      } catch (error) {
+        uni.showToast({ title: friendlyErrorMessage(error, '导出 TXT 失败'), icon: 'none' })
+      }
+    },
+    clearCache() {
+      const result = clearOnlineChapterCache(this.book.id)
+      this.chapters = this.chapters.map(chapter => ({
+        ...chapter,
+        content: '',
+        isCached: false,
+        loadStatus: chapter.errorMessage ? 'failed' : 'idle'
+      }))
+      this.refreshCacheStats()
+      uni.showToast({ title: `已清理 ${result.removed} 章缓存`, icon: 'none' })
+    },
     async reload() {
       if (!this.book) return
       this.loading = true
@@ -107,6 +194,7 @@ export default {
       try {
         if (this.book.type === 'backend-online') {
           this.chapters = await loadBackendSourceToc(this.book)
+          this.resetVisibleChapters()
           return
         }
         const info = await loadOnlineBookInfo(this.book)
@@ -116,11 +204,20 @@ export default {
           chapters
         }
         this.chapters = chapters
+        this.resetVisibleChapters()
+        this.refreshCacheStats()
       } catch (error) {
         this.errorMessage = friendlyErrorMessage(error, '书源解析失败')
       } finally {
         this.loading = false
       }
+    },
+    resetVisibleChapters() {
+      this.visibleChapterCount = CHAPTER_BATCH_SIZE
+    },
+    loadMoreChapters() {
+      if (this.visibleChapterCount >= this.chapters.length) return
+      this.visibleChapterCount = Math.min(this.chapters.length, this.visibleChapterCount + CHAPTER_BATCH_SIZE)
     },
     async addAndRead(chapterIndex = 0) {
       if (!this.book || !this.chapters.length) return
@@ -131,6 +228,8 @@ export default {
               ...this.book,
               chapters: this.chapters
             })
+        this.book = book
+        this.refreshCacheStats()
         uni.showToast({ title: '已加入书架', icon: 'none' })
         uni.navigateTo({
           url: `/pages/reader/reader?bookId=${book.id}&chapterIndex=${Number(chapterIndex) || 0}&pageIndex=0`
@@ -201,13 +300,85 @@ button::after {
 }
 
 .hero-card,
-.status-card {
+.status-card,
+.cache-card {
   margin-top: 28rpx;
   padding: 28rpx;
   border: 1rpx solid rgba(103, 255, 242, 0.16);
   border-radius: 30rpx;
   background: var(--app-panel-strong);
   box-shadow: 0 18rpx 50rpx rgba(0, 0, 0, 0.28), inset 0 1rpx 0 rgba(255, 255, 255, 0.08);
+}
+
+.cache-head,
+.cache-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.cache-title {
+  color: var(--app-text);
+  font-size: 28rpx;
+  font-weight: 850;
+}
+
+.cache-desc {
+  display: block;
+  margin-top: 8rpx;
+  color: var(--app-muted);
+  font-size: 23rpx;
+  line-height: 34rpx;
+}
+
+.cache-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16rpx;
+  margin-top: 20rpx;
+}
+
+.cache-field {
+  padding: 16rpx;
+  border-radius: 18rpx;
+  background: var(--app-input);
+}
+
+.cache-field text {
+  color: var(--app-muted);
+  font-size: 22rpx;
+}
+
+.cache-stepper {
+  display: grid;
+  grid-template-columns: 52rpx minmax(0, 1fr) 52rpx;
+  gap: 8rpx;
+  align-items: center;
+  margin-top: 12rpx;
+}
+
+.cache-stepper button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 48rpx;
+  padding: 0;
+  border-radius: 999rpx;
+  color: var(--app-text);
+  background: var(--app-panel);
+}
+
+.cache-stepper text {
+  color: var(--app-text);
+  font-size: 24rpx;
+  font-weight: 800;
+  text-align: center;
+}
+
+.cache-actions {
+  justify-content: flex-start;
+  margin-top: 18rpx;
 }
 
 .cover {

@@ -206,7 +206,8 @@ assert.equal(pickOnlineSearchSources(getSourceConfigs()).some(source => source.i
 
 batchRequests = []
 const onlineResults = await searchOnlineBooks('星轨图书馆', { limit: 5, timeoutMs: 1000 })
-assert.equal(onlineResults.length, 2)
+assert.equal(onlineResults.length, 1)
+assert.equal(onlineResults[0].duplicateCount, 2)
 assert.ok(batchRequests.every(url => !url.includes('diagnostic-two')))
 assert.ok(batchRequests.some(url => url.includes('header-source')))
 
@@ -218,6 +219,8 @@ assert.match(library, /featureFlags/)
 assert.match(library, /runSourceTest/)
 assert.match(library, /runBatchSourceTest/)
 assert.match(library, /testSourceKeyword/)
+assert.match(library, /getSourceTestKeyword/)
+assert.match(library, /checkKeyWord/)
 assert.match(library, /批量检测/)
 assert.match(library, /测试全部启用源/)
 assert.match(library, /测试当前分组/)

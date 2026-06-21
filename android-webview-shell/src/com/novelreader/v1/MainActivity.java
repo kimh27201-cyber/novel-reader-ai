@@ -3,16 +3,20 @@ package com.novelreader.v1;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.Manifest;
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Base64;
 import android.util.Log;
 import android.view.ViewGroup;
 import android.webkit.ValueCallback;
 import android.webkit.ConsoleMessage;
+import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
 import android.webkit.PermissionRequest;
 import android.webkit.WebChromeClient;
@@ -35,13 +39,18 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 public class MainActivity extends Activity {
     private static final String TAG = "NovelReaderWebView";
     private static final int CAMERA_PERMISSION_REQUEST = 1001;
     private static final int FILE_CHOOSER_REQUEST = 1002;
+    private static final int SCAN_QR_REQUEST = 1003;
     private WebView webView;
     private PermissionRequest pendingPermissionRequest;
     private ValueCallback<Uri[]> filePathCallback;
+    private String scanCallbackName;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -80,6 +89,8 @@ public class MainActivity extends Activity {
             settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         }
         view.addJavascriptInterface(new LocalChapterBridge(), "NovelReaderLocalStorage");
+        view.addJavascriptInterface(new ScanBridge(), "NovelReaderScan");
+        view.addJavascriptInterface(new RenderedHtmlBridge(), "NovelReaderWebViewParser");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             WebView.setWebContentsDebuggingEnabled(false);
         }
@@ -183,6 +194,150 @@ public class MainActivity extends Activity {
         });
     }
 
+    public class ScanBridge {
+        @JavascriptInterface
+        public boolean scanQr(String callbackName) {
+            if (callbackName == null || callbackName.trim().isEmpty()) {
+                return false;
+            }
+
+            scanCallbackName = callbackName.trim();
+            Intent intent = new Intent("com.google.zxing.client.android.SCAN");
+            intent.putExtra("SCAN_MODE", "QR_CODE_MODE");
+            intent.putExtra("PROMPT", "请扫描书源二维码");
+
+            try {
+                startActivityForResult(intent, SCAN_QR_REQUEST);
+                return true;
+            } catch (ActivityNotFoundException error) {
+                Log.e(TAG, "qr scanner not found: " + error.getMessage());
+                scanCallbackName = null;
+                return false;
+            } catch (Exception error) {
+                Log.e(TAG, "qr scanner failed: " + error.getMessage());
+                String callback = scanCallbackName;
+                scanCallbackName = null;
+                dispatchScanResult(callback, false, "", "原生扫码启动失败");
+                return true;
+            }
+        }
+    }
+
+    public class RenderedHtmlBridge {
+        @JavascriptInterface
+        public boolean openLoginPage(String url) {
+            if (url == null || !url.matches("^https?://.+")) return false;
+            final String loginUrl = url;
+            webView.post(new Runnable() {
+                @Override public void run() { webView.loadUrl(loginUrl); }
+            });
+            return true;
+        }
+
+        @JavascriptInterface
+        public String getCookie(String url) {
+            if (url == null || !url.matches("^https?://.+")) return "";
+            String cookie = CookieManager.getInstance().getCookie(url);
+            return cookie == null ? "" : cookie;
+        }
+
+        @JavascriptInterface
+        public boolean fetchRenderedHtml(String url, String optionsJson, String callbackName) {
+            if (url == null || !url.matches("^https?://.+") || callbackName == null || callbackName.trim().isEmpty()) {
+                return false;
+            }
+            final String targetUrl = url;
+            final String callback = callbackName.trim();
+            runOnUiThread(new Runnable() {
+                @Override
+                @SuppressLint("SetJavaScriptEnabled")
+                public void run() {
+                    final WebView parser = new WebView(MainActivity.this);
+                    final Handler handler = new Handler(Looper.getMainLooper());
+                    try {
+                        JSONObject options = new JSONObject(optionsJson == null ? "{}" : optionsJson);
+                        int timeoutMs = Math.max(500, Math.min(30000, options.optInt("timeoutMs", 10000)));
+                        int waitMs = Math.max(0, Math.min(10000, options.optInt("waitMs", 500)));
+                        WebSettings settings = parser.getSettings();
+                        settings.setJavaScriptEnabled(true);
+                        settings.setDomStorageEnabled(true);
+                        if (!options.optString("userAgent").isEmpty()) settings.setUserAgentString(options.optString("userAgent"));
+                        if (!options.optString("cookie").isEmpty()) {
+                            CookieManager.getInstance().setCookie(targetUrl, options.optString("cookie"));
+                        }
+                        final boolean[] completed = { false };
+                        Runnable timeout = new Runnable() {
+                            @Override public void run() {
+                                if (completed[0]) return;
+                                completed[0] = true;
+                                dispatchRenderedResult(callback, "", targetUrl, "", "", 0, "WebView 渲染超时");
+                                parser.destroy();
+                            }
+                        };
+                        handler.postDelayed(timeout, timeoutMs);
+                        parser.setWebViewClient(new WebViewClient() {
+                            @Override public void onPageFinished(WebView view, String finalUrl) {
+                                handler.postDelayed(new Runnable() {
+                                    @Override public void run() {
+                                        if (completed[0]) return;
+                                        view.evaluateJavascript("document.documentElement.outerHTML", new ValueCallback<String>() {
+                                            @Override public void onReceiveValue(String value) {
+                                                if (completed[0]) return;
+                                                completed[0] = true;
+                                                handler.removeCallbacks(timeout);
+                                                String html = decodeJavascriptString(value);
+                                                String cookie = CookieManager.getInstance().getCookie(finalUrl);
+                                                dispatchRenderedResult(callback, html, finalUrl, view.getTitle(), cookie, 200, "");
+                                                parser.destroy();
+                                            }
+                                        });
+                                    }
+                                }, waitMs);
+                            }
+                        });
+                        Map<String, String> headers = new HashMap<>();
+                        JSONObject rawHeaders = options.optJSONObject("headers");
+                        if (rawHeaders != null) {
+                            JSONArray names = rawHeaders.names();
+                            if (names != null) for (int i = 0; i < names.length(); i++) {
+                                String name = names.optString(i);
+                                if (name.matches("^[!#$%&'*+.^_`|~0-9A-Za-z-]+$")) headers.put(name, rawHeaders.optString(name));
+                            }
+                        }
+                        parser.loadUrl(targetUrl, headers);
+                    } catch (Exception error) {
+                        dispatchRenderedResult(callback, "", targetUrl, "", "", 0, error.getMessage());
+                        parser.destroy();
+                    }
+                }
+            });
+            return true;
+        }
+    }
+
+    private String decodeJavascriptString(String value) {
+        try { return new JSONArray("[" + value + "]").getString(0); }
+        catch (Exception error) { return value == null ? "" : value; }
+    }
+
+    private void dispatchRenderedResult(String callback, String html, String finalUrl, String title, String cookie, int status, String error) {
+        try {
+            JSONObject payload = new JSONObject();
+            payload.put("html", html == null ? "" : html);
+            payload.put("finalUrl", finalUrl == null ? "" : finalUrl);
+            payload.put("title", title == null ? "" : title);
+            payload.put("cookie", cookie == null ? "" : cookie);
+            payload.put("status", status);
+            payload.put("error", error == null ? "" : error);
+            String script = "window['" + escapeJs(callback) + "'](" + payload.toString() + ")";
+            webView.post(new Runnable() {
+                @Override public void run() { webView.evaluateJavascript(script, null); }
+            });
+        } catch (Exception dispatchError) {
+            Log.e(TAG, "rendered html callback failed: " + dispatchError.getMessage());
+        }
+    }
+
     public class LocalChapterBridge {
         private File chapterRoot() {
             File root = new File(getFilesDir(), "local_txt_chapters");
@@ -276,6 +431,22 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == SCAN_QR_REQUEST) {
+            String callback = scanCallbackName;
+            scanCallbackName = null;
+            if (resultCode == Activity.RESULT_OK && data != null) {
+                String result = data.getStringExtra("SCAN_RESULT");
+                if (result == null || result.trim().isEmpty()) {
+                    dispatchScanResult(callback, false, "", "扫码结果为空");
+                    return;
+                }
+                dispatchScanResult(callback, true, result, "");
+                return;
+            }
+            dispatchScanResult(callback, false, "", "扫码已取消");
+            return;
+        }
+
         if (requestCode != FILE_CHOOSER_REQUEST || filePathCallback == null) {
             return;
         }
@@ -295,6 +466,44 @@ public class MainActivity extends Activity {
 
         filePathCallback.onReceiveValue(results);
         filePathCallback = null;
+    }
+
+    private void dispatchScanResult(String callbackName, boolean ok, String result, String error) {
+        if (callbackName == null || callbackName.trim().isEmpty() || webView == null) {
+            return;
+        }
+        String payload = "{\"ok\":" + (ok ? "true" : "false")
+            + ",\"result\":\"" + escapeJson(result) + "\""
+            + ",\"error\":\"" + escapeJson(error) + "\"}";
+        String script = "window['" + escapeJs(callbackName) + "'](" + payload + ")";
+        webView.post(new Runnable() {
+            @Override
+            public void run() {
+                if (webView == null) {
+                    return;
+                }
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                    webView.evaluateJavascript(script, null);
+                    return;
+                }
+                webView.loadUrl("javascript:" + script);
+            }
+        });
+    }
+
+    private String escapeJson(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value
+            .replace("\\", "\\\\")
+            .replace("\"", "\\\"")
+            .replace("\n", "\\n")
+            .replace("\r", "\\r");
+    }
+
+    private String escapeJs(String value) {
+        return escapeJson(value).replace("'", "\\'");
     }
 
     private void grantCameraPermission(PermissionRequest request) {

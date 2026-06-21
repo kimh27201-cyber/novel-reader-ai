@@ -9,7 +9,17 @@ assert.equal(
 
 assert.equal(
   friendlyErrorMessage({ errMsg: 'request:fail timeout' }),
-  '后端连接超时，请稍后重试'
+  '后端连接超时，请确认 FastAPI 服务可访问，或稍后重试'
+)
+
+assert.equal(
+  friendlyErrorMessage(new Error('就爱文学响应超时')),
+  '目标站点响应超时，建议换源、稍后重试，或配置 Cookie/Header 后再测'
+)
+
+assert.equal(
+  friendlyErrorMessage(new Error('Proxy request failed: timed out')),
+  '后端代理访问目标站点超时，建议换源、稍后重试，或配置 Cookie/Header 后再测'
 )
 
 assert.equal(

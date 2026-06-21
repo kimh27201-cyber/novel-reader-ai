@@ -148,7 +148,8 @@ const sourceJson = JSON.stringify([{
 
 const parsed = parseSourceJson(sourceJson)
 assert.equal(parsed.length, 1)
-assert.equal(parsed[0].compatibility, 'v1 兼容')
+assert.equal(parsed[0].compatibilityLevel, 'full_css')
+assert.equal(parsed[0].compatibility, '完整兼容')
 
 const recommended = parseSourceJson(JSON.stringify([{
   bookSourceName: '推荐 3.x 源',
@@ -175,7 +176,8 @@ assert.equal(legado3.weight, 7)
 assert.equal(legado3.features.explore, true)
 assert.equal(legado3.features.login, true)
 assert.equal(legado3.features.webView, false)
-assert.match(legado3.compatibility, /不兼容/)
+assert.equal(legado3.compatibilityLevel, 'need_login')
+assert.match(legado3.compatibility, /需登录/)
 
 const before = getSourceConfigs().length
 assert.equal(importSourcesFromJson(sourceJson), 1)

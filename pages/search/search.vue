@@ -32,6 +32,32 @@
       <view class="tip-title">书源发现</view>
       <text class="tip-desc">导入带 exploreUrl 的书源后，分类、榜单和最新入库会直接请求对应书源页面。当前可搜索 {{ availableSourceCount }} 个，可发现 {{ availableExploreCount }} 个入口。</text>
       <text class="tip-desc" v-if="availableSourceNames">可用书源：{{ availableSourceNames }}</text>
+      <view class="search-settings">
+        <view class="setting-cell">
+          <text class="setting-label">并发</text>
+          <view class="stepper">
+            <button class="stepper-button" @tap="adjustSearchSetting('concurrency', -1)">−</button>
+            <text class="stepper-value">{{ searchSettings.concurrency }}</text>
+            <button class="stepper-button" @tap="adjustSearchSetting('concurrency', 1)">＋</button>
+          </view>
+        </view>
+        <view class="setting-cell">
+          <text class="setting-label">超时</text>
+          <view class="stepper">
+            <button class="stepper-button" @tap="adjustSearchSetting('timeoutMs', -1000)">−</button>
+            <text class="stepper-value">{{ Math.round(searchSettings.timeoutMs / 1000) }}s</text>
+            <button class="stepper-button" @tap="adjustSearchSetting('timeoutMs', 1000)">＋</button>
+          </view>
+        </view>
+        <view class="setting-cell">
+          <text class="setting-label">源数</text>
+          <view class="stepper">
+            <button class="stepper-button" @tap="adjustSearchSetting('sourceLimit', -1)">−</button>
+            <text class="stepper-value">{{ searchSettings.sourceLimit }}</text>
+            <button class="stepper-button" @tap="adjustSearchSetting('sourceLimit', 1)">＋</button>
+          </view>
+        </view>
+      </view>
     </view>
 
     <scroll-view class="content" scroll-y :show-scrollbar="false">
@@ -60,7 +86,7 @@
           <view class="loading-dot"></view>
           <view>
             <view class="loading-title">{{ loadingTitle }}</view>
-            <text class="loading-desc">{{ mode === 'cloud' ? '演示建议搜索“星轨图书馆”，外部源最多等待 5 秒。' : '本地搜索只查已加入书架的 TXT 和云端书籍缓存。' }}</text>
+            <text class="loading-desc">{{ searchProgressText || (mode === 'cloud' ? '正在按当前并发和超时设置搜索真实书源。' : '本地搜索只查已加入书架的 TXT 和云端书籍缓存。') }}</text>
           </view>
         </view>
 
@@ -131,9 +157,11 @@
               <view class="result-type">{{ resultTypeLabel(item) }}</view>
               <text class="result-action">查看</text>
             </view>
+            <image class="result-cover" v-if="resultCoverUrl(item)" :src="resultCoverUrl(item)" mode="aspectFill" lazy-load />
             <view class="result-title">{{ item.title }}</view>
             <text class="result-subtitle">{{ item.subtitle }}</text>
             <text class="result-source" v-if="resultSourceName(item)">来源：{{ resultSourceName(item) }}</text>
+            <text class="result-source" v-if="item.sourceQualityScore != null">质量 {{ item.sourceQualityScore }}{{ item.duplicateCount > 1 ? ` · 已合并 ${item.duplicateCount} 个重复结果` : '' }}</text>
             <text class="result-snippet">{{ item.snippet }}</text>
           </view>
         </view>
@@ -160,7 +188,7 @@
 
 <script>
 import { searchBooks } from '../../common/books.js'
-import { exploreOnlineBooks, getOnlineExploreEntries, getSourceConfigs, pickOnlineSearchSources, saveOnlineBookDraft, searchOnlineBooks, setSourceEnabled } from '../../common/bookSources.js'
+import { exploreOnlineBooks, getOnlineExploreEntries, getOnlineSearchSettings, getSourceConfigs, pickOnlineSearchSources, saveOnlineBookDraft, saveOnlineSearchSettings, searchOnlineBooks, setSourceEnabled } from '../../common/bookSources.js'
 import apiClient from '../../common/apiClient.js'
 import { searchBackendBooks } from '../../common/backendLibrary.js'
 import { buildSearchResultKey, buildSourceToggleState, demoSearchKeywords, sanitizeSearchKeyword } from '../../common/searchHelpers.js'
@@ -177,6 +205,8 @@ export default {
       loading: false,
       searchToken: 0,
       lastSearchSourceNames: [],
+      searchProgress: { done: 0, total: 0, message: '' },
+      searchSettings: getOnlineSearchSettings(),
       exploreEntries: [],
       activeExploreEntry: null,
       themeId: getAppThemeId(),
@@ -240,6 +270,12 @@ export default {
       if (this.activeExploreEntry) return `正在打开 ${this.activeExploreEntry.title}`
       return this.mode === 'cloud' ? '正在搜索云端书源' : '正在搜索本地书架'
     },
+    searchProgressText() {
+      if (!this.loading || this.mode !== 'cloud' || !this.searchProgress.total) return ''
+      const base = `已完成 ${this.searchProgress.done}/${this.searchProgress.total}`
+      if (!this.searchProgress.message) return base
+      return `${base} · ${this.searchProgress.message}`
+    },
     noAvailableSourceHint() {
       return this.availableSourceCount === 0 && this.availableExploreCount === 0 && !apiClient.getToken()
     },
@@ -256,12 +292,20 @@ export default {
   },
   onShow() {
     this.themeId = getAppThemeId()
+    this.searchSettings = getOnlineSearchSettings()
     this.sources = getSourceConfigs()
     this.refreshExploreEntries()
   },
   methods: {
     refreshExploreEntries() {
       this.exploreEntries = getOnlineExploreEntries({ sources: this.sources })
+    },
+    adjustSearchSetting(field, delta) {
+      const current = Number(this.searchSettings[field] || 0)
+      this.searchSettings = saveOnlineSearchSettings({
+        ...this.searchSettings,
+        [field]: current + delta
+      })
     },
     setMode(mode) {
       this.mode = mode
@@ -315,6 +359,7 @@ export default {
       this.searchToken = token
       this.results = []
       this.lastSearchSourceNames = []
+      this.searchProgress = { done: 0, total: 0, message: '' }
       this.activeExploreEntry = null
 
       if (this.mode === 'source') return
@@ -335,12 +380,22 @@ export default {
 
       this.lastSearchSourceNames = apiClient.getToken()
         ? ['后端演示源']
-        : this.availableSearchSources.map(source => source.name)
+        : this.availableSearchSources.slice(0, this.searchSettings.sourceLimit).map(source => source.name)
       this.loading = true
       try {
         const results = apiClient.getToken()
           ? await searchBackendBooks(word)
-          : await searchOnlineBooks(word)
+          : await searchOnlineBooks(word, {
+            ...this.searchSettings,
+            onProgress: progress => {
+              if (this.searchToken !== token) return
+              this.searchProgress = {
+                done: progress.done,
+                total: progress.total,
+                message: `${progress.sourceName} ${progress.status === 'success' ? `返回 ${progress.count}` : '失败'}`
+              }
+            }
+          })
         if (this.searchToken === token) this.results = results
       } catch (error) {
         if (this.searchToken === token) {
@@ -376,6 +431,9 @@ export default {
     },
     resultSourceName(item) {
       return item.sourceName || (item.book && item.book.sourceName) || ''
+    },
+    resultCoverUrl(item) {
+      return item.coverUrl || (item.book && item.book.coverUrl) || ''
     }
   }
 }
@@ -524,6 +582,58 @@ button {
 .tip-title,
 .section-title {
   font-size: 29rpx;
+}
+
+.search-settings {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12rpx;
+  margin-top: 20rpx;
+}
+
+.setting-cell {
+  min-width: 0;
+  padding: 14rpx;
+  border-radius: 14rpx;
+  background: var(--app-input);
+}
+
+.setting-label,
+.stepper-value {
+  display: block;
+  text-align: center;
+}
+
+.setting-label {
+  color: var(--app-muted);
+  font-size: 21rpx;
+  line-height: 28rpx;
+}
+
+.stepper {
+  display: grid;
+  grid-template-columns: 44rpx 1fr 44rpx;
+  align-items: center;
+  gap: 6rpx;
+  margin-top: 10rpx;
+}
+
+.stepper-button {
+  height: 44rpx;
+  border-radius: 999rpx;
+  color: var(--app-on-accent);
+  font-size: 24rpx;
+  background: var(--app-accent);
+}
+
+.stepper-value {
+  overflow: hidden;
+  color: var(--app-text);
+  font-size: 23rpx;
+  font-weight: 900;
+  line-height: 44rpx;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .tip-desc,
@@ -679,6 +789,14 @@ button {
   align-items: center;
   justify-content: space-between;
   margin-bottom: 12rpx;
+}
+
+.result-cover {
+  width: 96rpx;
+  height: 128rpx;
+  border-radius: 8rpx;
+  margin-bottom: 12rpx;
+  background: var(--app-panel);
 }
 
 .result-type,

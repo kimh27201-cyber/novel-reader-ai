@@ -1,5 +1,7 @@
 # Android WebView APK 打包说明
 
+> V2.5 当前产物为 `release/android-v2/V2.apk`，包含动态 WebView 解析、CookieJar 与人工登录桥接。详细验收见 [V2.5 开发与验收记录](V2.5_COMPLEX_SOURCE_VALIDATION.md)。
+
 这是 v1.0 的本地 Android SDK 兜底打包路径，用一个轻量 WebView 壳加载 `uni-app` 的 H5 构建产物。它可以产出可安装 APK，但不是 HBuilderX/DCloud 原生云打包包，因此 `plus` 原生能力会受限。
 
 ## 生成 H5 资源

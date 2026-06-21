@@ -1,5 +1,7 @@
 # Android 真机适配验收清单
 
+> V2.5 真机验收需增加三项：动态 WebView 返回渲染后 HTML、人工登录后 Cookie 可复用、删除书源后 Cookie 被清理。参见 [V2.5 开发与验收记录](V2.5_COMPLEX_SOURCE_VALIDATION.md)。
+
 本阶段不提前打包发布；等 H5 主链路稳定后，再用这份清单做真机适配、权限验证和安装包展示。
 
 当前书源页的扫码、文件选择、剪贴板和文件读取已经统一走 `common/importAdapters.js`。真机阶段优先验证这个适配层在 Android App 端的实际返回值和权限提示。

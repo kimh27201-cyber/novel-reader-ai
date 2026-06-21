@@ -49,75 +49,25 @@
         </view>
       </view>
 
-      <view class="pill-section-title">分类</view>
-      <view class="category-grid">
-        <button
-          class="soft-pill"
-          v-for="entry in categoryButtons"
-          :key="entry.id"
-          :class="{ disabled: entry.disabled }"
-          @tap="openExploreEntry(entry)"
-        >
-          {{ entry.title }}
-        </button>
-      </view>
-
-      <view class="pill-section-title">排行榜</view>
-      <view class="rank-grid">
-        <button
-          class="soft-pill"
-          v-for="entry in rankButtons"
-          :key="entry.id"
-          :class="{ disabled: entry.disabled }"
-          @tap="openExploreEntry(entry)"
-        >
-          {{ entry.title }}
-        </button>
-      </view>
-
-      <button
-        class="latest-entry"
-        v-for="entry in latestButtons"
-        :key="entry.id"
-        :class="{ disabled: entry.disabled }"
-        @tap="openExploreEntry(entry)"
-      >
-        {{ entry.title }}
-      </button>
-
-      <view class="explore-loading" v-if="sourceExploreLoading">
-        <view class="loading-dot"></view>
-        <text>正在打开 {{ activeExploreEntry && activeExploreEntry.title }}</text>
-      </view>
-
-      <view class="explore-results" v-if="sourceExploreResults.length">
-        <view
-          class="result-source-row"
-          v-for="item in sourceExploreResults"
-          :key="item.bookId || item.title"
-          @tap="openOnlineResult(item)"
-        >
-          <view class="source-row-icon">书</view>
-          <view class="source-main">
-            <view class="source-name">{{ item.title }}</view>
-            <text class="source-meta">{{ item.subtitle || resultSourceName(item) }}</text>
-          </view>
-          <text class="chevron">›</text>
-        </view>
-      </view>
-
       <view class="installed-source-list">
         <view
           class="installed-source-row"
           v-for="source in v2SourceRows"
           :key="source.rowKey"
-          @tap="openSourceRow(source)"
+          @tap="openSourceExplore(source)"
         >
           <view class="source-row-icon" :class="source.iconClass">{{ source.icon }}</view>
           <view class="source-main">
             <view class="source-name">{{ source.name }}</view>
             <text class="source-meta">{{ source.meta }}</text>
           </view>
+          <button
+            class="source-detail-action"
+            aria-label="书源详情"
+            @tap.stop="openSourceDetail(source.raw)"
+          >
+            ⓘ
+          </button>
           <text class="chevron">›</text>
         </view>
       </view>
@@ -191,12 +141,13 @@
               <view class="batch-actions">
                 <button class="small-action primary" :loading="batchTesting" @tap="runBatchSourceTest('all')">测试全部启用源</button>
                 <button class="small-action" :disabled="sourceGroupFilter === '全部分组'" :loading="batchTesting" @tap="runBatchSourceTest('group')">测试当前分组</button>
+                <button class="small-action" :loading="batchHealthTesting" @tap="runBatchSourceHealth('all')">健康检测</button>
               </view>
             </view>
             <input class="field compact" v-model="batchTestKeyword" placeholder="批量测试关键词，例如 星轨图书馆" />
-            <view class="batch-progress" v-if="batchTesting || batchTestResult">
+            <view class="batch-progress" v-if="batchTesting || batchHealthTesting || batchTestResult">
               <text>{{ batchProgressText }}</text>
-              <text v-if="batchTestResult">通过 {{ batchTestResult.passed }} / 失败 {{ batchTestResult.failed }} / 跳过 {{ batchTestResult.skipped }}</text>
+              <text v-if="batchTestResult">通过 {{ batchTestResult.passed }} / 失败 {{ batchTestResult.failed }} / 跳过 {{ batchTestResult.skipped || 0 }}</text>
             </view>
             <view class="batch-result-list" v-if="batchTestItems.length">
               <view class="batch-result-row" v-for="item in batchTestItems" :key="item.sourceId">
@@ -240,6 +191,7 @@
         v-if="sourceImportMode === 'json'"
         class="source-area"
         v-model="sourceImportText"
+        maxlength="-1"
         placeholder="粘贴书源 JSON、sources 包装结构、yuedu:// 或 legado:// 一键导入链接"
       ></textarea>
       <input
@@ -310,89 +262,161 @@
         <button class="round-action" @tap="closePanels">×</button>
       </view>
 
-      <view class="detail-status" :class="sourceStatusClass">
-        <view>
-          <view class="detail-status-title">
-            {{ sourceStatusTitle }}
-          </view>
-          <text class="detail-status-desc">
-            {{ sourceStatusDesc }}
-          </text>
-        </view>
-        <button class="status-switch" :class="{ active: selectedSource.enabled }" @tap="toggleSelectedSource">
-          {{ selectedSource.enabled ? '停用' : '启用' }}
-        </button>
-      </view>
-
-      <view class="detail-grid">
-        <view class="detail-item">
-          <text class="detail-label">分组</text>
-          <text class="detail-value">{{ selectedSource.group || '未分组' }}</text>
-        </view>
-        <view class="detail-item">
-          <text class="detail-label">来源</text>
-          <text class="detail-value">{{ selectedSource.importedAt ? '本地导入' : '内置书源' }}</text>
-        </view>
-        <view class="detail-item">
-          <text class="detail-label">格式</text>
-          <text class="detail-value">{{ sourceDiagnostics.formatVersion || 'legacy' }}</text>
-        </view>
-        <view class="detail-item">
-          <text class="detail-label">权重</text>
-          <text class="detail-value">{{ sourceDiagnostics.weight || 0 }}</text>
-        </view>
-        <view class="detail-item wide">
-          <text class="detail-label">地址</text>
-          <text class="detail-value one-line">{{ selectedSource.baseUrl || '无地址' }}</text>
-        </view>
-        <view class="detail-item wide" v-if="sourceDiagnostics.comment">
-          <text class="detail-label">备注</text>
-          <text class="detail-value">{{ sourceDiagnostics.comment }}</text>
-        </view>
-      </view>
-
-      <view class="rule-state-head" v-if="sourceDiagnostics">
-        <view class="test-title">规则状态</view>
-        <text class="source-hint">搜索、详情、目录和正文规则决定真实阅读闭环能否跑通。</text>
-      </view>
-      <view class="rule-summary" v-if="sourceDiagnostics">
-        <view
-          class="rule-pill"
-          v-for="rule in sourceRuleSummary"
-          :key="rule.key"
-          :class="{ active: rule.ready }"
-        >
-          <text>{{ rule.label }}</text>
-          <text>{{ rule.ready ? '已配置' : '缺失' }}</text>
-        </view>
-      </view>
-      <view class="rule-summary feature-summary" v-if="sourceFeatureTags.length">
-        <view class="rule-pill active" v-for="feature in sourceFeatureTags" :key="feature">
-          <text>{{ feature }}</text>
-          <text>3.X</text>
-        </view>
-      </view>
-
-      <view class="test-panel">
-        <view class="test-head">
+      <scroll-view class="source-detail-scroll" scroll-y :show-scrollbar="false">
+        <view class="detail-status" :class="sourceStatusClass">
           <view>
-            <view class="test-title">单源搜索测试</view>
-            <text class="source-hint">用于确认这个书源能否独立搜索，避免拖慢发现页。</text>
+            <view class="detail-status-title">
+              {{ sourceStatusTitle }}
+            </view>
+            <text class="detail-status-desc">
+              {{ sourceStatusDesc }}
+            </text>
           </view>
-          <view class="test-actions">
-            <button class="small-action primary" :loading="sourceTesting" @tap="runSourceTest">搜索测试</button>
-            <button class="small-action" :loading="sourceFlowTesting" @tap="runSourceReadingFlowTest">完整阅读测试</button>
+          <button class="status-switch" :class="{ active: selectedSource.enabled }" @tap="toggleSelectedSource">
+            {{ selectedSource.enabled ? '停用' : '启用' }}
+          </button>
+        </view>
+
+        <view class="detail-grid">
+          <view class="detail-item">
+            <text class="detail-label">分组</text>
+            <text class="detail-value">{{ selectedSource.group || '未分组' }}</text>
+          </view>
+          <view class="detail-item">
+            <text class="detail-label">来源</text>
+            <text class="detail-value">{{ selectedSource.importedAt ? '本地导入' : '内置书源' }}</text>
+          </view>
+          <view class="detail-item">
+            <text class="detail-label">格式</text>
+            <text class="detail-value">{{ sourceDiagnostics.formatVersion || 'legacy' }}</text>
+          </view>
+          <view class="detail-item">
+            <text class="detail-label">权重</text>
+            <text class="detail-value">{{ sourceDiagnostics.weight || 0 }}</text>
+          </view>
+          <view class="detail-item wide">
+            <text class="detail-label">地址</text>
+            <text class="detail-value one-line">{{ selectedSource.baseUrl || '无地址' }}</text>
+          </view>
+          <view class="detail-item wide" v-if="sourceDiagnostics.comment">
+            <text class="detail-label">备注</text>
+            <text class="detail-value">{{ sourceDiagnostics.comment }}</text>
           </view>
         </view>
-        <input class="field compact" v-model="testSourceKeyword" placeholder="输入测试关键词，例如 星轨图书馆" />
-        <view class="test-result" v-if="sourceTestResult">
-          <view class="test-result-title">{{ sourceTestResult.title }}</view>
-          <text class="test-result-desc">{{ sourceTestResult.desc }}</text>
-          <view class="test-book" v-for="item in sourceTestResult.items" :key="item.bookId || item.title">
-            {{ item.title }} · {{ item.subtitle || '在线结果' }}
+
+        <view class="compatibility-card" v-if="sourceDiagnostics">
+          <view class="test-title">兼容级别：{{ sourceDiagnostics.compatibilityLevel }}</view>
+          <text class="source-hint">当前环境：{{ sourceDiagnostics.environmentSupported ? '支持' : '不支持' }}</text>
+          <text class="source-hint">下一步：{{ sourceDiagnostics.nextAction }}</text>
+          <view class="quick-actions" v-if="sourceDiagnostics.compatibilityLevel === 'need_login'">
+            <button class="outline-action" @tap="openSelectedSourceLogin">打开登录页</button>
+            <button class="outline-action" @tap="saveSelectedSourceLogin">保存登录状态</button>
+            <button class="outline-action" @tap="clearSelectedSourceCookie">清除该源 Cookie</button>
           </view>
         </view>
-      </view>
+
+        <view class="rule-state-head" v-if="sourceDiagnostics">
+          <view class="test-title">规则状态</view>
+          <text class="source-hint">搜索、详情、目录和正文规则决定真实阅读闭环能否跑通。</text>
+        </view>
+        <view class="rule-summary" v-if="sourceDiagnostics">
+          <view
+            class="rule-pill"
+            v-for="rule in sourceRuleSummary"
+            :key="rule.key"
+            :class="{ active: rule.ready }"
+          >
+            <text>{{ rule.label }}</text>
+            <text>{{ rule.ready ? '已配置' : '缺失' }}</text>
+          </view>
+        </view>
+        <view class="rule-summary feature-summary" v-if="sourceFeatureTags.length">
+          <view class="rule-pill active" v-for="feature in sourceFeatureTags" :key="feature">
+            <text>{{ feature }}</text>
+            <text>3.X</text>
+          </view>
+        </view>
+
+        <view class="health-card" v-if="sourceDiagnostics">
+          <view>
+            <view class="test-title">健康评分 {{ sourceHealthScore }}</view>
+            <text class="source-hint">全链路检测会依次验证搜索、详情、目录、正文和加入书架缓存。</text>
+            <text class="source-hint">{{ sourceHealthText }}</text>
+            <text class="source-hint source-health-warning" v-if="sourceHealthFailureText">{{ sourceHealthFailureText }}</text>
+          </view>
+          <view class="health-meter">
+            <view class="health-meter-fill" :style="{ width: `${sourceHealthScore}%` }"></view>
+          </view>
+        </view>
+
+        <view class="anti-crawler-card" v-if="selectedSource">
+          <view class="test-head">
+            <view>
+              <view class="test-title">反爬策略</view>
+              <text class="source-hint">为当前书源配置请求间隔、User-Agent、Cookie、Referer、编码和失败重试。</text>
+            </view>
+            <button class="small-action primary" :loading="sourceAntiSaving" @tap="saveAntiCrawler">保存</button>
+          </view>
+          <view class="anti-grid">
+            <view class="anti-field">
+              <text>请求间隔(ms)</text>
+              <input class="field compact" type="number" v-model="antiCrawler.requestIntervalMs" />
+            </view>
+            <view class="anti-field">
+              <text>重试次数</text>
+              <input class="field compact" type="number" v-model="antiCrawler.retryCount" />
+            </view>
+            <view class="anti-field">
+              <text>重试间隔(ms)</text>
+              <input class="field compact" type="number" v-model="antiCrawler.retryIntervalMs" />
+            </view>
+            <view class="anti-field">
+              <text>编码</text>
+              <view class="charset-row">
+                <button
+                  class="charset-chip"
+                  v-for="item in charsetOptions"
+                  :key="item"
+                  :class="{ active: antiCrawler.charset === item }"
+                  @tap="antiCrawler.charset = item"
+                >{{ item }}</button>
+              </view>
+            </view>
+          </view>
+          <input class="field compact" v-model="antiCrawler.userAgent" placeholder="User-Agent，可留空使用默认" />
+          <textarea class="field headers-field" v-model="antiCrawler.headersText" placeholder="Headers，每行一个：Cookie: xxx&#10;Referer: https://example.com"></textarea>
+        </view>
+
+        <view class="test-panel">
+          <view class="test-head">
+            <view>
+              <view class="test-title">单源搜索测试</view>
+              <text class="source-hint">用于确认这个书源能否独立搜索，避免拖慢发现页。</text>
+            </view>
+            <view class="test-actions">
+              <button class="small-action primary" :loading="sourceTesting" @tap="runSourceTest">搜索测试</button>
+              <button class="small-action" :loading="sourceFlowTesting" @tap="runSourceReadingFlowTest">完整阅读测试</button>
+              <button class="small-action" :loading="sourceHealthTesting" @tap="runSourceHealthCheckTest">健康检测</button>
+            </view>
+          </view>
+          <input class="field compact" v-model="testSourceKeyword" placeholder="输入测试关键词，例如 星轨图书馆" />
+          <view class="test-result" v-if="sourceTestResult">
+            <view class="test-result-title">{{ sourceTestResult.title }}</view>
+            <text class="test-result-desc">{{ sourceTestResult.desc }}</text>
+            <view class="test-book" v-for="item in sourceTestResult.items" :key="item.bookId || item.title">
+              {{ item.title }} · {{ item.subtitle || '在线结果' }}
+            </view>
+          </view>
+        </view>
+
+        <view class="source-delete-zone" v-if="selectedSource.importedAt">
+          <view>
+            <view class="test-title">删除用户书源</view>
+            <text class="source-hint">删除后将同时清理该源的本地设置和 Cookie，此操作不可撤销。</text>
+          </view>
+          <button class="source-delete-button" @tap="confirmRemoveSource(selectedSource)">删除此书源</button>
+        </view>
+      </scroll-view>
     </view>
   </view>
 </template>
@@ -400,18 +424,21 @@
 <script>
 import { importBookFromTextAsync, parseTxtChapters } from '../../common/books.js'
 import {
+  batchCheckSourceHealth,
   batchTestSources,
   batchSetSourcesEnabled,
   deleteUserSource,
-  exploreOnlineBooks,
-  getOnlineExploreEntries,
+  getSourceAntiCrawlerSettings,
   getSourceDiagnostics,
+  getSourceExploreEntries,
   getSourceConfigs,
+  applyImportPreview,
   importSourcesFromAny,
   previewSourcesFromAny,
   previewSourcesImport,
+  runSourceHealthCheck,
   runSourceReadingFlow,
-  saveOnlineBookDraft,
+  saveSourceAntiCrawlerSettings,
   setSourceEnabled,
   testSourceSearch,
   updateSourceMetadata
@@ -431,6 +458,8 @@ import {
 } from '../../common/importReadiness.js'
 import { resolveMarketScanTarget } from '../../common/sourceMarket.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
+import { clearSourceCookies, saveSourceCookie } from '../../common/sourceCookieJar.js'
+import { openSourceLogin, readSourceLoginCookie } from '../../common/webViewBridge.js'
 
 export default {
   data() {
@@ -446,6 +475,7 @@ export default {
       sourceImporting: false,
       sourceImportPreviewing: false,
       sourceImportPreview: null,
+      sourceImportPreviewRaw: '',
       sourceDetailVisible: false,
       sourceEditVisible: false,
       editingSource: null,
@@ -455,9 +485,21 @@ export default {
       sourceDiagnostics: null,
       sourceTesting: false,
       sourceFlowTesting: false,
+      sourceHealthTesting: false,
+      sourceAntiSaving: false,
+      antiCrawler: {
+        requestIntervalMs: 1500,
+        retryCount: 0,
+        retryIntervalMs: 800,
+        charset: 'auto',
+        userAgent: '',
+        headersText: ''
+      },
+      charsetOptions: ['auto', 'utf-8', 'gbk', 'gb2312'],
       testSourceKeyword: '星轨图书馆',
       sourceTestResult: null,
       batchTesting: false,
+      batchHealthTesting: false,
       batchTestKeyword: '星轨图书馆',
       batchProgress: { current: 0, total: 0 },
       batchTestResult: null,
@@ -467,10 +509,6 @@ export default {
       sourceSort: 'manual',
       sourceKeyword: '',
       sourceGroupFilter: '全部分组',
-      exploreEntries: [],
-      sourceExploreLoading: false,
-      sourceExploreResults: [],
-      activeExploreEntry: null,
       themeId: getAppThemeId(),
       importTitle: '',
       importAuthor: '',
@@ -519,27 +557,6 @@ export default {
       const first = this.visibleSources.find(source => source.enabled) || this.sources.find(source => source.enabled) || this.sources[0]
       return first ? first.name : '扫码导入书源'
     },
-    categoryButtons() {
-      return this.decorateExploreButtons(
-        this.exploreEntries.filter(entry => entry.kind === 'category'),
-        ['玄幻', '修真', '都市', '历史', '网游', '科幻', '悬疑', '同人', '轻小说', '女生', '短篇', '其他'],
-        'category'
-      ).slice(0, 12)
-    },
-    rankButtons() {
-      return this.decorateExploreButtons(
-        this.exploreEntries.filter(entry => entry.kind === 'rank'),
-        ['总点击榜', '月点击榜', '周点击榜', '日点击榜', '推荐数榜', '收藏数榜', '下载数榜', '评论数榜', '评分榜'],
-        'rank'
-      ).slice(0, 9)
-    },
-    latestButtons() {
-      return this.decorateExploreButtons(
-        this.exploreEntries.filter(entry => entry.kind === 'latest'),
-        ['最新入库'],
-        'latest'
-      ).slice(0, 1)
-    },
     v2SourceRows() {
       const rows = [
         ...this.visibleSources.map((source, index) => ({
@@ -569,13 +586,31 @@ export default {
       return summarizeImportReadiness(this.importReadiness).text
     },
     batchProgressText() {
-      if (this.batchTesting) {
-        return `正在测试 ${this.batchProgress.current}/${this.batchProgress.total}`
+      if (this.batchTesting || this.batchHealthTesting) {
+        return `${this.batchHealthTesting ? '正在健康检测' : '正在测试'} ${this.batchProgress.current}/${this.batchProgress.total}`
       }
       if (this.batchTestResult) {
         return `检测完成 ${this.batchTestResult.total} 个书源`
       }
       return ''
+    },
+    sourceHealthScore() {
+      const health = this.sourceDiagnostics && this.sourceDiagnostics.health
+      return health && Number.isFinite(Number(health.score)) ? Number(health.score) : 0
+    },
+    sourceHealthText() {
+      const health = this.sourceDiagnostics && this.sourceDiagnostics.health
+      if (!health || !health.checkedAt) return '尚未进行全链路健康检测'
+      return `${health.status === 'passed' ? '健康' : '异常'} · ${health.passed}/${health.stageCount} 阶段通过 · ${health.message || ''}`
+    },
+    sourceHealthFailureText() {
+      const health = this.sourceDiagnostics && this.sourceDiagnostics.health
+      if (!health || health.status !== 'failed') return ''
+      const stages = Array.isArray(health.stages) ? health.stages : []
+      const failedStage = stages.find(stage => stage && stage.status === 'failed')
+      const stageName = failedStage && (failedStage.title || failedStage.id) || health.failedStage || '未知阶段'
+      const message = failedStage && failedStage.message || health.message || ''
+      return `失败阶段：${stageName}${message ? ` · ${message}` : ''}`
     },
     sourceReasonText() {
       const reasons = this.sourceDiagnostics && this.sourceDiagnostics.reasons || []
@@ -640,31 +675,15 @@ export default {
   onShow() {
     this.themeId = getAppThemeId()
     this.sources = getSourceConfigs()
-    this.refreshExploreEntries()
     this.refreshImportReadiness()
   },
   methods: {
-    refreshExploreEntries() {
-      this.exploreEntries = getOnlineExploreEntries({ sources: this.sources })
-    },
-    decorateExploreButtons(entries, fallbackTitles, kind) {
-      if (entries.length) return entries
-      return fallbackTitles.map((title, index) => ({
-        id: `fallback-${kind}-${index}`,
-        title,
-        kind,
-        disabled: true
-      }))
-    },
     sourceListIcon(index) {
       const icons = ['📘', '☯', '🌈', '八', '⑬']
       return icons[index % icons.length]
     },
     sourceListIconClass(index) {
       return ['blue', 'ink', 'rainbow', 'plain', 'red'][index % 5]
-    },
-    resultSourceName(item) {
-      return item.sourceName || (item.book && item.book.sourceName) || ''
     },
     refreshImportReadiness() {
       this.importReadiness = buildImportReadiness()
@@ -716,15 +735,17 @@ export default {
       this.editingSource = null
       this.sourceDiagnostics = null
       this.sourceTestResult = null
+      this.sourceAntiSaving = false
       this.sourceImportPreview = null
       this.sourceImportText = ''
       this.sourceImportUrl = ''
       this.sources = getSourceConfigs()
-      this.refreshExploreEntries()
     },
     openSourceDetail(source) {
       this.selectedSource = source
       this.sourceDiagnostics = getSourceDiagnostics(source)
+      this.syncAntiCrawlerForm(source)
+      this.testSourceKeyword = this.getSourceTestKeyword(source)
       this.sourceTestResult = null
       this.importDrawerVisible = false
       this.txtVisible = false
@@ -732,39 +753,48 @@ export default {
       this.sourceMenuVisible = false
       this.sourceDetailVisible = true
     },
-    openSourceRow(row) {
-      if (!row) return
-      this.openSourceDetail(row.raw)
+    selectedSourceLoginUrl() {
+      const source = this.selectedSource || {}
+      const raw = source.raw || source
+      return String(raw.loginUrl || source.baseUrl || raw.bookSourceUrl || '').trim()
     },
-    async openExploreEntry(entry) {
-      if (!entry || entry.disabled) {
-        uni.showToast({ title: '请先扫码或导入带发现入口的书源', icon: 'none' })
-        this.openImportDrawer('repo')
-        return
-      }
-      this.sourceExploreLoading = true
-      this.activeExploreEntry = entry
-      this.sourceExploreResults = []
+    openSelectedSourceLogin() {
       try {
-        const results = await exploreOnlineBooks(entry)
-        this.sourceExploreResults = results
-        if (!results.length) {
-          uni.showToast({ title: '当前入口暂无可解析书籍', icon: 'none' })
-        }
+        openSourceLogin(this.selectedSourceLoginUrl())
       } catch (error) {
-        uni.showToast({ title: friendlyErrorMessage(error, '发现入口打开失败'), icon: 'none' })
-      } finally {
-        this.sourceExploreLoading = false
+        uni.showToast({ title: friendlyErrorMessage(error, '打开登录页失败'), icon: 'none' })
       }
     },
-    openOnlineResult(item) {
-      if (!item) return
-      if (item.type === 'online' && item.book) {
-        saveOnlineBookDraft(item.book)
-        uni.navigateTo({ url: '/pages/sourceBook/sourceBook' })
+    saveSelectedSourceLogin() {
+      try {
+        const url = this.selectedSourceLoginUrl()
+        const cookie = readSourceLoginCookie(url)
+        if (!cookie) throw new Error('未读取到登录 Cookie，请先完成手动登录')
+        saveSourceCookie(this.selectedSource.id, url, cookie)
+        uni.showToast({ title: '登录状态已保存', icon: 'none' })
+      } catch (error) {
+        uni.showToast({ title: friendlyErrorMessage(error, '保存登录状态失败'), icon: 'none' })
+      }
+    },
+    clearSelectedSourceCookie() {
+      const removed = clearSourceCookies(this.selectedSource && this.selectedSource.id)
+      uni.showToast({ title: removed ? '该源 Cookie 已清除' : '该源没有已保存 Cookie', icon: 'none' })
+    },
+    getSourceTestKeyword(source) {
+      const raw = source && source.raw || {}
+      const ruleSearch = raw.ruleSearch && typeof raw.ruleSearch === 'object' ? raw.ruleSearch : {}
+      return String(ruleSearch.checkKeyWord || raw.checkKeyWord || this.testSourceKeyword || '星轨图书馆').trim()
+    },
+    openSourceExplore(row) {
+      if (!row || !row.raw) return
+      const result = getSourceExploreEntries(row.raw)
+      if (!result.available) {
+        uni.showToast({ title: result.reason || '该书源仅支持书名搜索', icon: 'none' })
         return
       }
-      uni.showToast({ title: item.snippet || '无法打开结果', icon: 'none' })
+      uni.navigateTo({
+        url: `/pages/sourceExplore/sourceExplore?sourceId=${encodeURIComponent(row.id)}`
+      })
     },
     openSourceEdit(source) {
       this.editingSource = source
@@ -784,7 +814,6 @@ export default {
           group: this.sourceEditGroup
         })
         this.sources = getSourceConfigs()
-        this.refreshExploreEntries()
         uni.showToast({ title: '书源信息已保存', icon: 'none' })
         this.closePanels()
       } catch (error) {
@@ -843,12 +872,50 @@ export default {
         this.batchTestResult = result
         this.batchTestItems = result.results
         this.sources = getSourceConfigs()
-        this.refreshExploreEntries()
         uni.showToast({ title: `检测完成：通过 ${result.passed} / 失败 ${result.failed}`, icon: 'none' })
       } catch (error) {
         uni.showToast({ title: friendlyErrorMessage(error, '批量检测失败'), icon: 'none' })
       } finally {
         this.batchTesting = false
+      }
+    },
+    async runBatchSourceHealth(scope = 'all') {
+      const sourceIds = this.getBatchSourceIds(scope)
+      if (!sourceIds.length) {
+        uni.showToast({ title: scope === 'group' ? '当前分组没有启用书源' : '没有启用书源可检测', icon: 'none' })
+        return
+      }
+      this.batchHealthTesting = true
+      this.batchTestResult = null
+      this.batchTestItems = []
+      this.batchProgress = { current: 0, total: sourceIds.length }
+      try {
+        const result = await batchCheckSourceHealth({
+          keyword: this.batchTestKeyword,
+          sourceIds,
+          onProgress: item => {
+            this.batchProgress = { current: item.index, total: item.total }
+            this.batchTestItems = [
+              ...this.batchTestItems.filter(row => row.sourceId !== item.sourceId),
+              {
+                ...item,
+                message: `健康评分 ${item.score || 0} · ${item.message || ''}`
+              }
+            ]
+          }
+        })
+        this.batchTestResult = { ...result, skipped: 0 }
+        this.batchTestItems = result.results.map(item => ({
+          ...item,
+          message: `健康评分 ${item.score || 0} · ${item.message || ''}`
+        }))
+        this.sources = getSourceConfigs()
+        this.refreshSelectedSource()
+        uni.showToast({ title: `健康检测完成：通过 ${result.passed} / 失败 ${result.failed}`, icon: 'none' })
+      } catch (error) {
+        uni.showToast({ title: friendlyErrorMessage(error, '批量健康检测失败'), icon: 'none' })
+      } finally {
+        this.batchHealthTesting = false
       }
     },
     refreshSelectedSource() {
@@ -860,6 +927,33 @@ export default {
       }
       this.selectedSource = latest
       this.sourceDiagnostics = getSourceDiagnostics(latest)
+      this.syncAntiCrawlerForm(latest)
+    },
+    syncAntiCrawlerForm(source) {
+      if (!source) return
+      const settings = getSourceAntiCrawlerSettings(source.id)
+      this.antiCrawler = {
+        requestIntervalMs: settings.requestIntervalMs,
+        retryCount: settings.retryCount,
+        retryIntervalMs: settings.retryIntervalMs,
+        charset: settings.charset,
+        userAgent: settings.userAgent,
+        headersText: settings.headersText
+      }
+    },
+    saveAntiCrawler() {
+      if (!this.selectedSource) return
+      this.sourceAntiSaving = true
+      try {
+        saveSourceAntiCrawlerSettings(this.selectedSource.id, this.antiCrawler)
+        this.sources = getSourceConfigs()
+        this.refreshSelectedSource()
+        uni.showToast({ title: '反爬策略已保存', icon: 'none' })
+      } catch (error) {
+        uni.showToast({ title: friendlyErrorMessage(error, '保存反爬策略失败'), icon: 'none' })
+      } finally {
+        this.sourceAntiSaving = false
+      }
     },
     toggleSelectedSource() {
       if (!this.selectedSource) return
@@ -888,7 +982,6 @@ export default {
         }
       } finally {
         this.sources = getSourceConfigs()
-        this.refreshExploreEntries()
         this.refreshSelectedSource()
         this.sourceTesting = false
       }
@@ -922,9 +1015,36 @@ export default {
         }
       } finally {
         this.sources = getSourceConfigs()
-        this.refreshExploreEntries()
         this.refreshSelectedSource()
         this.sourceFlowTesting = false
+      }
+    },
+    async runSourceHealthCheckTest() {
+      if (!this.selectedSource) return
+      this.sourceHealthTesting = true
+      this.sourceTestResult = null
+      try {
+        const result = await runSourceHealthCheck(this.selectedSource.id, this.testSourceKeyword)
+        this.sourceTestResult = {
+          title: `健康检测${result.status === 'passed' ? '通过' : '未通过'}：${result.score}`,
+          desc: result.message || `全链路阶段通过 ${result.passed}/${result.stageCount}`,
+          items: (result.stages || []).map(stage => ({
+            bookId: stage.id,
+            title: `${stage.title} · ${stage.status === 'passed' ? '通过' : '失败'}`,
+            subtitle: `${stage.message || ''}${stage.elapsedMs ? ` · ${stage.elapsedMs}ms` : ''}`
+          }))
+        }
+        uni.showToast({ title: `健康评分 ${result.score}`, icon: 'none' })
+      } catch (error) {
+        this.sourceTestResult = {
+          title: '健康检测未通过',
+          desc: friendlyErrorMessage(error, '全链路健康检测失败'),
+          items: []
+        }
+      } finally {
+        this.sources = getSourceConfigs()
+        this.refreshSelectedSource()
+        this.sourceHealthTesting = false
       }
     },
     async submitSourceImport() {
@@ -933,11 +1053,19 @@ export default {
         uni.showToast({ title: '请先粘贴书源内容或 URL', icon: 'none' })
         return
       }
-      const result = await this.importSourcePayload(raw)
+      if (!this.sourceImportPreview || this.sourceImportPreviewRaw !== raw) {
+        await this.previewSourceImport()
+        if (this.sourceImportPreview) {
+          uni.showToast({ title: '已生成导入预览，请再次确认', icon: 'none' })
+        }
+        return
+      }
+      const result = await this.applySourceImportPreview('已导入')
       if (result) {
         this.sourceImportText = ''
         this.sourceImportUrl = ''
         this.sourceImportPreview = null
+        this.sourceImportPreviewRaw = ''
       }
     },
     async previewSourceImport() {
@@ -951,11 +1079,31 @@ export default {
         this.sourceImportPreview = this.sourceImportMode === 'json'
           ? previewSourcesImport(raw)
           : await previewSourcesFromAny(raw)
+        this.sourceImportPreviewRaw = raw
       } catch (error) {
         this.sourceImportPreview = null
+        this.sourceImportPreviewRaw = ''
         uni.showToast({ title: friendlyErrorMessage(error, '当前内容无法预览，请确认是书源 JSON 或 URL'), icon: 'none' })
       } finally {
         this.sourceImportPreviewing = false
+      }
+    },
+    async applySourceImportPreview(successPrefix = '已导入') {
+      if (!this.sourceImportPreview) return null
+      this.sourceImporting = true
+      try {
+        const result = applyImportPreview(this.sourceImportPreview)
+        this.sources = getSourceConfigs()
+        uni.showToast({
+          title: `${successPrefix}：${result.imported} 新增 / ${result.updated} 覆盖 / ${result.skipped || 0} 跳过`,
+          icon: 'none'
+        })
+        return result
+      } catch (error) {
+        uni.showToast({ title: friendlyErrorMessage(error, '导入书源失败'), icon: 'none' })
+        return null
+      } finally {
+        this.sourceImporting = false
       }
     },
     async importSourcePayload(raw, successPrefix = '已导入') {
@@ -963,7 +1111,6 @@ export default {
       try {
         const result = await importSourcesFromAny(raw)
         this.sources = getSourceConfigs()
-        this.refreshExploreEntries()
         uni.showToast({
           title: `${successPrefix}：${result.imported} 新增 / ${result.updated} 覆盖 / ${result.incompatible} 不兼容`,
           icon: 'none'
@@ -979,7 +1126,14 @@ export default {
     async importFromClipboard() {
       try {
         const text = await getClipboardText(uni)
-        await this.importSourcePayload(text, '剪贴板导入')
+        this.sourceImportMode = 'json'
+        this.sourceImportText = text
+        this.sourceImportUrl = ''
+        this.importDrawerVisible = true
+        await this.previewSourceImport()
+        if (this.sourceImportPreview) {
+          uni.showToast({ title: '已读取剪贴板，请确认导入', icon: 'none' })
+        }
       } catch (error) {
         uni.showToast({ title: error.message || '读取剪贴板失败', icon: 'none' })
       }
@@ -994,7 +1148,14 @@ export default {
           extension: ['.json'],
           message: '请选择 .json 书源文件'
         })
-        await this.importSourcePayload(payload.text || payload.url, '本地 JSON 导入')
+        this.sourceImportMode = 'json'
+        this.sourceImportText = payload.text || payload.url
+        this.sourceImportUrl = ''
+        this.importDrawerVisible = true
+        await this.previewSourceImport()
+        if (this.sourceImportPreview) {
+          uni.showToast({ title: '已读取本地 JSON，请确认导入', icon: 'none' })
+        }
       } catch (error) {
         uni.showToast({ title: error.message || '读取 JSON 失败', icon: 'none' })
       }
@@ -1002,7 +1163,6 @@ export default {
     toggleSource(source) {
       setSourceEnabled(source.id, !source.enabled)
       this.sources = getSourceConfigs()
-      this.refreshExploreEntries()
       this.refreshSelectedSource()
     },
     batchToggleVisibleSources(enabled) {
@@ -1013,7 +1173,6 @@ export default {
       }
       const result = batchSetSourcesEnabled(ids, enabled)
       this.sources = getSourceConfigs()
-      this.refreshExploreEntries()
       this.refreshSelectedSource()
       uni.showToast({ title: `${enabled ? '已启用' : '已停用'} ${result.updated} 个书源`, icon: 'none' })
     },
@@ -1037,31 +1196,17 @@ export default {
     removeSource(source) {
       deleteUserSource(source.id)
       this.sources = getSourceConfigs()
-      this.refreshExploreEntries()
       if (this.selectedSource && this.selectedSource.id === source.id) {
         this.closePanels()
       }
+      uni.showToast({ title: '书源已删除', icon: 'none' })
     },
     goSourceMarket(url = '') {
       const query = url ? `?url=${encodeURIComponent(url)}` : ''
       uni.navigateTo({ url: `/pages/sourceMarket/sourceMarket${query}` })
     },
-    async scanSourceQr() {
-      try {
-        uni.showLoading({ title: 'Scan', mask: true })
-        const payload = await scanImportPayload(uni)
-        uni.hideLoading()
-        const normalized = normalizeImportPayload(payload)
-        const target = resolveMarketScanTarget(normalized.url || normalized.text)
-        if (target.type === 'market') {
-          this.goSourceMarket(target.url)
-          return
-        }
-        await this.importSourcePayload(normalized.url || normalized.text, '扫码导入')
-      } catch (error) {
-        uni.hideLoading()
-        uni.showToast({ title: error.message || '未完成扫码', icon: 'none' })
-      }
+    scanSourceQr() {
+      uni.navigateTo({ url: '/pages/import/scan' })
     },
     async chooseTxtFile() {
       try {
@@ -1276,73 +1421,10 @@ export default {
   background: var(--app-accent);
 }
 
-.pill-section-title,
-.latest-entry {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 58rpx;
-  margin-top: 22rpx;
-  border-radius: 999rpx;
-  color: var(--app-text);
-  font-family: "KaiTi", "STKaiti", "PingFang SC", serif;
-  font-size: 27rpx;
-  font-weight: 800;
-  border: 1rpx solid var(--app-border);
-  background: var(--app-panel);
-}
-
-.category-grid,
-.rank-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 20rpx 28rpx;
-  margin: 22rpx 18rpx 0;
-}
-
-.soft-pill {
-  min-width: 0;
-  height: 58rpx;
-  padding: 0 12rpx;
-  overflow: hidden;
-  border-radius: 999rpx;
-  color: var(--app-text);
-  font-family: "KaiTi", "STKaiti", "PingFang SC", serif;
-  font-size: 27rpx;
-  font-weight: 800;
-  border: 1rpx solid var(--app-border);
-  background: var(--app-panel);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.soft-pill.disabled,
-.latest-entry.disabled {
-  opacity: 0.72;
-}
-
-.latest-entry {
-  width: auto;
-  margin: 22rpx 18rpx 0;
-  padding: 0;
-}
-
-.explore-loading {
-  display: flex;
-  align-items: center;
-  gap: 14rpx;
-  min-height: 62rpx;
-  margin: 18rpx 0;
-  color: var(--app-muted);
-  font-size: 24rpx;
-}
-
-.explore-results,
 .installed-source-list {
   margin-top: 22rpx;
 }
 
-.result-source-row,
 .installed-source-row {
   display: flex;
   align-items: center;
@@ -1416,6 +1498,22 @@ export default {
   flex-shrink: 0;
   color: var(--app-muted);
   font-size: 44rpx;
+  line-height: 1;
+}
+
+.source-detail-action {
+  width: 58rpx;
+  height: 58rpx;
+  min-width: 58rpx;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1rpx solid var(--app-border);
+  border-radius: 8rpx;
+  background: var(--app-panel);
+  color: var(--app-muted);
+  font-size: 28rpx;
   line-height: 1;
 }
 
@@ -2050,7 +2148,26 @@ textarea {
 }
 
 .source-detail-drawer {
-  max-height: 82vh;
+  top: 64rpx;
+  bottom: calc(112rpx + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  max-height: none;
+  padding: 0;
+  overflow: hidden;
+}
+
+.source-detail-drawer .drawer-head {
+  flex-shrink: 0;
+  padding: 28rpx 28rpx 12rpx;
+}
+
+.source-detail-scroll {
+  flex: 1;
+  min-height: 0;
+  height: calc(100vh - 64rpx - 112rpx - env(safe-area-inset-bottom) - 124rpx);
+  padding: 0 28rpx 30rpx;
+  box-sizing: border-box;
 }
 
 .detail-status {
@@ -2171,6 +2288,110 @@ textarea {
   border: 1rpx solid var(--app-border);
   border-radius: 20rpx;
   background: var(--app-panel);
+}
+
+.source-delete-zone {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+  margin-top: 18rpx;
+  padding: 18rpx;
+  border: 1rpx solid rgba(226, 95, 53, 0.55);
+  border-radius: 20rpx;
+  background: rgba(226, 95, 53, 0.08);
+}
+
+.source-delete-button {
+  flex-shrink: 0;
+  min-width: 190rpx;
+  height: 68rpx;
+  padding: 0 22rpx;
+  border: 1rpx solid rgba(226, 95, 53, 0.7);
+  border-radius: 16rpx;
+  color: #ff9a78;
+  background: rgba(226, 95, 53, 0.14);
+  font-size: 24rpx;
+  font-weight: 700;
+}
+
+.health-card,
+.compatibility-card {
+  margin-top: 18rpx;
+  padding: 18rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: 20rpx;
+  background: var(--app-panel);
+}
+
+.source-health-warning {
+  color: #f1b45f;
+}
+
+.anti-crawler-card {
+  margin-top: 18rpx;
+  padding: 18rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: 20rpx;
+  background: var(--app-panel);
+}
+
+.anti-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14rpx;
+  margin-top: 16rpx;
+}
+
+.anti-field text {
+  display: block;
+  margin-bottom: 8rpx;
+  color: var(--app-muted);
+  font-size: 22rpx;
+}
+
+.charset-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8rpx;
+}
+
+.charset-chip {
+  min-width: 0;
+  height: 58rpx;
+  padding: 0 8rpx;
+  border-radius: 999rpx;
+  color: var(--app-text);
+  font-size: 21rpx;
+  background: var(--app-input);
+}
+
+.charset-chip.active {
+  color: var(--app-on-accent);
+  background: var(--app-accent);
+}
+
+.headers-field {
+  height: 150rpx;
+  margin-top: 14rpx;
+  padding-top: 14rpx;
+  line-height: 34rpx;
+}
+
+.health-meter {
+  height: 14rpx;
+  margin-top: 16rpx;
+  overflow: hidden;
+  border-radius: 999rpx;
+  background: var(--app-input);
+}
+
+.health-meter-fill {
+  height: 100%;
+  min-width: 10rpx;
+  border-radius: 999rpx;
+  background: var(--app-accent);
+  transition: width 0.2s ease;
 }
 
 .test-head {

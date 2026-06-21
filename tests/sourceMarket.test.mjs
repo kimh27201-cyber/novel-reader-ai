@@ -101,4 +101,8 @@ assert.match(sourceMarketPage, /备用仓库/)
 assert.match(sourceMarketPage, /recommendedSources/)
 assert.match(sourceMarketPage, /推荐可用源/)
 
+assert.match(sourceMarketPage, /getSourceConfigs/)
+assert.match(sourceMarketPage, /previewInstalled/)
+assert.match(sourceMarketPage, /已安装/)
+
 console.log('sourceMarket tests passed')

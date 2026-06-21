@@ -1,0 +1,136 @@
+const FORBIDDEN_PATTERN = /\b(?:fetch|XMLHttpRequest|WebSocket|java|Packages|require|import|process|window|document|localStorage|sessionStorage|eval|Function|while|for|do|setTimeout|setInterval)\b/i
+const IDENTIFIER_PATTERN = /^[A-Za-z_$][\w$]*$/
+
+export class JsRuleSandboxError extends Error {
+  constructor(code, message) {
+    super(message)
+    this.name = 'JsRuleSandboxError'
+    this.code = code
+  }
+}
+
+function failUnsupported(detail = '') {
+  throw new JsRuleSandboxError('UNSUPPORTED_JS_CAPABILITY', `不支持的 JS 能力${detail ? `：${detail}` : ''}`)
+}
+
+function encodeBase64(value) {
+  const text = String(value == null ? '' : value)
+  if (typeof Buffer !== 'undefined') return Buffer.from(text, 'utf8').toString('base64')
+  return btoa(unescape(encodeURIComponent(text)))
+}
+
+function decodeBase64(value) {
+  const text = String(value == null ? '' : value)
+  if (typeof Buffer !== 'undefined') return Buffer.from(text, 'base64').toString('utf8')
+  return decodeURIComponent(escape(atob(text)))
+}
+
+function splitArgs(text) {
+  const args = []
+  let quote = ''
+  let regex = false
+  let escaped = false
+  let depth = 0
+  let start = 0
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index]
+    if (escaped) { escaped = false; continue }
+    if (char === '\\') { escaped = true; continue }
+    if (quote) { if (char === quote) quote = ''; continue }
+    if (regex) { if (char === '/') regex = false; continue }
+    if (char === '"' || char === "'") { quote = char; continue }
+    if (char === '/' && (index === 0 || /[,(=:\s]/.test(text[index - 1]))) { regex = true; continue }
+    if (char === '(' || char === '[' || char === '{') depth += 1
+    if (char === ')' || char === ']' || char === '}') depth -= 1
+    if (char === ',' && depth === 0) { args.push(text.slice(start, index).trim()); start = index + 1 }
+  }
+  const tail = text.slice(start).trim()
+  if (tail) args.push(tail)
+  return args
+}
+
+function parseLiteral(text, context) {
+  const value = String(text || '').trim()
+  if (IDENTIFIER_PATTERN.test(value)) {
+    if (!Object.prototype.hasOwnProperty.call(context, value)) failUnsupported(value)
+    return context[value]
+  }
+  if (/^-?\d+(?:\.\d+)?$/.test(value)) return Number(value)
+  if (value === 'true') return true
+  if (value === 'false') return false
+  if (value === 'null') return null
+  if ((value[0] === '"' && value[value.length - 1] === '"') || (value[0] === "'" && value[value.length - 1] === "'")) {
+    if (value[0] === '"') return JSON.parse(value)
+    return value.slice(1, -1).replace(/\\'/g, "'").replace(/\\n/g, '\n').replace(/\\\\/g, '\\')
+  }
+  failUnsupported(value)
+}
+
+function applyMethod(value, method, args, context) {
+  if (method === 'trim' && !args.length) return String(value).trim()
+  if (method === 'toUpperCase' && !args.length) return String(value).toUpperCase()
+  if (method === 'toLowerCase' && !args.length) return String(value).toLowerCase()
+  if (method === 'substring' || method === 'slice') {
+    const numbers = args.map(arg => Number(parseLiteral(arg, context)))
+    return String(value)[method](...numbers)
+  }
+  if (method === 'replace' && args.length === 2) {
+    const regexMatch = args[0].match(/^\/([\s\S]*)\/([gimsuy]*)$/)
+    const pattern = regexMatch ? new RegExp(regexMatch[1], regexMatch[2]) : String(parseLiteral(args[0], context))
+    return String(value).replace(pattern, String(parseLiteral(args[1], context)))
+  }
+  failUnsupported(method)
+}
+
+function evaluateExpression(expression, context) {
+  const text = String(expression || '').trim().replace(/^return\s+/, '').replace(/;$/, '').trim()
+  const functionMatch = text.match(/^(encodeURIComponent|decodeURIComponent|base64Encode|base64Decode|jsonParse|jsonStringify|resolveUrl)\(([\s\S]*)\)([\s\S]*)$/)
+  let value
+  let rest = ''
+  if (functionMatch) {
+    const args = splitArgs(functionMatch[2]).map(arg => evaluateExpression(arg, context))
+    const name = functionMatch[1]
+    if (name === 'encodeURIComponent') value = encodeURIComponent(String(args[0] ?? ''))
+    else if (name === 'decodeURIComponent') value = decodeURIComponent(String(args[0] ?? ''))
+    else if (name === 'base64Encode') value = encodeBase64(args[0])
+    else if (name === 'base64Decode') value = decodeBase64(args[0])
+    else if (name === 'jsonParse') value = JSON.parse(String(args[0] ?? ''))
+    else if (name === 'jsonStringify') value = JSON.stringify(args[0])
+    else value = new URL(String(args[0] ?? ''), String(args[1] ?? '')).toString()
+    rest = functionMatch[3]
+  } else {
+    const base = text.match(/^([A-Za-z_$][\w$]*|"(?:\\.|[^"])*"|'(?:\\.|[^'])*'|-?\d+(?:\.\d+)?)([\s\S]*)$/)
+    if (!base) failUnsupported(text)
+    value = parseLiteral(base[1], context)
+    rest = base[2]
+  }
+
+  while (rest) {
+    const method = rest.match(/^\.([A-Za-z_$][\w$]*)\(([^()]*)\)/)
+    if (method) {
+      value = applyMethod(value, method[1], splitArgs(method[2]), context)
+      rest = rest.slice(method[0].length)
+      continue
+    }
+    const property = rest.match(/^\.([A-Za-z_$][\w$]*)(?!\s*\()/)
+    if (property) {
+      if (value == null || !Object.prototype.hasOwnProperty.call(Object(value), property[1])) failUnsupported(property[1])
+      value = value[property[1]]
+      rest = rest.slice(property[0].length)
+      continue
+    }
+    failUnsupported(rest)
+  }
+  return value
+}
+
+export function executeJsRule(rule, context = {}, options = {}) {
+  const timeoutMs = options.timeoutMs == null ? 1000 : Number(options.timeoutMs)
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) throw new JsRuleSandboxError('JS_RULE_TIMEOUT', 'JS 规则执行超时')
+  let source = String(rule || '').trim().replace(/^<js>/i, '').replace(/<\/js>$/i, '').replace(/^@js:/i, '').trim()
+  if (!source || source.length > 10000 || FORBIDDEN_PATTERN.test(source)) failUnsupported()
+  const startedAt = Date.now()
+  const result = evaluateExpression(source, { ...context })
+  if (Date.now() - startedAt > timeoutMs) throw new JsRuleSandboxError('JS_RULE_TIMEOUT', 'JS 规则执行超时')
+  return result
+}

@@ -204,10 +204,18 @@
             <input v-model="catalogKeyword" placeholder="搜索章节名" confirm-type="search" />
           </view>
 
-          <scroll-view v-if="catalogTab === 'catalog'" class="catalog-list" scroll-y :scroll-into-view="activeChapterId" :show-scrollbar="false">
+          <scroll-view
+            v-if="catalogTab === 'catalog'"
+            class="catalog-list"
+            scroll-y
+            :scroll-into-view="activeChapterId"
+            :show-scrollbar="false"
+            @scrolltolower="loadMoreCatalogChapters"
+            @scrolltoupper="loadPreviousCatalogChapters"
+          >
             <view
               class="catalog-item"
-              v-for="item in filteredChapters"
+              v-for="item in visibleCatalogChapters"
               :key="item.index"
               :id="`chapter-${item.index}`"
               :class="{ active: item.index === chapterIndex }"
@@ -247,7 +255,7 @@
 
 <script>
 import { getBook, loadLocalBookCatalog, loadLocalChapterContent, loadLocalChapterContentAsync } from '../../common/books.js'
-import { addOnlineBookToShelf, loadOnlineChapter } from '../../common/bookSources.js'
+import { addOnlineBookToShelf, loadOnlineChapter, preloadOnlineChapters } from '../../common/bookSources.js'
 import {
   getBrightnessOverlayOpacity,
   getBookmarks,
@@ -274,6 +282,8 @@ import {
 } from '../../common/backendLibrary.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 
+const CATALOG_BATCH_SIZE = 120
+
 export default {
   data() {
     return {
@@ -299,6 +309,8 @@ export default {
       appThemeId: getAppThemeId(),
       catalogTab: 'catalog',
       catalogKeyword: '',
+      catalogStartIndex: 0,
+      catalogVisibleCount: CATALOG_BATCH_SIZE,
       settingsMode: 'interface',
       speaking: false
     }
@@ -393,8 +405,16 @@ export default {
         .map((item, index) => ({ ...item, index }))
         .filter(item => !keyword || String(item.title || '').toLowerCase().includes(keyword))
     },
+    visibleCatalogChapters() {
+      return this.filteredChapters.slice(this.catalogStartIndex, this.catalogStartIndex + this.catalogVisibleCount)
+    },
     currentBookmarkActive() {
       return this.bookmarks.some(item => item.chapterIndex === this.chapterIndex && item.pageIndex === this.pageIndex)
+    }
+  },
+  watch: {
+    catalogKeyword() {
+      this.resetCatalogWindow(false)
     }
   },
   onLoad(options) {
@@ -446,10 +466,11 @@ export default {
         this.loadingText = currentChapter.isCached ? '正在读取缓存...' : '正在解码章节...'
         this.pages = ['请稍候，正在为你解析这一章。']
         try {
-          const loaded = await loadOnlineChapter(this.book, currentChapter)
+          const loaded = await loadOnlineChapter(this.book, currentChapter, { autoPreload: true })
           if (this.chapterLoadToken !== token) return
           this.book.chapters.splice(this.chapterIndex, 1, loaded)
           addOnlineBookToShelf(this.book)
+          preloadOnlineChapters(this.book, this.chapterIndex).catch(() => {})
           this.pages = splitChapter(loaded.content, this.prefs.fontSize, this.prefs)
           this.loadingChapter = false
         } catch (error) {
@@ -654,7 +675,26 @@ export default {
       this.moreVisible = false
       this.controlsVisible = true
       this.catalogTab = 'catalog'
+      this.resetCatalogWindow(true)
       this.clearChromeTimer()
+    },
+    resetCatalogWindow(centerCurrent = true) {
+      const list = this.filteredChapters
+      const currentIndex = list.findIndex(item => item.index === this.chapterIndex)
+      const shouldCenter = centerCurrent && !this.catalogKeyword.trim() && currentIndex >= 0
+      this.catalogStartIndex = shouldCenter ? Math.max(0, currentIndex - 20) : 0
+      this.catalogVisibleCount = Math.min(CATALOG_BATCH_SIZE, Math.max(list.length - this.catalogStartIndex, 0))
+    },
+    loadMoreCatalogChapters() {
+      const remaining = this.filteredChapters.length - this.catalogStartIndex
+      if (this.catalogVisibleCount >= remaining) return
+      this.catalogVisibleCount = Math.min(remaining, this.catalogVisibleCount + CATALOG_BATCH_SIZE)
+    },
+    loadPreviousCatalogChapters() {
+      if (this.catalogStartIndex <= 0) return
+      const step = Math.min(CATALOG_BATCH_SIZE, this.catalogStartIndex)
+      this.catalogStartIndex -= step
+      this.catalogVisibleCount += step
     },
     closeCatalog() {
       this.catalogVisible = false
@@ -1036,7 +1076,7 @@ export default {
   inset: 0;
   display: flex;
   flex-direction: column;
-  padding: calc(56rpx + env(safe-area-inset-top)) 0 calc(56rpx + env(safe-area-inset-bottom));
+  padding: calc(16rpx + env(safe-area-inset-top)) 0 calc(72rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
   transition: background 0.2s ease, color 0.2s ease;
 }
@@ -1633,8 +1673,8 @@ export default {
   }
 
   .reading-surface {
-    padding-top: calc(54rpx + env(safe-area-inset-top));
-    padding-bottom: calc(54rpx + env(safe-area-inset-bottom));
+    padding-top: calc(12rpx + env(safe-area-inset-top));
+    padding-bottom: calc(68rpx + env(safe-area-inset-bottom));
   }
 
   .top-chrome {

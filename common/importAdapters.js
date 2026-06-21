@@ -1,6 +1,7 @@
 import { detectSourceImportPayload } from './sourceEngine.js'
 
 const NATIVE_SCAN_TIMEOUT_MS = 2500
+const NATIVE_BRIDGE_SCAN_TIMEOUT_MS = 15000
 
 function getUniApi(api) {
   return api || globalThis.uni || {}
@@ -178,6 +179,7 @@ export function getClipboardText(api) {
 
 export function scanImportPayload(api, options = {}) {
   const uniApi = getUniApi(api)
+  const runtime = options.runtime || globalThis
   const fallbackToWebScanner = error => scanWithWebBarcodeDetector(options.runtime || globalThis, options).catch(webError => {
     throw new Error(
       webError && webError.message
@@ -188,10 +190,23 @@ export function scanImportPayload(api, options = {}) {
     )
   })
 
+  const fallbackToUniScan = nativeError => {
+    if (!uniApi.scanCode) return fallbackToWebScanner(nativeError)
+    return scanWithUniCode(uniApi, options, fallbackToWebScanner)
+  }
+
+  if (canUseNativeScanBridge(runtime)) {
+    return scanWithNativeBridge(runtime, options).catch(fallbackToUniScan)
+  }
+
   if (!uniApi.scanCode) {
     return fallbackToWebScanner(new Error('uni.scanCode is not available'))
   }
 
+  return scanWithUniCode(uniApi, options, fallbackToWebScanner)
+}
+
+function scanWithUniCode(uniApi, options = {}, fallbackToWebScanner) {
   return new Promise((resolve, reject) => {
     let finished = false
     const timeoutId = setTimeout(() => {
@@ -223,6 +238,101 @@ export function scanImportPayload(api, options = {}) {
       }
     })
   })
+}
+
+function canUseNativeScanBridge(runtime = globalThis) {
+  const bridge = runtime && runtime.NovelReaderScan
+  return !!(bridge && typeof bridge.scanQr === 'function')
+}
+
+export function scanWithNativeBridge(runtime = globalThis, options = {}) {
+  const bridge = runtime && runtime.NovelReaderScan
+  if (!bridge || typeof bridge.scanQr !== 'function') {
+    return Promise.reject(new Error('当前环境没有原生扫码桥接'))
+  }
+
+  return new Promise((resolve, reject) => {
+    const callbackName = `__novelReaderScanCallback_${Date.now()}_${Math.random().toString(36).slice(2)}`
+    let finished = false
+    let timeoutId = 0
+
+    const cleanup = () => {
+      if (timeoutId) clearTimeout(timeoutId)
+      try {
+        if (runtime && runtime[callbackName]) delete runtime[callbackName]
+      } catch (error) {
+        runtime[callbackName] = undefined
+      }
+      try {
+        if (globalThis[callbackName]) delete globalThis[callbackName]
+      } catch (error) {
+        globalThis[callbackName] = undefined
+      }
+    }
+
+    const finish = (error, value) => {
+      if (finished) return
+      finished = true
+      cleanup()
+      if (error) reject(error)
+      else resolve(value)
+    }
+
+    const callback = rawResult => {
+      try {
+        const result = parseNativeScanResult(rawResult)
+        if (!result.ok) {
+          finish(new Error(result.error || '原生扫码未完成'))
+          return
+        }
+        if (!result.value) {
+          finish(new Error('扫码结果为空'))
+          return
+        }
+        finish(null, result.value)
+      } catch (error) {
+        finish(error)
+      }
+    }
+
+    runtime[callbackName] = callback
+    globalThis[callbackName] = callback
+    timeoutId = setTimeout(() => finish(new Error('原生扫码超时，请重试或使用粘贴导入')), options.nativeBridgeTimeoutMs || NATIVE_BRIDGE_SCAN_TIMEOUT_MS)
+
+    try {
+      const accepted = bridge.scanQr(callbackName)
+      if (accepted === false) {
+        finish(new Error('原生扫码启动失败'))
+      }
+    } catch (error) {
+      finish(new Error(error && error.message ? error.message : '原生扫码启动失败'))
+    }
+  })
+}
+
+function parseNativeScanResult(rawResult) {
+  let result = rawResult
+  if (typeof result === 'string') {
+    const text = result.trim()
+    if (/^\{[\s\S]*\}$/.test(text)) {
+      try {
+        result = JSON.parse(text)
+      } catch (error) {
+        result = { ok: true, result: text }
+      }
+    } else {
+      result = { ok: true, result: text }
+    }
+  }
+
+  if (!result || typeof result !== 'object') {
+    return { ok: false, value: '', error: '原生扫码返回无效' }
+  }
+
+  const ok = result.ok !== false && !result.cancelled
+  const value = String(result.result || result.text || result.url || '').trim()
+  const error = String(result.error || result.message || '').trim()
+  return { ok, value, error }
 }
 
 export function scanWithWebBarcodeDetector(runtime = globalThis, options = {}) {

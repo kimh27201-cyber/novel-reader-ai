@@ -3,8 +3,10 @@ backend/.venv/
 backend/data/
 backend/.env
 backend/.pytest_cache/
+/.pytest_cache/
 backend/**/__pycache__/
 backend/**/*.pyc
+backend/debug-*.log
 
 # uni-app / editor output
 unpackage/
@@ -15,6 +17,13 @@ unpackage/
 android-webview-shell/assets/
 android-webview-shell/build/
 release/
+
+# Local tooling and acceptance artifacts
+.claude/
+.playwright-cli/
+output/
+preview/
+novel_screen.png
 
 # OS
 Thumbs.db

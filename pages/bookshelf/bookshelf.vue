@@ -16,10 +16,10 @@
     </view>
     <view class="more-menu-mask" v-if="moreMenuVisible" @tap="closeMoreMenu"></view>
 
-    <scroll-view class="book-list" :class="shelfLayout" scroll-y :show-scrollbar="false">
-      <view class="book-row" v-for="book in books" :key="book.id" @tap="openBook(book)" @longpress="openBookActions(book)">
+    <scroll-view class="book-list" :class="shelfLayout" scroll-y :show-scrollbar="false" @scrolltolower="loadMoreBooks">
+      <view class="book-row" v-for="book in visibleBooks" :key="book.id" @tap="openBook(book)" @longpress="openBookActions(book)">
         <view class="cover-wrap">
-          <image class="cover-image" v-if="book.coverUrl" :src="book.coverUrl" mode="aspectFill" />
+          <image class="cover-image" v-if="book.coverUrl" :src="book.coverUrl" mode="aspectFill" lazy-load />
           <text v-else>{{ shortTitle(book.title) }}</text>
         </view>
         <view class="book-info">
@@ -49,7 +49,7 @@
     <view class="book-action-mask" v-if="bookActionsVisible" @tap="closeBookActions"></view>
     <view class="book-action-sheet" v-if="bookActionsVisible && selectedBook">
       <view class="sheet-cover">
-        <image class="sheet-cover-image" v-if="selectedBook.coverUrl" :src="selectedBook.coverUrl" mode="aspectFill" />
+        <image class="sheet-cover-image" v-if="selectedBook.coverUrl" :src="selectedBook.coverUrl" mode="aspectFill" lazy-load />
         <text v-else>{{ shortTitle(selectedBook.title) }}</text>
       </view>
       <view class="sheet-title">{{ selectedBook.title }}</view>
@@ -79,11 +79,13 @@ import { listBackendBooks } from '../../common/backendLibrary.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 
 const SHELF_LAYOUT_KEY = 'bookshelf:layout'
+const BOOK_BATCH_SIZE = 40
 
 export default {
   data() {
     return {
       books: [],
+      visibleBookCount: BOOK_BATCH_SIZE,
       sources: [],
       moreMenuVisible: false,
       bookActionsVisible: false,
@@ -104,6 +106,9 @@ export default {
   computed: {
     themeVars() {
       return getAppThemeStyle(this.themeId)
+    },
+    visibleBooks() {
+      return this.books.slice(0, this.visibleBookCount)
     }
   },
   onShow() {
@@ -115,6 +120,7 @@ export default {
   methods: {
     async refreshBooks() {
       const localBooks = getBooks()
+      this.resetVisibleBooks()
       if (!apiClient.getToken()) {
         this.books = localBooks
         return
@@ -128,6 +134,14 @@ export default {
         }
         uni.showToast({ title: friendlyErrorMessage(error, '云端书架加载失败'), icon: 'none' })
       }
+      this.resetVisibleBooks()
+    },
+    resetVisibleBooks() {
+      this.visibleBookCount = BOOK_BATCH_SIZE
+    },
+    loadMoreBooks() {
+      if (this.visibleBookCount >= this.books.length) return
+      this.visibleBookCount = Math.min(this.books.length, this.visibleBookCount + BOOK_BATCH_SIZE)
     },
     shortTitle(title) {
       return String(title || '').slice(0, 4)

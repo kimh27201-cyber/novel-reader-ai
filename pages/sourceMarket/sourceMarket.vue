@@ -97,6 +97,10 @@
           <text class="preview-label">兼容性</text>
           <text class="preview-value">{{ previewSource.compatibility || 'v1 兼容' }}</text>
         </view>
+        <view class="preview-row">
+          <text class="preview-label">安装状态</text>
+          <text class="preview-value">{{ previewInstalled ? '已安装' : '未安装' }}</text>
+        </view>
       </view>
       <view class="status-card compact" v-else>
         <view class="status-title">{{ previewLoading ? '正在读取书源详情' : '无法预览书源' }}</view>
@@ -111,7 +115,7 @@
 </template>
 
 <script>
-import { importSourcesFromAny } from '../../common/bookSources.js'
+import { getSourceConfigs, importSourcesFromAny } from '../../common/bookSources.js'
 import { getAppThemeId, getAppThemeStyle } from '../../common/appTheme.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 import {
@@ -139,6 +143,7 @@ export default {
       previewError: '',
       previewSource: null,
       previewJsonUrl: '',
+      previewInstalled: false,
       importing: false,
       providers: [
         { label: SOURCE_MARKET_PROVIDERS.yckceo.label, value: 'yckceo' },
@@ -247,10 +252,12 @@ export default {
       this.previewError = ''
       this.previewSource = null
       this.previewJsonUrl = ''
+      this.previewInstalled = false
       try {
         const result = await fetchMarketSourcePreview(url)
         this.previewSource = result.source
         this.previewJsonUrl = result.jsonUrl
+        this.previewInstalled = this.isSourceInstalled(result.source)
       } catch (error) {
         this.previewError = friendlyErrorMessage(error, '无法预览书源')
       } finally {
@@ -269,11 +276,16 @@ export default {
           title: `已导入：${result.imported} 新增 / ${result.updated} 覆盖`,
           icon: 'none'
         })
+        this.previewInstalled = true
       } catch (error) {
         uni.showToast({ title: friendlyErrorMessage(error, '导入失败'), icon: 'none' })
       } finally {
         this.importing = false
       }
+    },
+    isSourceInstalled(source) {
+      if (!source || !source.id) return false
+      return getSourceConfigs().some(item => item.id === source.id)
     }
   }
 }

@@ -1,6 +1,9 @@
 import apiClient from './apiClient.js'
+import { normalizeHeaders } from './headerUtils.js'
+import { executeJsRule } from './jsRuleSandbox.js'
+import { renderedFetch } from './webViewBridge.js'
 
-export const unsupportedRulePattern = /(<js>|<\/js>|@js:|java\.|cookie\.|webview|loginUrl|header\s*=|eval\()/i
+export const unsupportedRulePattern = /(?:java\.|eval\(|\bFunction\s*\(|\bfetch\s*\(|XMLHttpRequest|WebSocket|\bwindow\.|\bdocument\.|localStorage|sessionStorage|\brequire\s*\(|\bprocess\.|\bwhile\s*\(|\bfor\s*\()/i
 
 export function cleanText(value) {
   return String(value == null ? '' : value)
@@ -42,6 +45,15 @@ export function normalizeSourceConfig(input, defaults = {}) {
   const id = input.id || defaults.id || createSourceId(raw)
   const incompatible = hasUnsupportedRule(raw)
   const features = detectSourceFeatures(raw)
+  const levelInfo = detectSourceCompatibilityLevel(raw)
+  const compatibilityLabels = {
+    full_css: '完整兼容',
+    need_headers: '兼容（需请求头/Cookie）',
+    need_js_sandbox: '兼容（安全 JS 子集）',
+    need_webview: '条件兼容（需 Android WebView）',
+    need_login: '条件兼容（需登录）',
+    unsupported: '不兼容（受限能力）'
+  }
 
   return {
     id,
@@ -55,7 +67,8 @@ export function normalizeSourceConfig(input, defaults = {}) {
     enabled: input.enabled !== undefined ? !!input.enabled : defaults.enabled !== undefined ? !!defaults.enabled : true,
     recommended: input.recommended !== undefined ? !!input.recommended : raw.recommended !== undefined ? !!raw.recommended : !!defaults.recommended,
     raw,
-    compatibility: incompatible ? '不兼容 v1：包含 JS/Cookie/登录类规则' : 'v1 兼容',
+    compatibilityLevel: incompatible ? 'unsupported' : levelInfo.level,
+    compatibility: incompatible ? '不兼容（包含危险脚本能力）' : compatibilityLabels[levelInfo.level],
     importedAt: input.importedAt !== undefined ? input.importedAt : defaults.importedAt !== undefined ? defaults.importedAt : Date.now(),
     updatedAt: Date.now()
   }
@@ -88,6 +101,31 @@ export function detectSourceFeatures(raw = {}) {
     webView: /webview/i.test(text),
     jsRule: /<js>|<\/js>|@js:|java\.|eval\(/i.test(text)
   }
+}
+
+export function detectSourceCompatibilityLevel(raw = {}, environment = {}) {
+  const source = raw && (raw.raw || raw) || {}
+  const text = typeof source === 'string' ? source : JSON.stringify(source)
+  const android = environment.android === true
+  let level = 'full_css'
+  if (/(验证码|人机验证|强风控|付费|会员专享|captcha|cloudflare|turnstile|recaptcha|paywall)/i.test(text)) level = 'unsupported'
+  else if (hasNonEmptySourceField(source, ['loginUrl', 'loginUi', 'loginCheck'])) level = 'need_login'
+  else if (/webview/i.test(text)) level = 'need_webview'
+  else if (/<js>|<\/js>|@js:/i.test(text)) level = 'need_js_sandbox'
+  else if (hasNonEmptySourceField(source, ['header', 'headers', 'httpHeader']) || /cookie\./i.test(text) || source.enabledCookieJar) level = 'need_headers'
+
+  const environmentSupported = level === 'unsupported'
+    ? false
+    : (level === 'need_webview' || level === 'need_login') ? android : true
+  const nextActions = {
+    full_css: '可直接运行并进行全链路测试',
+    need_headers: '通过后端代理传递 UA、Referer 或 Cookie',
+    need_js_sandbox: '使用安全 JS 子集；超出白名单时需改写规则',
+    need_webview: android ? '使用 Android WebView 获取渲染后 HTML' : '请在 Android APK 中使用动态渲染能力',
+    need_login: android ? '请手动打开登录页并保存登录状态' : '请在 Android APK 中手动登录后保存 Cookie',
+    unsupported: '不自动绕过验证码、强风控、会员或付费限制'
+  }
+  return { level, environmentSupported, nextAction: nextActions[level] }
 }
 
 function hasNonEmptySourceField(raw = {}, names = []) {
@@ -223,7 +261,12 @@ export function renderTemplate(template, context = {}) {
       const value = readJsonPath(context, name)
       return Array.isArray(value) ? value[0] || '' : value || ''
     }
-    return context[name] == null ? '' : context[name]
+    if (context[name] != null) return context[name]
+    try {
+      return executeJsRule(name, context)
+    } catch (error) {
+      return ''
+    }
   })
 }
 
@@ -239,7 +282,14 @@ export function resolveUrl(url, baseUrl) {
 }
 
 export function parseRequestSpec(spec, context = {}, baseUrl = '') {
-  const text = renderTemplate(String(spec || '').trim(), context)
+  const rawSpec = String(spec || '').trim()
+  const requestContext = { ...context, baseUrl: context.baseUrl || baseUrl }
+  const text = /^(?:<js>|@js:)/i.test(rawSpec)
+    ? String(executeJsRule(rawSpec, {
+      ...requestContext,
+      result: requestContext.result == null ? (requestContext.key || '') : requestContext.result
+    }))
+    : renderTemplate(rawSpec, requestContext)
   const match = text.match(/^([^,]+),\s*(\{[\s\S]*\})\s*$/)
   if (!match) {
     return {
@@ -260,36 +310,107 @@ export function parseRequestSpec(spec, context = {}, baseUrl = '') {
   return {
     url: resolveUrl(match[1], baseUrl),
     method: String(options.method || (options.body ? 'POST' : 'GET')).toUpperCase(),
-    header: renderObject(options.headers || options.header || {}, context),
+    header: normalizeHeaders(options.headers || options.header || {}, { channel: 'proxy', context }),
     data: renderTemplate(options.body || options.data || '', context),
     charset: options.charset || ''
   }
 }
 
-export function requestText(spec) {
+const sourceRequestTimestamps = new Map()
+
+function clampRequestNumber(value, min, max, fallback) {
+  const number = Number(value)
+  if (!Number.isFinite(number)) return fallback
+  return Math.max(min, Math.min(max, Math.round(number)))
+}
+
+function sleep(ms) {
+  const delay = Number(ms || 0)
+  if (delay <= 0) return Promise.resolve()
+  return new Promise(resolve => setTimeout(resolve, delay))
+}
+
+function requestRateLimitKey(spec = {}) {
+  if (spec.rateLimitKey) return String(spec.rateLimitKey)
+  try {
+    return new URL(spec.url).origin
+  } catch (error) {
+    return String(spec.url || 'default')
+  }
+}
+
+async function waitForRequestInterval(spec = {}) {
+  const interval = clampRequestNumber(spec.requestIntervalMs, 0, 10000, 0)
+  if (!interval) return
+  const key = requestRateLimitKey(spec)
+  const now = Date.now()
+  const last = sourceRequestTimestamps.get(key) || 0
+  const waitMs = Math.max(0, interval - (now - last))
+  if (waitMs) await sleep(waitMs)
+  sourceRequestTimestamps.set(key, Date.now())
+}
+
+export async function requestText(spec) {
   const requestUrl = getRuntimeRequestUrl(spec.url)
+  const retryCount = clampRequestNumber(spec.retryCount, 0, 3, 0)
+  const retryIntervalMs = clampRequestNumber(spec.retryIntervalMs, 0, 10000, 0)
+  const attempts = retryCount + 1
+  let lastError
+
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    try {
+      await waitForRequestInterval(spec)
+      return await requestTextOnce(requestUrl, spec, attempt === attempts - 1)
+    } catch (error) {
+      lastError = error
+      if (attempt < attempts - 1) {
+        await sleep(retryIntervalMs)
+      }
+    }
+  }
+
+  throw lastError || new Error('网络请求失败')
+}
+
+function requestTextOnce(requestUrl, spec, allowDirectFallback) {
+  if (spec.rendered) {
+    return renderedFetch(spec.url, {
+      headers: normalizeHeaders(spec.header || {}, { channel: 'proxy' }),
+      cookie: spec.cookie || '',
+      userAgent: spec.userAgent || '',
+      waitMs: spec.waitMs,
+      waitSelector: spec.waitSelector,
+      timeoutMs: spec.timeoutMs || 10000
+    }).then(result => result.html)
+  }
   if (shouldUseBackendProxy(spec.url)) {
     return apiClient.proxyFetch(spec.url, {
       method: spec.method || 'GET',
-      headers: spec.header || {},
+      headers: normalizeHeaders(spec.header || {}, { channel: 'proxy' }),
       body: spec.data || '',
       charset: spec.charset || ''
     }).then(data => {
       if (data && typeof data.text === 'string') return data.text
       return typeof data === 'string' ? data : JSON.stringify(data || '')
-    }).catch(() => directRequestText(requestUrl, spec))
+    }).catch(error => {
+      if (allowDirectFallback) return directRequestText(requestUrl, spec)
+      throw error
+    })
   }
 
   return directRequestText(requestUrl, spec)
 }
 
 function directRequestText(requestUrl, spec) {
+  const directHeaders = normalizeHeaders(spec.header || {}, {
+    channel: typeof window !== 'undefined' ? 'direct' : 'proxy'
+  })
   if (typeof uni !== 'undefined' && uni.request) {
     return new Promise((resolve, reject) => {
       uni.request({
         url: requestUrl,
         method: spec.method || 'GET',
-        header: spec.header || {},
+        header: directHeaders,
         data: spec.data || undefined,
         timeout: 12000,
         responseType: 'text',
@@ -305,7 +426,7 @@ function directRequestText(requestUrl, spec) {
   if (typeof fetch !== 'undefined') {
     return fetch(requestUrl, {
       method: spec.method || 'GET',
-      headers: spec.header || {},
+      headers: directHeaders,
       body: spec.method === 'POST' ? spec.data : undefined
     }).then(response => response.text())
   }
@@ -348,10 +469,15 @@ export function parseResponsePayload(text) {
 
 export function applyRule(input, rule, context = {}) {
   if (!rule && rule !== 0) return ''
-  if (hasUnsupportedRule(rule)) return ''
   if (typeof rule === 'object') return rule
 
-  const options = splitFallbacks(String(rule))
+  const text = String(rule).trim()
+  if (/^(?:<js>|@js:)/i.test(text)) {
+    return executeJsRule(text, { ...context, result: input })
+  }
+  if (hasUnsupportedRule(rule)) return ''
+
+  const options = splitFallbacks(text)
   for (let index = 0; index < options.length; index += 1) {
     const value = applyRulePart(input, options[index], context)
     if (Array.isArray(value) ? value.length : String(value || '').trim()) {

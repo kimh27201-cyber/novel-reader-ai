@@ -70,9 +70,12 @@ assert.equal(
 )
 
 const libraryPage = readFileSync(new URL('../pages/library/library.vue', import.meta.url), 'utf8')
+const scanPage = readFileSync(new URL('../pages/import/scan.vue', import.meta.url), 'utf8')
 assert.match(libraryPage, /source-hero-card/)
 assert.match(libraryPage, /themeVars/)
-assert.match(libraryPage, /target\.type === 'market'/)
+assert.match(libraryPage, /\/pages\/import\/scan/)
+assert.match(scanPage, /target\.type !== 'market'/)
+assert.match(scanPage, /\/pages\/sourceMarket\/sourceMarket\?url=/)
 assert.doesNotMatch(libraryPage, /target\.type === 'detail' \|\| target\.type === 'json'/)
 assert.doesNotMatch(libraryPage, /后端演示源|importBackendDemo|importBackendDemoSource/)
 assert.doesNotMatch(libraryPage, /visibleBackendSources|backendSources|backendLoading|sourceFilter === 'cloud'/)
