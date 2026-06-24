@@ -82,6 +82,10 @@ function applyMethod(value, method, args, context) {
   failUnsupported(method)
 }
 
+function emptyIfNullish(value) {
+  return value == null ? '' : value
+}
+
 function evaluateExpression(expression, context) {
   const text = String(expression || '').trim().replace(/^return\s+/, '').replace(/;$/, '').trim()
   const functionMatch = text.match(/^(encodeURIComponent|decodeURIComponent|base64Encode|base64Decode|jsonParse|jsonStringify|resolveUrl)\(([\s\S]*)\)([\s\S]*)$/)
@@ -90,13 +94,13 @@ function evaluateExpression(expression, context) {
   if (functionMatch) {
     const args = splitArgs(functionMatch[2]).map(arg => evaluateExpression(arg, context))
     const name = functionMatch[1]
-    if (name === 'encodeURIComponent') value = encodeURIComponent(String(args[0] ?? ''))
-    else if (name === 'decodeURIComponent') value = decodeURIComponent(String(args[0] ?? ''))
+    if (name === 'encodeURIComponent') value = encodeURIComponent(String(emptyIfNullish(args[0])))
+    else if (name === 'decodeURIComponent') value = decodeURIComponent(String(emptyIfNullish(args[0])))
     else if (name === 'base64Encode') value = encodeBase64(args[0])
     else if (name === 'base64Decode') value = decodeBase64(args[0])
-    else if (name === 'jsonParse') value = JSON.parse(String(args[0] ?? ''))
+    else if (name === 'jsonParse') value = JSON.parse(String(emptyIfNullish(args[0])))
     else if (name === 'jsonStringify') value = JSON.stringify(args[0])
-    else value = new URL(String(args[0] ?? ''), String(args[1] ?? '')).toString()
+    else value = new URL(String(emptyIfNullish(args[0])), String(emptyIfNullish(args[1]))).toString()
     rest = functionMatch[3]
   } else {
     const base = text.match(/^([A-Za-z_$][\w$]*|"(?:\\.|[^"])*"|'(?:\\.|[^'])*'|-?\d+(?:\.\d+)?)([\s\S]*)$/)

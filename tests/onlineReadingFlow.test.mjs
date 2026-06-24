@@ -120,6 +120,8 @@ assert.equal(shelfBook.chapters[0].isCached, true)
 
 const library = readFileSync(new URL('../pages/library/library.vue', import.meta.url), 'utf8')
 assert.match(library, /runSourceReadingFlow/)
+assert.match(library, /addBackendBookWithChapters/)
+assert.match(library, /apiClient\.getToken\(\)/)
 assert.match(library, /完整阅读测试/)
 assert.match(library, /sourceFlowTesting/)
 

@@ -86,6 +86,22 @@ function testPayloads() {
     source_id: 3
   })
 
+  assert.deepEqual(toBackendBookPayload({
+    title: 'Local Source Book',
+    author: 'Author',
+    bookUrl: 'https://book',
+    tocUrl: 'https://toc',
+    sourceId: 'source-user-local'
+  }), {
+    title: 'Local Source Book',
+    author: 'Author',
+    cover_url: '',
+    description: '',
+    book_url: 'https://book',
+    toc_url: 'https://toc',
+    source_id: null
+  })
+
   assert.deepEqual(toBackendChapterPayload({
     index: 1,
     title: 'Chapter',

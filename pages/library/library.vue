@@ -460,6 +460,8 @@ import { resolveMarketScanTarget } from '../../common/sourceMarket.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 import { clearSourceCookies, saveSourceCookie } from '../../common/sourceCookieJar.js'
 import { openSourceLogin, readSourceLoginCookie } from '../../common/webViewBridge.js'
+import apiClient from '../../common/apiClient.js'
+import { addBackendBookWithChapters } from '../../common/backendLibrary.js'
 
 export default {
   data() {
@@ -992,16 +994,37 @@ export default {
       this.sourceTestResult = null
       try {
         const result = await runSourceReadingFlow(this.selectedSource.id, this.testSourceKeyword)
+        let backendSynced = false
+        let backendSyncMessage = ''
+        if (apiClient.getToken()) {
+          try {
+            await addBackendBookWithChapters({
+              ...result.book,
+              sourceId: null
+            }, result.chapters)
+            backendSynced = true
+            backendSyncMessage = '，已同步后端书架'
+          } catch (syncError) {
+            backendSyncMessage = `，但后端书架同步失败：${friendlyErrorMessage(syncError, '同步失败')}`
+          }
+        }
         this.sourceTestResult = {
           title: `完整阅读测试通过：${result.book.title}`,
-          desc: `已完成搜索、详情、目录、正文，并加入书架缓存：${result.chapter.title}`,
-          items: result.stages.map(stage => ({
-            bookId: stage.id,
-            title: stage.title,
-            subtitle: stage.message
-          }))
+          desc: `已完成搜索、详情、目录、正文，并加入书架缓存：${result.chapter.title}${backendSyncMessage}`,
+          items: [
+            ...result.stages.map(stage => ({
+              bookId: stage.id,
+              title: stage.title,
+              subtitle: stage.message
+            })),
+            ...(apiClient.getToken() ? [{
+              bookId: 'backendShelf',
+              title: '后端书架同步',
+              subtitle: backendSynced ? '通过' : backendSyncMessage.replace(/^，/, '')
+            }] : [])
+          ]
         }
-        uni.showToast({ title: '已加入书架并缓存首章', icon: 'none' })
+        uni.showToast({ title: backendSynced ? '已加入书架并同步后端' : '已加入书架并缓存首章', icon: 'none' })
       } catch (error) {
         const stages = Array.isArray(error.flowStages) ? error.flowStages : []
         this.sourceTestResult = {

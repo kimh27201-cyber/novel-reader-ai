@@ -122,6 +122,7 @@ export function mapBackendTocChapter(chapter) {
 }
 
 export function toBackendBookPayload(book) {
+  const sourceId = numberId(book.sourceId || book.source_id)
   return {
     title: text(book.title, '未命名'),
     author: text(book.author, '未知作者'),
@@ -129,7 +130,7 @@ export function toBackendBookPayload(book) {
     description: book.description || book.intro || book.latestChapter || '',
     book_url: book.bookUrl || book.book_url || '',
     toc_url: book.tocUrl || book.toc_url || book.bookUrl || book.book_url || '',
-    source_id: book.sourceId || book.source_id || null
+    source_id: sourceId
   }
 }
 

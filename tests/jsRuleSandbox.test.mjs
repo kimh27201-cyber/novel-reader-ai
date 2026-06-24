@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
 import { executeJsRule, JsRuleSandboxError } from '../common/jsRuleSandbox.js'
 
 assert.equal(executeJsRule('result.trim().toUpperCase()', { result: '  abc ' }), 'ABC')
@@ -17,5 +18,8 @@ assert.throws(
   () => executeJsRule('result.trim()', { result: 'x' }, { timeoutMs: 0 }),
   error => error instanceof JsRuleSandboxError && error.code === 'JS_RULE_TIMEOUT'
 )
+
+const sandboxSource = readFileSync(new URL('../common/jsRuleSandbox.js', import.meta.url), 'utf8')
+assert.doesNotMatch(sandboxSource, /\?\?/, 'HBuilderX H5 build must not receive untranspiled nullish coalescing syntax')
 
 console.log('jsRuleSandbox tests passed')
