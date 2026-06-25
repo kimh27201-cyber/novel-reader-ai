@@ -338,6 +338,11 @@ export function createApiClient(deps = {}) {
         data: { content }
       })
     },
+    deleteSource(sourceId) {
+      return request(`/api/sources/${sourceId}`, {
+        method: 'DELETE'
+      })
+    },
     proxyFetch(url, options = {}) {
       return request('/api/proxy/fetch', {
         method: 'POST',

@@ -98,6 +98,26 @@ def test_import_and_list_sources():
     assert listed.json()[0]["name"] == "测试小说源"
 
 
+def test_delete_source_removes_owned_source_and_hides_from_list():
+    headers = auth_headers()
+    source = import_sample_source(headers)
+
+    response = client.delete(f"/api/sources/{source['id']}", headers=headers)
+    listed = client.get("/api/sources", headers=headers)
+    search = client.post(
+        f"/api/sources/{source['id']}/search",
+        headers=headers,
+        json={"keyword": "星轨", "page": 1},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["deleted"] is True
+    assert response.json()["id"] == source["id"]
+    assert listed.status_code == 200
+    assert listed.json() == []
+    assert search.status_code == 404
+
+
 def test_search_source_parses_html_results(monkeypatch):
     headers = auth_headers()
     source = import_sample_source(headers)

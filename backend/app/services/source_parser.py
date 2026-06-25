@@ -11,6 +11,7 @@ UNSUPPORTED_RULE_PATTERN = re.compile(
     r"(<js>|</js>|@js:|java\.|cookie\.|webview|loginUrl|header\s*=|eval\()",
     re.IGNORECASE,
 )
+_SOURCE_HTTP_CLIENT: httpx.AsyncClient | None = None
 
 
 class SourceParseError(ValueError):
@@ -161,16 +162,26 @@ def parse_request_spec(spec: str, context: dict[str, Any], base_url: str) -> dic
     }
 
 
-async def request_text(spec: dict[str, Any]) -> str:
-    async with httpx.AsyncClient(timeout=12.0, follow_redirects=True) as client:
-        response = await client.request(
-            spec.get("method", "GET"),
-            spec["url"],
-            headers=spec.get("headers") or {},
-            content=spec.get("data"),
+def get_source_http_client() -> httpx.AsyncClient:
+    global _SOURCE_HTTP_CLIENT
+    if _SOURCE_HTTP_CLIENT is None or _SOURCE_HTTP_CLIENT.is_closed:
+        _SOURCE_HTTP_CLIENT = httpx.AsyncClient(
+            timeout=httpx.Timeout(8.0, connect=4.0),
+            follow_redirects=True,
+            limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
         )
-        response.raise_for_status()
-        return response.text
+    return _SOURCE_HTTP_CLIENT
+
+
+async def request_text(spec: dict[str, Any]) -> str:
+    response = await get_source_http_client().request(
+        spec.get("method", "GET"),
+        spec["url"],
+        headers=spec.get("headers") or {},
+        content=spec.get("data"),
+    )
+    response.raise_for_status()
+    return response.text
 
 
 def field_rule(rule: dict[str, Any], names: list[str]) -> str:

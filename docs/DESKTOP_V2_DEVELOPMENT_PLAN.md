@@ -150,3 +150,120 @@ APK 中真实源“速读谷”完整阅读测试显示通过，但从书架重�
 5. 从书架打开该书，进入章节正文。
 6. 切换目录中的下一章或点击重试，确认不再出现 `/api/sources/null/content` 对应的“Request validation failed”。
 7. 如遇手机弹出 USB 安装、网络或权限确认，按系统提示允许；这属于外部操作，不属于代码缺陷。
+
+## 2026-06-25 书源删除、按钮居中与阅读测试提速修复记录
+
+### 修复范围
+
+- 书源详情抽屉：用户导入书源的“删除此书源”改为底部固定操作区，避免被底部导航和安全区遮挡。
+- 书源页按钮：统一补充 flex 居中样式，覆盖保存、搜索测试、完整阅读测试、健康检测、删除、关闭等截图相关按钮。
+- 用户书源删除：本地删除后立即刷新列表、关闭详情弹层；已登录后端时，同步删除同名且同 `baseUrl` 的后端书源，避免刷新后重新出现。
+- 后端接口：新增 `DELETE /api/sources/{source_id}`，仅允许当前登录用户删除自己的书源；删除前解除书架中引用该源的 `Book.source_id`。
+- 完整阅读测试提速：加入后端书架时不再对 999 章逐条同步，只同步书籍本体和当前已缓存章节；没有缓存章节时最多预取第一章用于验收。
+- 健康检测提速：改为轻量链路 `搜索 → 详情 → 目录 → 第一章正文`，不再执行书架同步。
+- 后端正文解析：复用 HTTP client 并设置超时/连接池，减少重复请求开销。
+
+### 自动化验收结果
+
+- 前端测试：`Get-ChildItem tests -Filter '*.test.mjs' | Sort-Object Name | ForEach-Object { node $_.FullName }`，共 39 个测试文件通过。
+- 后端测试：`backend\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider`，共 52 项通过。
+- 新增覆盖：
+  - 本地用户源删除后不再出现在 `getSourceConfigs()`。
+  - 后端同名同 URL 书源可通过 `DELETE /api/sources/{source_id}` 删除，列表和搜索中不再出现。
+  - `addBackendBookWithChapters` 只同步缓存章节，不再对 999 章全量 `POST /chapters`。
+  - 健康检测不再包含 `shelf` 阶段。
+
+### 当前外部阻塞
+
+本次代码和自动化测试已完成，但当前 Codex 系统额度限制拒绝了需要外部权限/风险确认的操作：
+
+- 清理旧 H5 构建产物：`unpackage/dist/build/h5/index.html` 当前构建时报 `EPERM: operation not permitted`。
+- H5 Chrome 人工验收、APK 打包、Git 提交和 GitHub 推送仍需在可用额度或用户本机终端中执行。
+
+### 待人工执行命令
+
+在项目根目录 `D:\Codex\novel-reader-uniapp` 执行：
+
+```powershell
+# 1. 如 H5 构建仍提示 index.html EPERM，先关闭占用该目录的浏览器/本地服务，再清理旧产物
+$target = "D:\Codex\novel-reader-uniapp\unpackage\dist\build\h5"
+Remove-Item -LiteralPath $target -Recurse -Force
+New-Item -ItemType Directory -Path $target | Out-Null
+
+# 2. H5 构建
+$env:UNI_INPUT_DIR='D:\Codex\novel-reader-uniapp'
+$env:UNI_PLATFORM='h5'
+$env:UNI_OUTPUT_DIR='D:\Codex\novel-reader-uniapp\unpackage\dist\build\h5'
+$env:VUE_CLI_CONTEXT='D:\HBuilderX\plugins\uniapp-cli'
+$env:NODE_ENV='production'
+& 'D:\HBuilderX\plugins\node\node.exe' 'D:\HBuilderX\plugins\uniapp-cli\bin\uniapp-cli.js'
+backend\.venv\Scripts\python.exe .\scripts\patch_h5_build.py
+
+# 3. H5 本地验收服务
+cd D:\Codex\novel-reader-uniapp\unpackage\dist\build\h5
+D:\Codex\novel-reader-uniapp\backend\.venv\Scripts\python.exe -m http.server 8080
+```
+
+浏览器打开 `http://localhost:8080/#/pages/library/library` 后验收：
+
+1. 打开用户导入源详情，删除按钮应固定在详情抽屉底部且容易点击。
+2. 点击删除，源应立即从列表消失；刷新页面后仍不出现。
+3. 完整阅读测试点击后应立即显示阶段进度，成功后书架有书，章节可打开。
+4. 健康检测应只跑轻量链路，响应明显快于旧版本。
+5. 书源页按钮文字应居中，无明显偏左或偏上。
+
+H5 通过后再执行一次 APK 打包：
+
+```powershell
+cd D:\Codex\novel-reader-uniapp
+powershell -ExecutionPolicy Bypass -File .\scripts\build_android_webview_apk.ps1
+Get-FileHash -Algorithm SHA256 .\release\android-v2\V2.apk
+```
+
+手机安装验收：
+
+```powershell
+D:\program\Android\SDK\platform-tools\adb.exe devices -l
+D:\program\Android\SDK\platform-tools\adb.exe reverse tcp:8000 tcp:8000
+D:\program\Android\SDK\platform-tools\adb.exe install --user 0 -r D:\Codex\novel-reader-uniapp\release\android-v2\V2.apk
+D:\program\Android\SDK\platform-tools\adb.exe shell am start -n com.novelreader.v1/.MainActivity
+```
+
+Git 提交和推送：
+
+```powershell
+cd D:\Codex\novel-reader-uniapp
+git diff --check
+git add backend/app/api/sources.py backend/app/services/source_parser.py backend/tests/test_sources.py common/apiClient.js common/backendLibrary.js common/bookSources.js pages/library/library.vue tests/backendLibrary.test.mjs tests/sourceHealth.test.mjs tests/v2SourceManagement.test.mjs docs/DESKTOP_V2_DEVELOPMENT_PLAN.md
+git commit -m "fix: improve source deletion and reading checks"
+git push origin main
+```
+
+## 2026-06-26 H5 构建与 APK 打包执行记录
+
+### 已完成
+
+- 已清理旧 H5 构建产物目录：`unpackage/dist/build/h5`。
+- 已重新执行 H5 构建，`unpackage/dist/build/h5/index.html` 生成成功。
+- 已启动本地 H5 静态服务，`http://127.0.0.1:8080/` 返回 HTTP 200。
+- 已确认后端健康检查：`http://127.0.0.1:8000/api/health` 返回 `{"status":"ok","app":"Novel Reader AI Backend","version":"0.1.0"}`。
+- 已确认 H5 构建产物包含本次关键 UI/逻辑变更：`source-detail-fixed-footer`、`source-progress-line`、删除提示、同步书架和健康检测相关文案。
+- 已一次性生成 APK：`release/android-v2/V2.apk`。
+- APK 大小：`1051766` 字节。
+- APK SHA256：`69A3EC09B2770A96BF3439B5292BC90B87FBCD74EFDCCBFDA818DCCF95829544`。
+- APK 签名校验：v1/v2/v3 均通过。
+
+### 待手机侧确认
+
+ADB 安装时手机返回：
+
+```text
+INSTALL_FAILED_ABORTED: User rejected permissions
+```
+
+这表示手机端安装权限确认被拒绝或超时，不是构建失败。下一步只需要在手机上允许安装/调试权限后重新执行：
+
+```powershell
+D:\program\Android\SDK\platform-tools\adb.exe install --user 0 -r D:\Codex\novel-reader-uniapp\release\android-v2\V2.apk
+D:\program\Android\SDK\platform-tools\adb.exe shell am start -n com.novelreader.v1/.MainActivity
+```

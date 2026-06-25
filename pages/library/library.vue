@@ -400,6 +400,7 @@
             </view>
           </view>
           <input class="field compact" v-model="testSourceKeyword" placeholder="输入测试关键词，例如 星轨图书馆" />
+          <view class="source-progress-line" v-if="sourceProgressText">{{ sourceProgressText }}</view>
           <view class="test-result" v-if="sourceTestResult">
             <view class="test-result-title">{{ sourceTestResult.title }}</view>
             <text class="test-result-desc">{{ sourceTestResult.desc }}</text>
@@ -409,14 +410,16 @@
           </view>
         </view>
 
-        <view class="source-delete-zone" v-if="selectedSource.importedAt">
+      </scroll-view>
+      <view class="source-detail-fixed-footer" v-if="selectedSource.importedAt">
+        <view class="source-delete-zone">
           <view>
             <view class="test-title">删除用户书源</view>
-            <text class="source-hint">删除后将同时清理该源的本地设置和 Cookie，此操作不可撤销。</text>
+            <text class="source-hint">删除后将同时清理本地设置、Cookie 和后端同名书源，此操作不可撤销。</text>
           </view>
           <button class="source-delete-button" @tap="confirmRemoveSource(selectedSource)">删除此书源</button>
         </view>
-      </scroll-view>
+      </view>
     </view>
   </view>
 </template>
@@ -461,7 +464,11 @@ import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 import { clearSourceCookies, saveSourceCookie } from '../../common/sourceCookieJar.js'
 import { openSourceLogin, readSourceLoginCookie } from '../../common/webViewBridge.js'
 import apiClient from '../../common/apiClient.js'
-import { addBackendBookWithChapters, syncBackendSourceFromLocal } from '../../common/backendLibrary.js'
+import {
+  addBackendBookWithChapters,
+  deleteBackendSourceMatchingLocal,
+  syncBackendSourceFromLocal
+} from '../../common/backendLibrary.js'
 
 export default {
   data() {
@@ -488,6 +495,7 @@ export default {
       sourceTesting: false,
       sourceFlowTesting: false,
       sourceHealthTesting: false,
+      sourceProgressText: '',
       sourceAntiSaving: false,
       antiCrawler: {
         requestIntervalMs: 1500,
@@ -966,8 +974,10 @@ export default {
       if (!this.selectedSource) return
       this.sourceTesting = true
       this.sourceTestResult = null
+      this.sourceProgressText = '搜索测试中…'
       try {
         const result = await testSourceSearch(this.selectedSource.id, this.testSourceKeyword)
+        this.sourceProgressText = '搜索测试完成'
         this.sourceTestResult = {
           title: `搜索完成：${result.count} 条结果`,
           desc: result.count ? '已通过网络测试，发现页会使用它搜索。' : '网络请求成功，已记录为可用；这个关键词没有返回书籍。',
@@ -986,18 +996,21 @@ export default {
         this.sources = getSourceConfigs()
         this.refreshSelectedSource()
         this.sourceTesting = false
+        setTimeout(() => { this.sourceProgressText = '' }, 1200)
       }
     },
     async runSourceReadingFlowTest() {
       if (!this.selectedSource) return
       this.sourceFlowTesting = true
       this.sourceTestResult = null
+      this.sourceProgressText = '完整阅读测试中：搜索、目录和正文解析…'
       try {
         const result = await runSourceReadingFlow(this.selectedSource.id, this.testSourceKeyword)
         let backendSynced = false
         let backendSyncMessage = ''
         if (apiClient.getToken()) {
           try {
+            this.sourceProgressText = '完整阅读测试中：同步后端书架…'
             const backendSource = await syncBackendSourceFromLocal(this.selectedSource)
             await addBackendBookWithChapters({
               ...result.book,
@@ -1009,6 +1022,7 @@ export default {
             backendSyncMessage = `，但后端书架同步失败：${friendlyErrorMessage(syncError, '同步失败')}`
           }
         }
+        this.sourceProgressText = '完整阅读测试完成'
         this.sourceTestResult = {
           title: `完整阅读测试通过：${result.book.title}`,
           desc: `已完成搜索、详情、目录、正文，并加入书架缓存：${result.chapter.title}${backendSyncMessage}`,
@@ -1041,14 +1055,17 @@ export default {
         this.sources = getSourceConfigs()
         this.refreshSelectedSource()
         this.sourceFlowTesting = false
+        setTimeout(() => { this.sourceProgressText = '' }, 1200)
       }
     },
     async runSourceHealthCheckTest() {
       if (!this.selectedSource) return
       this.sourceHealthTesting = true
       this.sourceTestResult = null
+      this.sourceProgressText = '健康检测中：轻量验证搜索、目录和正文…'
       try {
         const result = await runSourceHealthCheck(this.selectedSource.id, this.testSourceKeyword)
+        this.sourceProgressText = '健康检测完成'
         this.sourceTestResult = {
           title: `健康检测${result.status === 'passed' ? '通过' : '未通过'}：${result.score}`,
           desc: result.message || `全链路阶段通过 ${result.passed}/${result.stageCount}`,
@@ -1069,6 +1086,7 @@ export default {
         this.sources = getSourceConfigs()
         this.refreshSelectedSource()
         this.sourceHealthTesting = false
+        setTimeout(() => { this.sourceProgressText = '' }, 1200)
       }
     },
     async submitSourceImport() {
@@ -1217,13 +1235,23 @@ export default {
         }
       })
     },
-    removeSource(source) {
+    async removeSource(source) {
+      const sourceSnapshot = { ...source }
       deleteUserSource(source.id)
       this.sources = getSourceConfigs()
-      if (this.selectedSource && this.selectedSource.id === source.id) {
-        this.closePanels()
+      this.selectedSource = null
+      this.sourceDiagnostics = null
+      this.closePanels()
+      let backendMessage = ''
+      if (apiClient.getToken()) {
+        try {
+          const result = await deleteBackendSourceMatchingLocal(sourceSnapshot)
+          backendMessage = result && result.deleted ? '，后端已同步' : '，后端无匹配源'
+        } catch (error) {
+          backendMessage = `，后端同步失败：${friendlyErrorMessage(error, '同步失败')}`
+        }
       }
-      uni.showToast({ title: '书源已删除', icon: 'none' })
+      uni.showToast({ title: `书源已删除${backendMessage}`, icon: 'none' })
     },
     goSourceMarket(url = '') {
       const query = url ? `?url=${encodeURIComponent(url)}` : ''
@@ -1558,6 +1586,13 @@ textarea {
   box-sizing: border-box;
 }
 
+button,
+.source-delete-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .top-zone {
   display: flex;
   align-items: center;
@@ -1614,7 +1649,8 @@ textarea {
 .submit-button,
 .check-box,
 .status-switch,
-.row-action {
+.row-action,
+.source-delete-button {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2190,8 +2226,16 @@ textarea {
   flex: 1;
   min-height: 0;
   height: calc(100vh - 64rpx - 112rpx - env(safe-area-inset-bottom) - 124rpx);
-  padding: 0 28rpx 30rpx;
+  padding: 0 28rpx 180rpx;
   box-sizing: border-box;
+}
+
+.source-detail-fixed-footer {
+  flex-shrink: 0;
+  padding: 12rpx 28rpx calc(18rpx + env(safe-area-inset-bottom));
+  border-top: 1rpx solid var(--app-border);
+  background: rgba(15, 18, 28, 0.96);
+  box-shadow: 0 -16rpx 32rpx rgba(0, 0, 0, 0.22);
 }
 
 .detail-status {
@@ -2314,12 +2358,23 @@ textarea {
   background: var(--app-panel);
 }
 
+.source-progress-line {
+  margin-top: 12rpx;
+  padding: 12rpx 16rpx;
+  border-radius: 14rpx;
+  color: var(--app-on-accent);
+  font-size: 23rpx;
+  font-weight: 800;
+  text-align: center;
+  background: rgba(91, 231, 218, 0.22);
+}
+
 .source-delete-zone {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 18rpx;
-  margin-top: 18rpx;
+  margin-top: 0;
   padding: 18rpx;
   border: 1rpx solid rgba(226, 95, 53, 0.55);
   border-radius: 20rpx;

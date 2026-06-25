@@ -5,6 +5,7 @@ import {
   ensureBackendToken,
   isBackendBookId,
   addBackendBookWithChapters,
+  deleteBackendSourceMatchingLocal,
   syncBackendSourceFromLocal,
   listBackendBooks,
   loadBackendSourceContent,
@@ -254,6 +255,32 @@ async function testAddBackendBookWithChaptersPreflightsFirstChapterBeforeCreatin
   assert.equal(createBookCalled, false)
 }
 
+async function testAddBackendBookWithChaptersOnlyCreatesCachedChapters() {
+  const created = []
+  const mapped = await addBackendBookWithChapters({
+    sourceId: 8,
+    title: 'Book',
+    author: 'Author',
+    bookUrl: 'https://book'
+  }, [
+    { index: 0, title: 'Chapter 1', url: 'https://chapter-1', content: 'Cached body', isCached: true },
+    { index: 1, title: 'Chapter 2', url: 'https://chapter-2' },
+    { index: 2, title: 'Chapter 3', url: 'https://chapter-3', isCached: false }
+  ], {
+    getToken: () => 'token',
+    createBook: async payload => ({ id: 1, ...payload }),
+    createChapter: async (bookId, payload) => {
+      created.push({ bookId, payload })
+      return { id: created.length, ...payload }
+    }
+  })
+
+  assert.equal(created.length, 1)
+  assert.equal(created[0].payload.chapter_index, 0)
+  assert.equal(created[0].payload.content, 'Cached body')
+  assert.equal(mapped.chapters.length, 1)
+}
+
 async function testSyncBackendSourceFromLocalImportsRawSourceAndReturnsBackendId() {
   const calls = []
   const source = await syncBackendSourceFromLocal({
@@ -285,6 +312,28 @@ async function testSyncBackendSourceFromLocalImportsRawSourceAndReturnsBackendId
   assert.equal(source.backendId, 9)
 }
 
+async function testDeleteBackendSourceMatchingLocalDeletesSameNameAndBaseUrl() {
+  const calls = []
+  const result = await deleteBackendSourceMatchingLocal({
+    name: '速读谷',
+    baseUrl: 'https://www.sudugu.org'
+  }, {
+    getToken: () => 'token',
+    listSources: async () => [
+      { id: 4, name: 'Other', base_url: 'https://other.example.com', group: '', enabled: true, compatibility: 'v1' },
+      { id: 9, name: '速读谷', base_url: 'https://www.sudugu.org', group: '', enabled: true, compatibility: 'v1' }
+    ],
+    deleteSource: async sourceId => {
+      calls.push(sourceId)
+      return { deleted: true, id: sourceId }
+    }
+  })
+
+  assert.equal(result.deleted, true)
+  assert.equal(result.id, 9)
+  assert.deepEqual(calls, [9])
+}
+
 testBackendIds()
 testMappingBackendBookAndChapter()
 testPayloads()
@@ -292,6 +341,8 @@ testSourceMappingAndAuthGuard()
 await testListBackendBooksAcceptsWrappedBackendResponse()
 await testLoadBackendSourceContentWritesResolvedContentBackToChapter()
 await testAddBackendBookWithChaptersPreflightsFirstChapterBeforeCreatingBook()
+await testAddBackendBookWithChaptersOnlyCreatesCachedChapters()
 await testSyncBackendSourceFromLocalImportsRawSourceAndReturnsBackendId()
+await testDeleteBackendSourceMatchingLocalDeletesSameNameAndBaseUrl()
 
 console.log('backendLibrary tests passed')

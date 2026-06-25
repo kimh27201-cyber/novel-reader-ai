@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.api.auth import get_current_user
 from app.db.session import get_db
-from app.models.models import BookSource, User
+from app.models.models import Book, BookSource, User
 from app.schemas.sources import (
     SourceBookInfoRequest,
     SourceBookInfoResponse,
@@ -129,6 +129,22 @@ def list_sources(
         .order_by(BookSource.updated_at.desc(), BookSource.id.desc())
         .all()
     )
+
+
+@router.delete("/{source_id}")
+def delete_source(
+    source_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict[str, bool | int]:
+    source = get_owned_source(source_id, current_user.id, db)
+    db.query(Book).filter(Book.user_id == current_user.id, Book.source_id == source.id).update(
+        {Book.source_id: None},
+        synchronize_session=False,
+    )
+    db.delete(source)
+    db.commit()
+    return {"deleted": True, "id": source_id}
 
 
 @router.post("/{source_id}/search", response_model=SourceSearchResponse)

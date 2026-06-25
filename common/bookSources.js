@@ -2014,10 +2014,58 @@ export async function runSourceReadingFlow(sourceId, keyword, options = {}) {
   }
 }
 
+async function runSourceHealthFlow(sourceId, keyword, options = {}) {
+  const stages = []
+  const runStage = async (id, title, action) => {
+    const startedAt = Date.now()
+    try {
+      const result = await action()
+      stages.push({ id, title, status: 'passed', message: '通过', elapsedMs: Date.now() - startedAt })
+      return result
+    } catch (error) {
+      const message = friendlyErrorMessage(error, `${title}失败`)
+      stages.push({ id, title, status: 'failed', message, elapsedMs: Date.now() - startedAt })
+      const wrapped = new Error(`${title}失败：${message}`)
+      wrapped.flowStages = stages
+      throw wrapped
+    }
+  }
+
+  const search = await runStage('search', '搜索', () => testSourceSearch(sourceId, keyword, {
+    timeoutMs: options.timeoutMs,
+    limit: options.limit || 5,
+    failOnEmpty: true
+  }))
+  const first = search.results.find(item => item && item.type === 'online' && item.book)
+  if (!first) {
+    const error = new Error('搜索结果里没有可阅读书籍')
+    error.flowStages = stages
+    throw error
+  }
+  const info = await runStage('bookInfo', '详情', () => loadOnlineBookInfo(first.book))
+  const chapters = await runStage('toc', '目录', () => loadOnlineToc(info))
+  if (!chapters.length) {
+    const error = new Error('目录解析为空')
+    error.flowStages = stages
+    throw error
+  }
+  const chapterIndex = Math.max(0, Math.min(Number(options.chapterIndex || 0), chapters.length - 1))
+  const loadedChapter = await runStage('content', '正文', () => loadOnlineChapter(info, chapters[chapterIndex]))
+  return {
+    sourceId,
+    keyword: search.keyword,
+    search,
+    book: info,
+    chapters,
+    chapter: loadedChapter,
+    stages
+  }
+}
+
 export async function runSourceHealthCheck(sourceId, keyword, options = {}) {
   const startedAt = Date.now()
   try {
-    const flow = await runSourceReadingFlow(sourceId, keyword, options)
+    const flow = await runSourceHealthFlow(sourceId, keyword, options)
     const stages = flow.stages.map(stage => ({
       id: stage.id,
       title: stage.title,

@@ -15,6 +15,10 @@ function numberId(value) {
   return Number.isFinite(id) ? id : null
 }
 
+function sourceUrl(value) {
+  return text(value).replace(/\/+$/, '')
+}
+
 export function toBackendBookId(id) {
   return `${BACKEND_BOOK_PREFIX}${id}`
 }
@@ -227,8 +231,27 @@ export async function syncBackendSourceFromLocal(source, client = apiClient) {
   if (!raw || typeof raw !== 'object') return null
   const result = await importBackendSources(JSON.stringify(raw), client)
   const name = text(source.name || raw.bookSourceName || raw.sourceName)
-  const baseUrl = text(source.baseUrl || raw.bookSourceUrl || raw.sourceUrl || raw.baseUrl)
-  return result.sources.find(item => item.name === name && item.baseUrl === baseUrl) || result.sources[0] || null
+  const baseUrl = sourceUrl(source.baseUrl || raw.bookSourceUrl || raw.sourceUrl || raw.baseUrl)
+  return result.sources.find(item => item.name === name && sourceUrl(item.baseUrl) === baseUrl) || result.sources[0] || null
+}
+
+export async function deleteBackendSourceMatchingLocal(source, client = apiClient) {
+  ensureBackendToken(client)
+  if (!source) return { deleted: false, id: null }
+  if (source.backendId && typeof client.deleteSource === 'function') {
+    return client.deleteSource(source.backendId)
+  }
+  const name = text(source.name || (source.raw && source.raw.bookSourceName))
+  const baseUrl = sourceUrl(source.baseUrl || (source.raw && source.raw.bookSourceUrl))
+  if (!name || !baseUrl || typeof client.listSources !== 'function' || typeof client.deleteSource !== 'function') {
+    return { deleted: false, id: null }
+  }
+  const sources = await client.listSources()
+  const matched = (sources || []).find(item => {
+    return text(item.name) === name && sourceUrl(item.base_url || item.baseUrl) === baseUrl
+  })
+  if (!matched) return { deleted: false, id: null }
+  return client.deleteSource(matched.id || matched.backendId)
 }
 
 export async function searchBackendBooks(keyword, client = apiClient) {
@@ -273,16 +296,19 @@ export async function loadBackendSourceContent(book, chapter, client = apiClient
 
 export async function addBackendBookWithChapters(book, chapters, client = apiClient) {
   ensureBackendToken(client)
-  const normalizedChapters = [...(chapters || [])]
-  if (book.sourceId && normalizedChapters.length && !normalizedChapters[0].content) {
+  const sourceChapters = [...(chapters || [])]
+  const normalizedChapters = sourceChapters.filter(chapter => {
+    return !!(chapter && (chapter.content || chapter.isCached || chapter.is_cached))
+  })
+  if (book.sourceId && !normalizedChapters.length && sourceChapters.length) {
     const result = await client.loadSourceContent(book.sourceId, {
-      chapterUrl: normalizedChapters[0].url
+      chapterUrl: sourceChapters[0].url
     })
-    normalizedChapters[0] = {
-      ...normalizedChapters[0],
+    normalizedChapters.push({
+      ...sourceChapters[0],
       content: result.content || '',
       isCached: !!result.content
-    }
+    })
   }
   const createdBook = await client.createBook(toBackendBookPayload(book))
   const createdChapters = []
