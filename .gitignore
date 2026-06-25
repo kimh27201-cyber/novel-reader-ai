@@ -24,6 +24,7 @@ release/
 output/
 preview/
 novel_screen.png
+logs/
 
 # OS
 Thumbs.db

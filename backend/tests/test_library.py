@@ -1,6 +1,7 @@
 import os
 import sys
 from pathlib import Path
+import json
 
 TESTS_DIR = Path(__file__).resolve().parent
 sys.path.append(str(TESTS_DIR))
@@ -70,6 +71,25 @@ def create_chapter(headers, book_id, index=0, title="第一章 失重借阅证")
     return response.json()
 
 
+def import_source(headers):
+    response = client.post(
+        "/api/sources/import",
+        headers=headers,
+        json={"content": json.dumps({
+            "bookSourceName": "速读谷",
+            "bookSourceUrl": "https://www.sudugu.org",
+            "bookSourceGroup": "用户源",
+            "searchUrl": "https://www.sudugu.org/search?q={{key}}",
+            "ruleSearch": {"bookList": ".item", "name": "a@text", "bookUrl": "a@href"},
+            "ruleBookInfo": {"name": "h1@text", "tocUrl": "#dir@href"},
+            "ruleToc": {"chapterList": "#dir a", "chapterName": "@text", "chapterUrl": "@href"},
+            "ruleContent": {"content": "#content@text"},
+        }, ensure_ascii=False)},
+    )
+    assert response.status_code == 201
+    return response.json()["sources"][0]
+
+
 def test_create_and_list_books_for_current_user():
     headers = auth_headers()
 
@@ -108,6 +128,68 @@ def test_create_and_list_chapters_for_book():
     assert chapters[0]["id"] == chapter["id"]
     assert chapters[0]["title"] == "第一章 失重借阅证"
     assert chapters[0]["content"] == "凌晨四点，星轨图书馆经过城市上空。"
+
+
+def test_create_book_upserts_existing_book_url_and_updates_source_id():
+    headers = auth_headers()
+    first_response = client.post(
+        "/api/books",
+        headers=headers,
+        json={
+            "title": "我有一枚命运魔骰",
+            "author": "未知作者",
+            "book_url": "https://www.sudugu.org/1844/",
+            "toc_url": "https://www.sudugu.org/1844/#dir",
+            "source_id": None,
+        },
+    )
+    assert first_response.status_code == 201
+    first = first_response.json()
+    source = import_source(headers)
+
+    response = client.post(
+        "/api/books",
+        headers=headers,
+        json={
+            "title": "我有一枚命运魔骰",
+            "author": "未知作者",
+            "book_url": "https://www.sudugu.org/1844/",
+            "toc_url": "https://www.sudugu.org/1844/#dir",
+            "source_id": source["id"],
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["id"] == first["id"]
+    assert body["source_id"] == source["id"]
+    listed = client.get("/api/books", headers=headers).json()
+    assert len(listed) == 1
+
+
+def test_create_chapter_upserts_existing_chapter_index():
+    headers = auth_headers()
+    book = create_book(headers)
+    first = create_chapter(headers, book["id"], index=1, title="旧标题")
+
+    response = client.post(
+        f"/api/books/{book['id']}/chapters",
+        headers=headers,
+        json={
+            "chapter_index": 1,
+            "title": "第2章 红桃7",
+            "url": "https://www.sudugu.org/1844/672920.html",
+            "content": "",
+            "is_cached": False,
+        },
+    )
+
+    assert response.status_code == 201
+    body = response.json()
+    assert body["id"] == first["id"]
+    assert body["title"] == "第2章 红桃7"
+    chapters = client.get(f"/api/books/{book['id']}/chapters", headers=headers).json()
+    assert len(chapters) == 1
 
 
 def test_get_chapter_requires_current_user_ownership():

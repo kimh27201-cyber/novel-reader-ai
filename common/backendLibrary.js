@@ -221,6 +221,16 @@ export async function importBackendSources(content, client = apiClient) {
   }
 }
 
+export async function syncBackendSourceFromLocal(source, client = apiClient) {
+  ensureBackendToken(client)
+  const raw = source && (source.raw || source)
+  if (!raw || typeof raw !== 'object') return null
+  const result = await importBackendSources(JSON.stringify(raw), client)
+  const name = text(source.name || raw.bookSourceName || raw.sourceName)
+  const baseUrl = text(source.baseUrl || raw.bookSourceUrl || raw.sourceUrl || raw.baseUrl)
+  return result.sources.find(item => item.name === name && item.baseUrl === baseUrl) || result.sources[0] || null
+}
+
 export async function searchBackendBooks(keyword, client = apiClient) {
   ensureBackendToken(client)
   const sources = await client.listSources()

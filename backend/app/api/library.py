@@ -56,17 +56,20 @@ def create_book(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> Book:
-    book = Book(
-        user_id=current_user.id,
-        source_id=payload.source_id,
-        title=payload.title.strip(),
-        author=payload.author.strip() or "未知作者",
-        cover_url=payload.cover_url.strip(),
-        description=payload.description.strip(),
-        book_url=payload.book_url.strip(),
-        toc_url=payload.toc_url.strip(),
-    )
-    db.add(book)
+    book_url = payload.book_url.strip()
+    book = None
+    if book_url:
+        book = db.query(Book).filter(Book.user_id == current_user.id, Book.book_url == book_url).first()
+    if not book:
+        book = Book(user_id=current_user.id)
+        db.add(book)
+    book.source_id = payload.source_id
+    book.title = payload.title.strip()
+    book.author = payload.author.strip() or "未知作者"
+    book.cover_url = payload.cover_url.strip()
+    book.description = payload.description.strip()
+    book.book_url = book_url
+    book.toc_url = payload.toc_url.strip()
     db.commit()
     db.refresh(book)
     return book
@@ -104,15 +107,18 @@ def create_chapter(
     current_user: User = Depends(get_current_user),
 ) -> Chapter:
     get_owned_book(book_id, current_user.id, db)
-    chapter = Chapter(
-        book_id=book_id,
-        chapter_index=payload.chapter_index,
-        title=payload.title.strip(),
-        url=payload.url.strip(),
-        content=payload.content,
-        is_cached=payload.is_cached,
+    chapter = (
+        db.query(Chapter)
+        .filter(Chapter.book_id == book_id, Chapter.chapter_index == payload.chapter_index)
+        .first()
     )
-    db.add(chapter)
+    if not chapter:
+        chapter = Chapter(book_id=book_id, chapter_index=payload.chapter_index)
+        db.add(chapter)
+    chapter.title = payload.title.strip()
+    chapter.url = payload.url.strip()
+    chapter.content = payload.content
+    chapter.is_cached = payload.is_cached
     db.commit()
     db.refresh(chapter)
     return chapter

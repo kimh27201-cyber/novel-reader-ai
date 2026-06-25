@@ -5,6 +5,7 @@ import {
   ensureBackendToken,
   isBackendBookId,
   addBackendBookWithChapters,
+  syncBackendSourceFromLocal,
   listBackendBooks,
   loadBackendSourceContent,
   mapBackendBook,
@@ -253,6 +254,37 @@ async function testAddBackendBookWithChaptersPreflightsFirstChapterBeforeCreatin
   assert.equal(createBookCalled, false)
 }
 
+async function testSyncBackendSourceFromLocalImportsRawSourceAndReturnsBackendId() {
+  const calls = []
+  const source = await syncBackendSourceFromLocal({
+    name: '速读谷',
+    baseUrl: 'https://www.sudugu.org',
+    raw: {
+      bookSourceName: '速读谷',
+      bookSourceUrl: 'https://www.sudugu.org'
+    }
+  }, {
+    getToken: () => 'token',
+    importSources: async content => {
+      calls.push(JSON.parse(content).bookSourceName)
+      return {
+        imported_count: 1,
+        sources: [{
+          id: 9,
+          name: '速读谷',
+          base_url: 'https://www.sudugu.org',
+          group: '用户源',
+          enabled: true,
+          compatibility: 'v1 compatible'
+        }]
+      }
+    }
+  })
+
+  assert.deepEqual(calls, ['速读谷'])
+  assert.equal(source.backendId, 9)
+}
+
 testBackendIds()
 testMappingBackendBookAndChapter()
 testPayloads()
@@ -260,5 +292,6 @@ testSourceMappingAndAuthGuard()
 await testListBackendBooksAcceptsWrappedBackendResponse()
 await testLoadBackendSourceContentWritesResolvedContentBackToChapter()
 await testAddBackendBookWithChaptersPreflightsFirstChapterBeforeCreatingBook()
+await testSyncBackendSourceFromLocalImportsRawSourceAndReturnsBackendId()
 
 console.log('backendLibrary tests passed')

@@ -461,7 +461,7 @@ import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 import { clearSourceCookies, saveSourceCookie } from '../../common/sourceCookieJar.js'
 import { openSourceLogin, readSourceLoginCookie } from '../../common/webViewBridge.js'
 import apiClient from '../../common/apiClient.js'
-import { addBackendBookWithChapters } from '../../common/backendLibrary.js'
+import { addBackendBookWithChapters, syncBackendSourceFromLocal } from '../../common/backendLibrary.js'
 
 export default {
   data() {
@@ -998,9 +998,10 @@ export default {
         let backendSyncMessage = ''
         if (apiClient.getToken()) {
           try {
+            const backendSource = await syncBackendSourceFromLocal(this.selectedSource)
             await addBackendBookWithChapters({
               ...result.book,
-              sourceId: null
+              sourceId: backendSource && backendSource.backendId
             }, result.chapters)
             backendSynced = true
             backendSyncMessage = '，已同步后端书架'

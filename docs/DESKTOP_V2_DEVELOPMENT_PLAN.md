@@ -104,3 +104,49 @@ adb install -r release\android-v2\V2.apk
 2. 增加用户书源批量导出、备份、恢复和冲突处理。
 3. 建立脱敏的失败阶段统计，区分网络、规则、WebView、登录和站点限制。
 4. 在正式签名和生产后端就绪后，建立可重复的 APK 发布流水线。
+
+## 2026-06-25 书架章节解码修复验收记录
+
+### 问题
+
+APK 中真实源“速读谷”完整阅读测试显示通过，但从书架重新打开《我有一枚命运魔骰》时，章节页提示“章节解码失败 / FastAPI 后端 · Request validation failed”。
+
+### 根因
+
+完整阅读测试加入后端书架时，前端传入的 `source_id` 为空。书架重新打开未缓存章节时会按 `source_id` 调用 `/api/sources/{source_id}/content`，因此形成 `/api/sources/null/content`，被 FastAPI 的整数路径参数校验拦截。
+
+### 修复
+
+- 前端完整阅读测试在写入后端书架前，先把当前本地书源同步到后端，并使用返回的后端 `source_id`。
+- 后端 `POST /api/books` 对同一用户、同一 `book_url` 做 upsert，避免重复书籍，同时允许修正历史数据中的 `source_id`。
+- 后端 `POST /api/books/{book_id}/chapters` 对同一本书、同一 `chapter_index` 做 upsert，避免重复章节并刷新缓存正文。
+- 增加前后端回归测试覆盖上述逻辑。
+
+### 本次验证证据
+
+- 前端测试：`FRONTEND_TEST_FILES=39`，全部通过。
+- 后端测试：`51 passed in 48.75s`。
+- H5 产物：`http://127.0.0.1:8080/#/` 返回 HTTP 200。
+- 真实后端链路：使用 student 账号和真实源 ID=5，完成搜索、目录、正文解码、书架入库、章节缓存、章节读取。
+  - `bookId=5`
+  - `source_id=5`
+  - `tocCount=999`
+  - `chapterIndex=1`
+  - `cached=true`
+  - `contentLen=2746`
+  - `sourcePathOk=true`
+- H5 构建完成：`unpackage/dist/build/h5/index.html` 已生成。
+- APK 构建完成：`release/android-v2/V2.apk`，大小 `4178816` 字节。
+- APK SHA256：`A12BAFB71C0D582421560548268FF191AB59524A4C3E458056A47456D35EA6C8`。
+- APK 签名校验：v1/v2/v3 均通过。
+- 真机安装：设备 `AADMVB3602032395`，`adb install --user 0 -r release/android-v2/V2.apk` 返回 `Success`，并已启动 `com.novelreader.v1/.MainActivity`。
+
+### 手机验收项
+
+1. 打开 App，进入“我的”，确认后端地址可登录或处于已登录状态。
+2. 进入“书源管理”，选择“速读谷”。
+3. 搜索《我有一枚命运魔骰》，执行完整阅读测试。
+4. 返回书架，确认书架出现《我有一枚命运魔骰》。
+5. 从书架打开该书，进入章节正文。
+6. 切换目录中的下一章或点击重试，确认不再出现 `/api/sources/null/content` 对应的“Request validation failed”。
+7. 如遇手机弹出 USB 安装、网络或权限确认，按系统提示允许；这属于外部操作，不属于代码缺陷。
