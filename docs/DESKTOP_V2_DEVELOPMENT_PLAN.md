@@ -268,6 +268,13 @@ Android APK 中打开“速读谷”书源详情，使用关键词《我有一�
   - 修复后：使用真实速读谷规则和关键词《我有一枚命运魔骰》，返回 1 条结果，书籍 URL 为 `https://www.sudugu.org/1844/`。
 - 前端测试：39 个 `.test.mjs` 文件全部通过。
 - 后端测试：`52 passed in 43.10s`。
+- H5 构建：已清理并重新生成 `unpackage/dist/build/h5/index.html`。
+- APK 构建：已生成 `release/android-v2/V2.apk`。
+- APK 大小：`1051766` 字节。
+- APK SHA256：`FD834708EE03457059501E1B8695DD0C69756E9D31A92B33C62FD71BAB711EF7`。
+- APK 签名校验：v1/v2/v3 均通过。
+- 真机安装：设备 `AADMVB3602032395`，`adb install --user 0 -r release/android-v2/V2.apk` 返回 `Success`，并已启动 `com.novelreader.v1/.MainActivity`。
+- GitHub 推送：`540fefa fix: respect source response timeout in source tests` 已推送到 `origin/main`。
 
 ### 验收重点
 
@@ -315,3 +322,7 @@ INSTALL_FAILED_ABORTED: User rejected permissions
 D:\program\Android\SDK\platform-tools\adb.exe install --user 0 -r D:\Codex\novel-reader-uniapp\release\android-v2\V2.apk
 D:\program\Android\SDK\platform-tools\adb.exe shell am start -n com.novelreader.v1/.MainActivity
 ```
+
+### 后续状态更新
+
+2026-06-28 已重新安装新版 APK，手机返回 `Success`，并已启动 `com.novelreader.v1/.MainActivity`。6 月 26 日的安装拒绝问题已归类为当时手机端权限确认未允许，不再是当前阻塞项。
