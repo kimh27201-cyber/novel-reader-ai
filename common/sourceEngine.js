@@ -64,6 +64,7 @@ export function normalizeSourceConfig(input, defaults = {}) {
     features,
     comment: raw.comment || raw.bookSourceComment || raw.sourceComment || '',
     weight: Number(raw.weight || raw.customOrder || defaults.weight || 0),
+    respondTimeMs: Number(raw.respondTime || raw.respondTimeMs || defaults.respondTimeMs || 0),
     enabled: input.enabled !== undefined ? !!input.enabled : defaults.enabled !== undefined ? !!defaults.enabled : true,
     recommended: input.recommended !== undefined ? !!input.recommended : raw.recommended !== undefined ? !!raw.recommended : !!defaults.recommended,
     raw,

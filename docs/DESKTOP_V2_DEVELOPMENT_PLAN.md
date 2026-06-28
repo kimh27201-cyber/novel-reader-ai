@@ -229,6 +229,54 @@ D:\program\Android\SDK\platform-tools\adb.exe install --user 0 -r D:\Codex\novel
 D:\program\Android\SDK\platform-tools\adb.exe shell am start -n com.novelreader.v1/.MainActivity
 ```
 
+## 2026-06-28 速读谷完整阅读测试超时修复记录
+
+### 问题
+
+Android APK 中打开“速读谷”书源详情，使用关键词《我有一枚命运魔骰》执行“完整阅读测试”时，搜索阶段失败，页面显示：
+
+```text
+完整阅读测试未通过
+目标站点响应超时，建议换源、稍后重试，或配置 Cookie/Header 后再测
+```
+
+### 根因
+
+真实目标站点和后端代理均可访问：
+
+- `https://www.sudugu.org/i/sor.aspx?key=...` 本机直连约 2.1 秒返回 HTTP 200。
+- 通过 `POST /api/proxy/fetch` 代理约 4.7 秒返回 HTTP 200。
+
+失败根因不是目标站不可用，而是前端单源测试链路使用默认 `ONLINE_SOURCE_TIMEOUT_MS = 5000`，加反爬间隔后约 6.5 秒就判定超时；而速读谷书源 JSON 中声明了 `respondTime: 180000`，旧逻辑没有纳入单源测试预算，导致代理请求成功前被前端 `withTimeout` 误杀。
+
+### 修复
+
+- `common/sourceEngine.js`
+  - 规范化书源时保留 `respondTimeMs`，来源为 Legado/阅读书源 JSON 的 `respondTime`。
+- `common/bookSources.js`
+  - 新增单源测试最大超时上限 `ONLINE_SOURCE_TEST_TIMEOUT_MAX_MS = 30000`。
+  - `getSourceTimeoutBudget` 支持 `respectSourceRespondTime`，只在单源测试、完整阅读测试、健康检测链路启用。
+  - 多源发现页仍保持默认快速超时策略，避免慢源拖垮整体搜索。
+  - `withTimeout` 在请求先完成时清理计时器，减少残留定时器。
+- `tests/sourceHealth.test.mjs`
+  - 增加慢源回归测试：调用方传入 `timeoutMs: 100`，但书源声明 `respondTime: 3000`，搜索延迟 1.8 秒仍应通过。
+
+### 验证
+
+- 真实速读谷搜索复现：
+  - 修复前：约 6.5 秒前端报 `速读谷响应超时`，但代理请求随后返回 200。
+  - 修复后：使用真实速读谷规则和关键词《我有一枚命运魔骰》，返回 1 条结果，书籍 URL 为 `https://www.sudugu.org/1844/`。
+- 前端测试：39 个 `.test.mjs` 文件全部通过。
+- 后端测试：`52 passed in 43.10s`。
+
+### 验收重点
+
+1. 手机重新安装新 APK。
+2. 进入“书源管理” → “速读谷”。
+3. 关键词输入《我有一枚命运魔骰》。
+4. 点击“完整阅读测试”，搜索阶段不应再出现“目标站点响应超时”。
+5. 成功后继续确认详情、目录、正文、加入书架链路。
+
 Git 提交和推送：
 
 ```powershell

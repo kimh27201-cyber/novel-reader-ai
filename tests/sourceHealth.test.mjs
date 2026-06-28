@@ -16,6 +16,9 @@ globalThis.fetch = async rawUrl => {
   if (url.includes('timeout.example.com')) {
     throw new Error('Timeout Source响应超时')
   }
+  if (url.includes('slow.example.com/search')) {
+    await new Promise(resolve => setTimeout(resolve, 1800))
+  }
   if (url.includes('/search')) {
     return {
       text: async () => JSON.stringify({
@@ -99,6 +102,34 @@ const sourceJson = JSON.stringify([
     }
   },
   {
+    bookSourceName: 'Slow Source',
+    bookSourceUrl: 'https://slow.example.com',
+    bookSourceGroup: 'Health',
+    respondTime: 3000,
+    searchUrl: 'https://slow.example.com/search?keyword={{key}}',
+    ruleSearch: {
+      bookList: '$.items[*]',
+      name: '$.name',
+      author: '$.author',
+      latestChapter: '$.latest',
+      bookUrl: '$.url'
+    },
+    ruleBookInfo: {
+      name: '$.name',
+      author: '$.author',
+      intro: '$.intro',
+      tocUrl: '$.tocUrl'
+    },
+    ruleToc: {
+      chapterList: '$.chapters[*]',
+      chapterName: '$.title',
+      chapterUrl: '$.url'
+    },
+    ruleContent: {
+      content: '$.content'
+    }
+  },
+  {
     bookSourceName: 'Broken Source',
     bookSourceUrl: 'https://broken.example.com',
     bookSourceGroup: 'Health',
@@ -150,6 +181,7 @@ const sourceJson = JSON.stringify([
 
 await importSourcesFromAny(sourceJson)
 const healthy = getSourceConfigs().find(item => item.name === 'Healthy Source')
+const slow = getSourceConfigs().find(item => item.name === 'Slow Source')
 const broken = getSourceConfigs().find(item => item.name === 'Broken Source')
 const timeout = getSourceConfigs().find(item => item.name === 'Timeout Source')
 
@@ -165,6 +197,12 @@ const healthyDiagnostics = getSourceDiagnostics(getSourceConfig(healthy.id))
 assert.equal(healthyDiagnostics.health.status, 'passed')
 assert.equal(healthyDiagnostics.health.score, 90)
 assert.equal(healthyDiagnostics.health.stageCount, 4)
+
+const slowHealth = await runSourceHealthCheck(slow.id, 'slow', { timeoutMs: 100 })
+assert.equal(slowHealth.status, 'passed')
+assert.equal(slowHealth.failedStage || '', '')
+assert.equal(slowHealth.stages[0].id, 'search')
+assert.ok(slowHealth.stages[0].elapsedMs >= 1800)
 
 const failedHealth = await runSourceHealthCheck(broken.id, 'broken', { timeoutMs: 1000 })
 assert.equal(failedHealth.status, 'failed')

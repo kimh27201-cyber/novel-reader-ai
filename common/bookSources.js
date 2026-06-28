@@ -31,6 +31,7 @@ const ONLINE_DATA_CACHE_SETTINGS_KEY = 'sources:online-data-cache-settings'
 const ONLINE_DATA_CACHE_KEY = 'sources:online-data-cache'
 export const ONLINE_SOURCE_SEARCH_LIMIT = 3
 export const ONLINE_SOURCE_TIMEOUT_MS = 5000
+export const ONLINE_SOURCE_TEST_TIMEOUT_MAX_MS = 30000
 export const ONLINE_SEARCH_DEFAULTS = {
   concurrency: 3,
   timeoutMs: ONLINE_SOURCE_TIMEOUT_MS,
@@ -1451,18 +1452,33 @@ export function getSourceExploreEntries(sourceOrId) {
 }
 
 function withTimeout(promise, ms, sourceName) {
+  let timer = 0
   return Promise.race([
-    promise,
+    Promise.resolve(promise).finally(() => {
+      if (timer) clearTimeout(timer)
+    }),
     new Promise((_, reject) => {
-      setTimeout(() => reject(new Error(`${sourceName || '书源'}响应超时`)), ms)
+      timer = setTimeout(() => reject(new Error(`${sourceName || '书源'}响应超时`)), ms)
     })
   ])
 }
 
-function getSourceTimeoutBudget(source, timeoutMs) {
+function getSourceRespondTimeMs(source) {
+  const value = Number(
+    (source && source.respondTimeMs) ||
+    (source && source.raw && (source.raw.respondTime || source.raw.respondTimeMs)) ||
+    0
+  )
+  if (!Number.isFinite(value) || value <= 0) return 0
+  return Math.min(Math.max(value, 0), ONLINE_SOURCE_TEST_TIMEOUT_MAX_MS)
+}
+
+function getSourceTimeoutBudget(source, timeoutMs, options = {}) {
   const base = Math.max(0, Number(timeoutMs || ONLINE_SOURCE_TIMEOUT_MS))
+  const sourceBudget = options.respectSourceRespondTime ? getSourceRespondTimeMs(source) : 0
+  const effectiveBase = Math.max(base, sourceBudget)
   const antiCrawler = normalizeSourceAntiCrawler(source && source.antiCrawler)
-  return base + antiCrawler.requestIntervalMs + (antiCrawler.retryCount * (antiCrawler.retryIntervalMs + base))
+  return effectiveBase + antiCrawler.requestIntervalMs + (antiCrawler.retryCount * (antiCrawler.retryIntervalMs + effectiveBase))
 }
 
 export async function exploreOnlineBooks(entry, options = {}) {
@@ -1917,7 +1933,9 @@ export async function testSourceSearch(sourceId, keyword, options = {}) {
   const timeoutMs = options.timeoutMs || ONLINE_SOURCE_TIMEOUT_MS
   let results
   try {
-    results = await withTimeout(searchSource(source, word), getSourceTimeoutBudget(source, timeoutMs), source.name)
+    results = await withTimeout(searchSource(source, word), getSourceTimeoutBudget(source, timeoutMs, {
+      respectSourceRespondTime: true
+    }), source.name)
   } catch (error) {
     writeSourceTestResult(source.id, {
       status: 'failed',
