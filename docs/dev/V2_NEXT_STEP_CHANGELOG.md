@@ -165,3 +165,33 @@
 
 ### Next Step
 - Continue with the next document phase: enhance `exploreUrl` parsing, pagination diagnostics and empty category-result explanations.
+
+## Date: 2026-06-29
+
+### Completed
+- Connected the existing source acceptance runner to `pages/sourceHub/sourceHub.vue`.
+- Added a Source Hub acceptance panel with run, copy report, clear report and stage-result display actions.
+- The panel now shows latest status, score, elapsed time, failed stage, failure reason, suggestions and every acceptance stage.
+- Reused `common/sourceAcceptance.js`; no new dependency or parser behavior change was introduced.
+- Extended `tests/sourceHub.test.mjs` to cover the acceptance entry and diagnostics contract.
+
+### Modified Files
+- `pages/sourceHub/sourceHub.vue`
+- `tests/sourceHub.test.mjs`
+- `docs/dev/V2_NEXT_STEP_CHANGELOG.md`
+- `docs/DESKTOP_V2_DEVELOPMENT_PLAN.md`
+
+### Test Commands
+- `node tests\sourceHub.test.mjs`
+- `node tests\sourceAcceptance.test.mjs`
+- `node tests\sourceExplore.test.mjs`
+
+### Acceptance Result
+- Source Hub page contract, source acceptance module and source explore regression tests passed.
+
+### Known Issues
+- This still does not execute third-party JS or bypass login, payment, CAPTCHA or anti-crawler policies.
+- Real source success still depends on site availability, source rules, proxy state and valid session headers.
+
+### Next Step
+- Run full H5 regression and desktop self-acceptance at `http://localhost:8080/#/pages/library/library`, then proceed to Android WebView session collection only after H5 behavior is stable.

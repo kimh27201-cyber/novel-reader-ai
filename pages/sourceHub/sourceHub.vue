@@ -29,6 +29,9 @@
         <button class="hub-action" @tap="copyDiagnostics">
           复制诊断
         </button>
+        <button class="hub-action" :loading="acceptanceRunning" @tap="runHubAcceptance">
+          真实链路验收
+        </button>
       </view>
 
       <view class="search-panel" v-if="capability.supportsSearch">
@@ -70,6 +73,50 @@
         </view>
       </view>
 
+      <view class="acceptance-panel">
+        <view class="panel-title">真实链路验收</view>
+        <view class="acceptance-summary">
+          <view>
+            <text class="acceptance-label">最近结果</text>
+            <view class="acceptance-status-row">
+              <text class="acceptance-status" :class="acceptanceReport && acceptanceReport.status">
+                {{ acceptanceStatusText }}
+              </text>
+              <text class="acceptance-score" v-if="acceptanceReport">{{ acceptanceReport.score }} 分</text>
+            </view>
+          </view>
+          <view class="acceptance-toolbar">
+            <button class="small-button primary" :loading="acceptanceRunning" @tap="runHubAcceptance">验收</button>
+            <button class="small-button" :disabled="!acceptanceReport" @tap="copyAcceptanceReport">复制</button>
+            <button class="small-button" :disabled="!acceptanceReport" @tap="clearAcceptanceReport">清空</button>
+          </view>
+        </view>
+        <text class="panel-hint" v-if="!acceptanceReport">会依次检查书源兼容性、发现/搜索、详情、目录、正文和书架保存链路。</text>
+        <view v-if="acceptanceReport">
+          <text class="panel-hint">耗时 {{ acceptanceReport.elapsedMs }}ms · {{ acceptanceReport.startedAt }}</text>
+          <text class="panel-hint failure-text" v-if="acceptanceFailureText">{{ acceptanceFailureText }}</text>
+          <view class="suggestion-list" v-if="acceptanceSuggestions.length">
+            <text class="suggestion-item" v-for="item in acceptanceSuggestions" :key="item">{{ item }}</text>
+          </view>
+          <view class="acceptance-stage-list">
+            <view
+              class="acceptance-stage-row"
+              v-for="stage in acceptanceStageItems"
+              :key="stage.key"
+            >
+              <view>
+                <view class="stage-title">{{ stage.name }}</view>
+                <text class="stage-message">{{ stage.message || stage.status }}</text>
+              </view>
+              <view class="stage-side">
+                <text class="stage-status" :class="stage.status">{{ stage.status }}</text>
+                <text class="stage-time">{{ stage.elapsedMs }}ms</text>
+              </view>
+            </view>
+          </view>
+        </view>
+      </view>
+
       <view class="capability-grid">
         <view class="capability-item" v-for="item in capabilityItems" :key="item.key" :class="{ active: item.active }">
           <text class="capability-label">{{ item.label }}</text>
@@ -106,6 +153,12 @@ import {
   sourceSessionStatus
 } from '../../common/sourceSession.js'
 import { buildCandidateLanes } from '../../common/sourceRouter.js'
+import {
+  buildCopyableAcceptanceReport,
+  clearSourceAcceptanceReports,
+  getSourceAcceptanceReports,
+  runSourceAcceptance
+} from '../../common/sourceAcceptance.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 
 export default {
@@ -120,6 +173,8 @@ export default {
       searchBooks: [],
       searching: false,
       searchError: '',
+      acceptanceReport: null,
+      acceptanceRunning: false,
       showSessionEditor: false,
       sessionOrigin: '',
       sessionCookie: '',
@@ -184,6 +239,31 @@ export default {
         { key: 'webview', label: 'WebView', active: this.capability.requiresWebView },
         { key: 'render', label: '渲染', active: this.capability.requiresRenderedHtml }
       ]
+    },
+    acceptanceStatusText() {
+      if (!this.acceptanceReport) return '未验收'
+      const statusMap = {
+        passed: '通过',
+        partial: '部分通过',
+        failed: '失败',
+        incompatible: '不兼容'
+      }
+      return statusMap[this.acceptanceReport.status] || this.acceptanceReport.status || '未知'
+    },
+    acceptanceFailureText() {
+      if (!this.acceptanceReport || !this.acceptanceReport.failureReason) return ''
+      const stage = this.acceptanceReport.failureStage || 'unknown'
+      return `失败阶段 ${stage}：${this.acceptanceReport.failureReason}`
+    },
+    acceptanceStageItems() {
+      return this.acceptanceReport && Array.isArray(this.acceptanceReport.stages)
+        ? this.acceptanceReport.stages
+        : []
+    },
+    acceptanceSuggestions() {
+      return this.acceptanceReport && Array.isArray(this.acceptanceReport.suggestions)
+        ? this.acceptanceReport.suggestions
+        : []
     }
   },
   onLoad(options = {}) {
@@ -196,6 +276,7 @@ export default {
       this.capability = buildSourceCapability(this.source || {})
       this.diagnostics = this.source ? getSourceDiagnostics(this.source) : null
       this.session = getSourceSession(this.sourceId)
+      this.acceptanceReport = getSourceAcceptanceReports(this.sourceId).latest
       if (this.session) {
         this.sessionOrigin = this.session.origin
         this.sessionCookie = this.session.cookie
@@ -227,6 +308,36 @@ export default {
       } finally {
         this.searching = false
       }
+    },
+    async runHubAcceptance() {
+      if (!this.source || this.acceptanceRunning) return
+      this.acceptanceRunning = true
+      try {
+        const keyword = String(this.keyword || this.sourceName || '').trim()
+        this.acceptanceReport = await runSourceAcceptance(this.sourceId, {
+          keyword,
+          saveReport: true,
+          timeoutMs: 8000,
+          limit: 5
+        })
+        uni.showToast({ title: `验收${this.acceptanceStatusText}`, icon: 'none' })
+      } catch (error) {
+        uni.showToast({ title: friendlyErrorMessage(error, '验收失败'), icon: 'none' })
+      } finally {
+        this.acceptanceRunning = false
+      }
+    },
+    copyAcceptanceReport() {
+      if (!this.acceptanceReport) return
+      uni.setClipboardData({
+        data: buildCopyableAcceptanceReport(this.acceptanceReport),
+        success: () => uni.showToast({ title: '验收报告已复制', icon: 'none' })
+      })
+    },
+    clearAcceptanceReport() {
+      clearSourceAcceptanceReports(this.sourceId)
+      this.acceptanceReport = null
+      uni.showToast({ title: '验收报告已清空', icon: 'none' })
     },
     saveManualSession() {
       if (!this.sourceId) return
@@ -352,6 +463,7 @@ export default {
 .status-panel,
 .search-panel,
 .session-panel,
+.acceptance-panel,
 .lane-panel,
 .capability-grid {
   max-width: 1120px;
@@ -362,6 +474,7 @@ export default {
 .status-panel,
 .search-panel,
 .session-panel,
+.acceptance-panel,
 .lane-panel {
   padding: 24rpx;
   border: 1rpx solid var(--app-border, #29404a);
@@ -421,11 +534,101 @@ export default {
 }
 
 .search-row,
+.acceptance-summary,
+.acceptance-toolbar,
 .session-state {
   display: flex;
   align-items: center;
   gap: 14rpx;
   margin-top: 18rpx;
+}
+
+.acceptance-summary {
+  justify-content: space-between;
+}
+
+.acceptance-toolbar {
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+
+.acceptance-label,
+.stage-message,
+.stage-time,
+.suggestion-item {
+  color: var(--app-muted, #a9b6bb);
+  font-size: 22rpx;
+}
+
+.acceptance-status-row {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  margin-top: 8rpx;
+}
+
+.acceptance-status,
+.acceptance-score,
+.stage-title,
+.stage-status {
+  color: var(--app-text, #f4f6f5);
+  font-size: 27rpx;
+  font-weight: 800;
+}
+
+.acceptance-status.passed,
+.stage-status.passed {
+  color: #8ecfc2;
+}
+
+.acceptance-status.partial {
+  color: #d8b15d;
+}
+
+.acceptance-status.failed,
+.acceptance-status.incompatible,
+.stage-status.failed,
+.stage-status.incompatible,
+.failure-text {
+  color: #ff8a7c;
+}
+
+.suggestion-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  margin-top: 14rpx;
+}
+
+.suggestion-item {
+  display: block;
+  line-height: 32rpx;
+}
+
+.acceptance-stage-list {
+  margin-top: 18rpx;
+  border-top: 1rpx solid var(--app-border, #29404a);
+}
+
+.acceptance-stage-row {
+  min-height: 78rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+  padding: 14rpx 0;
+  border-bottom: 1rpx solid var(--app-border, #29404a);
+}
+
+.stage-message,
+.stage-time {
+  display: block;
+  margin-top: 6rpx;
+}
+
+.stage-side {
+  flex-shrink: 0;
+  text-align: right;
 }
 
 .field,
@@ -553,6 +756,7 @@ export default {
   .status-panel,
   .search-panel,
   .session-panel,
+  .acceptance-panel,
   .lane-panel,
   .capability-grid,
   .action-grid {
@@ -565,13 +769,20 @@ export default {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .search-row {
+  .search-row,
+  .acceptance-summary {
     align-items: stretch;
     flex-direction: column;
   }
 
-  .search-row .small-button {
+  .search-row .small-button,
+  .acceptance-toolbar .small-button {
     width: 100%;
+  }
+
+  .acceptance-toolbar {
+    align-items: stretch;
+    justify-content: stretch;
   }
 }
 </style>

@@ -405,3 +405,44 @@ node tests\sourceExplore.test.mjs
 ```
 
 结果：本阶段目标测试通过。前端 `.mjs` 全量回归通过，`pages.json` / `manifest.json` 解析通过，`git diff --check` 通过，后端 pytest 通过 `55 passed`，H5 生产构建完成，`http://127.0.0.1:8080/#/pages/library/library` 返回 HTTP 200。APK 仍按约定暂缓，不在本阶段打包。下一步建议继续增强 sourceHub 的真实链路验收入口和失败诊断展示，再做 Android WebView 会话采集。
+
+## 2026-06-29 Source Hub 真实链路验收入口推进记录
+
+### 本次目标
+
+继续围绕电脑端 H5 做下一阶段开发：把已经存在的 `common/sourceAcceptance.js` 验收能力前移到 `sourceHub` 页面，让书源中心不只展示 capability/session/lane，还能直接发起真实链路验收并看到失败诊断。
+
+### 已完成
+
+- `pages/sourceHub/sourceHub.vue`
+  - 新增“真实链路验收”入口。
+  - 新增验收面板，支持运行验收、复制报告、清空报告。
+  - 展示最近一次验收状态、分数、耗时、失败阶段、失败原因、修复建议和每个 stage 的执行结果。
+  - 复用 `runSourceAcceptance()`、`getSourceAcceptanceReports()`、`clearSourceAcceptanceReports()`、`buildCopyableAcceptanceReport()`，没有改动验收算法和书源解析规则。
+- `tests/sourceHub.test.mjs`
+  - 补充 sourceHub 页面契约断言，覆盖验收入口、报告复制/清空、验收面板和阶段列表。
+- `docs/dev/V2_NEXT_STEP_CHANGELOG.md`
+  - 同步追加本阶段变更记录。
+
+### 当前边界
+
+- 本阶段仍只做电脑端 H5 和本地 storage 链路，不做 APK 打包。
+- 不执行任意第三方 JS，不绕过验证码、会员、付费、登录或风控限制。
+- 真实验收结果仍受目标站点可用性、书源规则质量、代理状态和 Cookie / UA / Referer 会话影响。
+
+### 验收方式
+
+```powershell
+cd D:\Codex\novel-reader-uniapp
+node tests\sourceHub.test.mjs
+node tests\sourceAcceptance.test.mjs
+node tests\sourceExplore.test.mjs
+```
+
+桌面自验路径：
+
+```text
+http://localhost:8080/#/pages/library/library
+```
+
+验收重点：从书源列表进入书源中心，确认页面出现“真实链路验收”入口；点击后可以生成报告；失败时能看到失败阶段、失败原因和建议；报告可以复制和清空。APK 仍按约定暂缓，等电脑端功能全部稳定并连接手机后再打里程碑包。
