@@ -119,6 +119,7 @@
           <view class="rendered-trial-report" v-if="renderedTrialReport">
             <text class="rendered-trial-status" :class="renderedTrialReport.status">{{ renderedTrialStatusText }}</text>
             <text class="bridge-probe-line">{{ renderedTrialReport.message }}</text>
+            <text class="bridge-probe-line" v-if="renderedTrialBridgeText">Bridge：{{ renderedTrialBridgeText }}</text>
             <text class="bridge-probe-line">耗时：{{ renderedTrialReport.elapsedMs }}ms</text>
             <text class="bridge-probe-line" v-if="renderedTrialReport.finalUrl">最终地址：{{ renderedTrialReport.finalUrl }}</text>
             <text class="bridge-probe-line" v-if="renderedTrialReport.htmlLength != null">HTML 长度：{{ renderedTrialReport.htmlLength }}</text>
@@ -362,6 +363,14 @@ export default {
         failed: '渲染失败'
       }
       return statusMap[this.renderedTrialReport.status] || '未知'
+    },
+    renderedTrialBridgeText() {
+      const probe = this.renderedTrialReport && this.renderedTrialReport.bridgeProbe
+      if (!probe) return ''
+      const missing = probe.missing && probe.missing.length ? probe.missing.join(' / ') : '无缺失'
+      const profile = probe.capabilities && probe.capabilities.profile
+      const runtime = profile ? ` · ${profile.runtime || profile.platform || '未知运行时'}` : ''
+      return `${probe.status} · ${missing}${runtime}`
     },
     candidateLanes() {
       return buildCandidateLanes('explore', this.capability, this.session)

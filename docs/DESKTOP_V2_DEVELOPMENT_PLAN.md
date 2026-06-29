@@ -781,3 +781,40 @@ node tests\sourceHub.test.mjs
 ```
 
 阶段结果：Android bridge 契约测试、WebView bridge probe、rendered fetch bridge 和 Source Hub 契约测试均通过。下一步可以把 bridge profile 作为 Android 渲染试运行和会话采集前的第一道验收门。
+
+## 2026-06-29 Rendered Fetch Bridge Profile Gate 推进记录
+
+### 本次目标
+
+在已有 bridge profile 契约基础上，把 `Rendered Fetch 试运行` 改成先验 bridge、再发起渲染。这样后续手机侧验收时，失败报告可以明确区分“bridge 没注入/版本不对/能力缺失”和“目标站点渲染失败”，避免把运行时能力问题误判成书源规则问题。
+
+### 已完成
+
+- `common/sourceRenderedFetchTrial.js`
+  - `runRenderedFetchTrial()` 在 URL 校验通过后先执行 `probeWebViewBridge(['renderedFetch'])`。
+  - 缺少 rendered fetch bridge 时返回 `unsupported`，并携带完整 `bridgeProbe`。
+  - 渲染成功或渲染失败报告都会带上本次使用的 bridge probe 结果。
+- `pages/sourceHub/sourceHub.vue`
+  - `Rendered Fetch 试运行`报告新增 Bridge 状态行。
+  - 展示 gate 状态、缺失能力，以及 profile 中的 runtime/platform 信息。
+- `tests/sourceRenderedFetchTrial.test.mjs`
+  - 覆盖 H5 缺少 rendered fetch bridge 时的 `bridgeProbe.missing`。
+  - 覆盖模拟 Android profile 成功渲染时，报告中保留 runtime profile。
+- `tests/sourceHub.test.mjs`
+  - 补充 rendered fetch bridge gate 展示契约断言。
+
+### 当前边界
+
+- 本阶段解决的是试运行前置能力证明，不改变第三方站点访问策略。
+- bridge gate 通过后，真实渲染仍可能因登录、验证码、付费、会员、站点风控、网络或规则变化失败。
+- H5 仍只用于验证报告结构和 unsupported 降级状态。
+
+### 已验收
+
+```powershell
+node tests\sourceRenderedFetchTrial.test.mjs
+node tests\sourceHub.test.mjs
+node tests\webViewBridgeProbe.test.mjs
+```
+
+阶段结果：目标测试通过，rendered fetch 试运行报告现在能明确带出 bridge profile gate 结果。下一步可以把同样的诊断模型扩展到登录页打开和 Cookie 采集。

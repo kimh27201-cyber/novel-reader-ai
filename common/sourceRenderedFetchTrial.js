@@ -1,4 +1,4 @@
-import { renderedFetch, WebViewCapabilityError } from './webViewBridge.js'
+import { probeWebViewBridge, renderedFetch, WebViewCapabilityError } from './webViewBridge.js'
 
 function sourceRaw(source = {}) {
   return source && (source.raw || source) || {}
@@ -114,6 +114,19 @@ export async function runRenderedFetchTrial(options = {}) {
     }
   }
 
+  const bridgeProbe = probeWebViewBridge(['renderedFetch'])
+  if (bridgeProbe.status !== 'ready') {
+    return {
+      status: 'unsupported',
+      errorCode: 'APK_REQUIRED',
+      message: bridgeProbe.message || '该能力仅 Android APK 支持',
+      request,
+      bridgeProbe,
+      startedAt,
+      elapsedMs: Date.now() - started
+    }
+  }
+
   try {
     const result = await renderedFetch(request.url, {
       waitSelector: request.waitSelector,
@@ -127,6 +140,7 @@ export async function runRenderedFetchTrial(options = {}) {
       status: 'passed',
       message: 'WebView 渲染试运行通过',
       request,
+      bridgeProbe,
       startedAt,
       elapsedMs: Date.now() - started,
       httpStatus: result.status,
@@ -142,6 +156,7 @@ export async function runRenderedFetchTrial(options = {}) {
       errorCode: code,
       message: error && error.message || 'WebView 渲染试运行失败',
       request,
+      bridgeProbe,
       startedAt,
       elapsedMs: Date.now() - started
     }

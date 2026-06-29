@@ -70,9 +70,23 @@ const unsupported = await runRenderedFetchTrial({ url: 'https://example.test/boo
 assert.equal(unsupported.status, 'unsupported')
 assert.equal(unsupported.errorCode, 'APK_REQUIRED')
 assert.equal(unsupported.request.url, 'https://example.test/books')
+assert.equal(unsupported.bridgeProbe.status, 'missing')
+assert.deepEqual(unsupported.bridgeProbe.missing, ['renderedFetch'])
 
 globalThis.window = {
   NovelReaderWebViewParser: {
+    getBridgeInfo() {
+      return JSON.stringify({
+        contractVersion: 1,
+        runtime: 'android-webview-shell',
+        platform: 'android',
+        features: {
+          renderedFetch: true,
+          openLogin: true,
+          readCookie: true
+        }
+      })
+    },
     fetchRenderedHtml(url, optionsJson, callbackName) {
       const options = JSON.parse(optionsJson)
       assert.equal(url, 'https://example.test/books')
@@ -103,5 +117,7 @@ assert.equal(passed.title, 'ok')
 assert.equal(passed.htmlLength, 48)
 assert.equal(passed.cookieCaptured, true)
 assert.equal(typeof passed.elapsedMs, 'number')
+assert.equal(passed.bridgeProbe.status, 'ready')
+assert.equal(passed.bridgeProbe.capabilities.profile.runtime, 'android-webview-shell')
 
 console.log('sourceRenderedFetchTrial tests passed')

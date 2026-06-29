@@ -512,3 +512,36 @@
 
 ### Next Step
 - Use this bridge profile as the first gate in the Android rendered fetch and session collection validation flow.
+
+## Date: 2026-06-29
+
+### Completed - Rendered Fetch Bridge Profile Gate Milestone
+- Rendered fetch trial now probes the WebView bridge before starting a render request.
+- Missing rendered fetch bridge support returns an `unsupported` report with the full `bridgeProbe` payload.
+- Successful rendered fetch trial reports now include the bridge probe and runtime profile used for the run.
+- Source Hub rendered fetch trial output now shows the bridge gate status, missing capability list, and runtime profile when available.
+- Extended rendered fetch trial and Source Hub tests to cover the new gate report.
+
+### Modified Files - Rendered Fetch Bridge Profile Gate Milestone
+- `common/sourceRenderedFetchTrial.js`
+- `pages/sourceHub/sourceHub.vue`
+- `tests/sourceRenderedFetchTrial.test.mjs`
+- `tests/sourceHub.test.mjs`
+- `docs/dev/V2_NEXT_STEP_CHANGELOG.md`
+- `docs/DESKTOP_V2_DEVELOPMENT_PLAN.md`
+
+### Test Commands - Rendered Fetch Bridge Profile Gate Milestone
+- `node tests\sourceRenderedFetchTrial.test.mjs`
+- `node tests\sourceHub.test.mjs`
+- `node tests\webViewBridgeProbe.test.mjs`
+
+### Acceptance Result - Rendered Fetch Bridge Profile Gate Milestone
+- Targeted rendered fetch trial, Source Hub, and WebView bridge probe tests passed.
+- H5 unsupported state now carries actionable bridge missing-capability evidence instead of only a generic APK-required message.
+
+### Known Issues - Rendered Fetch Bridge Profile Gate Milestone
+- The gate proves bridge capability exposure, not target-site accessibility or successful third-party DOM rendering.
+- Real rendered DOM validation still depends on the Android WebView runtime and a user-authorized source/session where required.
+
+### Next Step
+- Extend the same profile-gated report shape to Android login/session collection so rendered fetch and Cookie capture share one diagnostics model.
