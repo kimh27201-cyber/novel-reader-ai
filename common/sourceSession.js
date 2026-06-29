@@ -66,6 +66,11 @@ export function getSourceSession(sourceId) {
   return session ? normalizeSourceSession(sourceId, session) : null
 }
 
+export function getActiveSourceSession(sourceId) {
+  const session = getSourceSession(sourceId)
+  return sourceSessionStatus(session) === 'active' ? session : null
+}
+
 export function saveSourceSession(sourceId, session = {}) {
   if (!sourceId) throw new Error('sourceId is required')
   const store = getSessionStore()
@@ -102,6 +107,16 @@ export function sourceSessionStatus(session) {
   if (session.expiresAt && session.expiresAt <= Date.now()) return 'expired'
   if (session.cookie || session.storageStateJson || session.localStorageJson || session.sessionStorageJson) return 'active'
   return 'empty'
+}
+
+export function buildSourceSessionHeaders(sourceId) {
+  const session = getActiveSourceSession(sourceId)
+  if (!session) return {}
+  const headers = {}
+  if (session.cookie) headers.Cookie = session.cookie
+  if (session.userAgent) headers['User-Agent'] = session.userAgent
+  if (session.referer) headers.Referer = session.referer
+  return headers
 }
 
 export function getAllSourceSessions() {

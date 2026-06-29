@@ -2,6 +2,31 @@
 
 ## Date: 2026-06-29
 
+### Completed - Source Session Request Milestone
+- Manual source sessions now participate in real source HTTP requests.
+- Active session `Cookie`, `User-Agent`, and `Referer` are merged in the shared request builder used by search, explore, detail, TOC, and content.
+- Expired sessions are ignored and do not leak stale request headers.
+- Added `buildSourceSessionHeaders()` and `getActiveSourceSession()` to `common/sourceSession.js`.
+- Added regression coverage for session-backed single-source search requests.
+
+### Modified Files - Source Session Request Milestone
+- `common/sourceSession.js`
+- `common/bookSources.js`
+- `tests/sourceSessionRequest.test.mjs`
+- `tests/sourceHub.test.mjs`
+
+### Test Commands - Source Session Request Milestone
+- `node tests\sourceSessionRequest.test.mjs`
+- `node tests\sourceCapabilitySessionRouter.test.mjs`
+- `node tests\sourceHub.test.mjs`
+- `node tests\sourceExplore.test.mjs`
+
+### Acceptance Result - Source Session Request Milestone
+- Targeted session request, capability/session/router, Source Hub, and source explore tests passed.
+- Full frontend `.mjs` regression suite passed.
+- Backend pytest passed: `55 passed`.
+- H5 production build completed, and `http://127.0.0.1:8080/#/pages/library/library` returned HTTP 200.
+
 ### Completed - Source Hub Milestone
 - Added `common/sourceCapability.js` for unified source capability output.
 - Added `common/sourceSession.js` for local manual session persistence and status detection.

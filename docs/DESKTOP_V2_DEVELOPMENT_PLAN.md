@@ -368,3 +368,40 @@ http://localhost:8080/#/pages/library/library
 验收重点：书源列表主体点击进入书源中心；书源中心可展示 capability/session/lane；发现入口可继续跳转 `sourceExplore`；搜索测试不再作为主入口。
 
 实际结果：前端 `.mjs` 全量回归通过，后端 pytest 通过，H5 构建通过；Playwright 桌面端自验收确认 `library -> sourceHub -> sourceExplore` 主路径可用。APK 里程碑打包按当前约定暂缓，等电脑端功能验收完成并连接手机后再执行。
+## 2026-06-29 Source Session 请求链路推进记录
+
+### 本次目标
+
+继续推进 Source Session Center 电脑端基础版：让 `sourceHub` 保存的手动 Cookie / UA / Referer 不只停留在 UI 和本地 storage，而是真正参与搜索、发现、详情、目录、正文的统一请求链路。
+
+### 已完成
+
+- `common/sourceSession.js`
+  - 新增 `getActiveSourceSession()`，只返回未过期且状态有效的 session。
+  - 新增 `buildSourceSessionHeaders()`，统一输出 Cookie、User-Agent、Referer 请求头。
+- `common/bookSources.js`
+  - 在 `createSourceRequestSpec()` 中合并活跃 session 请求头。
+  - session Cookie / UA 会同步写入 request spec，供普通 HTTP 和 WebView rendered fetch 共用。
+  - 过期 session 不参与请求，避免发送旧 Cookie。
+- `tests/sourceSessionRequest.test.mjs`
+  - 覆盖 `searchSourceBooks()` 真实请求链路，确认 session 请求头会进入 `/api/proxy/fetch` payload。
+  - 覆盖过期 session 不应污染请求头。
+- `tests/sourceHub.test.mjs`
+  - 补充 sourceHub 保存会话和会话状态展示的页面契约断言。
+
+### 当前边界
+
+- 本阶段仍只处理电脑端 H5 与本地 storage 会话，不采集 Android WebView Cookie。
+- 后端 `source_session/source_cookie` 表、Android `SourceSessionBridge`、WebView DOM 采集仍是后续任务。
+- 不执行任意第三方 JS，不绕过验证码、会员、付费、风控或登录限制。
+
+### 已验收
+
+```powershell
+node tests\sourceSessionRequest.test.mjs
+node tests\sourceCapabilitySessionRouter.test.mjs
+node tests\sourceHub.test.mjs
+node tests\sourceExplore.test.mjs
+```
+
+结果：本阶段目标测试通过。前端 `.mjs` 全量回归通过，`pages.json` / `manifest.json` 解析通过，`git diff --check` 通过，后端 pytest 通过 `55 passed`，H5 生产构建完成，`http://127.0.0.1:8080/#/pages/library/library` 返回 HTTP 200。APK 仍按约定暂缓，不在本阶段打包。下一步建议继续增强 sourceHub 的真实链路验收入口和失败诊断展示，再做 Android WebView 会话采集。

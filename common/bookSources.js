@@ -19,6 +19,7 @@ import {
 import { friendlyErrorMessage } from './uiFeedback.js'
 import { normalizeHeaders } from './headerUtils.js'
 import { clearSourceCookies, getSourceCookie } from './sourceCookieJar.js'
+import { buildSourceSessionHeaders, getActiveSourceSession } from './sourceSession.js'
 
 const USER_SOURCES_KEY = 'sources:user'
 const SOURCE_SETTINGS_KEY = 'sources:settings'
@@ -266,6 +267,8 @@ function createSourceRequestSpec(source, url, context = {}, baseUrl = '') {
   if (antiCrawler.userAgent) {
     antiCrawlerHeaders['User-Agent'] = antiCrawler.userAgent
   }
+  const session = getActiveSourceSession(source && source.id)
+  const sessionHeaders = buildSourceSessionHeaders(source && source.id)
   return {
     ...spec,
     charset: spec.charset || (antiCrawler.charset === 'auto' ? '' : antiCrawler.charset),
@@ -274,11 +277,12 @@ function createSourceRequestSpec(source, url, context = {}, baseUrl = '') {
     retryIntervalMs: antiCrawler.retryIntervalMs,
     rateLimitKey: source && source.id || requestContext.baseUrl || spec.url,
     rendered: context.rendered === false ? false : !!(source && source.features && source.features.webView),
-    cookie: savedCookie,
-    userAgent: antiCrawler.userAgent,
+    cookie: session && session.cookie || savedCookie,
+    userAgent: session && session.userAgent || antiCrawler.userAgent,
     header: normalizeHeaders({
       ...parseSourceHeaders(raw, requestContext),
       ...antiCrawlerHeaders,
+      ...sessionHeaders,
       ...(spec.header || {})
     }, { channel: 'proxy', context: requestContext })
   }
