@@ -603,3 +603,47 @@ backend\.venv\Scripts\python.exe -m pytest backend\tests -q
 ```
 
 阶段结果：目标测试通过，前端 `.mjs` 全量回归通过，后端 pytest 通过 `58 passed`，`pages.json` / `manifest.json` 解析通过，`git diff --check` 通过，H5 生产构建完成，`http://127.0.0.1:8080/#/pages/library/library` 返回 HTTP 200。Playwright 桌面自验确认 Source Hub 可渲染“WebView / JS 就绪度”面板；控制台唯一错误为 `favicon.ico` 404，不影响业务功能。本阶段仍不打 APK。
+
+## 2026-06-29 Source Hub WebView Bridge 自检入口推进记录
+
+### 本次目标
+
+在上一阶段“WebView / JS 就绪度诊断”的基础上，继续补齐可操作的 bridge 自检入口。目标是让 Source Hub 不只静态展示当前能力，还能在运行时主动检查 Android WebView bridge 是否暴露了后续需要的关键方法。
+
+### 已完成
+
+- `common/webViewBridge.js`
+  - 新增 `getWebViewBridgeCapabilities()`，统一读取 runtime bridge 方法暴露情况。
+  - 新增 `probeWebViewBridge()`，输出自检状态、缺失能力、检测时间和方法清单。
+  - `hasRenderedFetchBridge()` 改为复用统一能力读取结果。
+- `pages/sourceHub/sourceHub.vue`
+  - 在“WebView / JS 就绪度”面板中新增“检测 Bridge”按钮。
+  - 点击后展示检测时间和缺失能力。
+  - H5 环境会明确显示缺失 `renderedFetch / openLogin / readCookie`。
+  - 复制诊断时带上最近一次 bridge probe 报告。
+- `tests/webViewBridgeProbe.test.mjs`
+  - 覆盖无 bridge 环境下的缺失能力报告。
+  - 覆盖 runtime 暴露完整 bridge 方法时的 ready 状态。
+- `tests/sourceHub.test.mjs`
+  - 补充 bridge probe UI 契约断言。
+
+### 当前边界
+
+- 当前自检只验证 bridge 方法是否暴露，不发起真实 WebView 渲染请求。
+- 真实 WebView 渲染、Cookie 读取和登录页授权仍需要 Android 运行时验证。
+- 不执行任意第三方复杂 JS，不绕过验证码、登录、会员、付费或站点风控。
+
+### 已验收
+
+```powershell
+node tests\webViewBridgeProbe.test.mjs
+node tests\sourceHub.test.mjs
+node tests\webViewRenderedFetch.test.mjs
+node tests\sourceBridgeReadiness.test.mjs
+node tests\sourceCapabilitySessionRouter.test.mjs
+node tests\sourceAcceptance.test.mjs
+Get-ChildItem tests -Filter *.test.mjs | Sort-Object Name | ForEach-Object { node $_.FullName; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }
+backend\.venv\Scripts\python.exe -m pytest backend\tests -q
+```
+
+阶段结果：目标测试通过，前端 `.mjs` 全量回归通过，后端 pytest 通过 `58 passed`，`pages.json` / `manifest.json` 解析通过，`git diff --check` 通过，H5 生产构建完成，`http://127.0.0.1:8080/#/pages/library/library` 返回 HTTP 200。Playwright 桌面自验确认 Source Hub 可点击“检测 Bridge”，并显示缺失能力 `renderedFetch / openLogin / readCookie`；控制台唯一错误为 `favicon.ico` 404，不影响业务功能。

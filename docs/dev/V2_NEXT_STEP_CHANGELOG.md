@@ -327,3 +327,51 @@
 
 ### Next Step
 - Continue toward Android WebView bridge validation after desktop H5 remains stable. APK packaging remains paused until the phone is connected.
+
+## Date: 2026-06-29
+
+### Completed - Source Hub WebView Bridge Probe Milestone
+- Added `getWebViewBridgeCapabilities()` and `probeWebViewBridge()` to `common/webViewBridge.js`.
+- The bridge probe reports whether the runtime exposes rendered fetch, login-page opening, and Cookie-reading methods.
+- Source Hub now provides a `检测 Bridge` action inside the `WebView / JS 就绪度` panel.
+- H5 bridge probe output clearly lists missing capabilities: `renderedFetch`, `openLogin`, and `readCookie`.
+- Source Hub diagnostics copy now includes the latest bridge probe report.
+- Added `tests/webViewBridgeProbe.test.mjs` and extended `tests/sourceHub.test.mjs`.
+
+### Modified Files - Source Hub WebView Bridge Probe Milestone
+- `common/webViewBridge.js`
+- `pages/sourceHub/sourceHub.vue`
+- `tests/webViewBridgeProbe.test.mjs`
+- `tests/sourceHub.test.mjs`
+- `docs/dev/V2_NEXT_STEP_CHANGELOG.md`
+- `docs/DESKTOP_V2_DEVELOPMENT_PLAN.md`
+
+### Test Commands - Source Hub WebView Bridge Probe Milestone
+- `node tests\webViewBridgeProbe.test.mjs`
+- `node tests\sourceHub.test.mjs`
+- `node tests\webViewRenderedFetch.test.mjs`
+- `node tests\sourceBridgeReadiness.test.mjs`
+- `node tests\sourceCapabilitySessionRouter.test.mjs`
+- `node tests\sourceAcceptance.test.mjs`
+- `Get-ChildItem tests -Filter *.test.mjs | Sort-Object Name | ForEach-Object { node $_.FullName; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }`
+- `backend\.venv\Scripts\python.exe -m pytest backend\tests -q`
+- `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('pages.json','utf8')); JSON.parse(fs.readFileSync('manifest.json','utf8')); console.log('json config ok')"`
+- `git diff --check`
+
+### Acceptance Result - Source Hub WebView Bridge Probe Milestone
+- Targeted bridge probe, Source Hub, WebView bridge, readiness, capability router, and source acceptance tests passed.
+- Full frontend `.mjs` regression suite passed.
+- Backend pytest passed: `58 passed`; only warning was the existing pytest cache directory warning.
+- `pages.json` and `manifest.json` parsed successfully.
+- `git diff --check` passed; Git only reported LF-to-CRLF working-copy warnings.
+- H5 production build completed; build warnings were limited to the existing large uni-h5 bundle warning and outdated Browserslist data notice.
+- Desktop H5 self-acceptance at `http://127.0.0.1:8080/#/pages/library/library` returned HTTP 200.
+- Playwright confirmed the `检测 Bridge` action renders and reports missing H5 capabilities. The only browser console error was `favicon.ico` 404.
+
+### Known Issues - Source Hub WebView Bridge Probe Milestone
+- The bridge probe only checks method exposure; it does not validate a real rendered fetch or real Cookie collection until Android runtime is available.
+- H5 cannot expose Android WebView bridge methods.
+- This does not bypass login, CAPTCHA, paid content, membership restrictions, or anti-crawler controls.
+
+### Next Step
+- Add Android runtime bridge wiring validation when entering the phone-connected milestone flow.

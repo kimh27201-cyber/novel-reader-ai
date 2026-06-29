@@ -96,6 +96,14 @@
           </view>
           <text class="bridge-platform">{{ bridgeReadiness.platformLabel }}</text>
         </view>
+        <view class="bridge-probe-actions">
+          <button class="small-button primary" @tap="runBridgeProbe">检测 Bridge</button>
+          <text class="panel-hint" v-if="bridgeProbeReport">{{ bridgeProbeStatusText }}</text>
+        </view>
+        <view class="bridge-probe-report" v-if="bridgeProbeReport">
+          <text class="bridge-probe-line">检测时间：{{ bridgeProbeReport.checkedAt }}</text>
+          <text class="bridge-probe-line">缺失能力：{{ bridgeProbeMissingText }}</text>
+        </view>
         <view class="bridge-blocker-list" v-if="bridgeBlockerItems.length">
           <text class="bridge-blocker-item" v-for="item in bridgeBlockerItems" :key="item.code">
             {{ item.message }}
@@ -199,7 +207,7 @@ import {
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 import apiClient from '../../common/apiClient.js'
 import { clearSourceCookies, getSourceCookieSummary, saveSourceCookie } from '../../common/sourceCookieJar.js'
-import { openSourceLogin, readSourceLoginCookie } from '../../common/webViewBridge.js'
+import { openSourceLogin, probeWebViewBridge, readSourceLoginCookie } from '../../common/webViewBridge.js'
 import { assessSourceBridgeReadiness } from '../../common/sourceBridgeReadiness.js'
 
 export default {
@@ -220,6 +228,7 @@ export default {
       backendSessionError: '',
       backendSessionLoaded: false,
       cookieSummaryVersion: 0,
+      bridgeProbeReport: null,
       showSessionEditor: false,
       sessionOrigin: '',
       sessionCookie: '',
@@ -297,6 +306,16 @@ export default {
     },
     bridgeBlockerItems() {
       return this.bridgeReadiness.blockers || []
+    },
+    bridgeProbeStatusText() {
+      if (!this.bridgeProbeReport) return ''
+      return this.bridgeProbeReport.status === 'ready' ? 'Bridge 自检通过' : this.bridgeProbeReport.message
+    },
+    bridgeProbeMissingText() {
+      if (!this.bridgeProbeReport) return ''
+      return this.bridgeProbeReport.missing && this.bridgeProbeReport.missing.length
+        ? this.bridgeProbeReport.missing.join(' / ')
+        : '无'
     },
     candidateLanes() {
       return buildCandidateLanes('explore', this.capability, this.session)
@@ -541,12 +560,17 @@ export default {
       this.cookieSummaryVersion += 1
       uni.showToast({ title: '会话已清除', icon: 'none' })
     },
+    runBridgeProbe() {
+      this.bridgeProbeReport = probeWebViewBridge()
+      uni.showToast({ title: this.bridgeProbeStatusText, icon: 'none' })
+    },
     copyDiagnostics() {
       const payload = {
         sourceId: this.sourceId,
         sourceName: this.sourceName,
         capability: this.capability,
         bridgeReadiness: this.bridgeReadiness,
+        bridgeProbeReport: this.bridgeProbeReport,
         sessionStatus: sourceSessionStatus(this.session),
         candidateLanes: this.candidateLanes,
         diagnostics: this.diagnostics || {}
@@ -790,8 +814,28 @@ export default {
 }
 
 .bridge-blocker-list,
+.bridge-probe-report,
 .bridge-diagnostic-list {
   margin-top: 16rpx;
+}
+
+.bridge-probe-actions {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  margin-top: 18rpx;
+}
+
+.bridge-probe-report {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.bridge-probe-line {
+  color: var(--app-muted, #a9b6bb);
+  font-size: 23rpx;
+  line-height: 32rpx;
 }
 
 .bridge-blocker-list {
@@ -1051,6 +1095,7 @@ export default {
   .search-row,
   .android-session-actions,
   .bridge-readiness-header,
+  .bridge-probe-actions,
   .acceptance-summary {
     align-items: stretch;
     flex-direction: column;
@@ -1065,6 +1110,10 @@ export default {
   .acceptance-toolbar {
     align-items: stretch;
     justify-content: stretch;
+  }
+
+  .bridge-probe-actions .small-button {
+    width: 100%;
   }
 
   .bridge-diagnostic-list {

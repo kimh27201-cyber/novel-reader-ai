@@ -19,10 +19,36 @@ function parseResult(payload) {
 }
 
 export function hasRenderedFetchBridge() {
-  return typeof window !== 'undefined' && !!(
-    window.NovelReaderWebViewParser &&
-    typeof window.NovelReaderWebViewParser.fetchRenderedHtml === 'function'
-  )
+  return getWebViewBridgeCapabilities().renderedFetch
+}
+
+export function getWebViewBridgeCapabilities() {
+  const parser = typeof window !== 'undefined' ? window.NovelReaderWebViewParser : null
+  const methods = parser && typeof parser === 'object'
+    ? Object.keys(parser).filter(key => typeof parser[key] === 'function').sort()
+    : []
+  return {
+    available: !!parser,
+    renderedFetch: !!(parser && typeof parser.fetchRenderedHtml === 'function'),
+    openLogin: !!(parser && typeof parser.openLoginPage === 'function'),
+    readCookie: !!(parser && typeof parser.getCookie === 'function'),
+    methods
+  }
+}
+
+export function probeWebViewBridge(required = ['renderedFetch', 'openLogin', 'readCookie']) {
+  const capabilities = getWebViewBridgeCapabilities()
+  const missing = required.filter(key => !capabilities[key])
+  const status = missing.length ? 'missing' : 'ready'
+  return {
+    status,
+    capabilities,
+    missing,
+    checkedAt: new Date().toISOString(),
+    message: status === 'ready'
+      ? 'WebView bridge 可用'
+      : '未检测到完整 Android WebView bridge'
+  }
 }
 
 export function openSourceLogin(url) {
