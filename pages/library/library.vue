@@ -10,51 +10,16 @@
           confirm-type="search"
         />
       </view>
-      <button class="source-import-scan" @tap="scanSourceQr">⌘</button>
+      <button class="source-filter-trigger" @tap="openFilterSheet">筛选</button>
     </view>
 
     <scroll-view class="decoder-source-scroll" scroll-y :show-scrollbar="false">
-      <view class="source-select-card" @tap="sourceMenuVisible = !sourceMenuVisible">
-        <text class="source-select-icon">📖</text>
-        <text class="source-select-name">{{ sourceSelectLabel }}</text>
-        <text class="source-select-arrow">{{ sourceMenuVisible ? '⌃' : '⌄' }}</text>
-      </view>
-
-      <view class="menu-popover" v-if="sourceMenuVisible">
-        <button
-          class="menu-row"
-          v-for="option in sortOptions"
-          :key="option.value"
-          :class="{ active: sourceSort === option.value }"
-          @tap="selectSourceSort(option.value)"
-        >
-          <text>{{ option.label }}</text>
-          <text>{{ sourceSort === option.value ? '●' : '○' }}</text>
-        </button>
-        <button class="menu-row" @tap="openImportDrawer('repo')">
-          <text>扫码/链接添加书源</text>
-          <text>＋</text>
-        </button>
-      </view>
-
-      <view class="source-hero-card">
-        <view>
-          <text class="eyebrow">REAL SOURCE</text>
-          <view class="source-hero-title">扫码导入真实书源</view>
-          <text class="source-hero-desc">支持阅读 3.x、Legado、yuedu://、JSON 链接和源仓库详情页。</text>
-        </view>
-        <view class="source-hero-actions">
-          <button class="source-hero-action primary" @tap="scanSourceQr">扫码</button>
-          <button class="source-hero-action" @tap="openImportDrawer('repo')">链接</button>
-        </view>
-      </view>
-
       <view class="installed-source-list">
         <view
           class="installed-source-row"
           v-for="source in v2SourceRows"
           :key="source.rowKey"
-          @tap="openSourceExplore(source)"
+          @tap="openSourceHub(source)"
         >
           <view class="source-row-icon" :class="source.iconClass">{{ source.icon }}</view>
           <view class="source-main">
@@ -161,7 +126,63 @@
       </view>
     </scroll-view>
 
-    <view class="drawer-mask" v-if="importDrawerVisible || txtVisible || sourceDetailVisible || sourceEditVisible" @tap="closePanels"></view>
+    <button class="source-primary-add-button" @tap="openImportDrawer('repo')">扫码/链接添加书源</button>
+
+    <view class="drawer-mask" v-if="filterSheetVisible || importDrawerVisible || txtVisible || sourceDetailVisible || sourceEditVisible" @tap="closePanels"></view>
+
+    <view class="source-filter-sheet app-floating-panel" v-if="filterSheetVisible">
+      <view class="drawer-head">
+        <view>
+          <text class="eyebrow">SOURCE FILTER</text>
+          <view class="drawer-title">排序与筛选</view>
+        </view>
+        <button class="round-action" @tap="closeFilterSheet">×</button>
+      </view>
+
+      <view class="sheet-section">
+        <view class="sheet-section-title">排序方式</view>
+        <view class="sort-radio-list">
+          <button
+            class="sort-radio-row"
+            v-for="option in sortOptions"
+            :key="option.value"
+            :class="{ active: sourceSort === option.value }"
+            @tap="selectSourceSort(option.value)"
+          >
+            <text>{{ option.label }}</text>
+            <text class="sort-radio-dot">{{ sourceSort === option.value ? '●' : '○' }}</text>
+          </button>
+        </view>
+      </view>
+
+      <view class="sheet-section sheet-switch-row">
+        <view>
+          <view class="sheet-section-title">只看启用书源</view>
+          <text class="source-hint">关闭后显示全部状态，禁用和不兼容源仍会保留原因。</text>
+        </view>
+        <switch
+          class="enabled-filter-switch"
+          :checked="sourceFilter === 'enabled'"
+          color="#d8b15d"
+          @change="toggleEnabledFilter"
+        />
+      </view>
+
+      <view class="sheet-section">
+        <view class="sheet-section-title">分组</view>
+        <scroll-view class="group-strip sheet-group-strip" scroll-x :show-scrollbar="false">
+          <button
+            class="group-chip"
+            v-for="group in sourceGroups"
+            :key="group"
+            :class="{ active: sourceGroupFilter === group }"
+            @tap="sourceGroupFilter = group"
+          >
+            {{ group }}
+          </button>
+        </scroll-view>
+      </view>
+    </view>
 
     <view class="import-drawer app-floating-panel" v-if="importDrawerVisible">
       <view class="drawer-head">
@@ -349,6 +370,25 @@
           </view>
         </view>
 
+        <view class="acceptance-card" v-if="sourceDiagnostics">
+          <view class="test-head">
+            <view>
+              <view class="test-title">真实链路验收</view>
+              <text class="source-hint">{{ sourceAcceptanceText }}</text>
+            </view>
+            <button class="small-action primary" :loading="sourceAcceptanceTesting" @tap="runSelectedSourceAcceptance">开始验收</button>
+          </view>
+          <view class="acceptance-summary" v-if="sourceAcceptanceReport">
+            <text class="acceptance-status" :class="sourceAcceptanceReport.status">{{ sourceAcceptanceReport.status }}</text>
+            <text>评分 {{ sourceAcceptanceReport.score }}</text>
+            <text v-if="sourceAcceptanceReport.failureStage">失败阶段 {{ sourceAcceptanceReport.failureStage }}</text>
+          </view>
+          <view class="quick-actions">
+            <button class="outline-action" :disabled="!sourceAcceptanceReport" @tap="copySelectedAcceptanceReport">复制报告</button>
+            <button class="outline-action" :disabled="!sourceAcceptanceReport" @tap="clearSelectedAcceptanceReport">清除报告</button>
+          </view>
+        </view>
+
         <view class="anti-crawler-card" v-if="selectedSource">
           <view class="test-head">
             <view>
@@ -459,6 +499,12 @@ import {
   buildImportReadiness,
   summarizeImportReadiness
 } from '../../common/importReadiness.js'
+import {
+  buildCopyableAcceptanceReport,
+  clearSourceAcceptanceReports,
+  getSourceAcceptanceReports,
+  runSourceAcceptance
+} from '../../common/sourceAcceptance.js'
 import { resolveMarketScanTarget } from '../../common/sourceMarket.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 import { clearSourceCookies, saveSourceCookie } from '../../common/sourceCookieJar.js'
@@ -476,7 +522,7 @@ export default {
       sources: [],
       toolsExpanded: false,
       importDrawerVisible: false,
-      sourceMenuVisible: false,
+      filterSheetVisible: false,
       txtVisible: false,
       sourceImportMode: 'repo',
       sourceImportText: '',
@@ -495,6 +541,8 @@ export default {
       sourceTesting: false,
       sourceFlowTesting: false,
       sourceHealthTesting: false,
+      sourceAcceptanceTesting: false,
+      sourceAcceptanceReport: null,
       sourceProgressText: '',
       sourceAntiSaving: false,
       antiCrawler: {
@@ -563,10 +611,6 @@ export default {
         searchable: this.sources.filter(source => getSourceDiagnostics(source).searchable).length
       }
     },
-    sourceSelectLabel() {
-      const first = this.visibleSources.find(source => source.enabled) || this.sources.find(source => source.enabled) || this.sources[0]
-      return first ? first.name : '扫码导入书源'
-    },
     v2SourceRows() {
       const rows = [
         ...this.visibleSources.map((source, index) => ({
@@ -625,6 +669,13 @@ export default {
     sourceReasonText() {
       const reasons = this.sourceDiagnostics && this.sourceDiagnostics.reasons || []
       return reasons.length ? reasons.join('、') : '包含当前 H5 解析器暂不支持的复杂规则。'
+    },
+    sourceAcceptanceText() {
+      if (this.sourceAcceptanceTesting) return '正在依次验证分类/搜索、详情、目录、正文和加入书架。'
+      if (!this.sourceAcceptanceReport) return '尚未验收。用于确认真实书源是否能完成可阅读闭环。'
+      const stage = this.sourceAcceptanceReport.failureStage
+      const status = this.sourceAcceptanceReport.status
+      return stage ? `${status}，停在 ${stage}：${this.sourceAcceptanceReport.failureReason || ''}` : `${status}，最近评分 ${this.sourceAcceptanceReport.score}`
     },
     sourceStatusClass() {
       const status = this.sourceDiagnostics && this.sourceDiagnostics.networkStatus
@@ -713,7 +764,19 @@ export default {
     },
     selectSourceSort(value) {
       this.sourceSort = value
-      this.sourceMenuVisible = false
+    },
+    openFilterSheet() {
+      this.filterSheetVisible = true
+      this.importDrawerVisible = false
+      this.txtVisible = false
+      this.sourceDetailVisible = false
+      this.sourceEditVisible = false
+    },
+    closeFilterSheet() {
+      this.filterSheetVisible = false
+    },
+    toggleEnabledFilter(event) {
+      this.sourceFilter = event && event.detail && event.detail.value ? 'enabled' : 'all'
     },
     setImportMode(mode) {
       this.sourceImportMode = mode
@@ -724,7 +787,7 @@ export default {
       this.importDrawerVisible = true
       this.txtVisible = false
       this.sourceEditVisible = false
-      this.sourceMenuVisible = false
+      this.filterSheetVisible = false
     },
     openSourcePanel() {
       this.goSourceMarket()
@@ -733,18 +796,19 @@ export default {
       this.txtVisible = true
       this.importDrawerVisible = false
       this.sourceEditVisible = false
-      this.sourceMenuVisible = false
+      this.filterSheetVisible = false
     },
     closePanels() {
       this.importDrawerVisible = false
       this.txtVisible = false
       this.sourceDetailVisible = false
       this.sourceEditVisible = false
-      this.sourceMenuVisible = false
+      this.filterSheetVisible = false
       this.selectedSource = null
       this.editingSource = null
       this.sourceDiagnostics = null
       this.sourceTestResult = null
+      this.sourceAcceptanceReport = null
       this.sourceAntiSaving = false
       this.sourceImportPreview = null
       this.sourceImportText = ''
@@ -754,14 +818,44 @@ export default {
     openSourceDetail(source) {
       this.selectedSource = source
       this.sourceDiagnostics = getSourceDiagnostics(source)
+      this.sourceAcceptanceReport = getSourceAcceptanceReports(source.id).latest
       this.syncAntiCrawlerForm(source)
       this.testSourceKeyword = this.getSourceTestKeyword(source)
       this.sourceTestResult = null
       this.importDrawerVisible = false
       this.txtVisible = false
       this.sourceEditVisible = false
-      this.sourceMenuVisible = false
+      this.filterSheetVisible = false
       this.sourceDetailVisible = true
+    },
+    async runSelectedSourceAcceptance() {
+      if (!this.selectedSource) return
+      this.sourceAcceptanceTesting = true
+      this.sourceTestResult = null
+      try {
+        this.sourceAcceptanceReport = await runSourceAcceptance(this.selectedSource.id, {
+          keyword: this.testSourceKeyword,
+          saveReport: true
+        })
+        uni.showToast({ title: `验收${this.sourceAcceptanceReport.status}`, icon: 'none' })
+      } catch (error) {
+        uni.showToast({ title: friendlyErrorMessage(error, '真实链路验收失败'), icon: 'none' })
+      } finally {
+        this.sourceAcceptanceTesting = false
+      }
+    },
+    copySelectedAcceptanceReport() {
+      if (!this.sourceAcceptanceReport) return
+      uni.setClipboardData({
+        data: buildCopyableAcceptanceReport(this.sourceAcceptanceReport),
+        success: () => uni.showToast({ title: '验收报告已复制', icon: 'none' })
+      })
+    },
+    clearSelectedAcceptanceReport() {
+      if (!this.selectedSource) return
+      clearSourceAcceptanceReports(this.selectedSource.id)
+      this.sourceAcceptanceReport = null
+      uni.showToast({ title: '验收报告已清除', icon: 'none' })
     },
     selectedSourceLoginUrl() {
       const source = this.selectedSource || {}
@@ -795,16 +889,14 @@ export default {
       const ruleSearch = raw.ruleSearch && typeof raw.ruleSearch === 'object' ? raw.ruleSearch : {}
       return String(ruleSearch.checkKeyWord || raw.checkKeyWord || this.testSourceKeyword || '星轨图书馆').trim()
     },
-    openSourceExplore(row) {
-      if (!row || !row.raw) return
-      const result = getSourceExploreEntries(row.raw)
-      if (!result.available) {
-        uni.showToast({ title: result.reason || '该书源仅支持书名搜索', icon: 'none' })
-        return
-      }
+    openSourceHub(row) {
+      if (!row || !row.id) return
       uni.navigateTo({
-        url: `/pages/sourceExplore/sourceExplore?sourceId=${encodeURIComponent(row.id)}`
+        url: `/pages/sourceHub/sourceHub?sourceId=${encodeURIComponent(row.id)}`
       })
+    },
+    openSourceExplore(row) {
+      this.openSourceHub(row)
     },
     openSourceEdit(source) {
       this.editingSource = source
@@ -813,7 +905,7 @@ export default {
       this.importDrawerVisible = false
       this.txtVisible = false
       this.sourceDetailVisible = false
-      this.sourceMenuVisible = false
+      this.filterSheetVisible = false
       this.sourceEditVisible = true
     },
     saveSourceEdit() {
@@ -1104,10 +1196,17 @@ export default {
       }
       const result = await this.applySourceImportPreview('已导入')
       if (result) {
+        const firstSource = (result.sources || []).find(source => source && source.id && source.action !== 'skip')
         this.sourceImportText = ''
         this.sourceImportUrl = ''
         this.sourceImportPreview = null
         this.sourceImportPreviewRaw = ''
+        if (firstSource) {
+          this.closePanels()
+          uni.navigateTo({
+            url: `/pages/sourceHub/sourceHub?sourceId=${encodeURIComponent(firstSource.id)}`
+          })
+        }
       }
     },
     async previewSourceImport() {
@@ -1331,8 +1430,8 @@ export default {
 
 .source-discover-top {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 64rpx;
-  gap: 22rpx;
+  grid-template-columns: minmax(0, 1fr) 112rpx;
+  gap: 16rpx;
   align-items: center;
   min-height: 122rpx;
   margin: 0 -30rpx 28rpx;
@@ -1368,113 +1467,25 @@ export default {
   font-size: 25rpx;
 }
 
-.source-import-scan {
-  width: 64rpx;
+.source-filter-trigger {
+  width: 112rpx;
   height: 64rpx;
   padding: 0;
-  color: var(--app-text);
-  font-size: 42rpx;
-  line-height: 1;
-  background: transparent;
-}
-
-.decoder-source-scroll {
-  height: calc(100vh - 236rpx);
-}
-
-.source-select-card {
-  display: flex;
-  align-items: center;
-  height: 72rpx;
-  padding: 0 24rpx;
   border: 1rpx solid var(--app-border);
-  border-radius: 18rpx;
-  background: var(--app-panel-strong);
-  box-shadow: var(--app-shadow);
-}
-
-.source-select-icon {
-  flex-shrink: 0;
-  margin-right: 10rpx;
-  font-size: 28rpx;
-}
-
-.source-select-name {
-  min-width: 0;
-  flex: 1;
-  overflow: hidden;
-  color: var(--app-text);
-  font-family: "KaiTi", "STKaiti", "PingFang SC", serif;
-  font-size: 28rpx;
-  font-weight: 800;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.source-select-arrow {
-  flex-shrink: 0;
-  color: var(--app-muted);
-  font-size: 30rpx;
-}
-
-.source-hero-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 22rpx;
-  margin-top: 22rpx;
-  padding: 26rpx;
-  border: 1rpx solid var(--app-border);
-  border-radius: 24rpx;
-  background: var(--app-panel-strong);
-  box-shadow: var(--app-shadow);
-}
-
-.source-hero-title {
-  margin-top: 8rpx;
-  color: var(--app-text);
-  font-size: 34rpx;
-  font-weight: 900;
-  line-height: 42rpx;
-}
-
-.source-hero-desc {
-  display: block;
-  margin-top: 8rpx;
-  color: var(--app-muted);
-  font-size: 23rpx;
-  line-height: 32rpx;
-}
-
-.source-hero-actions {
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
-  gap: 12rpx;
-}
-
-.source-hero-action {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 106rpx;
-  height: 58rpx;
-  margin: 0;
-  padding: 0 22rpx;
   border-radius: 999rpx;
-  color: var(--app-text);
-  font-size: 24rpx;
-  font-weight: 800;
-  background: var(--app-panel);
-}
-
-.source-hero-action.primary {
   color: var(--app-on-accent);
+  font-size: 24rpx;
+  font-weight: 900;
+  line-height: 1;
   background: var(--app-accent);
 }
 
+.decoder-source-scroll {
+  height: calc(100vh - 266rpx);
+}
+
 .installed-source-list {
-  margin-top: 22rpx;
+  margin-top: 0;
 }
 
 .installed-source-row {
@@ -1739,34 +1750,6 @@ button,
   padding-left: 14rpx;
   color: var(--app-text);
   font-size: 26rpx;
-}
-
-.menu-popover {
-  position: absolute;
-  top: 112rpx;
-  right: 28rpx;
-  z-index: 8;
-  width: 320rpx;
-  padding: 12rpx;
-  border: 1rpx solid var(--app-border);
-  border-radius: 20rpx;
-  background: var(--app-panel-strong);
-  box-shadow: var(--app-floating-shadow);
-}
-
-.menu-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 76rpx;
-  padding: 0 18rpx;
-  color: var(--app-text);
-  font-size: 26rpx;
-  background: transparent;
-}
-
-.menu-row.active {
-  color: var(--app-accent-3);
 }
 
 .filter-strip,
@@ -2090,6 +2073,23 @@ button,
   font-weight: 800;
 }
 
+.source-primary-add-button {
+  position: fixed;
+  left: 50%;
+  bottom: 28rpx;
+  z-index: 16;
+  width: min(calc(100vw - 60rpx), 900px);
+  height: 88rpx;
+  padding: 0;
+  border-radius: 999rpx;
+  color: var(--app-on-accent);
+  font-size: 28rpx;
+  font-weight: 900;
+  background: var(--app-accent);
+  box-shadow: 0 18rpx 46rpx rgba(0, 0, 0, 0.34);
+  transform: translateX(-50%);
+}
+
 .drawer-mask {
   position: fixed;
   left: 50%;
@@ -2101,7 +2101,8 @@ button,
   transform: translateX(-50%);
 }
 
-.import-drawer {
+.import-drawer,
+.source-filter-sheet {
   position: fixed;
   left: 50%;
   bottom: 124rpx;
@@ -2114,6 +2115,71 @@ button,
   background: var(--app-panel-strong);
   box-shadow: var(--app-floating-shadow);
   transform: translateX(-50%);
+}
+
+.source-filter-sheet {
+  bottom: 132rpx;
+  max-height: 72vh;
+  border-radius: 30rpx 30rpx 24rpx 24rpx;
+}
+
+.sheet-section {
+  margin-top: 22rpx;
+  padding: 18rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: 20rpx;
+  background: var(--app-panel);
+}
+
+.sheet-section-title {
+  color: var(--app-text);
+  font-size: 27rpx;
+  font-weight: 900;
+}
+
+.sort-radio-list {
+  margin-top: 12rpx;
+}
+
+.sort-radio-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 78rpx;
+  margin: 0;
+  padding: 0 18rpx;
+  border-radius: 16rpx;
+  color: var(--app-text);
+  font-size: 26rpx;
+  background: transparent;
+}
+
+.sort-radio-row.active {
+  color: var(--app-accent-3);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.sort-radio-dot {
+  flex-shrink: 0;
+  margin-left: 20rpx;
+  color: var(--app-accent-3);
+  font-size: 28rpx;
+}
+
+.sheet-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 22rpx;
+}
+
+.enabled-filter-switch {
+  flex-shrink: 0;
+}
+
+.sheet-group-strip {
+  margin-top: 14rpx;
 }
 
 .import-methods,
@@ -2395,6 +2461,7 @@ button,
 }
 
 .health-card,
+.acceptance-card,
 .compatibility-card {
   margin-top: 18rpx;
   padding: 18rpx;
@@ -2405,6 +2472,31 @@ button,
 
 .source-health-warning {
   color: #f1b45f;
+}
+
+.acceptance-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  margin-top: 16rpx;
+  color: var(--app-muted);
+  font-size: 23rpx;
+}
+
+.acceptance-status {
+  padding: 6rpx 14rpx;
+  border-radius: 999rpx;
+  color: var(--app-on-accent);
+  background: var(--app-accent);
+}
+
+.acceptance-status.failed,
+.acceptance-status.incompatible {
+  background: #cf4e43;
+}
+
+.acceptance-status.partial {
+  background: #d8b15d;
 }
 
 .anti-crawler-card {

@@ -71,7 +71,7 @@ assert.equal(
 
 const libraryPage = readFileSync(new URL('../pages/library/library.vue', import.meta.url), 'utf8')
 const scanPage = readFileSync(new URL('../pages/import/scan.vue', import.meta.url), 'utf8')
-assert.match(libraryPage, /source-hero-card/)
+assert.match(libraryPage, /source-primary-add-button/)
 assert.match(libraryPage, /themeVars/)
 assert.match(libraryPage, /\/pages\/import\/scan/)
 assert.match(scanPage, /target\.type !== 'market'/)

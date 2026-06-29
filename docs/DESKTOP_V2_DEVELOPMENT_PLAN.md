@@ -326,3 +326,45 @@ D:\program\Android\SDK\platform-tools\adb.exe shell am start -n com.novelreader.
 ### 后续状态更新
 
 2026-06-28 已重新安装新版 APK，手机返回 `Success`，并已启动 `com.novelreader.v1/.MainActivity`。6 月 26 日的安装拒绝问题已归类为当时手机端权限确认未允许，不再是当前阻塞项。
+## 2026-06-29 Source Hub 阶段推进记录
+
+### 本次目标
+
+根据 `deep-research-report.md` 的阶段一/阶段二建议，本次先完成可交付的最小闭环：把“搜索测试”从主入口降级为辅助工具，新增书源中心入口，并建立后续会话中心、能力判定和分层执行路由的前端基础模型。
+
+### 已完成
+
+- 新增 `common/sourceCapability.js`：为书源生成统一 capability 对象，覆盖搜索、发现、详情、目录、正文、Cookie、登录、WebView、渲染、JS 模式和风险级别。
+- 新增 `common/sourceSession.js`：支持本地保存、读取、清除手动会话，并区分 `none / empty / active / expired` 状态。
+- 新增 `common/sourceRouter.js`：根据 capability 和 session 构建候选 lane，当前先落地 `http`、`http-session-cookie`、`http-rule-js`、`webview-session-assist`、`webview-rendered-dom` 的排序规则。
+- 新增 `pages/sourceHub/sourceHub.vue`：作为书源中心页，展示能力状态、会话状态、候选执行通道，并提供“进入发现”“书源内搜索”“录入会话”“复制诊断”入口。
+- 修改 `pages/library/library.vue`：书源列表主体点击进入 `sourceHub`，导入成功后优先跳转到第一个导入或覆盖书源的 `sourceHub`。
+- 更新 `pages.json`：注册 `pages/sourceHub/sourceHub`。
+- 新增测试 `tests/sourceCapabilitySessionRouter.test.mjs` 和 `tests/sourceHub.test.mjs`，并同步更新入口相关断言。
+
+### 当前边界
+
+- 本次只完成 H5/本地模型层和书源中心入口，不执行任意第三方 JS，不绕过验证码、会员、付费、风控或登录限制。
+- WebView 会话采集、后端 `source_session/source_cookie` 表、Android `SourceSessionBridge` 和 Playwright render worker 仍属于后续任务包。
+- 当前手动会话保存在本地 storage，后续需要与 Android CookieManager 和后端执行上下文打通。
+
+### 已验收
+
+```powershell
+cd D:\Codex\novel-reader-uniapp
+node tests\sourceCapabilitySessionRouter.test.mjs
+node tests\sourceHub.test.mjs
+node tests\sourceExplore.test.mjs
+node tests\productShell.test.mjs
+Get-ChildItem tests -Filter *.test.mjs | Sort-Object Name | ForEach-Object { node $_.FullName; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }
+```
+
+H5 自验收路径：
+
+```text
+http://localhost:8080/#/pages/library/library
+```
+
+验收重点：书源列表主体点击进入书源中心；书源中心可展示 capability/session/lane；发现入口可继续跳转 `sourceExplore`；搜索测试不再作为主入口。
+
+实际结果：前端 `.mjs` 全量回归通过，后端 pytest 通过，H5 构建通过；Playwright 桌面端自验收确认 `library -> sourceHub -> sourceExplore` 主路径可用。APK 里程碑打包按当前约定暂缓，等电脑端功能验收完成并连接手机后再执行。

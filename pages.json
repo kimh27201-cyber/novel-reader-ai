@@ -57,6 +57,13 @@
       }
     },
     {
+      "path": "pages/sourceHub/sourceHub",
+      "style": {
+        "navigationBarTitleText": "书源中心",
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/reader/reader",
       "style": {
         "navigationBarTitleText": "阅读",

@@ -265,7 +265,8 @@ async function testProxyFetchUsesBackendProxyRoute() {
     method: 'POST',
     headers: { Referer: 'https://example.com' },
     body: 'q=星轨',
-    charset: 'gbk'
+    charset: 'gbk',
+    throttle_ms: 0
   })
   assert.equal(calls[0].header.Authorization, undefined)
 }

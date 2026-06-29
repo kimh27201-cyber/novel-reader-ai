@@ -7,8 +7,8 @@ const buildScript = readFileSync(new URL('../scripts/build_android_webview_apk.p
 
 assert.match(libraryPage, /decoder-source-page/)
 assert.match(libraryPage, /source-discover-top/)
-assert.match(libraryPage, /source-select-card/)
-assert.match(libraryPage, /source-import-scan/)
+assert.match(libraryPage, /source-primary-add-button/)
+assert.match(libraryPage, /source-filter-sheet/)
 assert.match(libraryPage, /scanSourceQr/)
 assert.match(libraryPage, /getSourceExploreEntries/)
 assert.match(libraryPage, /openSourceExplore/)

@@ -273,7 +273,7 @@ function createSourceRequestSpec(source, url, context = {}, baseUrl = '') {
     retryCount: antiCrawler.retryCount,
     retryIntervalMs: antiCrawler.retryIntervalMs,
     rateLimitKey: source && source.id || requestContext.baseUrl || spec.url,
-    rendered: !!(source && source.features && source.features.webView),
+    rendered: context.rendered === false ? false : !!(source && source.features && source.features.webView),
     cookie: savedCookie,
     userAgent: antiCrawler.userAgent,
     header: normalizeHeaders({
@@ -1409,25 +1409,25 @@ export function getOnlineExploreEntries(options = {}) {
 export function getSourceExploreEntries(sourceOrId) {
   const source = resolveExploreSource(sourceOrId)
   if (!source) {
-    return createUnavailableExploreResult('', '', '未找到该书源')
+    return createUnavailableExploreResult('', '', '未找到该书源', 'source_missing')
   }
   if (!source.enabled) {
-    return createUnavailableExploreResult(source.id, source.name, '请先启用该书源')
+    return createUnavailableExploreResult(source.id, source.name, '请先启用该书源', 'source_disabled', source)
   }
 
   const raw = source.raw || source
   if (!raw.exploreUrl && !raw.ruleExploreUrl && !raw.explore) {
-    return createUnavailableExploreResult(source.id, source.name, '该书源没有发现页配置，仅支持书名搜索')
+    return createUnavailableExploreResult(source.id, source.name, '该书源没有发现页配置，仅支持书名搜索', 'no_explore_url', source)
   }
 
   const entries = parseSourceExploreUrl(source)
   if (!entries.length) {
-    return createUnavailableExploreResult(source.id, source.name, '该书源未提供可浏览分类')
+    return createUnavailableExploreResult(source.id, source.name, '该书源未提供可浏览分类', 'no_explore_url', source)
   }
 
   const capability = hasExploreCapability(source)
   if (!capability.available) {
-    return createUnavailableExploreResult(source.id, source.name, capability.reason)
+    return createUnavailableExploreResult(source.id, source.name, capability.reason, capability.reasonCode, source)
   }
 
   const groups = []
@@ -1445,6 +1445,8 @@ export function getSourceExploreEntries(sourceOrId) {
     sourceId: source.id,
     sourceName: source.name,
     available: true,
+    reasonCode: '',
+    canSearchFallback: false,
     reason: '',
     entries,
     groups
@@ -1711,7 +1713,7 @@ export function parseSourceExploreUrl(sourceOrId) {
       group: entry.group || '',
       kind: entry.kind || inferExploreKind(entry.title, entry.url),
       url: resolveExploreEntryUrl(entry.url, source.baseUrl),
-      paginated: /\{\{\s*page\s*\}\}/i.test(entry.url)
+      paginated: hasExplorePaginationTemplate(entry.url)
     }))
     .filter(entry => entry.url)
 }
@@ -1720,7 +1722,19 @@ function parseExploreSourceValue(value) {
   if (Array.isArray(value)) {
     return value.flatMap((item, index) => parseExploreEntryValue(item, index))
   }
-  if (value && typeof value === 'object') return parseExploreEntryValue(value, 0)
+  if (value && typeof value === 'object') {
+    if (value.url || value.href || value.link || value.value) return parseExploreEntryValue(value, 0)
+    return Object.keys(value).flatMap(group => {
+      const groupValue = value[group]
+      const items = Array.isArray(groupValue) ? groupValue : [groupValue]
+      return items.flatMap((item, index) => {
+        return parseExploreEntryValue({
+          ...(item && typeof item === 'object' ? item : { title: String(item || ''), url: '' }),
+          group
+        }, index)
+      })
+    })
+  }
 
   const text = String(value || '').trim()
   if (!text) return []
@@ -1741,11 +1755,13 @@ function resolveExploreSource(sourceOrId) {
   return normalizeSourceConfig(sourceOrId)
 }
 
-function createUnavailableExploreResult(sourceId, sourceName, reason) {
+function createUnavailableExploreResult(sourceId, sourceName, reason, reasonCode = 'unavailable', source = null) {
   return {
     sourceId,
     sourceName,
     available: false,
+    reasonCode,
+    canSearchFallback: !!(source && hasSourceSearchFallback(source)),
     reason,
     entries: [],
     groups: []
@@ -1756,41 +1772,65 @@ function getExploreRuleCompatibility(source) {
   const raw = source && (source.raw || source) || {}
   const exploreUrl = raw.exploreUrl || raw.ruleExploreUrl || raw.explore || ''
   const ruleExplore = raw.ruleExplore || {}
-  if (hasUnsupportedRule({ exploreUrl, ruleExplore })) {
-    return { compatible: false, reason: '该书源的发现入口包含复杂 JS 或 WebView 规则' }
+  if (hasUnsupportedRule({ exploreUrl, ruleExplore }) || /webview/i.test(JSON.stringify({ exploreUrl, ruleExplore }))) {
+    return { compatible: false, reason: '该书源的发现入口包含复杂 JS 或 WebView 规则', reasonCode: 'complex_explore_rule' }
   }
   if (hasComplexExploreTemplate(exploreUrl)) {
-    return { compatible: false, reason: '该书源的发现入口包含当前不支持的复杂分页模板' }
+    return { compatible: false, reason: '该书源的发现入口包含当前不支持的复杂分页模板', reasonCode: 'complex_explore_rule' }
   }
-  return { compatible: true, reason: '' }
+  return { compatible: true, reason: '', reasonCode: '' }
 }
 
 export function hasExploreCapability(sourceOrId) {
   const source = resolveExploreSource(sourceOrId)
-  if (!source) return { available: false, reason: '未找到该书源', usedRule: '' }
+  if (!source) return { available: false, reason: '未找到该书源', reasonCode: 'source_missing', usedRule: '' }
   const raw = source.raw || source
   const exploreUrl = raw.exploreUrl || raw.ruleExploreUrl || raw.explore
-  if (!exploreUrl) return { available: false, reason: '该书源没有发现页入口', usedRule: '' }
+  if (!exploreUrl) return { available: false, reason: '该书源没有发现页入口', reasonCode: 'no_explore_url', usedRule: '' }
   const compatibility = getExploreRuleCompatibility(source)
-  if (!compatibility.compatible) return { available: false, reason: compatibility.reason, usedRule: '' }
+  if (!compatibility.compatible) return { available: false, reason: compatibility.reason, reasonCode: compatibility.reasonCode, usedRule: '' }
   const exploreRule = normalizeRuleObject(raw.ruleExplore)
   const searchRule = normalizeRuleObject(raw.ruleSearch)
   if (Object.keys(exploreRule).length) return { available: true, reason: '', usedRule: 'ruleExplore' }
   if (Object.keys(searchRule).length) return { available: true, reason: '', usedRule: 'ruleSearch' }
-  return { available: false, reason: '仅有分类入口，缺少发现页解析规则', usedRule: '' }
+  return { available: false, reason: '仅有分类入口，缺少发现页解析规则', reasonCode: 'no_explore_rule', usedRule: '' }
+}
+
+function hasSourceSearchFallback(source) {
+  const raw = source && (source.raw || source) || {}
+  const ruleSearch = normalizeRuleObject(raw.ruleSearch)
+  return !!(source.enabled && raw.searchUrl && Object.keys(ruleSearch).length && !hasUnsupportedRule({
+    searchUrl: raw.searchUrl,
+    ruleSearch
+  }))
 }
 
 function hasComplexExploreTemplate(value) {
   const text = typeof value === 'string' ? value : JSON.stringify(value || '')
   return [...text.matchAll(/\{\{\s*([\s\S]*?)\s*\}\}/g)].some(match => {
     const expression = String(match[1] || '').trim()
-    return !/^(?:page|key|keyword|baseUrl|\$\.[\w.[\]*-]+)$/.test(expression)
+    return !/^(?:page|page\s*\+\s*1|key|keyword|baseUrl|\$\.[\w.[\]*-]+)$/.test(expression)
   })
+}
+
+function hasExplorePaginationTemplate(value) {
+  const text = String(value || '')
+  return /\{\{\s*page(?:\s*\+\s*1)?\s*\}\}|\{page\}|\$page|%page%/i.test(text)
+}
+
+function renderExplorePageUrl(url, page) {
+  const current = Math.max(1, Number(page || 1))
+  return String(url || '')
+    .replace(/\{\{\s*page\s*\+\s*1\s*\}\}/gi, String(current + 1))
+    .replace(/\{\{\s*page\s*\}\}/gi, String(current))
+    .replace(/\{page\}/gi, String(current))
+    .replace(/\$page/gi, String(current))
+    .replace(/%page%/gi, String(current))
 }
 
 function resolveExploreEntryUrl(url, baseUrl) {
   const templates = []
-  const protectedUrl = String(url || '').trim().replace(/\{\{[\s\S]*?\}\}/g, value => {
+  const protectedUrl = String(url || '').trim().replace(/\{\{[\s\S]*?\}\}|\{page\}|\$page|%page%/gi, value => {
     const token = `__SOURCE_TEMPLATE_${templates.length}__`
     templates.push(value)
     return token
@@ -1816,6 +1856,11 @@ function parseExploreEntryValue(value, index = 0) {
   const text = String(value || '').trim()
   if (!text) return []
   const parts = text.split('::').map(item => cleanText(item)).filter(Boolean)
+  if (parts.length >= 4) {
+    const url = parts[parts.length - 2]
+    const title = parts[parts.length - 3]
+    return [{ group: parts.slice(0, -3).join(' / '), title, url, note: parts[parts.length - 1], kind: inferExploreKind(title, url) }]
+  }
   if (parts.length >= 3) {
     const url = parts[parts.length - 1]
     const title = parts[parts.length - 2]
@@ -1823,6 +1868,12 @@ function parseExploreEntryValue(value, index = 0) {
   }
   if (parts.length === 2) {
     return [{ title: parts[0], url: parts[1], kind: inferExploreKind(parts[0], parts[1]) }]
+  }
+  const pair = text.match(/^(.+?)\s*(?:=>|\||,)\s*(.+)$/)
+  if (pair) {
+    const title = cleanText(pair[1])
+    const url = cleanText(pair[2])
+    return url ? [{ title: title || `Explore ${index + 1}`, url, kind: inferExploreKind(title, url) }] : []
   }
   if (/^https?:\/\//i.test(text) || /^\//.test(text)) {
     return [{ title: `Explore ${index + 1}`, url: text, kind: inferExploreKind('', text) }]
@@ -1847,7 +1898,8 @@ async function exploreSourceEntry(entry, options = {}) {
   const rule = normalizeRuleObject(raw.ruleExplore || raw.ruleSearch)
 
   const page = Number(options.page || 1)
-  const requestSpec = createSourceRequestSpec(source, entry.url, {
+  const requestUrl = renderExplorePageUrl(entry.url, page)
+  const requestSpec = createSourceRequestSpec(source, requestUrl, {
     key: entry.title,
     keyword: entry.title,
     page
@@ -1914,6 +1966,10 @@ async function exploreSourceEntry(entry, options = {}) {
     }
   }).filter(result => result.book.bookUrl && result.book.title).slice(0, options.limit || 80)
   diagnostics.parsedCount = results.length
+  if (!results.length) {
+    diagnostics.failedStage = 'empty_result'
+    diagnostics.errorMessage = '分类页请求成功，但没有解析出图书。可能原因：分类规则与搜索规则不同、目标页面结构变化、需要 Cookie / Referer / User-Agent，或该书源依赖 JS / WebView。'
+  }
   results.diagnostics = diagnostics
   return results
 }
@@ -1964,6 +2020,36 @@ export async function testSourceSearch(sourceId, keyword, options = {}) {
     keyword: word,
     count: results.length,
     results: results.slice(0, options.limit || 5)
+  }
+}
+
+export async function searchSourceBooks(sourceId, keyword, options = {}) {
+  const word = String(keyword || '').trim()
+  if (!word) throw new Error('请输入搜索关键词')
+  const source = getSourceConfig(sourceId)
+  if (!source) throw new Error('书源不存在或已删除')
+  if (!source.enabled && !options.allowDisabled) {
+    throw new Error('当前书源已停用，请先启用后搜索')
+  }
+  if (!hasSourceSearchFallback(source)) {
+    throw new Error('当前书源没有可用的搜索规则')
+  }
+
+  const timeoutMs = options.timeoutMs || ONLINE_SOURCE_TIMEOUT_MS
+  const results = await withTimeout(searchSource(source, word), getSourceTimeoutBudget(source, timeoutMs, {
+    respectSourceRespondTime: true
+  }), source.name)
+  const limit = Number(options.limit || 0)
+  const filtered = limit > 0 ? results.slice(0, limit) : results
+  if (options.failOnEmpty && !filtered.length) {
+    throw new Error('无搜索结果')
+  }
+  return {
+    sourceId,
+    sourceName: source.name,
+    keyword: word,
+    count: filtered.length,
+    results: filtered
   }
 }
 
@@ -2370,7 +2456,7 @@ async function searchSource(source, keyword) {
   const rule = normalizeRuleObject(raw.ruleSearch)
   if (!raw.searchUrl || !Object.keys(rule).length) return []
 
-  const html = await requestText(createSourceRequestSpec(source, raw.searchUrl, { key: keyword, keyword, page: 1 }, source.baseUrl))
+  const html = await requestText(createSourceRequestSpec(source, raw.searchUrl, { key: keyword, keyword, page: 1, rendered: false }, source.baseUrl))
   const payload = parseResponsePayload(html)
   const listRule = getFieldRule(rule, ['bookList', 'list', 'books'])
   const list = applyListRule(payload, listRule, { key: keyword, keyword, page: 1, $: payload })

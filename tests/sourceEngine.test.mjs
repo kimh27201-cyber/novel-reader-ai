@@ -133,7 +133,8 @@ assert.deepEqual(proxyCalls[0].data, {
   method: 'POST',
   headers: { Referer: 'https://novel.example.com' },
   body: 'q=abc',
-  charset: 'gbk'
+  charset: 'gbk',
+  throttle_ms: 0
 })
 delete globalThis.uni
 

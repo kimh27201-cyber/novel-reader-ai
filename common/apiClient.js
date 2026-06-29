@@ -352,7 +352,8 @@ export function createApiClient(deps = {}) {
           method: String(options.method || 'GET').toUpperCase(),
           headers: options.headers || options.header || {},
           body: options.body !== undefined ? options.body : options.data || '',
-          charset: options.charset || ''
+          charset: options.charset || '',
+          throttle_ms: Number.isFinite(Number(options.throttleMs)) ? Math.max(0, Number(options.throttleMs)) : 0
         }
       })
     },

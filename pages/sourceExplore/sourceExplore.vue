@@ -14,7 +14,60 @@
       :show-scrollbar="false"
       @scrolltolower="loadMoreBooks"
     >
-      <view class="status-panel error" v-if="errorMessage && !available">
+      <view class="fallback-search-panel status-panel" v-if="!available && canSearchFallback">
+        <view class="fallback-heading">
+          <view>
+            <view class="status-title">发现入口暂不可解析</view>
+            <text class="status-text">{{ errorMessage }}</text>
+          </view>
+          <button class="debug-button" @tap="copyFallbackDiagnostics">复制诊断</button>
+        </view>
+        <view class="fallback-search-row">
+          <input
+            class="fallback-search-input"
+            v-model="fallbackKeyword"
+            confirm-type="search"
+            placeholder="输入书名搜索该书源"
+            placeholder-class="search-placeholder"
+            @confirm="runFallbackSearch"
+          />
+          <button class="fallback-search-button" :disabled="fallbackLoading" @tap="runFallbackSearch">搜索</button>
+        </view>
+        <view class="diagnostic-strip fallback-diagnostic" v-if="fallbackElapsedMs || fallbackDiagnostics">
+          <text v-if="fallbackElapsedMs">{{ fallbackElapsedMs }}ms</text>
+          <text class="diagnostic-url">{{ fallbackDiagnostics && fallbackDiagnostics.keyword || '单书源搜索兜底' }}</text>
+        </view>
+        <view class="status-panel error fallback-error" v-if="fallbackError">
+          <view class="status-title">搜索失败</view>
+          <text class="status-text">{{ fallbackError }}</text>
+        </view>
+        <view class="book-list fallback-book-list" v-if="fallbackBooks.length">
+          <view class="book-row" v-for="book in fallbackBooks" :key="bookKey(book)" @tap="openBook(book)">
+            <image
+              class="book-cover"
+              v-if="bookCover(book)"
+              :src="bookCover(book)"
+              mode="aspectFill"
+              lazy-load
+            />
+            <view class="text-cover" v-else>{{ coverText(book.title) }}</view>
+            <view class="book-copy">
+              <view class="book-title">{{ book.title }}</view>
+              <text class="book-author">{{ book.author || '作者未知' }}</text>
+              <text class="book-latest" v-if="book.latestChapter">{{ book.latestChapter }}</text>
+              <text class="book-intro" v-if="book.intro">{{ book.intro }}</text>
+              <text class="book-source">{{ sourceName }} · 搜索兜底</text>
+            </view>
+            <text class="row-arrow">›</text>
+          </view>
+        </view>
+        <view class="loading-row" v-if="fallbackLoading">
+          <view class="loading-dot"></view>
+          <text>正在搜索该书源</text>
+        </view>
+      </view>
+
+      <view class="status-panel error" v-else-if="errorMessage && !available">
         <view class="status-title">无法打开发现页</view>
         <text class="status-text">{{ errorMessage }}</text>
       </view>
@@ -53,6 +106,13 @@
           <button class="icon-button refresh" aria-label="重新加载" :disabled="loading" @tap="reloadEntry">↻</button>
         </view>
 
+        <view class="diagnostic-strip" v-if="lastRequestUrl || lastElapsedMs">
+          <text>第 {{ page }} 页</text>
+          <text v-if="lastElapsedMs">{{ lastElapsedMs }}ms</text>
+          <text v-if="lastRequestUrl" class="diagnostic-url">{{ lastRequestUrl }}</text>
+          <button class="debug-button" @tap="copyDebugInfo">复制调试</button>
+        </view>
+
         <view class="status-panel error" v-if="errorMessage && available">
           <view class="status-title">加载失败</view>
           <text class="status-text">{{ errorMessage }}</text>
@@ -82,7 +142,7 @@
 
         <view class="status-panel" v-else-if="!loading && !errorMessage">
           <view class="status-title">当前入口暂无书籍</view>
-          <text class="status-text">可以切换其他入口，或稍后重试。</text>
+          <text class="status-text">{{ emptyReasonText }}</text>
         </view>
 
         <view class="loading-row" v-if="loading">
@@ -105,6 +165,7 @@
 import {
   getSourceExploreEntries,
   loadSourceExploreBooks,
+  searchSourceBooks,
   saveOnlineBookDraft
 } from '../../common/bookSources.js'
 import { getAppThemeId, getAppThemeStyle } from '../../common/appTheme.js'
@@ -123,6 +184,17 @@ export default {
       hasMore: false,
       loading: false,
       errorMessage: '',
+      reasonCode: '',
+      canSearchFallback: false,
+      fallbackKeyword: '',
+      fallbackBooks: [],
+      fallbackLoading: false,
+      fallbackError: '',
+      fallbackDiagnostics: null,
+      fallbackElapsedMs: 0,
+      lastRequestUrl: '',
+      lastElapsedMs: 0,
+      lastDiagnostics: null,
       themeId: getAppThemeId()
     }
   },
@@ -132,6 +204,11 @@ export default {
     },
     entryCount() {
       return this.groups.reduce((count, group) => count + group.entries.length, 0)
+    },
+    emptyReasonText() {
+      const diagnostics = this.lastDiagnostics || {}
+      if (diagnostics.failedStage === 'empty_result' && diagnostics.errorMessage) return diagnostics.errorMessage
+      return '分类页请求成功，但没有解析出图书。可能原因：分类规则与搜索规则不同、目标页面结构变化、需要 Cookie / Referer / User-Agent，或该书源依赖 JS / WebView。'
     }
   },
   onLoad(options = {}) {
@@ -145,6 +222,8 @@ export default {
       this.available = result.available
       this.groups = result.groups
       this.errorMessage = result.reason
+      this.reasonCode = result.reasonCode || ''
+      this.canSearchFallback = !!result.canSearchFallback
     },
     openEntry(entry) {
       if (!entry || this.loading) return
@@ -153,6 +232,9 @@ export default {
       this.page = 1
       this.hasMore = true
       this.errorMessage = ''
+      this.lastRequestUrl = ''
+      this.lastElapsedMs = 0
+      this.lastDiagnostics = null
       this.loadMoreBooks()
     },
     reloadEntry() {
@@ -166,8 +248,12 @@ export default {
       this.loading = true
       this.errorMessage = ''
       const currentPage = this.page
+      const startedAt = Date.now()
       try {
         const result = await loadSourceExploreBooks(this.sourceId, this.activeEntry, { page: currentPage })
+        this.lastDiagnostics = result.diagnostics || null
+        this.lastRequestUrl = result.diagnostics && result.diagnostics.requestUrl || ''
+        this.lastElapsedMs = Date.now() - startedAt
         const known = new Set(this.books.map(book => this.bookKey(book)))
         const additions = result.books.filter(book => !known.has(this.bookKey(book)))
         this.books = [...this.books, ...additions]
@@ -175,10 +261,71 @@ export default {
         if (this.hasMore) this.page = currentPage + 1
       } catch (error) {
         this.hasMore = false
+        this.lastDiagnostics = error && error.diagnostics || null
+        this.lastRequestUrl = error && error.diagnostics && error.diagnostics.requestUrl || ''
+        this.lastElapsedMs = Date.now() - startedAt
         this.errorMessage = friendlyErrorMessage(error, '发现入口加载失败')
       } finally {
         this.loading = false
       }
+    },
+    copyDebugInfo() {
+      const payload = {
+        sourceId: this.sourceId,
+        sourceName: this.sourceName,
+        entryTitle: this.activeEntry && this.activeEntry.title || '',
+        page: this.page,
+        lastRequestUrl: this.lastRequestUrl,
+        lastElapsedMs: this.lastElapsedMs,
+        diagnostics: this.lastDiagnostics || {}
+      }
+      uni.setClipboardData({
+        data: JSON.stringify(payload, null, 2),
+        success: () => uni.showToast({ title: '调试信息已复制', icon: 'none' })
+      })
+    },
+    async runFallbackSearch() {
+      const keyword = String(this.fallbackKeyword || '').trim()
+      if (!keyword || this.fallbackLoading) return
+      this.fallbackLoading = true
+      this.fallbackError = ''
+      this.fallbackBooks = []
+      this.fallbackDiagnostics = { keyword, reasonCode: this.reasonCode }
+      const startedAt = Date.now()
+      try {
+        const result = await searchSourceBooks(this.sourceId, keyword, { timeoutMs: 8000, failOnEmpty: true })
+        this.fallbackElapsedMs = Date.now() - startedAt
+        this.fallbackDiagnostics = {
+          keyword: result.keyword,
+          count: result.count,
+          sourceId: result.sourceId,
+          reasonCode: this.reasonCode
+        }
+        this.fallbackBooks = result.results.map(item => item.book).filter(book => book && book.bookUrl)
+      } catch (error) {
+        this.fallbackElapsedMs = Date.now() - startedAt
+        this.fallbackError = friendlyErrorMessage(error, '单书源搜索失败')
+      } finally {
+        this.fallbackLoading = false
+      }
+    },
+    copyFallbackDiagnostics() {
+      const payload = {
+        sourceId: this.sourceId,
+        sourceName: this.sourceName,
+        available: this.available,
+        reasonCode: this.reasonCode,
+        reason: this.errorMessage,
+        canSearchFallback: this.canSearchFallback,
+        keyword: this.fallbackKeyword,
+        elapsedMs: this.fallbackElapsedMs,
+        error: this.fallbackError,
+        diagnostics: this.fallbackDiagnostics || {}
+      }
+      uni.setClipboardData({
+        data: JSON.stringify(payload, null, 2),
+        success: () => uni.showToast({ title: '诊断信息已复制', icon: 'none' })
+      })
     },
     openBook(book) {
       if (!book || !book.bookUrl) return
@@ -237,7 +384,8 @@ export default {
 
 .icon-button::after,
 .entry-button::after,
-.retry-button::after {
+.retry-button::after,
+.debug-button::after {
   border: 0;
 }
 
@@ -344,6 +492,100 @@ export default {
   height: 64rpx;
   min-width: 64rpx;
   font-size: 34rpx;
+}
+
+.diagnostic-strip {
+  display: flex;
+  align-items: center;
+  gap: 12rpx;
+  min-height: 62rpx;
+  margin: -8rpx 0 18rpx;
+  padding: 10rpx 12rpx;
+  border: 1rpx solid var(--app-border, #29404a);
+  border-radius: 8rpx;
+  background: var(--app-surface, #111d23);
+  color: var(--app-muted, #a9b6bb);
+  font-size: 21rpx;
+}
+
+.diagnostic-url {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.debug-button {
+  flex-shrink: 0;
+  min-width: 110rpx;
+  height: 46rpx;
+  margin: 0;
+  padding: 0 14rpx;
+  border-radius: 8rpx;
+  color: var(--app-accent, #59e1d9);
+  background: var(--app-surface-soft, #17252c);
+  font-size: 21rpx;
+}
+
+.fallback-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20rpx;
+}
+
+.fallback-search-row {
+  margin-top: 26rpx;
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.fallback-search-input {
+  min-width: 0;
+  flex: 1;
+  height: 74rpx;
+  padding: 0 24rpx;
+  box-sizing: border-box;
+  border: 1rpx solid var(--app-border, #29404a);
+  border-radius: 8rpx;
+  background: var(--app-surface-soft, #17252c);
+  color: var(--app-text, #f4f6f5);
+  font-size: 25rpx;
+}
+
+.search-placeholder {
+  color: var(--app-muted, #a9b6bb);
+}
+
+.fallback-search-button {
+  width: 136rpx;
+  height: 74rpx;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8rpx;
+  background: var(--app-accent, #59e1d9);
+  color: #102025;
+  font-size: 25rpx;
+  font-weight: 700;
+}
+
+.fallback-search-button::after {
+  border: 0;
+}
+
+.fallback-diagnostic {
+  margin: 18rpx 0 0;
+}
+
+.fallback-error {
+  margin: 20rpx 0 0;
+}
+
+.fallback-book-list {
+  margin-top: 24rpx;
 }
 
 .book-list {
@@ -478,7 +720,7 @@ export default {
 }
 
 .bottom-space {
-  height: 60rpx;
+  height: 150rpx;
 }
 
 @media screen and (min-width: 900px) {

@@ -389,7 +389,8 @@ function requestTextOnce(requestUrl, spec, allowDirectFallback) {
       method: spec.method || 'GET',
       headers: normalizeHeaders(spec.header || {}, { channel: 'proxy' }),
       body: spec.data || '',
-      charset: spec.charset || ''
+      charset: spec.charset || '',
+      throttleMs: 0
     }).then(data => {
       if (data && typeof data.text === 'string') return data.text
       return typeof data === 'string' ? data : JSON.stringify(data || '')

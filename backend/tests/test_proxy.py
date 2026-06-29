@@ -40,6 +40,86 @@ def test_proxy_rejects_non_http_url():
     assert "http" in response.json()["detail"].lower()
 
 
+def test_proxy_rejects_unsupported_method():
+    response = client.post(
+        "/api/proxy/fetch",
+        json={"url": "https://example.com", "method": "TRACE"},
+    )
+
+    assert response.status_code == 400
+    assert "unsupported method" in response.json()["detail"].lower()
+
+
+def test_proxy_fetch_returns_timing_and_decode_diagnostics(monkeypatch):
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def request(self, method, url, headers=None, content=None):
+            return httpx.Response(
+                200,
+                content="chapter text".encode("utf-8"),
+                headers={"content-type": "text/plain; charset=utf-8"},
+                request=httpx.Request(method, url),
+            )
+
+    monkeypatch.setattr(proxy.httpx, "AsyncClient", FakeAsyncClient)
+
+    response = client.post(
+        "/api/proxy/fetch",
+        json={"url": "https://example.com/chapter", "throttle_ms": 0},
+    )
+
+    body = response.json()
+    assert response.status_code == 200
+    assert body["text"] == "chapter text"
+    assert body["elapsed_ms"] >= 0
+    assert body["content_bytes"] == len("chapter text".encode("utf-8"))
+    assert body["encoding"] == "utf-8"
+
+
+def test_proxy_fetch_throttle_zero_skips_host_wait(monkeypatch):
+    slept = []
+
+    class FakeAsyncClient:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, exc_type, exc, tb):
+            return False
+
+        async def request(self, method, url, headers=None, content=None):
+            return httpx.Response(
+                200,
+                content=b"ok",
+                request=httpx.Request(method, url),
+            )
+
+    async def fake_sleep(seconds):
+        slept.append(seconds)
+
+    proxy._last_request_at["example.com"] = proxy.time.monotonic()
+    monkeypatch.setattr(proxy.httpx, "AsyncClient", FakeAsyncClient)
+    monkeypatch.setattr(proxy.asyncio, "sleep", fake_sleep)
+
+    response = client.post(
+        "/api/proxy/fetch",
+        json={"url": "https://example.com/chapter", "throttle_ms": 0},
+    )
+
+    assert response.status_code == 200
+    assert slept == []
+
+
 def test_decode_response_uses_declared_charset():
     response = httpx.Response(
         200,
