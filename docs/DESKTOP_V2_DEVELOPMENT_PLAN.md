@@ -501,3 +501,59 @@ node tests\sourceHub.test.mjs
 ```
 
 阶段结果：目标测试通过，前端 `.mjs` 全量回归通过，后端 pytest 通过 `58 passed`，`pages.json` / `manifest.json` 解析通过，`git diff --check` 通过，H5 生产构建完成，桌面 H5 自验确认 Source Hub 可渲染后端会话状态。Playwright 控制台唯一错误为 `favicon.ico` 404，不影响业务功能。APK 仍按约定暂缓，不在本阶段打包。
+
+## 2026-06-29 Source Hub Android 会话采集入口推进记录
+
+### 本次目标
+
+继续围绕电脑端 H5 可验收范围推进下一阶段：在 `sourceHub` 中补齐 Android WebView 登录和 Cookie 采集入口，让页面先具备可见、可测试、可降级的会话采集操作，为后续连接手机后的 APK 真实采集验证做准备。
+
+### 已完成
+
+- `pages/sourceHub/sourceHub.vue`
+  - 接入 `openSourceLogin()` 和 `readSourceLoginCookie()`。
+  - 为需要 Cookie 或 WebView 的书源展示“打开登录页”和“保存登录 Cookie”入口。
+  - 保存登录 Cookie 时同步写入 `sourceCookieJar`、本地 Source Session，并在后端绑定书源可用时继续同步后端会话。
+  - 新增脱敏 Cookie 摘要列表，便于 H5 桌面端确认会话状态而不直接暴露完整 Cookie。
+  - 清除会话时同步清理该书源的 CookieJar 条目。
+- `tests/sourceHub.test.mjs`
+  - 补充 Source Hub Android 会话入口、Cookie 摘要、WebView bridge 和 CookieJar 调用契约断言。
+- `docs/dev/V2_NEXT_STEP_CHANGELOG.md`
+  - 追加本阶段变更记录。
+
+### 当前边界
+
+- 电脑端 H5 不能真实采集 Android WebView Cookie，只能验证入口、状态展示和不支持环境下的错误提示。
+- 真实 Cookie 采集必须等后续连接手机并打 APK 后，在用户主动登录授权的 Android WebView 环境中验证。
+- 本阶段不绕过验证码、登录、会员、付费或站点风控，也不做 APK 打包。
+
+### 验收方式
+
+```powershell
+cd D:\Codex\novel-reader-uniapp
+node tests\sourceHub.test.mjs
+node tests\webViewRenderedFetch.test.mjs
+Get-ChildItem tests -Filter *.test.mjs | Sort-Object Name | ForEach-Object { node $_.FullName; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }
+backend\.venv\Scripts\python.exe -m pytest backend\tests -q
+```
+
+桌面自验路径：
+
+```text
+http://localhost:8080/#/pages/library/library
+```
+
+验收重点：Source Hub 页面不报错；需要 Cookie / WebView 的书源能看到 Android 登录和保存 Cookie 入口；H5 环境点击采集时应给出 APK/桥接能力不足提示；Cookie 摘要只显示脱敏信息。APK 打包继续暂缓，等电脑端功能全部稳定并连接手机后再进入里程碑包流程。
+
+### 已验收
+
+- `node tests\sourceHub.test.mjs` 通过。
+- `node tests\webViewRenderedFetch.test.mjs` 通过。
+- 前端 `.mjs` 全量回归通过。
+- 后端 pytest 通过 `58 passed`；仅有 pytest cache 目录已存在 warning。
+- `pages.json` / `manifest.json` 解析通过。
+- `git diff --check` 通过；仅有 Git 工作区 LF 到 CRLF 的换行提示。
+- H5 生产构建完成；仅有现有 uni-h5 大文件提示和 Browserslist 数据偏旧提示。
+- `http://127.0.0.1:8080/#/pages/library/library` 返回 HTTP 200。
+- Playwright 桌面自验确认书源页和 Source Hub 路由可渲染；控制台唯一错误为 `favicon.ico` 404，不影响业务功能。
+- 构建后的 H5 产物已包含“保存登录 Cookie”入口。本阶段仍不打 APK。

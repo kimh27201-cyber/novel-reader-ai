@@ -66,6 +66,15 @@
         </view>
         <text class="backend-session-state">{{ backendSessionStatusText }}</text>
         <text class="panel-hint failure-text" v-if="backendSessionError">{{ backendSessionError }}</text>
+        <view class="android-session-actions" v-if="capability.requiresCookie || capability.requiresWebView">
+          <button class="small-button" @tap="openAndroidLogin">打开登录页</button>
+          <button class="small-button primary" @tap="saveAndroidLoginSession">保存登录 Cookie</button>
+        </view>
+        <view class="cookie-summary-list" v-if="cookieSummaryItems.length">
+          <text class="cookie-summary-item" v-for="item in cookieSummaryItems" :key="item.host">
+            {{ item.host }} · {{ item.cookie }}
+          </text>
+        </view>
         <view v-if="showSessionEditor">
           <input class="field" v-model="sessionOrigin" placeholder="Origin，例如 https://example.com" />
           <textarea class="session-textarea" v-model="sessionCookie" placeholder="手动粘贴 Cookie / UA / Referer 授权会话"></textarea>
@@ -164,6 +173,8 @@ import {
 } from '../../common/sourceAcceptance.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 import apiClient from '../../common/apiClient.js'
+import { clearSourceCookies, getSourceCookieSummary, saveSourceCookie } from '../../common/sourceCookieJar.js'
+import { openSourceLogin, readSourceLoginCookie } from '../../common/webViewBridge.js'
 
 export default {
   data() {
@@ -182,6 +193,7 @@ export default {
       backendSessionSyncing: false,
       backendSessionError: '',
       backendSessionLoaded: false,
+      cookieSummaryVersion: 0,
       showSessionEditor: false,
       sessionOrigin: '',
       sessionCookie: '',
@@ -222,6 +234,14 @@ export default {
       if (this.backendSessionError) return '后端会话：同步失败，本地会话仍可使用'
       if (this.backendSessionLoaded) return '后端会话：已同步'
       return '后端会话：待同步'
+    },
+    sourceLoginUrl() {
+      const raw = this.source && (this.source.raw || this.source) || {}
+      return String(raw.loginUrl || (this.source && this.source.baseUrl) || raw.bookSourceUrl || '').trim()
+    },
+    cookieSummaryItems() {
+      this.cookieSummaryVersion
+      return getSourceCookieSummary(this.sourceId)
     },
     candidateLanes() {
       return buildCandidateLanes('explore', this.capability, this.session)
@@ -420,8 +440,38 @@ export default {
       const synced = await this.syncBackendSession(this.session)
       uni.showToast({ title: synced ? '会话已保存并同步' : '会话已保存', icon: 'none' })
     },
+    openAndroidLogin() {
+      try {
+        openSourceLogin(this.sourceLoginUrl)
+        uni.showToast({ title: '请在登录页完成授权', icon: 'none' })
+      } catch (error) {
+        uni.showToast({ title: friendlyErrorMessage(error, '打开登录页失败'), icon: 'none' })
+      }
+    },
+    async saveAndroidLoginSession() {
+      try {
+        const url = this.sourceLoginUrl
+        const cookie = readSourceLoginCookie(url)
+        if (!cookie) throw new Error('未读取到登录 Cookie，请先完成手动登录')
+        saveSourceCookie(this.sourceId, url, cookie)
+        this.cookieSummaryVersion += 1
+        this.sessionOrigin = this.sessionOrigin || url
+        this.sessionCookie = cookie
+        this.session = saveManualSourceSession(this.sourceId, {
+          origin: this.sessionOrigin,
+          cookie,
+          userAgent: this.sessionUserAgent,
+          referer: this.sessionReferer || url
+        })
+        await this.syncBackendSession(this.session)
+        uni.showToast({ title: '登录 Cookie 已保存', icon: 'none' })
+      } catch (error) {
+        uni.showToast({ title: friendlyErrorMessage(error, '保存登录状态失败'), icon: 'none' })
+      }
+    },
     async clearSession() {
       clearSourceSession(this.sourceId)
+      clearSourceCookies(this.sourceId)
       this.session = null
       this.applySessionToEditor(null)
       if (this.backendSourceId && apiClient.getToken()) {
@@ -433,6 +483,7 @@ export default {
           this.backendSessionError = friendlyErrorMessage(error, '后端会话清除失败')
         }
       }
+      this.cookieSummaryVersion += 1
       uni.showToast({ title: '会话已清除', icon: 'none' })
     },
     copyDiagnostics() {
@@ -616,6 +667,7 @@ export default {
 }
 
 .search-row,
+.android-session-actions,
 .acceptance-summary,
 .acceptance-toolbar,
 .session-state {
@@ -623,6 +675,26 @@ export default {
   align-items: center;
   gap: 14rpx;
   margin-top: 18rpx;
+}
+
+.android-session-actions {
+  flex-wrap: wrap;
+}
+
+.cookie-summary-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+  margin-top: 14rpx;
+}
+
+.cookie-summary-item {
+  display: block;
+  padding: 10rpx 12rpx;
+  border-radius: 8rpx;
+  color: var(--app-muted, #a9b6bb);
+  font-size: 22rpx;
+  background: var(--app-surface-soft, #17252c);
 }
 
 .acceptance-summary {
@@ -852,12 +924,14 @@ export default {
   }
 
   .search-row,
+  .android-session-actions,
   .acceptance-summary {
     align-items: stretch;
     flex-direction: column;
   }
 
   .search-row .small-button,
+  .android-session-actions .small-button,
   .acceptance-toolbar .small-button {
     width: 100%;
   }

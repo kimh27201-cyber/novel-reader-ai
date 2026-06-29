@@ -239,3 +239,44 @@
 
 ### Next Step
 - Continue with Android WebView session collection only after desktop H5 review remains stable. APK packaging remains paused until the phone is connected.
+
+## Date: 2026-06-29
+
+### Completed - Source Hub Android Session Entry Milestone
+- Added Android WebView login/session collection entry points to `pages/sourceHub/sourceHub.vue`.
+- Source Hub now reuses `openSourceLogin()` and `readSourceLoginCookie()` from `common/webViewBridge.js`.
+- Saved Android login cookies are written into `sourceCookieJar`, local source session storage, and backend session sync when a backend-bound source is available.
+- Added a redacted cookie summary list to Source Hub so desktop/H5 can verify session state without exposing raw Cookie values.
+- Clearing a Source Hub session now also clears the source CookieJar entries.
+- H5 still shows the existing APK-required bridge error instead of attempting unsupported WebView collection.
+
+### Modified Files - Source Hub Android Session Entry Milestone
+- `pages/sourceHub/sourceHub.vue`
+- `tests/sourceHub.test.mjs`
+- `docs/dev/V2_NEXT_STEP_CHANGELOG.md`
+- `docs/DESKTOP_V2_DEVELOPMENT_PLAN.md`
+
+### Test Commands - Source Hub Android Session Entry Milestone
+- `node tests\sourceHub.test.mjs`
+- `node tests\webViewRenderedFetch.test.mjs`
+- `Get-ChildItem tests -Filter *.test.mjs | Sort-Object Name | ForEach-Object { node $_.FullName; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }`
+- `backend\.venv\Scripts\python.exe -m pytest backend\tests -q`
+- `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('pages.json','utf8')); JSON.parse(fs.readFileSync('manifest.json','utf8')); console.log('json config ok')"`
+- `git diff --check`
+
+### Acceptance Result - Source Hub Android Session Entry Milestone
+- Targeted Source Hub page contract and WebView bridge tests passed.
+- Full frontend `.mjs` regression suite passed.
+- Backend pytest passed: `58 passed`; only warning was an existing pytest cache directory warning.
+- `pages.json` and `manifest.json` parsed successfully.
+- `git diff --check` passed; Git only reported LF-to-CRLF working-copy warnings.
+- H5 production build completed; build warnings were limited to the existing large uni-h5 bundle warning and outdated Browserslist data notice.
+- Desktop H5 self-acceptance at `http://127.0.0.1:8080/#/pages/library/library` returned HTTP 200.
+- Source Hub route rendered in Playwright, and the built H5 asset contains the `保存登录 Cookie` entry. The only browser console error was `favicon.ico` 404.
+
+### Known Issues - Source Hub Android Session Entry Milestone
+- Desktop H5 cannot actually collect WebView Cookie; it can only verify that the Source Hub entry and unsupported-environment feedback are present.
+- Real Cookie collection must be validated later in Android APK with an authorized source and user-controlled login.
+
+### Next Step
+- Continue improving Source Hub diagnostics and WebView session bridge readiness on desktop H5. Pause before APK packaging until the phone is connected.
