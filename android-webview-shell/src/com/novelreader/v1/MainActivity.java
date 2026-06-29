@@ -225,6 +225,30 @@ public class MainActivity extends Activity {
 
     public class RenderedHtmlBridge {
         @JavascriptInterface
+        public String getBridgeInfo() {
+            try {
+                JSONObject payload = new JSONObject();
+                JSONObject features = new JSONObject();
+                JSONArray methods = new JSONArray();
+                methods.put("getBridgeInfo");
+                methods.put("fetchRenderedHtml");
+                methods.put("openLoginPage");
+                methods.put("getCookie");
+                features.put("renderedFetch", true);
+                features.put("openLogin", true);
+                features.put("readCookie", true);
+                payload.put("contractVersion", 1);
+                payload.put("runtime", "android-webview-shell");
+                payload.put("platform", "android");
+                payload.put("features", features);
+                payload.put("methods", methods);
+                return payload.toString();
+            } catch (Exception error) {
+                return "{\"error\":\"bridge info failed\"}";
+            }
+        }
+
+        @JavascriptInterface
         public boolean openLoginPage(String url) {
             if (url == null || !url.matches("^https?://.+")) return false;
             final String loginUrl = url;

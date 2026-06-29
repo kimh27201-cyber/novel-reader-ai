@@ -474,3 +474,41 @@
 
 ### Next Step
 - Continue toward Android runtime validation by connecting this recommended target to the phone-side rendered fetch bridge once the milestone phone flow starts.
+
+## Date: 2026-06-29
+
+### Completed - Android WebView Bridge Profile Contract Milestone
+- Added a native `getBridgeInfo()` method to the Android `NovelReaderWebViewParser` bridge.
+- The bridge profile reports `contractVersion`, `runtime`, `platform`, supported features, and exposed method names.
+- `getWebViewBridgeCapabilities()` now reads the runtime profile when available and falls back to method detection in H5.
+- `openSourceLogin()` and `readSourceLoginCookie()` now depend on their own bridge capabilities instead of incorrectly requiring rendered fetch support.
+- Source Hub bridge probing now shows profile contract information and uses probe capabilities in the readiness calculation.
+- Added static Android shell contract coverage with `tests/androidWebViewBridgeContract.test.mjs`.
+
+### Modified Files - Android WebView Bridge Profile Contract Milestone
+- `android-webview-shell/src/com/novelreader/v1/MainActivity.java`
+- `common/webViewBridge.js`
+- `pages/sourceHub/sourceHub.vue`
+- `tests/androidWebViewBridgeContract.test.mjs`
+- `tests/webViewBridgeProbe.test.mjs`
+- `tests/sourceHub.test.mjs`
+- `docs/dev/V2_NEXT_STEP_CHANGELOG.md`
+- `docs/DESKTOP_V2_DEVELOPMENT_PLAN.md`
+
+### Test Commands - Android WebView Bridge Profile Contract Milestone
+- `node tests\androidWebViewBridgeContract.test.mjs`
+- `node tests\webViewBridgeProbe.test.mjs`
+- `node tests\webViewRenderedFetch.test.mjs`
+- `node tests\sourceHub.test.mjs`
+
+### Acceptance Result - Android WebView Bridge Profile Contract Milestone
+- Targeted Android bridge contract, WebView bridge probe, rendered fetch bridge, and Source Hub contract tests passed.
+- The desktop H5 path can still validate missing bridge capability states.
+- A future Android runtime can now prove that the injected bridge matches the expected profile before running rendered fetch or Cookie collection trials.
+
+### Known Issues - Android WebView Bridge Profile Contract Milestone
+- This validates the Java/JS bridge contract statically and through mocked runtime profiles; real device execution still needs the phone-connected milestone flow.
+- The profile does not bypass login, CAPTCHA, paid content, membership restrictions, or anti-crawler controls.
+
+### Next Step
+- Use this bridge profile as the first gate in the Android rendered fetch and session collection validation flow.

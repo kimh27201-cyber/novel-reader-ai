@@ -18,21 +18,44 @@ function parseResult(payload) {
   return payload && typeof payload === 'object' ? payload : { error: 'WebView 返回结果无效' }
 }
 
+function readBridgeInfo(parser) {
+  if (!parser || typeof parser.getBridgeInfo !== 'function') return null
+  try {
+    const info = parseResult(parser.getBridgeInfo())
+    return info && !info.error && typeof info === 'object' ? info : null
+  } catch (error) {
+    return null
+  }
+}
+
+function featureEnabled(profile, key, fallback) {
+  const features = profile && profile.features && typeof profile.features === 'object'
+    ? profile.features
+    : null
+  if (!features || typeof features[key] === 'undefined') return fallback
+  return !!features[key]
+}
+
 export function hasRenderedFetchBridge() {
   return getWebViewBridgeCapabilities().renderedFetch
 }
 
 export function getWebViewBridgeCapabilities() {
   const parser = typeof window !== 'undefined' ? window.NovelReaderWebViewParser : null
+  const profile = readBridgeInfo(parser)
   const methods = parser && typeof parser === 'object'
     ? Object.keys(parser).filter(key => typeof parser[key] === 'function').sort()
     : []
+  const hasRenderedFetch = !!(parser && typeof parser.fetchRenderedHtml === 'function')
+  const hasOpenLogin = !!(parser && typeof parser.openLoginPage === 'function')
+  const hasReadCookie = !!(parser && typeof parser.getCookie === 'function')
   return {
     available: !!parser,
-    renderedFetch: !!(parser && typeof parser.fetchRenderedHtml === 'function'),
-    openLogin: !!(parser && typeof parser.openLoginPage === 'function'),
-    readCookie: !!(parser && typeof parser.getCookie === 'function'),
-    methods
+    renderedFetch: featureEnabled(profile, 'renderedFetch', hasRenderedFetch),
+    openLogin: featureEnabled(profile, 'openLogin', hasOpenLogin),
+    readCookie: featureEnabled(profile, 'readCookie', hasReadCookie),
+    methods,
+    profile
   }
 }
 
@@ -54,7 +77,8 @@ export function probeWebViewBridge(required = ['renderedFetch', 'openLogin', 're
 export function openSourceLogin(url) {
   const target = String(url || '').trim()
   if (!/^https?:\/\//i.test(target)) throw new WebViewCapabilityError('INVALID_URL', '登录地址无效')
-  if (!hasRenderedFetchBridge() || typeof window.NovelReaderWebViewParser.openLoginPage !== 'function') {
+  const capabilities = getWebViewBridgeCapabilities()
+  if (!capabilities.openLogin || typeof window.NovelReaderWebViewParser.openLoginPage !== 'function') {
     throw new WebViewCapabilityError('APK_REQUIRED', '打开登录页仅 Android APK 支持')
   }
   return window.NovelReaderWebViewParser.openLoginPage(target) !== false
@@ -62,7 +86,8 @@ export function openSourceLogin(url) {
 
 export function readSourceLoginCookie(url) {
   const target = String(url || '').trim()
-  if (!hasRenderedFetchBridge() || typeof window.NovelReaderWebViewParser.getCookie !== 'function') {
+  const capabilities = getWebViewBridgeCapabilities()
+  if (!capabilities.readCookie || typeof window.NovelReaderWebViewParser.getCookie !== 'function') {
     throw new WebViewCapabilityError('APK_REQUIRED', '保存登录状态仅 Android APK 支持')
   }
   return String(window.NovelReaderWebViewParser.getCookie(target) || '')

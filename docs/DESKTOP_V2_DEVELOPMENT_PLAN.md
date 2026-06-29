@@ -738,3 +738,46 @@ backend\.venv\Scripts\python.exe -m pytest backend\tests -q
 ```
 
 阶段结果：目标测试通过，相关 WebView / Source Hub 回归通过，前端 `.mjs` 全量回归通过，后端 pytest 通过 `58 passed`，`pages.json` / `manifest.json` 解析通过，`git diff --check` 通过，已检查现有 H5 生产构建产物包含“推荐目标”和“应用推荐”入口，`http://127.0.0.1:8080/#/pages/library/library` 返回 HTTP 200。
+
+## 2026-06-29 Android WebView Bridge Profile 契约推进记录
+
+### 本次目标
+
+继续把复杂 JS / WebView 书源适配向 Android runtime 验证推进。上一阶段已经能在 Source Hub 推导 rendered fetch 推荐目标，本阶段补齐 bridge profile 契约：让前端不只判断“方法是否存在”，还可以读取 Android 壳主动返回的契约版本、运行时、平台和能力清单。后续连接手机时，先确认 bridge profile，再执行真实渲染和 Cookie 采集。
+
+### 已完成
+
+- `android-webview-shell/src/com/novelreader/v1/MainActivity.java`
+  - 在 `RenderedHtmlBridge` 中新增 `getBridgeInfo()`。
+  - 返回 `contractVersion: 1`、`runtime: android-webview-shell`、`platform: android`。
+  - 返回 `renderedFetch`、`openLogin`、`readCookie` 三项能力和 native bridge 方法清单。
+- `common/webViewBridge.js`
+  - `getWebViewBridgeCapabilities()` 优先读取 runtime profile，读取失败时回退到方法检测。
+  - `openSourceLogin()` 和 `readSourceLoginCookie()` 改为分别依赖 `openLogin`、`readCookie` 能力，不再误依赖 rendered fetch。
+- `pages/sourceHub/sourceHub.vue`
+  - Bridge 自检报告增加“契约信息”展示。
+  - Bridge 就绪度会复用最近一次 probe 的能力结果，便于 Android runtime 下判断 profile 是否完整。
+- `tests/androidWebViewBridgeContract.test.mjs`
+  - 新增 Android 壳 bridge 契约静态检查，锁定 Java 注入名、`getBridgeInfo()` 和能力字段。
+- `tests/webViewBridgeProbe.test.mjs`
+  - 覆盖 runtime profile 读取。
+  - 覆盖只有登录/Cookie 能力、没有 rendered fetch 能力时，登录和 Cookie 入口仍可独立工作。
+- `tests/sourceHub.test.mjs`
+  - 补充 Source Hub bridge profile 文案契约断言。
+
+### 当前边界
+
+- 本阶段验证 Java/JS bridge 契约和桌面端展示逻辑，不执行真实第三方 WebView 渲染。
+- 真实 rendered fetch、登录页跳转和 Cookie 回传仍要在 Android WebView 运行时中验收。
+- profile 只证明客户端能力契约，不保证目标站点免登录、免验证码、免风控或可直接访问。
+
+### 已验收
+
+```powershell
+node tests\androidWebViewBridgeContract.test.mjs
+node tests\webViewBridgeProbe.test.mjs
+node tests\webViewRenderedFetch.test.mjs
+node tests\sourceHub.test.mjs
+```
+
+阶段结果：Android bridge 契约测试、WebView bridge probe、rendered fetch bridge 和 Source Hub 契约测试均通过。下一步可以把 bridge profile 作为 Android 渲染试运行和会话采集前的第一道验收门。

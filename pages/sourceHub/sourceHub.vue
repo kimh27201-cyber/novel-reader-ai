@@ -103,6 +103,7 @@
         <view class="bridge-probe-report" v-if="bridgeProbeReport">
           <text class="bridge-probe-line">检测时间：{{ bridgeProbeReport.checkedAt }}</text>
           <text class="bridge-probe-line">缺失能力：{{ bridgeProbeMissingText }}</text>
+          <text class="bridge-probe-line">契约信息：{{ bridgeProbeProfileText }}</text>
         </view>
         <view class="rendered-trial-panel">
           <view class="rendered-trial-title">Rendered Fetch 试运行</view>
@@ -314,7 +315,8 @@ export default {
     },
     bridgeReadiness() {
       return assessSourceBridgeReadiness(this.source || {}, this.capability, {
-        platform: this.runtimePlatform
+        platform: this.runtimePlatform,
+        bridge: this.bridgeProbeReport && this.bridgeProbeReport.capabilities
       })
     },
     bridgeReadinessStatusText() {
@@ -341,6 +343,15 @@ export default {
       return this.bridgeProbeReport.missing && this.bridgeProbeReport.missing.length
         ? this.bridgeProbeReport.missing.join(' / ')
         : '无'
+    },
+    bridgeProbeProfileText() {
+      const profile = this.bridgeProbeReport
+        && this.bridgeProbeReport.capabilities
+        && this.bridgeProbeReport.capabilities.profile
+      if (!profile) return '未提供'
+      const version = profile.contractVersion ? `v${profile.contractVersion}` : '未知版本'
+      const runtime = profile.runtime || profile.platform || '未知运行时'
+      return `${version} · ${runtime}`
     },
     renderedTrialStatusText() {
       if (!this.renderedTrialReport) return ''
