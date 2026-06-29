@@ -64,6 +64,8 @@
           <text>{{ sessionStatusText }}</text>
           <button class="small-button" :disabled="!session" @tap="clearSession">清除</button>
         </view>
+        <text class="backend-session-state">{{ backendSessionStatusText }}</text>
+        <text class="panel-hint failure-text" v-if="backendSessionError">{{ backendSessionError }}</text>
         <view v-if="showSessionEditor">
           <input class="field" v-model="sessionOrigin" placeholder="Origin，例如 https://example.com" />
           <textarea class="session-textarea" v-model="sessionCookie" placeholder="手动粘贴 Cookie / UA / Referer 授权会话"></textarea>
@@ -150,6 +152,7 @@ import {
   clearSourceSession,
   getSourceSession,
   saveManualSourceSession,
+  saveSourceSession,
   sourceSessionStatus
 } from '../../common/sourceSession.js'
 import { buildCandidateLanes } from '../../common/sourceRouter.js'
@@ -160,6 +163,7 @@ import {
   runSourceAcceptance
 } from '../../common/sourceAcceptance.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
+import apiClient from '../../common/apiClient.js'
 
 export default {
   data() {
@@ -175,6 +179,9 @@ export default {
       searchError: '',
       acceptanceReport: null,
       acceptanceRunning: false,
+      backendSessionSyncing: false,
+      backendSessionError: '',
+      backendSessionLoaded: false,
       showSessionEditor: false,
       sessionOrigin: '',
       sessionCookie: '',
@@ -196,12 +203,25 @@ export default {
     capabilitySummaryText() {
       return sourceCapabilitySummary(this.capability)
     },
+    backendSourceId() {
+      const id = this.source && this.source.backendId
+      const number = Number(id)
+      return Number.isFinite(number) && number > 0 ? number : null
+    },
     sessionStatusText() {
       const status = sourceSessionStatus(this.session)
       if (status === 'active') return '已有可复用会话'
       if (status === 'expired') return '会话可能已过期'
       if (status === 'empty') return '已保存空会话'
       return '暂无会话'
+    },
+    backendSessionStatusText() {
+      if (!this.backendSourceId) return '本地会话：当前书源尚未绑定后端书源'
+      if (!apiClient.getToken()) return '后端会话：登录后可同步到后端'
+      if (this.backendSessionSyncing) return '后端会话：同步中'
+      if (this.backendSessionError) return '后端会话：同步失败，本地会话仍可使用'
+      if (this.backendSessionLoaded) return '后端会话：已同步'
+      return '后端会话：待同步'
     },
     candidateLanes() {
       return buildCandidateLanes('explore', this.capability, this.session)
@@ -277,11 +297,46 @@ export default {
       this.diagnostics = this.source ? getSourceDiagnostics(this.source) : null
       this.session = getSourceSession(this.sourceId)
       this.acceptanceReport = getSourceAcceptanceReports(this.sourceId).latest
-      if (this.session) {
-        this.sessionOrigin = this.session.origin
-        this.sessionCookie = this.session.cookie
-        this.sessionUserAgent = this.session.userAgent
-        this.sessionReferer = this.session.referer
+      this.backendSessionLoaded = false
+      this.backendSessionError = ''
+      this.applySessionToEditor(this.session)
+      this.loadBackendSession()
+    },
+    applySessionToEditor(session) {
+      this.sessionOrigin = session && session.origin || ''
+      this.sessionCookie = session && session.cookie || ''
+      this.sessionUserAgent = session && session.userAgent || ''
+      this.sessionReferer = session && session.referer || ''
+    },
+    mapBackendSession(session) {
+      return {
+        origin: session && session.origin || '',
+        cookie: session && session.cookie || '',
+        userAgent: session && session.user_agent || '',
+        referer: session && session.referer || '',
+        storageStateJson: session && session.storage_state_json || '',
+        localStorageJson: session && session.local_storage_json || '',
+        sessionStorageJson: session && session.session_storage_json || '',
+        expiresAt: Number(session && session.expires_at || 0) || 0,
+        lastVerifiedAt: Number(session && session.last_verified_at || 0) || 0,
+        status: session && session.status || 'active'
+      }
+    },
+    async loadBackendSession() {
+      if (!this.backendSourceId || !apiClient.getToken()) return
+      this.backendSessionSyncing = true
+      this.backendSessionError = ''
+      try {
+        const remote = await apiClient.getSourceSession(this.backendSourceId)
+        this.backendSessionLoaded = true
+        if (remote && remote.exists) {
+          this.session = saveSourceSession(this.sourceId, this.mapBackendSession(remote))
+          this.applySessionToEditor(this.session)
+        }
+      } catch (error) {
+        this.backendSessionError = friendlyErrorMessage(error, '后端会话同步失败')
+      } finally {
+        this.backendSessionSyncing = false
       }
     },
     openExplore() {
@@ -339,7 +394,22 @@ export default {
       this.acceptanceReport = null
       uni.showToast({ title: '验收报告已清空', icon: 'none' })
     },
-    saveManualSession() {
+    async syncBackendSession(session) {
+      if (!this.backendSourceId || !apiClient.getToken()) return false
+      this.backendSessionSyncing = true
+      this.backendSessionError = ''
+      try {
+        await apiClient.saveSourceSession(this.backendSourceId, session)
+        this.backendSessionLoaded = true
+        return true
+      } catch (error) {
+        this.backendSessionError = friendlyErrorMessage(error, '后端会话同步失败')
+        return false
+      } finally {
+        this.backendSessionSyncing = false
+      }
+    },
+    async saveManualSession() {
       if (!this.sourceId) return
       this.session = saveManualSourceSession(this.sourceId, {
         origin: this.sessionOrigin,
@@ -347,12 +417,22 @@ export default {
         userAgent: this.sessionUserAgent,
         referer: this.sessionReferer
       })
-      uni.showToast({ title: '会话已保存', icon: 'none' })
+      const synced = await this.syncBackendSession(this.session)
+      uni.showToast({ title: synced ? '会话已保存并同步' : '会话已保存', icon: 'none' })
     },
-    clearSession() {
+    async clearSession() {
       clearSourceSession(this.sourceId)
       this.session = null
-      this.sessionCookie = ''
+      this.applySessionToEditor(null)
+      if (this.backendSourceId && apiClient.getToken()) {
+        try {
+          await apiClient.deleteSourceSession(this.backendSourceId)
+          this.backendSessionLoaded = true
+          this.backendSessionError = ''
+        } catch (error) {
+          this.backendSessionError = friendlyErrorMessage(error, '后端会话清除失败')
+        }
+      }
       uni.showToast({ title: '会话已清除', icon: 'none' })
     },
     copyDiagnostics() {
@@ -443,13 +523,15 @@ export default {
 .hub-subtitle,
 .status-text,
 .panel-hint,
+.backend-session-state,
 .result-meta {
   color: var(--app-muted, #a9b6bb);
 }
 
 .hub-subtitle,
 .status-text,
-.panel-hint {
+.panel-hint,
+.backend-session-state {
   display: block;
   margin-top: 8rpx;
   font-size: 24rpx;

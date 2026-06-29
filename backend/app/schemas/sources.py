@@ -91,3 +91,27 @@ class SourceContentRequest(BaseModel):
 
 class SourceContentResponse(BaseModel):
     content: str
+
+
+class SourceSessionWrite(BaseModel):
+    origin: str = ""
+    cookie: str = ""
+    user_agent: str = ""
+    referer: str = ""
+    storage_state_json: str = ""
+    local_storage_json: str = ""
+    session_storage_json: str = ""
+    expires_at: int = Field(default=0, ge=0)
+    last_verified_at: int = Field(default=0, ge=0)
+    status: str = "active"
+
+
+class SourceSessionRead(SourceSessionWrite):
+    source_id: int
+    exists: bool
+    updated_at: datetime | None = None
+
+
+class SourceSessionDeleteResponse(BaseModel):
+    deleted: bool
+    source_id: int

@@ -41,6 +41,18 @@ def auth_headers():
     return {"Authorization": f"Bearer {login.json()['access_token']}"}
 
 
+def auth_headers_for(username: str, email: str):
+    client.post(
+        "/api/auth/register",
+        json={"username": username, "email": email, "password": "secret123"},
+    )
+    login = client.post(
+        "/api/auth/login",
+        json={"username": username, "password": "secret123"},
+    )
+    return {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+
 def sample_source_json():
     return json.dumps(
         {
@@ -116,6 +128,57 @@ def test_delete_source_removes_owned_source_and_hides_from_list():
     assert listed.status_code == 200
     assert listed.json() == []
     assert search.status_code == 404
+
+
+def test_source_session_can_be_saved_loaded_and_cleared():
+    headers = auth_headers()
+    source = import_sample_source(headers)
+
+    payload = {
+        "origin": "https://example.com",
+        "cookie": "sid=abc; theme=dark",
+        "user_agent": "NovelReaderTest/1.0",
+        "referer": "https://example.com/login",
+        "expires_at": 4102444800000,
+        "status": "active",
+    }
+    saved = client.put(f"/api/sources/{source['id']}/session", headers=headers, json=payload)
+    loaded = client.get(f"/api/sources/{source['id']}/session", headers=headers)
+    cleared = client.delete(f"/api/sources/{source['id']}/session", headers=headers)
+    empty = client.get(f"/api/sources/{source['id']}/session", headers=headers)
+
+    assert saved.status_code == 200
+    assert saved.json()["exists"] is True
+    assert saved.json()["source_id"] == source["id"]
+    assert loaded.status_code == 200
+    assert loaded.json()["cookie"] == "sid=abc; theme=dark"
+    assert loaded.json()["user_agent"] == "NovelReaderTest/1.0"
+    assert loaded.json()["referer"] == "https://example.com/login"
+    assert loaded.json()["expires_at"] == 4102444800000
+    assert cleared.status_code == 200
+    assert cleared.json() == {"deleted": True, "source_id": source["id"]}
+    assert empty.status_code == 200
+    assert empty.json()["exists"] is False
+
+
+def test_source_session_is_user_scoped_and_deleted_with_source():
+    owner_headers = auth_headers_for("owner", "owner@example.com")
+    other_headers = auth_headers_for("other", "other@example.com")
+    source = import_sample_source(owner_headers)
+
+    saved = client.put(
+        f"/api/sources/{source['id']}/session",
+        headers=owner_headers,
+        json={"cookie": "owner-cookie=1", "origin": "https://example.com"},
+    )
+    other = client.get(f"/api/sources/{source['id']}/session", headers=other_headers)
+    deleted_source = client.delete(f"/api/sources/{source['id']}", headers=owner_headers)
+    after_delete = client.get(f"/api/sources/{source['id']}/session", headers=owner_headers)
+
+    assert saved.status_code == 200
+    assert other.status_code == 404
+    assert deleted_source.status_code == 200
+    assert after_delete.status_code == 404
 
 
 def test_search_source_parses_html_results(monkeypatch):

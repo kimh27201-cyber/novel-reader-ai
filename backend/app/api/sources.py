@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.api.auth import get_current_user
 from app.db.session import get_db
-from app.models.models import Book, BookSource, User
+from app.models.models import Book, BookSource, SourceSession, User
 from app.schemas.sources import (
     SourceBookInfoRequest,
     SourceBookInfoResponse,
@@ -15,6 +15,9 @@ from app.schemas.sources import (
     SourceImportRequest,
     SourceImportResponse,
     SourceRead,
+    SourceSessionDeleteResponse,
+    SourceSessionRead,
+    SourceSessionWrite,
     SourceSearchRequest,
     SourceSearchResponse,
     SourceTocRequest,
@@ -56,6 +59,28 @@ def source_to_parser_dict(source: BookSource) -> dict:
         "group": source.group,
         "raw": json.loads(source.raw_json),
     }
+
+
+def empty_source_session(source_id: int) -> SourceSessionRead:
+    return SourceSessionRead(source_id=source_id, exists=False)
+
+
+def source_session_to_read(session: SourceSession) -> SourceSessionRead:
+    return SourceSessionRead(
+        source_id=session.source_id,
+        exists=True,
+        origin=session.origin,
+        cookie=session.cookie,
+        user_agent=session.user_agent,
+        referer=session.referer,
+        storage_state_json=session.storage_state_json,
+        local_storage_json=session.local_storage_json,
+        session_storage_json=session.session_storage_json,
+        expires_at=session.expires_at,
+        last_verified_at=session.last_verified_at,
+        status=session.status,
+        updated_at=session.updated_at,
+    )
 
 
 def save_source_configs(configs: list[dict], db: Session, current_user: User) -> list[BookSource]:
@@ -138,6 +163,10 @@ def delete_source(
     current_user: User = Depends(get_current_user),
 ) -> dict[str, bool | int]:
     source = get_owned_source(source_id, current_user.id, db)
+    db.query(SourceSession).filter(
+        SourceSession.user_id == current_user.id,
+        SourceSession.source_id == source.id,
+    ).delete(synchronize_session=False)
     db.query(Book).filter(Book.user_id == current_user.id, Book.source_id == source.id).update(
         {Book.source_id: None},
         synchronize_session=False,
@@ -145,6 +174,69 @@ def delete_source(
     db.delete(source)
     db.commit()
     return {"deleted": True, "id": source_id}
+
+
+@router.get("/{source_id}/session", response_model=SourceSessionRead)
+def get_source_session(
+    source_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> SourceSessionRead:
+    source = get_owned_source(source_id, current_user.id, db)
+    session = (
+        db.query(SourceSession)
+        .filter(SourceSession.user_id == current_user.id, SourceSession.source_id == source.id)
+        .first()
+    )
+    return source_session_to_read(session) if session else empty_source_session(source.id)
+
+
+@router.put("/{source_id}/session", response_model=SourceSessionRead)
+def save_source_session(
+    source_id: int,
+    payload: SourceSessionWrite,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> SourceSessionRead:
+    source = get_owned_source(source_id, current_user.id, db)
+    session = (
+        db.query(SourceSession)
+        .filter(SourceSession.user_id == current_user.id, SourceSession.source_id == source.id)
+        .first()
+    )
+    if not session:
+        session = SourceSession(user_id=current_user.id, source_id=source.id)
+        db.add(session)
+
+    session.origin = payload.origin
+    session.cookie = payload.cookie
+    session.user_agent = payload.user_agent
+    session.referer = payload.referer
+    session.storage_state_json = payload.storage_state_json
+    session.local_storage_json = payload.local_storage_json
+    session.session_storage_json = payload.session_storage_json
+    session.expires_at = payload.expires_at
+    session.last_verified_at = payload.last_verified_at
+    session.status = payload.status or "active"
+    db.commit()
+    db.refresh(session)
+    return source_session_to_read(session)
+
+
+@router.delete("/{source_id}/session", response_model=SourceSessionDeleteResponse)
+def delete_source_session(
+    source_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> SourceSessionDeleteResponse:
+    source = get_owned_source(source_id, current_user.id, db)
+    deleted = (
+        db.query(SourceSession)
+        .filter(SourceSession.user_id == current_user.id, SourceSession.source_id == source.id)
+        .delete(synchronize_session=False)
+    )
+    db.commit()
+    return SourceSessionDeleteResponse(deleted=deleted > 0, source_id=source.id)
 
 
 @router.post("/{source_id}/search", response_model=SourceSearchResponse)

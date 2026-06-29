@@ -230,6 +230,14 @@ async function testSourceRoutes() {
   await client.searchSource(5, { keyword: 'star', page: 2 })
   await client.loadSourceToc(5, { bookUrl: 'https://example.com/book', tocUrl: 'https://example.com/toc' })
   await client.loadSourceContent(5, { chapterUrl: 'https://example.com/chapter' })
+  await client.getSourceSession(5)
+  await client.saveSourceSession(5, {
+    origin: 'https://example.com',
+    cookie: 'sid=abc',
+    userAgent: 'NovelReaderTest/1.0',
+    referer: 'https://example.com/login'
+  })
+  await client.deleteSourceSession(5)
 
   assert.equal(calls[0].url, 'http://127.0.0.1:8000/api/sources?access_token=token-abc')
   assert.equal(calls[1].method, 'POST')
@@ -242,6 +250,23 @@ async function testSourceRoutes() {
   assert.deepEqual(calls[4].data, { book_url: 'https://example.com/book', toc_url: 'https://example.com/toc' })
   assert.equal(calls[5].url, 'http://127.0.0.1:8000/api/sources/5/content?access_token=token-abc')
   assert.deepEqual(calls[5].data, { chapter_url: 'https://example.com/chapter' })
+  assert.equal(calls[6].url, 'http://127.0.0.1:8000/api/sources/5/session?access_token=token-abc')
+  assert.equal(calls[7].method, 'PUT')
+  assert.equal(calls[7].url, 'http://127.0.0.1:8000/api/sources/5/session?access_token=token-abc')
+  assert.deepEqual(calls[7].data, {
+    origin: 'https://example.com',
+    cookie: 'sid=abc',
+    user_agent: 'NovelReaderTest/1.0',
+    referer: 'https://example.com/login',
+    storage_state_json: '',
+    local_storage_json: '',
+    session_storage_json: '',
+    expires_at: 0,
+    last_verified_at: 0,
+    status: 'active'
+  })
+  assert.equal(calls[8].method, 'DELETE')
+  assert.equal(calls[8].url, 'http://127.0.0.1:8000/api/sources/5/session?access_token=token-abc')
 }
 
 async function testProxyFetchUsesBackendProxyRoute() {

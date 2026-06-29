@@ -446,3 +446,58 @@ http://localhost:8080/#/pages/library/library
 ```
 
 验收重点：从书源列表进入书源中心，确认页面出现“真实链路验收”入口；点击后可以生成报告；失败时能看到失败阶段、失败原因和建议；报告可以复制和清空。APK 仍按约定暂缓，等电脑端功能全部稳定并连接手机后再打里程碑包。
+
+## 2026-06-29 Source Session 后端持久化基础版推进记录
+
+### 本次目标
+
+继续围绕电脑端 H5 与后端完成 Source Session Center 的下一层基础能力：让手动录入的 Cookie / User-Agent / Referer 不只保存在 H5 本地 storage，也能按用户和书源持久化到后端，为后续 Android WebView Cookie 采集和跨端复用打基础。
+
+### 已完成
+
+- `backend/app/models/models.py`
+  - 新增 `SourceSession` 模型，按 `user_id + source_id` 保存 origin、cookie、user_agent、referer、storage/local/session state、过期时间、验证时间和状态。
+- `backend/app/api/sources.py`
+  - 新增 `GET /api/sources/{source_id}/session`：读取当前用户拥有书源的会话；没有会话时返回 `exists: false`。
+  - 新增 `PUT /api/sources/{source_id}/session`：保存或覆盖当前用户当前书源的会话。
+  - 新增 `DELETE /api/sources/{source_id}/session`：删除当前用户当前书源的会话。
+  - 删除后端书源时同步清理该书源会话。
+- `backend/migrations/versions/0003_source_sessions.py`
+  - 新增 `source_sessions` 数据库迁移。
+- `common/apiClient.js`
+  - 新增 `getSourceSession()`、`saveSourceSession()`、`deleteSourceSession()`。
+- `pages/sourceHub/sourceHub.vue`
+  - 后端绑定书源进入页面时会尝试读取后端会话。
+  - 保存手动会话时同步写入后端；后端不可用时保留本地会话兜底。
+  - 清除会话时同步删除后端会话。
+  - 新增后端会话同步状态提示。
+
+### 数据库影响
+
+新增表：`source_sessions`
+
+核心字段：
+- `user_id`：会话所属用户。
+- `source_id`：会话所属后端书源。
+- `cookie` / `user_agent` / `referer`：请求链路复用的会话上下文。
+- `storage_state_json` / `local_storage_json` / `session_storage_json`：预留给后续 WebView / Playwright 渲染状态。
+- `expires_at` / `last_verified_at` / `status`：会话有效性与诊断状态。
+
+迁移方式：后端迁移新增 `0003_source_sessions.py`，现有数据不受影响。
+
+### 当前边界
+
+- 本阶段仍不自动采集 Android WebView Cookie。
+- 只有已经绑定后端 `backendId` 的书源会同步到后端；纯本地 H5 书源继续使用本地 storage。
+- 不绕过验证码、登录、会员、付费或站点风控。
+- APK 打包继续暂缓。
+
+### 已验收
+
+```powershell
+backend\.venv\Scripts\python.exe -m pytest backend\tests\test_sources.py backend\tests\test_migration_artifacts.py -q
+node tests\apiClient.test.mjs
+node tests\sourceHub.test.mjs
+```
+
+阶段结果：目标测试通过，前端 `.mjs` 全量回归通过，后端 pytest 通过 `58 passed`，`pages.json` / `manifest.json` 解析通过，`git diff --check` 通过，H5 生产构建完成，桌面 H5 自验确认 Source Hub 可渲染后端会话状态。Playwright 控制台唯一错误为 `favicon.ico` 404，不影响业务功能。APK 仍按约定暂缓，不在本阶段打包。

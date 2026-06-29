@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import BigInteger, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -22,6 +22,7 @@ class User(Base):
 
     books: Mapped[list["Book"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     sources: Mapped[list["BookSource"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    source_sessions: Mapped[list["SourceSession"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     reading_history: Mapped[list["ReadingHistory"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     ai_summaries: Mapped[list["AiSummary"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     chat_records: Mapped[list["ChatRecord"]] = relationship(back_populates="user", cascade="all, delete-orphan")
@@ -88,6 +89,30 @@ class BookSource(Base):
 
     user: Mapped[User] = relationship(back_populates="sources")
     books: Mapped[list[Book]] = relationship(back_populates="source")
+    sessions: Mapped[list["SourceSession"]] = relationship(back_populates="source", cascade="all, delete-orphan")
+
+
+class SourceSession(Base):
+    __tablename__ = "source_sessions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    source_id: Mapped[int] = mapped_column(ForeignKey("book_sources.id"), nullable=False, index=True)
+    origin: Mapped[str] = mapped_column(String(1000), default="", nullable=False)
+    cookie: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    user_agent: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    referer: Mapped[str] = mapped_column(String(1000), default="", nullable=False)
+    storage_state_json: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    local_storage_json: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    session_storage_json: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    expires_at: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    last_verified_at: Mapped[int] = mapped_column(BigInteger, default=0, nullable=False)
+    status: Mapped[str] = mapped_column(String(30), default="active", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, onupdate=now_utc, nullable=False)
+
+    user: Mapped[User] = relationship(back_populates="source_sessions")
+    source: Mapped[BookSource] = relationship(back_populates="sessions")
 
 
 class ReadingHistory(Base):

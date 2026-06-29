@@ -343,6 +343,31 @@ export function createApiClient(deps = {}) {
         method: 'DELETE'
       })
     },
+    getSourceSession(sourceId) {
+      return request(`/api/sources/${sourceId}/session`)
+    },
+    saveSourceSession(sourceId, session = {}) {
+      return request(`/api/sources/${sourceId}/session`, {
+        method: 'PUT',
+        data: {
+          origin: String(session.origin || ''),
+          cookie: String(session.cookie || session.cookieHeader || ''),
+          user_agent: String(session.userAgent || session.user_agent || ''),
+          referer: String(session.referer || ''),
+          storage_state_json: String(session.storageStateJson || session.storage_state_json || ''),
+          local_storage_json: String(session.localStorageJson || session.local_storage_json || ''),
+          session_storage_json: String(session.sessionStorageJson || session.session_storage_json || ''),
+          expires_at: Number(session.expiresAt || session.expires_at || 0) || 0,
+          last_verified_at: Number(session.lastVerifiedAt || session.last_verified_at || 0) || 0,
+          status: String(session.status || 'active')
+        }
+      })
+    },
+    deleteSourceSession(sourceId) {
+      return request(`/api/sources/${sourceId}/session`, {
+        method: 'DELETE'
+      })
+    },
     proxyFetch(url, options = {}) {
       return request('/api/proxy/fetch', {
         method: 'POST',

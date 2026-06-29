@@ -37,3 +37,11 @@ def test_ai_call_log_migration_declares_call_log_table() -> None:
     assert '"ai_call_logs",' in migration
     assert '"call_type"' in migration
     assert '"duration_ms"' in migration
+
+
+def test_source_session_migration_declares_session_table() -> None:
+    migration = (BACKEND_DIR / "migrations" / "versions" / "0003_source_sessions.py").read_text(encoding="utf-8")
+    assert '"source_sessions",' in migration
+    assert '"source_id"' in migration
+    assert '"cookie"' in migration
+    assert '"user_agent"' in migration

@@ -195,3 +195,47 @@
 
 ### Next Step
 - Run full H5 regression and desktop self-acceptance at `http://localhost:8080/#/pages/library/library`, then proceed to Android WebView session collection only after H5 behavior is stable.
+
+## Date: 2026-06-29
+
+### Completed - Source Session Backend Persistence Milestone
+- Added backend `source_sessions` persistence for per-user, per-source Cookie / User-Agent / Referer session context.
+- Added authenticated `GET /api/sources/{source_id}/session`, `PUT /api/sources/{source_id}/session`, and `DELETE /api/sources/{source_id}/session`.
+- Deleting a backend source now also clears its saved source session.
+- Added migration `0003_source_sessions.py`.
+- Extended `apiClient` with source session read/save/delete methods.
+- Source Hub now syncs manual sessions to the backend for backend-bound sources while keeping local H5 storage as fallback.
+
+### Modified Files - Source Session Backend Persistence Milestone
+- `backend/app/models/models.py`
+- `backend/app/schemas/sources.py`
+- `backend/app/api/sources.py`
+- `backend/migrations/versions/0003_source_sessions.py`
+- `backend/tests/test_sources.py`
+- `backend/tests/test_migration_artifacts.py`
+- `common/apiClient.js`
+- `pages/sourceHub/sourceHub.vue`
+- `tests/apiClient.test.mjs`
+- `tests/sourceHub.test.mjs`
+
+### Test Commands - Source Session Backend Persistence Milestone
+- `backend\.venv\Scripts\python.exe -m pytest backend\tests\test_sources.py backend\tests\test_migration_artifacts.py -q`
+- `node tests\apiClient.test.mjs`
+- `node tests\sourceHub.test.mjs`
+
+### Acceptance Result - Source Session Backend Persistence Milestone
+- Targeted backend source session API, migration artifact, frontend API client, and Source Hub contract tests passed.
+- Full frontend `.mjs` regression suite passed.
+- Backend pytest passed: `58 passed`.
+- `pages.json` and `manifest.json` parsed successfully.
+- `git diff --check` passed.
+- H5 production build completed.
+- Desktop H5 self-acceptance confirmed Source Hub renders the backend session state; the only console error was `favicon.ico` 404.
+
+### Known Issues - Source Session Backend Persistence Milestone
+- Desktop H5 still does not collect Android WebView Cookie automatically.
+- Backend session sync only applies to sources already bound to backend source IDs; local-only H5 sources continue to use local storage.
+- This does not bypass login, CAPTCHA, paid content, membership restrictions, or anti-crawler controls.
+
+### Next Step
+- Continue with Android WebView session collection only after desktop H5 review remains stable. APK packaging remains paused until the phone is connected.
