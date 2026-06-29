@@ -280,3 +280,50 @@
 
 ### Next Step
 - Continue improving Source Hub diagnostics and WebView session bridge readiness on desktop H5. Pause before APK packaging until the phone is connected.
+
+## Date: 2026-06-29
+
+### Completed - Source Hub WebView JS Readiness Diagnostics Milestone
+- Added `common/sourceBridgeReadiness.js` to assess WebView / JS bridge readiness independently from the UI.
+- The readiness model now distinguishes H5-ready rule JS, APK-required browser DOM JS, missing Android bridge methods, and bridge-ready Android capability.
+- Source Hub now shows a `WebView / JS 就绪度` panel with current environment, recommended lane, bridge method status, and blocking reasons.
+- Source Hub copy diagnostics now includes bridge readiness data.
+- Added `tests/sourceBridgeReadiness.test.mjs` with red/green coverage for browser DOM JS, H5 sandbox JS, and Android bridge-ready scenarios.
+- Extended `tests/sourceHub.test.mjs` to cover the new readiness panel contract.
+
+### Modified Files - Source Hub WebView JS Readiness Diagnostics Milestone
+- `common/sourceBridgeReadiness.js`
+- `pages/sourceHub/sourceHub.vue`
+- `tests/sourceBridgeReadiness.test.mjs`
+- `tests/sourceHub.test.mjs`
+- `docs/dev/V2_NEXT_STEP_CHANGELOG.md`
+- `docs/DESKTOP_V2_DEVELOPMENT_PLAN.md`
+
+### Test Commands - Source Hub WebView JS Readiness Diagnostics Milestone
+- `node tests\sourceBridgeReadiness.test.mjs`
+- `node tests\sourceHub.test.mjs`
+- `node tests\sourceCapabilitySessionRouter.test.mjs`
+- `node tests\webViewRenderedFetch.test.mjs`
+- `node tests\sourceAcceptance.test.mjs`
+- `Get-ChildItem tests -Filter *.test.mjs | Sort-Object Name | ForEach-Object { node $_.FullName; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }`
+- `backend\.venv\Scripts\python.exe -m pytest backend\tests -q`
+- `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('pages.json','utf8')); JSON.parse(fs.readFileSync('manifest.json','utf8')); console.log('json config ok')"`
+- `git diff --check`
+
+### Acceptance Result - Source Hub WebView JS Readiness Diagnostics Milestone
+- Targeted readiness, Source Hub, capability router, WebView bridge, and source acceptance tests passed.
+- Full frontend `.mjs` regression suite passed.
+- Backend pytest passed: `58 passed`; only warning was the existing pytest cache directory warning.
+- `pages.json` and `manifest.json` parsed successfully.
+- `git diff --check` passed; Git only reported LF-to-CRLF working-copy warnings.
+- H5 production build completed; build warnings were limited to the existing large uni-h5 bundle warning and outdated Browserslist data notice.
+- Desktop H5 self-acceptance at `http://127.0.0.1:8080/#/pages/library/library` returned HTTP 200.
+- Playwright confirmed the Source Hub `WebView / JS 就绪度` panel renders. The only browser console error was `favicon.ico` 404.
+
+### Known Issues - Source Hub WebView JS Readiness Diagnostics Milestone
+- This stage only diagnoses and displays WebView / JS readiness; it does not execute arbitrary third-party JS in H5.
+- Real Android bridge validation still requires APK packaging and a connected phone.
+- This does not bypass login, CAPTCHA, paid content, membership restrictions, or anti-crawler controls.
+
+### Next Step
+- Continue toward Android WebView bridge validation after desktop H5 remains stable. APK packaging remains paused until the phone is connected.

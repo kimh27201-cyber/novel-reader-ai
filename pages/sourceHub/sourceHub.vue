@@ -84,6 +84,31 @@
         </view>
       </view>
 
+      <view class="bridge-readiness-panel">
+        <view class="panel-title">WebView / JS 就绪度</view>
+        <view class="bridge-readiness-header">
+          <view>
+            <text class="acceptance-label">当前环境</text>
+            <view class="bridge-status-row">
+              <text class="bridge-status" :class="bridgeReadiness.status">{{ bridgeReadinessStatusText }}</text>
+              <text class="lane-chip">{{ bridgeReadiness.recommendedLane }}</text>
+            </view>
+          </view>
+          <text class="bridge-platform">{{ bridgeReadiness.platformLabel }}</text>
+        </view>
+        <view class="bridge-blocker-list" v-if="bridgeBlockerItems.length">
+          <text class="bridge-blocker-item" v-for="item in bridgeBlockerItems" :key="item.code">
+            {{ item.message }}
+          </text>
+        </view>
+        <view class="bridge-diagnostic-list">
+          <view class="bridge-diagnostic-item" v-for="item in bridgeDiagnosticItems" :key="item.key">
+            <text class="capability-label">{{ item.label }}</text>
+            <text class="capability-value">{{ item.value }}</text>
+          </view>
+        </view>
+      </view>
+
       <view class="acceptance-panel">
         <view class="panel-title">真实链路验收</view>
         <view class="acceptance-summary">
@@ -175,6 +200,7 @@ import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 import apiClient from '../../common/apiClient.js'
 import { clearSourceCookies, getSourceCookieSummary, saveSourceCookie } from '../../common/sourceCookieJar.js'
 import { openSourceLogin, readSourceLoginCookie } from '../../common/webViewBridge.js'
+import { assessSourceBridgeReadiness } from '../../common/sourceBridgeReadiness.js'
 
 export default {
   data() {
@@ -242,6 +268,35 @@ export default {
     cookieSummaryItems() {
       this.cookieSummaryVersion
       return getSourceCookieSummary(this.sourceId)
+    },
+    runtimePlatform() {
+      try {
+        const info = uni.getSystemInfoSync ? uni.getSystemInfoSync() : {}
+        if (typeof plus !== 'undefined' && String(info.platform || '').toLowerCase() === 'android') return 'android'
+      } catch (error) {
+        return 'h5'
+      }
+      return 'h5'
+    },
+    bridgeReadiness() {
+      return assessSourceBridgeReadiness(this.source || {}, this.capability, {
+        platform: this.runtimePlatform
+      })
+    },
+    bridgeReadinessStatusText() {
+      const statusMap = {
+        'h5-ready': 'H5 可执行',
+        'apk-required': '需要 APK',
+        'bridge-ready': 'Bridge 可用',
+        'bridge-missing': 'Bridge 缺失'
+      }
+      return statusMap[this.bridgeReadiness.status] || '未知'
+    },
+    bridgeDiagnosticItems() {
+      return this.bridgeReadiness.diagnostics || []
+    },
+    bridgeBlockerItems() {
+      return this.bridgeReadiness.blockers || []
     },
     candidateLanes() {
       return buildCandidateLanes('explore', this.capability, this.session)
@@ -491,6 +546,7 @@ export default {
         sourceId: this.sourceId,
         sourceName: this.sourceName,
         capability: this.capability,
+        bridgeReadiness: this.bridgeReadiness,
         sessionStatus: sourceSessionStatus(this.session),
         candidateLanes: this.candidateLanes,
         diagnostics: this.diagnostics || {}
@@ -596,6 +652,7 @@ export default {
 .status-panel,
 .search-panel,
 .session-panel,
+.bridge-readiness-panel,
 .acceptance-panel,
 .lane-panel,
 .capability-grid {
@@ -607,6 +664,7 @@ export default {
 .status-panel,
 .search-panel,
 .session-panel,
+.bridge-readiness-panel,
 .acceptance-panel,
 .lane-panel {
   padding: 24rpx;
@@ -669,6 +727,7 @@ export default {
 .search-row,
 .android-session-actions,
 .acceptance-summary,
+.bridge-readiness-header,
 .acceptance-toolbar,
 .session-state {
   display: flex;
@@ -699,6 +758,71 @@ export default {
 
 .acceptance-summary {
   justify-content: space-between;
+}
+
+.bridge-readiness-header {
+  justify-content: space-between;
+}
+
+.bridge-status-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10rpx;
+  margin-top: 8rpx;
+}
+
+.bridge-status,
+.bridge-platform {
+  color: var(--app-text, #f4f6f5);
+  font-size: 27rpx;
+  font-weight: 800;
+}
+
+.bridge-status.h5-ready,
+.bridge-status.bridge-ready {
+  color: #8ecfc2;
+}
+
+.bridge-status.apk-required,
+.bridge-status.bridge-missing {
+  color: #d8b15d;
+}
+
+.bridge-blocker-list,
+.bridge-diagnostic-list {
+  margin-top: 16rpx;
+}
+
+.bridge-blocker-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.bridge-blocker-item {
+  display: block;
+  padding: 10rpx 12rpx;
+  border-radius: 8rpx;
+  color: #ffcf87;
+  font-size: 23rpx;
+  line-height: 32rpx;
+  background: rgba(216, 177, 93, 0.12);
+}
+
+.bridge-diagnostic-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12rpx;
+}
+
+.bridge-diagnostic-item {
+  min-height: 78rpx;
+  padding: 12rpx;
+  box-sizing: border-box;
+  border: 1rpx solid var(--app-border, #29404a);
+  border-radius: 8rpx;
+  background: var(--app-surface-soft, #17252c);
 }
 
 .acceptance-toolbar {
@@ -910,6 +1034,7 @@ export default {
   .status-panel,
   .search-panel,
   .session-panel,
+  .bridge-readiness-panel,
   .acceptance-panel,
   .lane-panel,
   .capability-grid,
@@ -925,6 +1050,7 @@ export default {
 
   .search-row,
   .android-session-actions,
+  .bridge-readiness-header,
   .acceptance-summary {
     align-items: stretch;
     flex-direction: column;
@@ -939,6 +1065,10 @@ export default {
   .acceptance-toolbar {
     align-items: stretch;
     justify-content: stretch;
+  }
+
+  .bridge-diagnostic-list {
+    grid-template-columns: repeat(1, minmax(0, 1fr));
   }
 }
 </style>

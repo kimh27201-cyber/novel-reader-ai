@@ -557,3 +557,49 @@ http://localhost:8080/#/pages/library/library
 - `http://127.0.0.1:8080/#/pages/library/library` 返回 HTTP 200。
 - Playwright 桌面自验确认书源页和 Source Hub 路由可渲染；控制台唯一错误为 `favicon.ico` 404，不影响业务功能。
 - 构建后的 H5 产物已包含“保存登录 Cookie”入口。本阶段仍不打 APK。
+
+## 2026-06-29 Source Hub WebView / JS 就绪度诊断推进记录
+
+### 本次目标
+
+继续向复杂 JS 和 WebView 书源适配推进，但先不直接执行第三方复杂 JS，也不进入 APK 打包。本阶段先在电脑端 H5 做一层可诊断、可解释、可验收的 bridge readiness：让 Source Hub 能说明当前书源为什么需要 WebView、当前 H5 缺什么能力、后续 Android bridge 应该满足哪些接口。
+
+### 已完成
+
+- `common/sourceBridgeReadiness.js`
+  - 新增 WebView / JS 就绪度诊断纯函数。
+  - 区分 `H5 沙箱 JS`、`浏览器 DOM JS`、`无复杂 JS`。
+  - 区分 `h5-ready`、`apk-required`、`bridge-ready`、`bridge-missing` 状态。
+  - 输出建议通道、bridge 方法状态和阻塞原因。
+- `pages/sourceHub/sourceHub.vue`
+  - 新增“WebView / JS 就绪度”面板。
+  - 展示当前环境、建议执行通道、渲染接口、登录页接口、Cookie 接口。
+  - 对 H5 下需要 WebView / Cookie 的书源展示明确的 APK bridge 阻塞原因。
+  - 复制诊断时同步带上 bridge readiness 数据。
+- `tests/sourceBridgeReadiness.test.mjs`
+  - 覆盖浏览器 DOM JS 在 H5 下需要 APK。
+  - 覆盖内置规则 JS 可走 H5 沙箱。
+  - 覆盖 Android bridge 方法齐全时可进入 bridge-ready。
+- `tests/sourceHub.test.mjs`
+  - 补充 Source Hub 新面板契约断言。
+
+### 当前边界
+
+- 本阶段只做诊断与展示，不在 H5 执行任意第三方复杂 JS。
+- Android bridge 真实可用性还需要后续 APK 包和手机验证。
+- 不绕过验证码、登录、会员、付费或站点风控。
+- APK 打包继续暂缓。
+
+### 已验收
+
+```powershell
+node tests\sourceBridgeReadiness.test.mjs
+node tests\sourceHub.test.mjs
+node tests\sourceCapabilitySessionRouter.test.mjs
+node tests\webViewRenderedFetch.test.mjs
+node tests\sourceAcceptance.test.mjs
+Get-ChildItem tests -Filter *.test.mjs | Sort-Object Name | ForEach-Object { node $_.FullName; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }
+backend\.venv\Scripts\python.exe -m pytest backend\tests -q
+```
+
+阶段结果：目标测试通过，前端 `.mjs` 全量回归通过，后端 pytest 通过 `58 passed`，`pages.json` / `manifest.json` 解析通过，`git diff --check` 通过，H5 生产构建完成，`http://127.0.0.1:8080/#/pages/library/library` 返回 HTTP 200。Playwright 桌面自验确认 Source Hub 可渲染“WebView / JS 就绪度”面板；控制台唯一错误为 `favicon.ico` 404，不影响业务功能。本阶段仍不打 APK。
