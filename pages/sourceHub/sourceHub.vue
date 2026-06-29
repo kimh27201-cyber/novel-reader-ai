@@ -70,6 +70,10 @@
           <button class="small-button" @tap="openAndroidLogin">打开登录页</button>
           <button class="small-button primary" @tap="saveAndroidLoginSession">保存登录 Cookie</button>
         </view>
+        <view class="session-bridge-report" v-if="sessionBridgeReport">
+          <text class="bridge-probe-line">会话 Bridge：{{ sessionBridgeStatusText }}</text>
+          <text class="bridge-probe-line">缺失能力：{{ sessionBridgeMissingText }}</text>
+        </view>
         <view class="cookie-summary-list" v-if="cookieSummaryItems.length">
           <text class="cookie-summary-item" v-for="item in cookieSummaryItems" :key="item.host">
             {{ item.host }} · {{ item.cookie }}
@@ -250,6 +254,7 @@ export default {
       backendSessionError: '',
       backendSessionLoaded: false,
       cookieSummaryVersion: 0,
+      sessionBridgeReport: null,
       bridgeProbeReport: null,
       renderedTrialTarget: null,
       renderedTrialUrl: '',
@@ -304,6 +309,18 @@ export default {
     cookieSummaryItems() {
       this.cookieSummaryVersion
       return getSourceCookieSummary(this.sourceId)
+    },
+    sessionBridgeStatusText() {
+      if (!this.sessionBridgeReport) return ''
+      const profile = this.sessionBridgeReport.capabilities && this.sessionBridgeReport.capabilities.profile
+      const runtime = profile ? ` · ${profile.runtime || profile.platform || '未知运行时'}` : ''
+      return `${this.sessionBridgeReport.status}${runtime}`
+    },
+    sessionBridgeMissingText() {
+      if (!this.sessionBridgeReport) return ''
+      return this.sessionBridgeReport.missing && this.sessionBridgeReport.missing.length
+        ? this.sessionBridgeReport.missing.join(' / ')
+        : '无'
     },
     runtimePlatform() {
       try {
@@ -575,6 +592,11 @@ export default {
     },
     openAndroidLogin() {
       try {
+        this.sessionBridgeReport = probeWebViewBridge(['openLogin'])
+        if (this.sessionBridgeReport.status !== 'ready') {
+          uni.showToast({ title: this.sessionBridgeReport.message, icon: 'none' })
+          return
+        }
         openSourceLogin(this.sourceLoginUrl)
         uni.showToast({ title: '请在登录页完成授权', icon: 'none' })
       } catch (error) {
@@ -583,6 +605,11 @@ export default {
     },
     async saveAndroidLoginSession() {
       try {
+        this.sessionBridgeReport = probeWebViewBridge(['readCookie'])
+        if (this.sessionBridgeReport.status !== 'ready') {
+          uni.showToast({ title: this.sessionBridgeReport.message, icon: 'none' })
+          return
+        }
         const url = this.sourceLoginUrl
         const cookie = readSourceLoginCookie(url)
         if (!cookie) throw new Error('未读取到登录 Cookie，请先完成手动登录')
@@ -651,6 +678,7 @@ export default {
         sourceName: this.sourceName,
         capability: this.capability,
         bridgeReadiness: this.bridgeReadiness,
+        sessionBridgeReport: this.sessionBridgeReport,
         bridgeProbeReport: this.bridgeProbeReport,
         renderedTrialTarget: this.renderedTrialTarget,
         renderedTrialReport: this.renderedTrialReport,
@@ -898,6 +926,7 @@ export default {
 
 .bridge-blocker-list,
 .bridge-probe-report,
+.session-bridge-report,
 .rendered-trial-panel,
 .rendered-trial-report,
 .bridge-diagnostic-list {
@@ -911,7 +940,8 @@ export default {
   margin-top: 18rpx;
 }
 
-.bridge-probe-report {
+.bridge-probe-report,
+.session-bridge-report {
   display: flex;
   flex-direction: column;
   gap: 8rpx;

@@ -545,3 +545,34 @@
 
 ### Next Step
 - Extend the same profile-gated report shape to Android login/session collection so rendered fetch and Cookie capture share one diagnostics model.
+
+## Date: 2026-06-29
+
+### Completed - Session Bridge Profile Gate Milestone
+- Source Hub now probes `openLogin` before opening an Android login page.
+- Source Hub now probes `readCookie` before attempting to save an Android login Cookie.
+- The latest session bridge gate report is displayed in the session panel with status and missing capability list.
+- Source Hub diagnostics copy now includes `sessionBridgeReport`.
+- Extended Source Hub contract tests to cover the session bridge report state, display, and diagnostics payload.
+
+### Modified Files - Session Bridge Profile Gate Milestone
+- `pages/sourceHub/sourceHub.vue`
+- `tests/sourceHub.test.mjs`
+- `docs/dev/V2_NEXT_STEP_CHANGELOG.md`
+- `docs/DESKTOP_V2_DEVELOPMENT_PLAN.md`
+
+### Test Commands - Session Bridge Profile Gate Milestone
+- `node tests\sourceHub.test.mjs`
+- `node tests\webViewBridgeProbe.test.mjs`
+- `node tests\sourceRenderedFetchTrial.test.mjs`
+
+### Acceptance Result - Session Bridge Profile Gate Milestone
+- Source Hub, WebView bridge probe, and rendered fetch trial tests passed.
+- Login-page opening and Cookie capture now share the same profile-gated diagnostics pattern as rendered fetch.
+
+### Known Issues - Session Bridge Profile Gate Milestone
+- H5 still validates the unsupported state only; real login-page opening and Cookie capture need Android WebView runtime.
+- A ready bridge does not bypass login, CAPTCHA, paid content, membership restrictions, or anti-crawler controls.
+
+### Next Step
+- Prepare a consolidated Android validation checklist inside Source Hub diagnostics so phone-side verification can follow bridge profile, rendered fetch, login, and Cookie gates in order.

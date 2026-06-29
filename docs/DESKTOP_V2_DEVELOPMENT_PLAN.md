@@ -818,3 +818,35 @@ node tests\webViewBridgeProbe.test.mjs
 ```
 
 阶段结果：目标测试通过，rendered fetch 试运行报告现在能明确带出 bridge profile gate 结果。下一步可以把同样的诊断模型扩展到登录页打开和 Cookie 采集。
+
+## 2026-06-29 Session Bridge Profile Gate 推进记录
+
+### 本次目标
+
+把 rendered fetch 已经建立的 profile gate 模型扩展到 Android 会话采集入口。目标是点击“打开登录页”和“保存登录 Cookie”之前先确认对应 bridge 能力，避免在 H5 或 bridge 不完整的 Android runtime 中直接调用 native 方法后只得到泛化错误。
+
+### 已完成
+
+- `pages/sourceHub/sourceHub.vue`
+  - 点击“打开登录页”前执行 `probeWebViewBridge(['openLogin'])`。
+  - 点击“保存登录 Cookie”前执行 `probeWebViewBridge(['readCookie'])`。
+  - 会话面板新增 `会话 Bridge` 报告，展示 gate 状态和缺失能力。
+  - 复制诊断时新增 `sessionBridgeReport`，便于后续手机验收排查。
+- `tests/sourceHub.test.mjs`
+  - 补充 `sessionBridgeReport`、`sessionBridgeStatusText`、`sessionBridgeMissingText` 契约断言。
+  - 补充会话 bridge 报告 UI 和诊断字段断言。
+
+### 当前边界
+
+- 本阶段验证入口前置能力检查和报告结构，不执行真实 Android 登录页跳转或 Cookie 读取。
+- bridge gate 通过只说明客户端能力存在，不代表目标站点登录一定成功或 Cookie 一定有效。
+
+### 已验收
+
+```powershell
+node tests\sourceHub.test.mjs
+node tests\webViewBridgeProbe.test.mjs
+node tests\sourceRenderedFetchTrial.test.mjs
+```
+
+阶段结果：目标测试通过。Source Hub 的 rendered fetch、登录页打开和 Cookie 采集现在共用同一套 bridge profile gate 诊断思路。
