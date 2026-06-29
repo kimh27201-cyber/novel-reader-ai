@@ -375,3 +375,53 @@
 
 ### Next Step
 - Add Android runtime bridge wiring validation when entering the phone-connected milestone flow.
+
+## Date: 2026-06-29
+
+### Completed - Source Hub Rendered Fetch Trial Milestone
+- Added `common/sourceRenderedFetchTrial.js` as a focused WebView rendered fetch trial runner.
+- The trial runner normalizes URL, wait selector, wait time, timeout, Cookie, User-Agent, and Referer before calling the existing WebView bridge.
+- The trial report now distinguishes invalid request, unsupported H5 bridge, failed WebView render, and passed render states.
+- Source Hub now includes a `Rendered Fetch 试运行` section inside the `WebView / JS 就绪度` panel.
+- Source Hub users can enter a render URL and optional wait selector, run a rendered fetch trial, and see status, message, elapsed time, final URL, and HTML length.
+- Source Hub diagnostics copy now includes the latest rendered fetch trial report.
+- Added `tests/sourceRenderedFetchTrial.test.mjs` and extended `tests/sourceHub.test.mjs`.
+
+### Modified Files - Source Hub Rendered Fetch Trial Milestone
+- `common/sourceRenderedFetchTrial.js`
+- `pages/sourceHub/sourceHub.vue`
+- `tests/sourceRenderedFetchTrial.test.mjs`
+- `tests/sourceHub.test.mjs`
+- `docs/dev/V2_NEXT_STEP_CHANGELOG.md`
+- `docs/DESKTOP_V2_DEVELOPMENT_PLAN.md`
+
+### Test Commands - Source Hub Rendered Fetch Trial Milestone
+- `node tests\sourceRenderedFetchTrial.test.mjs`
+- `node tests\sourceHub.test.mjs`
+- `node tests\webViewBridgeProbe.test.mjs`
+- `node tests\webViewRenderedFetch.test.mjs`
+- `node tests\sourceBridgeReadiness.test.mjs`
+- `node tests\sourceCapabilitySessionRouter.test.mjs`
+- `node tests\sourceAcceptance.test.mjs`
+- `Get-ChildItem tests -Filter *.test.mjs | Sort-Object Name | ForEach-Object { node $_.FullName; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }`
+- `backend\.venv\Scripts\python.exe -m pytest backend\tests -q`
+- `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('pages.json','utf8')); JSON.parse(fs.readFileSync('manifest.json','utf8')); console.log('json config ok')"`
+- `git diff --check`
+
+### Acceptance Result - Source Hub Rendered Fetch Trial Milestone
+- Targeted rendered fetch trial, Source Hub, WebView bridge probe, WebView rendered fetch, readiness, capability router, and source acceptance tests passed.
+- Full frontend `.mjs` regression suite passed.
+- Backend pytest passed: `58 passed`; only warning was the existing pytest cache directory warning.
+- `pages.json` and `manifest.json` parsed successfully.
+- `git diff --check` passed; Git only reported LF-to-CRLF working-copy warnings.
+- H5 production build completed; build warnings were limited to the existing large uni-h5 bundle warning and outdated Browserslist data notice.
+- Desktop H5 self-acceptance at `http://127.0.0.1:8080/#/pages/library/library` returned HTTP 200.
+- Playwright confirmed the `Rendered Fetch 试运行` panel renders and empty URL trial reports `请求无效`. The only browser console error was `favicon.ico` 404.
+
+### Known Issues - Source Hub Rendered Fetch Trial Milestone
+- H5 can validate the trial UI and invalid/unsupported states, but cannot perform real WebView rendering.
+- Real rendered DOM validation still requires Android WebView bridge runtime.
+- This does not execute arbitrary third-party JS in H5 and does not bypass login, CAPTCHA, paid content, membership restrictions, or anti-crawler controls.
+
+### Next Step
+- Continue by wiring Android runtime rendered fetch validation into this same trial entry when phone validation starts.

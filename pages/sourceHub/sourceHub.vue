@@ -104,6 +104,21 @@
           <text class="bridge-probe-line">检测时间：{{ bridgeProbeReport.checkedAt }}</text>
           <text class="bridge-probe-line">缺失能力：{{ bridgeProbeMissingText }}</text>
         </view>
+        <view class="rendered-trial-panel">
+          <view class="rendered-trial-title">Rendered Fetch 试运行</view>
+          <input class="field" v-model="renderedTrialUrl" placeholder="WebView 渲染 URL，例如 https://example.com" />
+          <input class="field compact" v-model="renderedTrialSelector" placeholder="等待选择器，可选，例如 .book-list" />
+          <button class="small-button primary wide" :loading="renderedTrialRunning" @tap="runRenderedTrial">
+            试运行渲染
+          </button>
+          <view class="rendered-trial-report" v-if="renderedTrialReport">
+            <text class="rendered-trial-status" :class="renderedTrialReport.status">{{ renderedTrialStatusText }}</text>
+            <text class="bridge-probe-line">{{ renderedTrialReport.message }}</text>
+            <text class="bridge-probe-line">耗时：{{ renderedTrialReport.elapsedMs }}ms</text>
+            <text class="bridge-probe-line" v-if="renderedTrialReport.finalUrl">最终地址：{{ renderedTrialReport.finalUrl }}</text>
+            <text class="bridge-probe-line" v-if="renderedTrialReport.htmlLength != null">HTML 长度：{{ renderedTrialReport.htmlLength }}</text>
+          </view>
+        </view>
         <view class="bridge-blocker-list" v-if="bridgeBlockerItems.length">
           <text class="bridge-blocker-item" v-for="item in bridgeBlockerItems" :key="item.code">
             {{ item.message }}
@@ -209,6 +224,7 @@ import apiClient from '../../common/apiClient.js'
 import { clearSourceCookies, getSourceCookieSummary, saveSourceCookie } from '../../common/sourceCookieJar.js'
 import { openSourceLogin, probeWebViewBridge, readSourceLoginCookie } from '../../common/webViewBridge.js'
 import { assessSourceBridgeReadiness } from '../../common/sourceBridgeReadiness.js'
+import { runRenderedFetchTrial } from '../../common/sourceRenderedFetchTrial.js'
 
 export default {
   data() {
@@ -229,6 +245,10 @@ export default {
       backendSessionLoaded: false,
       cookieSummaryVersion: 0,
       bridgeProbeReport: null,
+      renderedTrialUrl: '',
+      renderedTrialSelector: '',
+      renderedTrialReport: null,
+      renderedTrialRunning: false,
       showSessionEditor: false,
       sessionOrigin: '',
       sessionCookie: '',
@@ -317,6 +337,16 @@ export default {
         ? this.bridgeProbeReport.missing.join(' / ')
         : '无'
     },
+    renderedTrialStatusText() {
+      if (!this.renderedTrialReport) return ''
+      const statusMap = {
+        passed: '渲染通过',
+        unsupported: '当前环境不支持',
+        invalid: '请求无效',
+        failed: '渲染失败'
+      }
+      return statusMap[this.renderedTrialReport.status] || '未知'
+    },
     candidateLanes() {
       return buildCandidateLanes('explore', this.capability, this.session)
     },
@@ -394,6 +424,7 @@ export default {
       this.backendSessionLoaded = false
       this.backendSessionError = ''
       this.applySessionToEditor(this.session)
+      if (!this.renderedTrialUrl) this.renderedTrialUrl = this.sourceLoginUrl
       this.loadBackendSession()
     },
     applySessionToEditor(session) {
@@ -564,6 +595,23 @@ export default {
       this.bridgeProbeReport = probeWebViewBridge()
       uni.showToast({ title: this.bridgeProbeStatusText, icon: 'none' })
     },
+    async runRenderedTrial() {
+      if (this.renderedTrialRunning) return
+      this.renderedTrialRunning = true
+      try {
+        this.renderedTrialReport = await runRenderedFetchTrial({
+          url: this.renderedTrialUrl || this.sourceLoginUrl,
+          waitSelector: this.renderedTrialSelector,
+          cookie: this.sessionCookie,
+          userAgent: this.sessionUserAgent,
+          referer: this.sessionReferer,
+          timeoutMs: 8000
+        })
+        uni.showToast({ title: this.renderedTrialStatusText, icon: 'none' })
+      } finally {
+        this.renderedTrialRunning = false
+      }
+    },
     copyDiagnostics() {
       const payload = {
         sourceId: this.sourceId,
@@ -571,6 +619,7 @@ export default {
         capability: this.capability,
         bridgeReadiness: this.bridgeReadiness,
         bridgeProbeReport: this.bridgeProbeReport,
+        renderedTrialReport: this.renderedTrialReport,
         sessionStatus: sourceSessionStatus(this.session),
         candidateLanes: this.candidateLanes,
         diagnostics: this.diagnostics || {}
@@ -815,6 +864,8 @@ export default {
 
 .bridge-blocker-list,
 .bridge-probe-report,
+.rendered-trial-panel,
+.rendered-trial-report,
 .bridge-diagnostic-list {
   margin-top: 16rpx;
 }
@@ -836,6 +887,50 @@ export default {
   color: var(--app-muted, #a9b6bb);
   font-size: 23rpx;
   line-height: 32rpx;
+}
+
+.rendered-trial-panel {
+  padding-top: 16rpx;
+  border-top: 1rpx solid var(--app-border, #29404a);
+}
+
+.rendered-trial-title {
+  color: var(--app-text, #f4f6f5);
+  font-size: 25rpx;
+  font-weight: 800;
+}
+
+.field.compact {
+  margin-top: 12rpx;
+}
+
+.rendered-trial-panel .wide {
+  margin-top: 12rpx;
+}
+
+.rendered-trial-report {
+  display: flex;
+  flex-direction: column;
+  gap: 8rpx;
+}
+
+.rendered-trial-status {
+  color: var(--app-text, #f4f6f5);
+  font-size: 26rpx;
+  font-weight: 800;
+}
+
+.rendered-trial-status.passed {
+  color: #8ecfc2;
+}
+
+.rendered-trial-status.unsupported,
+.rendered-trial-status.invalid {
+  color: #d8b15d;
+}
+
+.rendered-trial-status.failed {
+  color: #ff8a7c;
 }
 
 .bridge-blocker-list {

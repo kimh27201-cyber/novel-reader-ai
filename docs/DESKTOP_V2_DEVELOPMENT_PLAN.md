@@ -647,3 +647,49 @@ backend\.venv\Scripts\python.exe -m pytest backend\tests -q
 ```
 
 阶段结果：目标测试通过，前端 `.mjs` 全量回归通过，后端 pytest 通过 `58 passed`，`pages.json` / `manifest.json` 解析通过，`git diff --check` 通过，H5 生产构建完成，`http://127.0.0.1:8080/#/pages/library/library` 返回 HTTP 200。Playwright 桌面自验确认 Source Hub 可点击“检测 Bridge”，并显示缺失能力 `renderedFetch / openLogin / readCookie`；控制台唯一错误为 `favicon.ico` 404，不影响业务功能。
+
+## 2026-06-29 Source Hub Rendered Fetch 试运行入口推进记录
+
+### 本次目标
+
+继续围绕复杂 JS / WebView 书源适配推进，把上一阶段的 bridge 自检向“可发起渲染试运行”的方向扩展。电脑端 H5 先完成入口、参数、报告和降级状态，后续 Android WebView 可直接复用同一入口做真实 rendered fetch 验证。
+
+### 已完成
+
+- `common/sourceRenderedFetchTrial.js`
+  - 新增 `buildRenderedFetchTrialRequest()`，统一清洗 WebView 渲染 URL、等待选择器、等待时间、超时时间、Cookie、User-Agent、Referer。
+  - 新增 `runRenderedFetchTrial()`，复用现有 `renderedFetch()` bridge。
+  - 输出 `invalid / unsupported / failed / passed` 四类状态。
+  - 通过报告返回错误码、提示、耗时、最终地址、标题、HTML 长度和 Cookie 捕获状态。
+- `pages/sourceHub/sourceHub.vue`
+  - 在“WebView / JS 就绪度”面板中新增“Rendered Fetch 试运行”区域。
+  - 支持输入 WebView 渲染 URL 和可选等待选择器。
+  - 试运行后展示状态、提示、耗时、最终地址和 HTML 长度。
+  - 复制诊断时带上最近一次 rendered fetch trial 报告。
+- `tests/sourceRenderedFetchTrial.test.mjs`
+  - 覆盖 URL 清洗和超时裁剪。
+  - 覆盖无效 URL、H5 缺 bridge、模拟 Android bridge 成功三类结果。
+- `tests/sourceHub.test.mjs`
+  - 补充 Source Hub rendered fetch 试运行 UI 契约断言。
+
+### 当前边界
+
+- H5 只能验证入口、参数和 invalid / unsupported 状态，不能进行真实 WebView 渲染。
+- 真实 DOM 渲染、复杂浏览器 JS 执行和 Cookie 回传仍依赖 Android WebView bridge 运行时。
+- 不在 H5 执行任意第三方复杂 JS，不绕过验证码、登录、会员、付费或站点风控。
+
+### 已验收
+
+```powershell
+node tests\sourceRenderedFetchTrial.test.mjs
+node tests\sourceHub.test.mjs
+node tests\webViewBridgeProbe.test.mjs
+node tests\webViewRenderedFetch.test.mjs
+node tests\sourceBridgeReadiness.test.mjs
+node tests\sourceCapabilitySessionRouter.test.mjs
+node tests\sourceAcceptance.test.mjs
+Get-ChildItem tests -Filter *.test.mjs | Sort-Object Name | ForEach-Object { node $_.FullName; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }
+backend\.venv\Scripts\python.exe -m pytest backend\tests -q
+```
+
+阶段结果：目标测试通过，前端 `.mjs` 全量回归通过，后端 pytest 通过 `58 passed`，`pages.json` / `manifest.json` 解析通过，`git diff --check` 通过，H5 生产构建完成，`http://127.0.0.1:8080/#/pages/library/library` 返回 HTTP 200。Playwright 桌面自验确认 Source Hub 可显示“Rendered Fetch 试运行”区域，空 URL 试运行会显示“请求无效”和明确的 HTTP/HTTPS URL 提示；控制台唯一错误为 `favicon.ico` 404，不影响业务功能。
