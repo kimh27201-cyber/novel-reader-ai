@@ -106,6 +106,10 @@
         </view>
         <view class="rendered-trial-panel">
           <view class="rendered-trial-title">Rendered Fetch 试运行</view>
+          <view class="rendered-trial-target" v-if="renderedTrialTarget && renderedTrialTarget.url">
+            <text class="bridge-probe-line">推荐目标：{{ renderedTrialTarget.source }} · {{ renderedTrialTarget.reason }}</text>
+            <button class="small-button" @tap="applyRenderedTrialTarget">应用推荐</button>
+          </view>
           <input class="field" v-model="renderedTrialUrl" placeholder="WebView 渲染 URL，例如 https://example.com" />
           <input class="field compact" v-model="renderedTrialSelector" placeholder="等待选择器，可选，例如 .book-list" />
           <button class="small-button primary wide" :loading="renderedTrialRunning" @tap="runRenderedTrial">
@@ -224,7 +228,7 @@ import apiClient from '../../common/apiClient.js'
 import { clearSourceCookies, getSourceCookieSummary, saveSourceCookie } from '../../common/sourceCookieJar.js'
 import { openSourceLogin, probeWebViewBridge, readSourceLoginCookie } from '../../common/webViewBridge.js'
 import { assessSourceBridgeReadiness } from '../../common/sourceBridgeReadiness.js'
-import { runRenderedFetchTrial } from '../../common/sourceRenderedFetchTrial.js'
+import { buildRenderedFetchTrialTarget, runRenderedFetchTrial } from '../../common/sourceRenderedFetchTrial.js'
 
 export default {
   data() {
@@ -245,6 +249,7 @@ export default {
       backendSessionLoaded: false,
       cookieSummaryVersion: 0,
       bridgeProbeReport: null,
+      renderedTrialTarget: null,
       renderedTrialUrl: '',
       renderedTrialSelector: '',
       renderedTrialReport: null,
@@ -424,7 +429,10 @@ export default {
       this.backendSessionLoaded = false
       this.backendSessionError = ''
       this.applySessionToEditor(this.session)
-      if (!this.renderedTrialUrl) this.renderedTrialUrl = this.sourceLoginUrl
+      this.renderedTrialTarget = buildRenderedFetchTrialTarget(this.source || {}, {
+        keyword: this.keyword || this.sourceName
+      })
+      if (!this.renderedTrialUrl) this.applyRenderedTrialTarget()
       this.loadBackendSession()
     },
     applySessionToEditor(session) {
@@ -595,6 +603,11 @@ export default {
       this.bridgeProbeReport = probeWebViewBridge()
       uni.showToast({ title: this.bridgeProbeStatusText, icon: 'none' })
     },
+    applyRenderedTrialTarget() {
+      if (!this.renderedTrialTarget) return
+      this.renderedTrialUrl = this.renderedTrialTarget.url || ''
+      this.renderedTrialSelector = this.renderedTrialTarget.waitSelector || ''
+    },
     async runRenderedTrial() {
       if (this.renderedTrialRunning) return
       this.renderedTrialRunning = true
@@ -619,6 +632,7 @@ export default {
         capability: this.capability,
         bridgeReadiness: this.bridgeReadiness,
         bridgeProbeReport: this.bridgeProbeReport,
+        renderedTrialTarget: this.renderedTrialTarget,
         renderedTrialReport: this.renderedTrialReport,
         sessionStatus: sourceSessionStatus(this.session),
         candidateLanes: this.candidateLanes,
@@ -898,6 +912,17 @@ export default {
   color: var(--app-text, #f4f6f5);
   font-size: 25rpx;
   font-weight: 800;
+}
+
+.rendered-trial-target {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12rpx;
+  margin-top: 12rpx;
+  padding: 10rpx 12rpx;
+  border-radius: 8rpx;
+  background: var(--app-surface-soft, #17252c);
 }
 
 .field.compact {
@@ -1191,6 +1216,7 @@ export default {
   .android-session-actions,
   .bridge-readiness-header,
   .bridge-probe-actions,
+  .rendered-trial-target,
   .acceptance-summary {
     align-items: stretch;
     flex-direction: column;
@@ -1208,6 +1234,10 @@ export default {
   }
 
   .bridge-probe-actions .small-button {
+    width: 100%;
+  }
+
+  .rendered-trial-target .small-button {
     width: 100%;
   }
 

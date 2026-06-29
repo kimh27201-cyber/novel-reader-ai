@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict'
-import { buildRenderedFetchTrialRequest, runRenderedFetchTrial } from '../common/sourceRenderedFetchTrial.js'
+import {
+  buildRenderedFetchTrialRequest,
+  buildRenderedFetchTrialTarget,
+  runRenderedFetchTrial
+} from '../common/sourceRenderedFetchTrial.js'
 
 const request = buildRenderedFetchTrialRequest({
   url: ' https://example.test/books ',
@@ -16,6 +20,45 @@ assert.equal(request.timeoutMs, 30000)
 assert.equal(request.waitMs, 0)
 assert.equal(request.cookie, 'sid=1')
 assert.equal(request.userAgent, 'NovelReaderTest/1.0')
+
+const exploreTarget = buildRenderedFetchTrialTarget({
+  id: 'source-explore',
+  raw: {
+    bookSourceUrl: 'https://example.test',
+    exploreUrl: '/category',
+    ruleExplore: { bookList: '.book-card' }
+  }
+})
+
+assert.equal(exploreTarget.url, 'https://example.test/category')
+assert.equal(exploreTarget.waitSelector, '.book-card')
+assert.equal(exploreTarget.source, 'exploreUrl')
+assert.equal(exploreTarget.reason, '发现页最适合验证列表渲染')
+
+const searchTarget = buildRenderedFetchTrialTarget({
+  id: 'source-search',
+  raw: {
+    bookSourceUrl: 'https://example.test',
+    searchUrl: '/search?q={{key}}',
+    ruleSearch: { bookList: '.result-item' }
+  }
+}, { keyword: '斗破' })
+
+assert.equal(searchTarget.url, 'https://example.test/search?q=%E6%96%97%E7%A0%B4')
+assert.equal(searchTarget.waitSelector, '.result-item')
+assert.equal(searchTarget.source, 'searchUrl')
+
+const loginTarget = buildRenderedFetchTrialTarget({
+  id: 'source-login',
+  raw: {
+    bookSourceUrl: 'https://example.test',
+    loginUrl: '/login'
+  }
+})
+
+assert.equal(loginTarget.url, 'https://example.test/login')
+assert.equal(loginTarget.waitSelector, '')
+assert.equal(loginTarget.source, 'loginUrl')
 
 const invalid = await runRenderedFetchTrial({ url: 'not-a-url' })
 assert.equal(invalid.status, 'invalid')

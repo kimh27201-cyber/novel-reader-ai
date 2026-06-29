@@ -693,3 +693,48 @@ backend\.venv\Scripts\python.exe -m pytest backend\tests -q
 ```
 
 阶段结果：目标测试通过，前端 `.mjs` 全量回归通过，后端 pytest 通过 `58 passed`，`pages.json` / `manifest.json` 解析通过，`git diff --check` 通过，H5 生产构建完成，`http://127.0.0.1:8080/#/pages/library/library` 返回 HTTP 200。Playwright 桌面自验确认 Source Hub 可显示“Rendered Fetch 试运行”区域，空 URL 试运行会显示“请求无效”和明确的 HTTP/HTTPS URL 提示；控制台唯一错误为 `favicon.ico` 404，不影响业务功能。
+
+## 2026-06-29 Source Hub Rendered Fetch 推荐目标推进记录
+
+### 本次目标
+
+继续围绕复杂 JS / WebView 书源适配推进，把“Rendered Fetch 试运行”从手动输入 URL 扩展为“根据书源规则自动推荐试运行目标”。这样后续进入 Android WebView 验证时，可以直接复用当前书源的发现页、搜索页、登录页或首页作为试运行入口，减少人工判断成本。
+
+### 已完成
+
+- `common/sourceRenderedFetchTrial.js`
+  - 新增 `buildRenderedFetchTrialTarget()`，从书源原始规则中推导推荐试运行 URL。
+  - 推荐顺序为 `exploreUrl`、`searchUrl`、`loginUrl`、`bookSourceUrl`，优先选择更能验证列表渲染的页面。
+  - 支持搜索 URL 中的 `{{key}}`、`{{keyword}}`、`{{searchKey}}` 以及单大括号变体替换。
+  - 从 `ruleExplore.bookList` 或 `ruleSearch.bookList` 推导等待选择器，便于后续真实 WebView 等待 DOM 渲染完成。
+- `pages/sourceHub/sourceHub.vue`
+  - 在 `Rendered Fetch 试运行` 区域展示推荐目标、来源和推荐原因。
+  - 新增 `应用推荐` 操作，一键填入推荐 URL 和等待选择器。
+  - 复制诊断时带上推荐目标，方便后续排查书源规则和 WebView bridge 表现。
+- `tests/sourceRenderedFetchTrial.test.mjs`
+  - 覆盖发现页、搜索页、登录页三类推荐目标。
+  - 覆盖搜索关键词编码替换和等待选择器推导。
+- `tests/sourceHub.test.mjs`
+  - 补充推荐目标 UI、状态字段和应用方法的契约断言。
+
+### 当前边界
+
+- 本阶段仍在电脑端 H5 验证推荐目标推导、UI 展示和请求参数拼装，不在 H5 中执行第三方复杂 JS。
+- 推荐目标是基于书源规则的 best-effort 推导，不保证目标站点一定免登录、免验证码、免风控或可直接访问。
+- 真实 DOM 渲染、复杂浏览器 JS 执行、Cookie 回传和登录态联动仍依赖后续 Android WebView bridge 运行时验证。
+
+### 已验收
+
+```powershell
+node tests\sourceRenderedFetchTrial.test.mjs
+node tests\sourceHub.test.mjs
+node tests\webViewBridgeProbe.test.mjs
+node tests\webViewRenderedFetch.test.mjs
+node tests\sourceBridgeReadiness.test.mjs
+node tests\sourceCapabilitySessionRouter.test.mjs
+node tests\sourceAcceptance.test.mjs
+Get-ChildItem tests -Filter *.test.mjs | Sort-Object Name | ForEach-Object { node $_.FullName; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }
+backend\.venv\Scripts\python.exe -m pytest backend\tests -q
+```
+
+阶段结果：目标测试通过，相关 WebView / Source Hub 回归通过，前端 `.mjs` 全量回归通过，后端 pytest 通过 `58 passed`，`pages.json` / `manifest.json` 解析通过，`git diff --check` 通过，已检查现有 H5 生产构建产物包含“推荐目标”和“应用推荐”入口，`http://127.0.0.1:8080/#/pages/library/library` 返回 HTTP 200。

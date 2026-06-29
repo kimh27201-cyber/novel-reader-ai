@@ -425,3 +425,52 @@
 
 ### Next Step
 - Continue by wiring Android runtime rendered fetch validation into this same trial entry when phone validation starts.
+
+## Date: 2026-06-29
+
+### Completed - Source Hub Rendered Fetch Trial Target Milestone
+- Added `buildRenderedFetchTrialTarget()` to derive a rendered fetch trial target from the current source definition.
+- The target picker prefers `exploreUrl`, then `searchUrl`, then `loginUrl`, then `bookSourceUrl`, so list-rendering pages are tested before basic home-page access.
+- Search trial URLs now replace `{{key}}`, `{{keyword}}`, `{{searchKey}}`, and single-brace variants with the active keyword.
+- Trial wait selectors are derived from `ruleExplore.bookList` or `ruleSearch.bookList` when available.
+- Source Hub now shows the recommended target source and reason, with an `应用推荐` action to fill the trial URL and selector.
+- Diagnostics copy now includes both the recommended rendered fetch target and the latest rendered fetch trial report.
+- Extended `tests/sourceRenderedFetchTrial.test.mjs` and `tests/sourceHub.test.mjs`.
+
+### Modified Files - Source Hub Rendered Fetch Trial Target Milestone
+- `common/sourceRenderedFetchTrial.js`
+- `pages/sourceHub/sourceHub.vue`
+- `tests/sourceRenderedFetchTrial.test.mjs`
+- `tests/sourceHub.test.mjs`
+- `docs/dev/V2_NEXT_STEP_CHANGELOG.md`
+- `docs/DESKTOP_V2_DEVELOPMENT_PLAN.md`
+
+### Test Commands - Source Hub Rendered Fetch Trial Target Milestone
+- `node tests\sourceRenderedFetchTrial.test.mjs`
+- `node tests\sourceHub.test.mjs`
+- `node tests\webViewBridgeProbe.test.mjs`
+- `node tests\webViewRenderedFetch.test.mjs`
+- `node tests\sourceBridgeReadiness.test.mjs`
+- `node tests\sourceCapabilitySessionRouter.test.mjs`
+- `node tests\sourceAcceptance.test.mjs`
+- `Get-ChildItem tests -Filter *.test.mjs | Sort-Object Name | ForEach-Object { node $_.FullName; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }`
+- `backend\.venv\Scripts\python.exe -m pytest backend\tests -q`
+- `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('pages.json','utf8')); JSON.parse(fs.readFileSync('manifest.json','utf8')); console.log('json config ok')"`
+- `git diff --check`
+
+### Acceptance Result - Source Hub Rendered Fetch Trial Target Milestone
+- Targeted rendered fetch trial target and Source Hub contract tests passed.
+- Related WebView bridge probe, WebView rendered fetch, readiness, capability router, and source acceptance tests passed.
+- Full frontend `.mjs` regression suite passed.
+- Backend pytest passed: `58 passed`; only warning was the existing pytest cache directory warning.
+- `pages.json` and `manifest.json` parsed successfully.
+- `git diff --check` passed; Git only reported LF-to-CRLF working-copy warnings.
+- Existing H5 production build artifact was checked and the built Source Hub bundle contains the `推荐目标` and `应用推荐` UI text.
+- Desktop H5 self-acceptance at `http://127.0.0.1:8080/#/pages/library/library` returned HTTP 200.
+
+### Known Issues - Source Hub Rendered Fetch Trial Target Milestone
+- H5 can validate the recommendation UI and request-building path, but real rendered DOM validation still depends on Android WebView bridge runtime.
+- The recommended target is a best-effort choice from source rules; it does not guarantee a third-party site will allow access or render without login, CAPTCHA, membership, paid-content, or anti-crawler controls.
+
+### Next Step
+- Continue toward Android runtime validation by connecting this recommended target to the phone-side rendered fetch bridge once the milestone phone flow starts.

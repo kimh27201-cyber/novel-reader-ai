@@ -1,5 +1,19 @@
 import { renderedFetch, WebViewCapabilityError } from './webViewBridge.js'
 
+function sourceRaw(source = {}) {
+  return source && (source.raw || source) || {}
+}
+
+function normalizeRuleObject(rule) {
+  if (!rule) return {}
+  if (typeof rule === 'object') return rule
+  try {
+    return JSON.parse(rule)
+  } catch (error) {
+    return {}
+  }
+}
+
 function clamp(value, min, max, fallback) {
   const number = Number(value)
   return Number.isFinite(number) ? Math.min(max, Math.max(min, Math.round(number))) : fallback
@@ -7,6 +21,69 @@ function clamp(value, min, max, fallback) {
 
 function isHttpUrl(url) {
   return /^https?:\/\//i.test(String(url || '').trim())
+}
+
+function resolveTrialUrl(value, baseUrl) {
+  const text = String(value || '').trim()
+  if (!text) return ''
+  try {
+    return new URL(text, String(baseUrl || text)).toString()
+  } catch (error) {
+    return text
+  }
+}
+
+function renderSearchUrl(value, keyword) {
+  const encoded = encodeURIComponent(String(keyword || '测试'))
+  return String(value || '')
+    .replace(/\{\{\s*(?:key|keyword|searchKey)\s*\}\}/gi, encoded)
+    .replace(/\{\s*(?:key|keyword|searchKey)\s*\}/gi, encoded)
+}
+
+function pickBookListSelector(rule) {
+  const object = normalizeRuleObject(rule)
+  return String(object.bookList || object.books || object.list || '').trim()
+}
+
+export function buildRenderedFetchTrialTarget(source = {}, options = {}) {
+  const raw = sourceRaw(source)
+  const baseUrl = raw.bookSourceUrl || raw.sourceUrl || raw.baseUrl || source.baseUrl || ''
+  const keyword = options.keyword || '测试'
+  const candidates = [
+    {
+      source: 'exploreUrl',
+      url: raw.exploreUrl || raw.ruleExploreUrl || raw.explore,
+      waitSelector: pickBookListSelector(raw.ruleExplore),
+      reason: '发现页最适合验证列表渲染'
+    },
+    {
+      source: 'searchUrl',
+      url: renderSearchUrl(raw.searchUrl, keyword),
+      waitSelector: pickBookListSelector(raw.ruleSearch),
+      reason: '搜索页适合验证关键词结果渲染'
+    },
+    {
+      source: 'loginUrl',
+      url: raw.loginUrl,
+      waitSelector: '',
+      reason: '登录页适合验证会话和 Cookie bridge'
+    },
+    {
+      source: 'bookSourceUrl',
+      url: baseUrl,
+      waitSelector: '',
+      reason: '书源首页适合验证基础 WebView 访问'
+    }
+  ]
+  const candidate = candidates.find(item => String(item.url || '').trim())
+  if (!candidate) {
+    return { url: '', waitSelector: '', source: 'none', reason: '当前书源缺少可试运行 URL' }
+  }
+  return {
+    ...candidate,
+    url: resolveTrialUrl(candidate.url, baseUrl),
+    waitSelector: String(candidate.waitSelector || '').slice(0, 300)
+  }
 }
 
 export function buildRenderedFetchTrialRequest(options = {}) {
