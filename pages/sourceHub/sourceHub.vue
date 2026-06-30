@@ -147,6 +147,16 @@
           <view class="panel-title">Android 验证清单</view>
           <button class="small-button" @tap="copyAndroidValidationReport">复制清单</button>
         </view>
+        <view class="android-validation-summary" :class="androidValidationSummary.status">
+          <view>
+            <text class="validation-summary-label">阶段汇总</text>
+            <view class="validation-summary-title">{{ androidValidationSummary.statusText }}</view>
+          </view>
+          <text class="validation-summary-count">
+            {{ androidValidationSummary.completeCount }}/{{ androidValidationSummary.total }}
+          </text>
+        </view>
+        <text class="panel-hint">{{ androidValidationSummary.nextAction }}</text>
         <view class="android-validation-list">
           <view
             class="android-validation-item"
@@ -494,6 +504,36 @@ export default {
         label: validationLabel(item.state)
       }))
     },
+    androidValidationSummary() {
+      const summary = this.androidValidationItems.reduce((result, item) => {
+        result.total += 1
+        result[`${item.state}Count`] = (result[`${item.state}Count`] || 0) + 1
+        return result
+      }, {
+        total: 0,
+        readyCount: 0,
+        actionCount: 0,
+        waitingCount: 0,
+        skippedCount: 0
+      })
+      summary.completeCount = summary.readyCount + summary.skippedCount
+      const actionItem = this.androidValidationItems.find(item => item.state === 'action')
+      const waitingItem = this.androidValidationItems.find(item => item.state === 'waiting')
+      if (actionItem) {
+        summary.status = 'action'
+        summary.statusText = '存在需处理门禁'
+        summary.nextAction = `优先处理：${actionItem.title}，${actionItem.detail}`
+      } else if (waitingItem) {
+        summary.status = 'waiting'
+        summary.statusText = '等待运行时验证'
+        summary.nextAction = `下一步：${waitingItem.title}，${waitingItem.detail}`
+      } else {
+        summary.status = 'ready'
+        summary.statusText = '清单已完成'
+        summary.nextAction = '当前书源的 Android 验证证据已收集完成，可进入后续里程碑验收流程。'
+      }
+      return summary
+    },
     candidateLanes() {
       return buildCandidateLanes('explore', this.capability, this.session)
     },
@@ -675,6 +715,7 @@ export default {
         sourceName: this.sourceName,
         platform: this.runtimePlatform,
         generatedAt: new Date().toISOString(),
+        summary: this.androidValidationSummary,
         checklist: this.androidValidationItems,
         bridgeProbeReport: this.bridgeProbeReport,
         renderedTrialTarget: this.renderedTrialTarget,
@@ -806,6 +847,7 @@ export default {
         sourceName: this.sourceName,
         capability: this.capability,
         bridgeReadiness: this.bridgeReadiness,
+        androidValidationSummary: this.androidValidationSummary,
         androidValidationItems: this.androidValidationItems,
         sessionBridgeReport: this.sessionBridgeReport,
         bridgeProbeReport: this.bridgeProbeReport,
@@ -1184,6 +1226,51 @@ export default {
   gap: 14rpx;
 }
 
+.android-validation-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+  margin-top: 16rpx;
+  padding: 16rpx;
+  box-sizing: border-box;
+  border: 1rpx solid var(--app-border, #29404a);
+  border-radius: 8rpx;
+  background: var(--app-surface-soft, #17252c);
+}
+
+.android-validation-summary.ready {
+  border-color: rgba(142, 207, 194, 0.58);
+}
+
+.android-validation-summary.action {
+  border-color: rgba(207, 78, 67, 0.58);
+}
+
+.android-validation-summary.waiting {
+  border-color: rgba(224, 173, 89, 0.58);
+}
+
+.validation-summary-label {
+  color: var(--app-muted, #a9b6bb);
+  font-size: 21rpx;
+}
+
+.validation-summary-title,
+.validation-summary-count {
+  color: var(--app-text, #f4f6f5);
+  font-size: 26rpx;
+  font-weight: 800;
+}
+
+.validation-summary-title {
+  margin-top: 4rpx;
+}
+
+.validation-summary-count {
+  flex-shrink: 0;
+}
+
 .android-validation-item {
   min-height: 82rpx;
   display: flex;
@@ -1477,6 +1564,11 @@ export default {
 
   .android-validation-header .small-button {
     width: 100%;
+  }
+
+  .android-validation-summary {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .android-validation-item {

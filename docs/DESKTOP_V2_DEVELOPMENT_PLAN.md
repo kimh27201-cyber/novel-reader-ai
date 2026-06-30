@@ -924,3 +924,46 @@ Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/#/pages/library/librar
 ```
 
 阶段结果：Source Hub 契约测试通过，前端 `.mjs` 全量回归通过，后端 pytest 通过 `58 passed`，`pages.json` / `manifest.json` 解析通过，`git diff --check` 通过，H5 生产构建完成，构建产物包含 `复制清单`、`Android 验证清单已复制`、`buildAndroidValidationReport`，桌面 H5 入口返回 HTTP 200。下一步继续基于报告和清单基础推进剩余手机侧验证流程。
+
+## 2026-06-30 Source Hub Android 验证汇总推进记录
+
+### 本次目标
+
+继续围绕复杂 JS / WebView 手机侧门禁闭环推进，但保持桌面端可验收：在 Android 验证清单上方增加阶段汇总，让后续打里程碑包前能快速判断哪些 gate 已完成、哪些还需要 Android runtime。
+
+### 已完成
+
+- `pages/sourceHub/sourceHub.vue`
+  - 新增 `androidValidationSummary`，统计 total / ready / action / waiting / skipped / complete。
+  - 在 `Android 验证清单`面板增加汇总块，展示总体状态、完成数和下一步建议。
+  - `copyDiagnostics()` 和 `buildAndroidValidationReport()` 均带上 `androidValidationSummary`。
+- `tests/sourceHub.test.mjs`
+  - 补充汇总 computed、汇总 UI class、诊断 payload 和复制报告 payload 契约断言。
+
+### 当前边界
+
+- 汇总只归纳当前已有证据，不会替代 Android 真机 WebView 运行。
+- Rendered Fetch、登录页打开和 Cookie 读取仍需要后续手机 runtime 验证。
+
+### 已验收
+
+```powershell
+node tests\sourceHub.test.mjs
+node tests\webViewBridgeProbe.test.mjs
+node tests\sourceRenderedFetchTrial.test.mjs
+node tests\sourceBridgeReadiness.test.mjs
+Get-ChildItem tests -Filter *.test.mjs | Sort-Object Name | ForEach-Object { node $_.FullName; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }
+backend\.venv\Scripts\python.exe -m pytest backend\tests -q
+node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('pages.json','utf8')); JSON.parse(fs.readFileSync('manifest.json','utf8')); console.log('json config ok')"
+git diff --check
+```
+
+H5 构建和产物验收：
+
+```powershell
+# HBuilderX uniapp-cli H5 production build, then scripts\patch_h5_build.py
+Select-String -Path 'unpackage\dist\build\h5\static\js\*.js' -Pattern 'androidValidationSummary','validation-summary-count','阶段汇总' -SimpleMatch
+Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/#/pages/library/library'
+```
+
+阶段结果：Source Hub 契约测试通过，WebView Bridge Probe / Rendered Fetch Trial / Bridge Readiness 目标回归通过，前端 `.mjs` 全量回归通过，后端 pytest 通过 `58 passed`，`pages.json` / `manifest.json` 解析通过，`git diff --check` 通过，H5 生产构建完成，构建产物包含 `androidValidationSummary`、`validation-summary-count`、`阶段汇总`，桌面 H5 入口返回 HTTP 200。下一步继续从汇总后的 Android gate 证据推进手机连接后的验证流程。

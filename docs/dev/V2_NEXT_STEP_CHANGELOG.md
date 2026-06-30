@@ -658,3 +658,48 @@
 
 ### Next Step
 - Continue preparing the remaining phone-side validation flow from the desktop-verifiable report and checklist foundation.
+
+## Date: 2026-06-30
+
+### Completed - Source Hub Android Validation Summary Milestone
+- Added an Android validation summary block above the Source Hub checklist.
+- The summary reports total, ready, action, waiting, skipped, and completed counts.
+- The summary highlights the first actionable or waiting validation gate so phone-side verification can follow the same WebView/runtime order.
+- Added `androidValidationSummary` to copied diagnostics and the Android validation JSON report.
+- Extended Source Hub contract coverage for the summary computed state, UI class, diagnostics payload, and copied report payload.
+
+### Modified Files - Source Hub Android Validation Summary Milestone
+- `pages/sourceHub/sourceHub.vue`
+- `tests/sourceHub.test.mjs`
+- `docs/dev/V2_NEXT_STEP_CHANGELOG.md`
+- `docs/DESKTOP_V2_DEVELOPMENT_PLAN.md`
+
+### Test Commands - Source Hub Android Validation Summary Milestone
+- `node tests\sourceHub.test.mjs`
+- `node tests\webViewBridgeProbe.test.mjs`
+- `node tests\sourceRenderedFetchTrial.test.mjs`
+- `node tests\sourceBridgeReadiness.test.mjs`
+- `Get-ChildItem tests -Filter *.test.mjs | Sort-Object Name | ForEach-Object { node $_.FullName; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }`
+- `backend\.venv\Scripts\python.exe -m pytest backend\tests -q`
+- `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('pages.json','utf8')); JSON.parse(fs.readFileSync('manifest.json','utf8')); console.log('json config ok')"`
+- `git diff --check`
+- HBuilderX `uniapp-cli` H5 production build with `scripts\patch_h5_build.py`
+- `Select-String -Path 'unpackage\dist\build\h5\static\js\*.js' -Pattern 'androidValidationSummary','validation-summary-count','阶段汇总' -SimpleMatch`
+- `Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/#/pages/library/library'`
+
+### Acceptance Result - Source Hub Android Validation Summary Milestone
+- Source Hub contract test passed.
+- WebView bridge probe, rendered fetch trial, and bridge readiness tests passed.
+- Full frontend `.mjs` regression suite passed.
+- Backend pytest passed with `58 passed`; the existing pytest cache warning remains non-blocking.
+- `pages.json` and `manifest.json` parse successfully.
+- `git diff --check` passed with only LF/CRLF working-copy warnings.
+- H5 production build completed; existing uni-h5 bundle size and Browserslist notices remain non-blocking.
+- Built Source Hub bundle contains `androidValidationSummary`, `validation-summary-count`, and `阶段汇总`.
+- Desktop H5 entry `http://127.0.0.1:8080/#/pages/library/library` returned HTTP 200.
+
+### Known Issues - Source Hub Android Validation Summary Milestone
+- The summary is a desktop-verifiable gate view; native rendered fetch, login navigation, and Cookie capture still require Android runtime.
+
+### Next Step
+- Continue toward the phone-connected validation flow from the summarized Android gate evidence.
