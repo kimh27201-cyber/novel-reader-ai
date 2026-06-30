@@ -850,3 +850,37 @@ node tests\sourceRenderedFetchTrial.test.mjs
 ```
 
 阶段结果：目标测试通过。Source Hub 的 rendered fetch、登录页打开和 Cookie 采集现在共用同一套 bridge profile gate 诊断思路。
+
+## 2026-06-30 Source Hub Android 验证清单推进记录
+
+### 本次目标
+
+把前面已经完成的 bridge profile、rendered fetch gate、登录页 gate、Cookie gate 和真实链路验收结果汇总成一个桌面端可见的验证顺序。目标是后续连接手机时不再分散查看多个面板，而是能按 Source Hub 中的清单逐项确认。
+
+### 已完成
+
+- `pages/sourceHub/sourceHub.vue`
+  - 新增 `Android 验证清单`面板。
+  - 清单包含 5 项：Bridge Profile、Rendered Fetch、登录页、Cookie、真实链路。
+  - 每项根据现有报告自动显示 `已通过`、`需处理`、`待验证` 或 `可跳过`。
+  - 清单复用 `bridgeProbeReport`、`renderedTrialReport`、`sessionBridgeReport`、本地会话状态和 `acceptanceReport`。
+  - 复制诊断时新增 `androidValidationItems`，便于后续手机侧验收对照。
+- `tests/sourceHub.test.mjs`
+  - 补充清单面板、计算字段、诊断字段和关键文案契约断言。
+
+### 当前边界
+
+- 本阶段仍是桌面端 H5 可验收的手机前置清单，不执行真实 Android runtime。
+- 清单中的 ready/action/waiting 只代表当前已收集证据，不代表第三方站点一定可访问或登录态一定有效。
+
+### 已验收
+
+```powershell
+node tests\sourceHub.test.mjs
+Get-ChildItem tests -Filter *.test.mjs | Sort-Object Name | ForEach-Object { node $_.FullName; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }
+backend\.venv\Scripts\python.exe -m pytest backend\tests -q
+node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('pages.json','utf8')); JSON.parse(fs.readFileSync('manifest.json','utf8')); console.log('json config ok')"
+git diff --check
+```
+
+阶段结果：Source Hub 契约测试通过，前端 `.mjs` 全量回归通过，后端 pytest 通过 `58 passed`，`pages.json` / `manifest.json` 解析通过，`git diff --check` 通过，H5 生产构建完成，构建产物已包含“Android 验证清单”入口，`http://127.0.0.1:8080/#/pages/library/library` 返回 HTTP 200。下一步继续推进剩余桌面可验证任务。

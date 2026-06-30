@@ -576,3 +576,44 @@
 
 ### Next Step
 - Prepare a consolidated Android validation checklist inside Source Hub diagnostics so phone-side verification can follow bridge profile, rendered fetch, login, and Cookie gates in order.
+
+## Date: 2026-06-30
+
+### Completed - Source Hub Android Validation Checklist Milestone
+- Added an `Android 验证清单` panel to Source Hub.
+- The checklist consolidates Bridge Profile, Rendered Fetch, login page, Cookie capture, and real-chain acceptance into one ordered validation view.
+- Each checklist item now reports `ready`, `action`, `waiting`, or `skipped` state with concise evidence from the existing reports.
+- Source Hub diagnostics copy now includes `androidValidationItems`.
+- Added Source Hub contract coverage for the checklist panel, computed state, and diagnostics payload.
+
+### Modified Files - Source Hub Android Validation Checklist Milestone
+- `pages/sourceHub/sourceHub.vue`
+- `tests/sourceHub.test.mjs`
+- `docs/dev/V2_NEXT_STEP_CHANGELOG.md`
+- `docs/DESKTOP_V2_DEVELOPMENT_PLAN.md`
+
+### Test Commands - Source Hub Android Validation Checklist Milestone
+- `node tests\sourceHub.test.mjs`
+- `Get-ChildItem tests -Filter *.test.mjs | Sort-Object Name | ForEach-Object { node $_.FullName; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }`
+- `backend\.venv\Scripts\python.exe -m pytest backend\tests -q`
+- `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('pages.json','utf8')); JSON.parse(fs.readFileSync('manifest.json','utf8')); console.log('json config ok')"`
+- `git diff --check`
+- H5 production build with HBuilderX `uniapp-cli`
+
+### Acceptance Result - Source Hub Android Validation Checklist Milestone
+- Source Hub contract test passed.
+- Full frontend `.mjs` regression suite passed.
+- Backend pytest passed: `58 passed`; only warning was the existing pytest cache directory warning.
+- `pages.json` and `manifest.json` parsed successfully.
+- `git diff --check` passed; Git only reported LF-to-CRLF working-copy warnings.
+- H5 production build completed; build warnings were limited to the existing large uni-h5 bundle warning and outdated Browserslist data notice.
+- The built Source Hub bundle contains the `Android 验证清单` UI text.
+- Desktop H5 entry at `http://127.0.0.1:8080/#/pages/library/library` returned HTTP 200.
+- The desktop H5 view now exposes a single phone-side validation order without starting the phone packaging flow.
+
+### Known Issues - Source Hub Android Validation Checklist Milestone
+- The checklist summarizes available evidence; it does not replace real Android runtime validation.
+- H5 cannot prove native WebView rendering, login-page navigation, or Cookie capture.
+
+### Next Step
+- Continue with remaining desktop-verifiable Android validation preparation.

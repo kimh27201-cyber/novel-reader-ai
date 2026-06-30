@@ -142,6 +142,24 @@
         </view>
       </view>
 
+      <view class="android-validation-panel">
+        <view class="panel-title">Android 验证清单</view>
+        <view class="android-validation-list">
+          <view
+            class="android-validation-item"
+            v-for="item in androidValidationItems"
+            :key="item.key"
+            :class="item.state"
+          >
+            <view>
+              <view class="validation-title">{{ item.title }}</view>
+              <text class="validation-detail">{{ item.detail }}</text>
+            </view>
+            <text class="validation-state">{{ item.label }}</text>
+          </view>
+        </view>
+      </view>
+
       <view class="acceptance-panel">
         <view class="panel-title">真实链路验收</view>
         <view class="acceptance-summary">
@@ -236,6 +254,13 @@ import { openSourceLogin, probeWebViewBridge, readSourceLoginCookie } from '../.
 import { assessSourceBridgeReadiness } from '../../common/sourceBridgeReadiness.js'
 import { buildRenderedFetchTrialTarget, runRenderedFetchTrial } from '../../common/sourceRenderedFetchTrial.js'
 
+function validationLabel(state) {
+  if (state === 'ready') return '已通过'
+  if (state === 'action') return '需处理'
+  if (state === 'skipped') return '可跳过'
+  return '待验证'
+}
+
 export default {
   data() {
     return {
@@ -255,6 +280,7 @@ export default {
       backendSessionLoaded: false,
       cookieSummaryVersion: 0,
       sessionBridgeReport: null,
+      sessionBridgeScope: '',
       bridgeProbeReport: null,
       renderedTrialTarget: null,
       renderedTrialUrl: '',
@@ -388,6 +414,82 @@ export default {
       const profile = probe.capabilities && probe.capabilities.profile
       const runtime = profile ? ` · ${profile.runtime || profile.platform || '未知运行时'}` : ''
       return `${probe.status} · ${missing}${runtime}`
+    },
+    androidValidationItems() {
+      const needsSession = !!(this.capability.requiresCookie || this.capability.requiresWebView)
+      const currentSessionStatus = sourceSessionStatus(this.session)
+      const bridgeState = this.bridgeProbeReport
+        ? (this.bridgeProbeReport.status === 'ready' ? 'ready' : 'action')
+        : 'waiting'
+      const renderedState = this.renderedTrialReport
+        ? (this.renderedTrialReport.status === 'passed' ? 'ready' : 'action')
+        : 'waiting'
+      const loginState = !needsSession
+        ? 'skipped'
+        : (this.sessionBridgeScope === 'openLogin' && this.sessionBridgeReport
+            ? (this.sessionBridgeReport.status === 'ready' ? 'ready' : 'action')
+            : 'waiting')
+      const cookieState = currentSessionStatus === 'active'
+        ? 'ready'
+        : (!needsSession
+            ? 'skipped'
+            : (this.sessionBridgeScope === 'readCookie' && this.sessionBridgeReport
+                ? (this.sessionBridgeReport.status === 'ready' ? 'waiting' : 'action')
+                : 'waiting'))
+      const acceptanceState = this.acceptanceReport
+        ? (this.acceptanceReport.status === 'passed' || this.acceptanceReport.status === 'partial' ? 'ready' : 'action')
+        : 'waiting'
+      return [
+        {
+          key: 'bridge-profile',
+          title: '1. Bridge Profile',
+          state: bridgeState,
+          detail: this.bridgeProbeReport
+            ? this.bridgeProbeStatusText
+            : '先执行 Bridge 自检，确认 runtime profile 和能力清单。'
+        },
+        {
+          key: 'rendered-fetch',
+          title: '2. Rendered Fetch',
+          state: renderedState,
+          detail: this.renderedTrialReport
+            ? `${this.renderedTrialStatusText} · ${this.renderedTrialReport.message || ''}`
+            : '运行推荐目标，确认渲染 bridge gate 和 DOM 返回。'
+        },
+        {
+          key: 'login-page',
+          title: '3. 登录页',
+          state: loginState,
+          detail: !needsSession
+            ? '当前书源未声明必须登录或 Cookie。'
+            : (this.sessionBridgeScope === 'openLogin' && this.sessionBridgeReport
+                ? this.sessionBridgeStatusText
+                : '打开登录页前需要通过 openLogin gate。')
+        },
+        {
+          key: 'cookie-capture',
+          title: '4. Cookie',
+          state: cookieState,
+          detail: currentSessionStatus === 'active'
+            ? this.sessionStatusText
+            : (!needsSession
+                ? '当前书源暂无 Cookie 采集要求。'
+                : (this.sessionBridgeScope === 'readCookie' && this.sessionBridgeReport
+                    ? `${this.sessionBridgeStatusText} · ${this.sessionBridgeMissingText}`
+                    : '保存登录 Cookie 前需要通过 readCookie gate。'))
+        },
+        {
+          key: 'source-acceptance',
+          title: '5. 真实链路',
+          state: acceptanceState,
+          detail: this.acceptanceReport
+            ? `${this.acceptanceStatusText} · ${this.acceptanceReport.score || 0} 分`
+            : '完成书源搜索、详情、目录、正文和书架链路验收。'
+        }
+      ].map(item => ({
+        ...item,
+        label: validationLabel(item.state)
+      }))
     },
     candidateLanes() {
       return buildCandidateLanes('explore', this.capability, this.session)
@@ -592,6 +694,7 @@ export default {
     },
     openAndroidLogin() {
       try {
+        this.sessionBridgeScope = 'openLogin'
         this.sessionBridgeReport = probeWebViewBridge(['openLogin'])
         if (this.sessionBridgeReport.status !== 'ready') {
           uni.showToast({ title: this.sessionBridgeReport.message, icon: 'none' })
@@ -605,6 +708,7 @@ export default {
     },
     async saveAndroidLoginSession() {
       try {
+        this.sessionBridgeScope = 'readCookie'
         this.sessionBridgeReport = probeWebViewBridge(['readCookie'])
         if (this.sessionBridgeReport.status !== 'ready') {
           uni.showToast({ title: this.sessionBridgeReport.message, icon: 'none' })
@@ -678,6 +782,7 @@ export default {
         sourceName: this.sourceName,
         capability: this.capability,
         bridgeReadiness: this.bridgeReadiness,
+        androidValidationItems: this.androidValidationItems,
         sessionBridgeReport: this.sessionBridgeReport,
         bridgeProbeReport: this.bridgeProbeReport,
         renderedTrialTarget: this.renderedTrialTarget,
@@ -788,6 +893,7 @@ export default {
 .search-panel,
 .session-panel,
 .bridge-readiness-panel,
+.android-validation-panel,
 .acceptance-panel,
 .lane-panel,
 .capability-grid {
@@ -800,6 +906,7 @@ export default {
 .search-panel,
 .session-panel,
 .bridge-readiness-panel,
+.android-validation-panel,
 .acceptance-panel,
 .lane-panel {
   padding: 24rpx;
@@ -1039,6 +1146,65 @@ export default {
   background: var(--app-surface-soft, #17252c);
 }
 
+.android-validation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+  margin-top: 18rpx;
+}
+
+.android-validation-item {
+  min-height: 82rpx;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+  padding: 14rpx;
+  box-sizing: border-box;
+  border: 1rpx solid var(--app-border, #29404a);
+  border-radius: 8rpx;
+  background: var(--app-surface-soft, #17252c);
+}
+
+.android-validation-item.ready {
+  border-color: rgba(142, 207, 194, 0.58);
+}
+
+.android-validation-item.action {
+  border-color: rgba(207, 78, 67, 0.58);
+}
+
+.android-validation-item.skipped {
+  opacity: 0.72;
+}
+
+.validation-title,
+.validation-state {
+  color: var(--app-text, #f4f6f5);
+  font-size: 25rpx;
+  font-weight: 800;
+}
+
+.validation-detail {
+  display: block;
+  margin-top: 6rpx;
+  color: var(--app-muted, #a9b6bb);
+  font-size: 22rpx;
+  line-height: 32rpx;
+}
+
+.validation-state {
+  flex-shrink: 0;
+}
+
+.android-validation-item.ready .validation-state {
+  color: #8ecfc2;
+}
+
+.android-validation-item.action .validation-state {
+  color: #ff8a7c;
+}
+
 .acceptance-toolbar {
   justify-content: flex-end;
   flex-wrap: wrap;
@@ -1249,6 +1415,7 @@ export default {
   .search-panel,
   .session-panel,
   .bridge-readiness-panel,
+  .android-validation-panel,
   .acceptance-panel,
   .lane-panel,
   .capability-grid,
@@ -1268,6 +1435,11 @@ export default {
   .bridge-probe-actions,
   .rendered-trial-target,
   .acceptance-summary {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .android-validation-item {
     align-items: stretch;
     flex-direction: column;
   }
