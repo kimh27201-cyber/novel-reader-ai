@@ -884,3 +884,43 @@ git diff --check
 ```
 
 阶段结果：Source Hub 契约测试通过，前端 `.mjs` 全量回归通过，后端 pytest 通过 `58 passed`，`pages.json` / `manifest.json` 解析通过，`git diff --check` 通过，H5 生产构建完成，构建产物已包含“Android 验证清单”入口，`http://127.0.0.1:8080/#/pages/library/library` 返回 HTTP 200。下一步继续推进剩余桌面可验证任务。
+
+## 2026-06-30 Source Hub Android 验证报告复制推进记录
+
+### 本次目标
+
+在已有 Android 验证清单基础上，补齐一键复制报告能力。后续手机验收时，可以把 bridge profile、rendered fetch、登录页、Cookie 和真实链路结果打包为同一份 JSON，减少手动截图和分散复制。
+
+### 已完成
+
+- `pages/sourceHub/sourceHub.vue`
+  - 在 `Android 验证清单`面板中新增 `复制清单`按钮。
+  - 新增 `buildAndroidValidationReport()`，汇总清单、Bridge 自检、Rendered Fetch 推荐目标和报告、会话 Bridge、会话状态、真实链路验收报告。
+  - 新增 `copyAndroidValidationReport()`，把汇总报告写入剪贴板。
+- `tests/sourceHub.test.mjs`
+  - 补充报告构建、复制动作和清单工具栏契约断言。
+
+### 当前边界
+
+- 复制报告只汇总当前已收集证据，不会自动执行手机侧操作。
+- 真实 WebView 渲染、登录页跳转和 Cookie 采集仍依赖 Android runtime。
+
+### 已验收
+
+```powershell
+node tests\sourceHub.test.mjs
+Get-ChildItem tests -Filter *.test.mjs | Sort-Object Name | ForEach-Object { node $_.FullName; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }
+backend\.venv\Scripts\python.exe -m pytest backend\tests -q
+node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('pages.json','utf8')); JSON.parse(fs.readFileSync('manifest.json','utf8')); console.log('json config ok')"
+git diff --check
+```
+
+H5 构建和产物验收：
+
+```powershell
+# HBuilderX uniapp-cli H5 production build, then scripts\patch_h5_build.py
+Select-String -Path 'unpackage\dist\build\h5\static\js\*.js' -Pattern '复制清单','Android 验证清单已复制','buildAndroidValidationReport' -SimpleMatch
+Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/#/pages/library/library'
+```
+
+阶段结果：Source Hub 契约测试通过，前端 `.mjs` 全量回归通过，后端 pytest 通过 `58 passed`，`pages.json` / `manifest.json` 解析通过，`git diff --check` 通过，H5 生产构建完成，构建产物包含 `复制清单`、`Android 验证清单已复制`、`buildAndroidValidationReport`，桌面 H5 入口返回 HTTP 200。下一步继续基于报告和清单基础推进剩余手机侧验证流程。

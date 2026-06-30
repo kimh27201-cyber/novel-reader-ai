@@ -617,3 +617,44 @@
 
 ### Next Step
 - Continue with remaining desktop-verifiable Android validation preparation.
+
+## Date: 2026-06-30
+
+### Completed - Source Hub Android Validation Report Milestone
+- Added a `复制清单` action to the Source Hub Android validation checklist.
+- Added `buildAndroidValidationReport()` to collect the current checklist, bridge probe, rendered fetch target/report, session bridge report, session status, and real-chain acceptance report.
+- Added `copyAndroidValidationReport()` to copy the consolidated Android validation payload as JSON.
+- Extended Source Hub contract coverage for the report builder, copy action, and checklist toolbar.
+
+### Modified Files - Source Hub Android Validation Report Milestone
+- `pages/sourceHub/sourceHub.vue`
+- `tests/sourceHub.test.mjs`
+- `docs/dev/V2_NEXT_STEP_CHANGELOG.md`
+- `docs/DESKTOP_V2_DEVELOPMENT_PLAN.md`
+
+### Test Commands - Source Hub Android Validation Report Milestone
+- `node tests\sourceHub.test.mjs`
+- `Get-ChildItem tests -Filter *.test.mjs | Sort-Object Name | ForEach-Object { node $_.FullName; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }`
+- `backend\.venv\Scripts\python.exe -m pytest backend\tests -q`
+- `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('pages.json','utf8')); JSON.parse(fs.readFileSync('manifest.json','utf8')); console.log('json config ok')"`
+- `git diff --check`
+- HBuilderX `uniapp-cli` H5 production build with `scripts\patch_h5_build.py`
+- `Select-String -Path 'unpackage\dist\build\h5\static\js\*.js' -Pattern '复制清单','Android 验证清单已复制','buildAndroidValidationReport' -SimpleMatch`
+- `Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/#/pages/library/library'`
+
+### Acceptance Result - Source Hub Android Validation Report Milestone
+- Source Hub contract test passed.
+- Full frontend `.mjs` regression suite passed.
+- Backend pytest passed with `58 passed`; the existing pytest cache warning remains non-blocking.
+- `pages.json` and `manifest.json` parse successfully.
+- `git diff --check` passed with only LF/CRLF working-copy warnings.
+- H5 production build completed; the existing large `@dcloudio/uni-h5` asset and outdated Browserslist notices remain non-blocking.
+- Built Source Hub bundle contains `复制清单`, `Android 验证清单已复制`, and `buildAndroidValidationReport`.
+- Desktop H5 entry `http://127.0.0.1:8080/#/pages/library/library` returned HTTP 200.
+- Android phone-side validation evidence can now be copied from one Source Hub action after desktop or runtime checks are collected.
+
+### Known Issues - Source Hub Android Validation Report Milestone
+- The copied report reflects collected evidence only; real rendered fetch and Cookie capture still require Android runtime.
+
+### Next Step
+- Continue preparing the remaining phone-side validation flow from the desktop-verifiable report and checklist foundation.

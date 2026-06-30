@@ -143,7 +143,10 @@
       </view>
 
       <view class="android-validation-panel">
-        <view class="panel-title">Android 验证清单</view>
+        <view class="android-validation-header">
+          <view class="panel-title">Android 验证清单</view>
+          <button class="small-button" @tap="copyAndroidValidationReport">复制清单</button>
+        </view>
         <view class="android-validation-list">
           <view
             class="android-validation-item"
@@ -666,6 +669,27 @@ export default {
       this.acceptanceReport = null
       uni.showToast({ title: '验收报告已清空', icon: 'none' })
     },
+    buildAndroidValidationReport() {
+      return {
+        sourceId: this.sourceId,
+        sourceName: this.sourceName,
+        platform: this.runtimePlatform,
+        generatedAt: new Date().toISOString(),
+        checklist: this.androidValidationItems,
+        bridgeProbeReport: this.bridgeProbeReport,
+        renderedTrialTarget: this.renderedTrialTarget,
+        renderedTrialReport: this.renderedTrialReport,
+        sessionBridgeReport: this.sessionBridgeReport,
+        sessionStatus: sourceSessionStatus(this.session),
+        acceptanceReport: this.acceptanceReport
+      }
+    },
+    copyAndroidValidationReport() {
+      uni.setClipboardData({
+        data: JSON.stringify(this.buildAndroidValidationReport(), null, 2),
+        success: () => uni.showToast({ title: 'Android 验证清单已复制', icon: 'none' })
+      })
+    },
     async syncBackendSession(session) {
       if (!this.backendSourceId || !apiClient.getToken()) return false
       this.backendSessionSyncing = true
@@ -1153,6 +1177,13 @@ export default {
   margin-top: 18rpx;
 }
 
+.android-validation-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14rpx;
+}
+
 .android-validation-item {
   min-height: 82rpx;
   display: flex;
@@ -1437,6 +1468,15 @@ export default {
   .acceptance-summary {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .android-validation-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .android-validation-header .small-button {
+    width: 100%;
   }
 
   .android-validation-item {
