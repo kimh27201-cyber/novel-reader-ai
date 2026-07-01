@@ -44,7 +44,7 @@ assert.match(profile, /androidReadiness/)
 assert.match(profile, /APK 展示准备/)
 
 const ci = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8')
-assert.match(ci, /androidReadiness\.test\.mjs/)
+assert.match(ci, /find tests -maxdepth 1 -name "\*\.test\.mjs"/)
 
 const packaging = readFileSync(new URL('../docs/PACKAGING_ANDROID.md', import.meta.url), 'utf8')
 assert.match(packaging, /novel-reader-1\.0\.0-android-v1\.apk/)

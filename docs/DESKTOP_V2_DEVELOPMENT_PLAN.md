@@ -1017,3 +1017,48 @@ Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/#/pages/library/librar
 ```
 
 阶段结果：Android 预检纯函数测试、Source Hub 契约测试、WebView Bridge Probe / Rendered Fetch Trial / Bridge Readiness 目标回归通过，前端 `.mjs` 全量回归通过，后端 pytest 通过 `58 passed`，`pages.json` / `manifest.json` 解析通过，`git diff --check` 通过，H5 生产构建完成，构建产物包含 `androidPhonePreflight`、`phonePreflight`、`手机预检`、`readyForPhone`，桌面 H5 入口返回 HTTP 200。下一步提交并推送本阶段，然后继续向里程碑 APK readiness 推进。
+
+## 2026-07-01 APK 里程碑 readiness 门禁推进记录
+
+### 本次目标
+
+在真正进入 APK 打包前增加一个桌面可运行的 readiness 汇总，避免仅凭文档记忆判断是否该通知连接手机。该门禁需要检查 H5 产物、Source Hub 手机预检产物、Android WebView Bridge 契约、APK 构建脚本和 GitHub 同步状态。
+
+### 已完成
+
+- `common/apkMilestoneReadiness.js`
+  - 新增 `buildApkMilestoneReadiness()`，输出 `blocked / ready-to-package / complete` 状态。
+  - 区分自动门禁、人工项和是否应该通知用户连接手机。
+- `scripts/check_apk_milestone_readiness.mjs`
+  - 检查 H5 `index.html` 是否存在。
+  - 检查构建后的 Source Hub bundle 是否包含 `androidPhonePreflight` / `phonePreflight`。
+  - 检查 Android shell 是否包含 `getBridgeInfo`、`fetchRenderedHtml`、`openLoginPage`、`getCookie`。
+  - 检查 APK 构建脚本是否包含 H5 asset 复制、`V2.apk` 输出和签名校验。
+  - 检查本地分支是否仍领先或落后远端。
+- `tests/apkMilestoneReadiness.test.mjs`
+  - 覆盖阻塞、可通知连接手机、已完成三种状态。
+- `.github/workflows/ci.yml`
+  - 前端工具测试改为自动发现并运行全部 `tests/*.test.mjs`，避免新增测试未进入 CI。
+- `tests/androidReadiness.test.mjs`、`tests/demoMode.test.mjs`、`tests/deviceValidation.test.mjs`
+  - CI 契约断言同步为全量测试发现策略。
+
+### 当前边界
+
+- 当前本地分支仍领先 `origin/main`，因此 readiness 脚本会把 `github-sync` 判为 `action`。
+- `release/android-v2/V2.apk` 即使存在，也不代表本阶段已完成打包；脚本不会把历史 APK 当作当前里程碑产物。
+
+### 已验收
+
+```powershell
+node tests\apkMilestoneReadiness.test.mjs
+node scripts\check_apk_milestone_readiness.mjs
+node tests\androidReadiness.test.mjs
+node tests\demoMode.test.mjs
+node tests\deviceValidation.test.mjs
+Get-ChildItem tests -Filter *.test.mjs | Sort-Object Name | ForEach-Object { node $_.FullName; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }
+backend\.venv\Scripts\python.exe -m pytest backend\tests -q
+node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('pages.json','utf8')); JSON.parse(fs.readFileSync('manifest.json','utf8')); console.log('json config ok')"
+git diff --check
+```
+
+阶段结果：APK readiness 单测通过；readiness 脚本显示 H5 构建、Source Hub 手机预检产物、Android Bridge 契约、APK 构建脚本均为 ready，当前唯一自动门禁是 GitHub 同步；前端 `.mjs` 全量回归通过，CI 已改为发现并运行全部 `tests/*.test.mjs`；后端 pytest 通过 `58 passed`；`pages.json` / `manifest.json` 解析通过；`git diff --check` 通过。下一步需要获得用户对 `git push origin main` 的明确授权并完成推送，然后重新运行 readiness；若状态变为 `ready-to-package`，再通知用户连接手机并进入里程碑 APK 打包。

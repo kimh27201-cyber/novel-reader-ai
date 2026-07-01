@@ -751,3 +751,50 @@
 
 ### Next Step
 - Commit and push this milestone, then continue toward milestone APK readiness.
+
+## Date: 2026-07-01
+
+### Completed - APK Milestone Readiness Gate
+- Added `common/apkMilestoneReadiness.js` to summarize APK milestone gates.
+- Added `scripts/check_apk_milestone_readiness.mjs` to inspect current H5 output, Source Hub phone preflight assets, Android bridge contract, APK build script, and Git sync status.
+- Added `tests/apkMilestoneReadiness.test.mjs` for blocked, ready-to-package, and complete readiness states.
+- Updated GitHub Actions frontend tests to discover and run every `tests/*.test.mjs` file so new gate tests are not skipped.
+- Updated legacy CI contract tests to assert the full test discovery strategy instead of a stale whitelist.
+
+### Modified Files - APK Milestone Readiness Gate
+- `.github/workflows/ci.yml`
+- `common/apkMilestoneReadiness.js`
+- `scripts/check_apk_milestone_readiness.mjs`
+- `tests/apkMilestoneReadiness.test.mjs`
+- `tests/androidReadiness.test.mjs`
+- `tests/demoMode.test.mjs`
+- `tests/deviceValidation.test.mjs`
+- `docs/dev/V2_NEXT_STEP_CHANGELOG.md`
+- `docs/DESKTOP_V2_DEVELOPMENT_PLAN.md`
+
+### Test Commands - APK Milestone Readiness Gate
+- `node tests\apkMilestoneReadiness.test.mjs`
+- `node scripts\check_apk_milestone_readiness.mjs`
+- `node tests\androidReadiness.test.mjs`
+- `node tests\demoMode.test.mjs`
+- `node tests\deviceValidation.test.mjs`
+- `Get-ChildItem tests -Filter *.test.mjs | Sort-Object Name | ForEach-Object { node $_.FullName; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }`
+- `backend\.venv\Scripts\python.exe -m pytest backend\tests -q`
+- `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('pages.json','utf8')); JSON.parse(fs.readFileSync('manifest.json','utf8')); console.log('json config ok')"`
+- `git diff --check`
+
+### Acceptance Result - APK Milestone Readiness Gate
+- APK readiness test passed.
+- APK readiness script currently reports H5 build, Source Hub phone preflight asset, Android bridge contract, and APK build script as ready.
+- APK readiness script currently reports GitHub sync as the only remaining automatic gate before packaging can proceed to phone connection.
+- Full frontend `.mjs` regression suite passed with CI now discovering all `tests/*.test.mjs`.
+- Backend pytest passed with `58 passed`; the existing pytest cache warning remains non-blocking.
+- `pages.json` and `manifest.json` parse successfully.
+- `git diff --check` passed with only LF/CRLF working-copy warnings.
+
+### Known Issues - APK Milestone Readiness Gate
+- `git push origin main` still requires explicit user approval because it exports code to the external GitHub remote.
+- The readiness script intentionally does not treat an older existing `release/android-v2/V2.apk` as this milestone's completed APK.
+
+### Next Step
+- After GitHub sync is authorized and completed, rerun the readiness script. If it reports `ready-to-package`, notify the user to connect the phone before starting the milestone APK build.

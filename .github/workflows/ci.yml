@@ -63,30 +63,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          test_files=(
-            tests/aiHistory.test.mjs
-            tests/androidReadiness.test.mjs
-            tests/apiClient.test.mjs
-            tests/appShellBranding.test.mjs
-            tests/appTheme.test.mjs
-            tests/backendConnection.test.mjs
-            tests/backendLibrary.test.mjs
-            tests/demoMode.test.mjs
-            tests/deviceValidation.test.mjs
-            tests/h5Shell.test.mjs
-            tests/importAdapters.test.mjs
-            tests/importReadiness.test.mjs
-            tests/onlineReadingFlow.test.mjs
-            tests/productShell.test.mjs
-            tests/readerExperience.test.mjs
-            tests/searchHelpers.test.mjs
-            tests/shelfDeletion.test.mjs
-            tests/sourceDiagnostics.test.mjs
-            tests/sourceEngine.test.mjs
-            tests/sourceImport.test.mjs
-            tests/sourceMarket.test.mjs
-            tests/uiFeedback.test.mjs
-          )
+          mapfile -t test_files < <(find tests -maxdepth 1 -name "*.test.mjs" | sort)
           for test_file in "${test_files[@]}"; do
             echo "Running ${test_file}"
             node "${test_file}"

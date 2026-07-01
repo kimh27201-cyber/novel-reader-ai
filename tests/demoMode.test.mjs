@@ -78,6 +78,6 @@ const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8')
 assert.match(readme, /一键演示准备/)
 
 const ci = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8')
-assert.match(ci, /demoMode\.test\.mjs/)
+assert.match(ci, /find tests -maxdepth 1 -name "\*\.test\.mjs"/)
 
 console.log('demoMode tests passed')

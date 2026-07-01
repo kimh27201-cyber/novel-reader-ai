@@ -75,6 +75,6 @@ const readme = readFileSync(new URL('../README.md', import.meta.url), 'utf8')
 assert.match(readme, /真机验收清单/)
 
 const ci = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8')
-assert.match(ci, /deviceValidation\.test\.mjs/)
+assert.match(ci, /find tests -maxdepth 1 -name "\*\.test\.mjs"/)
 
 console.log('deviceValidation tests passed')
