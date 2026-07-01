@@ -967,3 +967,53 @@ Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/#/pages/library/librar
 ```
 
 阶段结果：Source Hub 契约测试通过，WebView Bridge Probe / Rendered Fetch Trial / Bridge Readiness 目标回归通过，前端 `.mjs` 全量回归通过，后端 pytest 通过 `58 passed`，`pages.json` / `manifest.json` 解析通过，`git diff --check` 通过，H5 生产构建完成，构建产物包含 `androidValidationSummary`、`validation-summary-count`、`阶段汇总`，桌面 H5 入口返回 HTTP 200。下一步继续从汇总后的 Android gate 证据推进手机连接后的验证流程。
+
+## 2026-06-30 Source Hub Android 手机预检推进记录
+
+### 本次目标
+
+继续向复杂 JS / WebView 真机验收闭环推进，但仍限定在电脑端可验收范围：在 Android 验证清单和阶段汇总之上生成“手机预检”报告，明确当前是否存在阻塞项、是否可以进入手机验证、连接手机后应先执行哪一个 gate。
+
+### 已完成
+
+- `common/sourceAndroidValidation.js`
+  - 新增 `buildAndroidPhonePreflight()`，根据 checklist 和 summary 生成 `blocked / phone-required / complete` 预检状态。
+  - 输出 `readyForPhone`、`blockers`、`pending`、`completed`、`phoneSteps` 和 `nextAction`。
+- `pages/sourceHub/sourceHub.vue`
+  - 新增 `androidPhonePreflight` computed。
+  - 在 `Android 验证清单`面板增加 `手机预检`块，展示能否上手机和下一步动作。
+  - `buildAndroidValidationReport()` 增加 `phonePreflight`。
+  - `copyDiagnostics()` 增加 `androidPhonePreflight`。
+- `tests/sourceAndroidValidation.test.mjs`
+  - 覆盖阻塞、待手机执行和证据完整三种预检状态。
+- `tests/sourceHub.test.mjs`
+  - 补充预检导入、computed、UI class、报告 payload 和诊断 payload 契约断言。
+
+### 当前边界
+
+- 手机预检只组织当前已有证据，不执行 Android WebView。
+- Rendered Fetch、登录页打开和 Cookie 读取仍必须等手机连接后的 Android runtime 验证。
+
+### 已验收
+
+```powershell
+node tests\sourceAndroidValidation.test.mjs
+node tests\sourceHub.test.mjs
+node tests\webViewBridgeProbe.test.mjs
+node tests\sourceRenderedFetchTrial.test.mjs
+node tests\sourceBridgeReadiness.test.mjs
+Get-ChildItem tests -Filter *.test.mjs | Sort-Object Name | ForEach-Object { node $_.FullName; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }
+backend\.venv\Scripts\python.exe -m pytest backend\tests -q
+node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('pages.json','utf8')); JSON.parse(fs.readFileSync('manifest.json','utf8')); console.log('json config ok')"
+git diff --check
+```
+
+H5 构建和产物验收：
+
+```powershell
+# HBuilderX uniapp-cli H5 production build, then scripts\patch_h5_build.py
+Select-String -Path 'unpackage\dist\build\h5\static\js\*.js' -Pattern 'androidPhonePreflight','phonePreflight','手机预检','readyForPhone' -SimpleMatch
+Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/#/pages/library/library'
+```
+
+阶段结果：Android 预检纯函数测试、Source Hub 契约测试、WebView Bridge Probe / Rendered Fetch Trial / Bridge Readiness 目标回归通过，前端 `.mjs` 全量回归通过，后端 pytest 通过 `58 passed`，`pages.json` / `manifest.json` 解析通过，`git diff --check` 通过，H5 生产构建完成，构建产物包含 `androidPhonePreflight`、`phonePreflight`、`手机预检`、`readyForPhone`，桌面 H5 入口返回 HTTP 200。下一步提交并推送本阶段，然后继续向里程碑 APK readiness 推进。

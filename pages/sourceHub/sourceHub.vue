@@ -157,6 +157,14 @@
           </text>
         </view>
         <text class="panel-hint">{{ androidValidationSummary.nextAction }}</text>
+        <view class="android-phone-preflight" :class="androidPhonePreflight.status">
+          <view>
+            <text class="validation-summary-label">手机预检</text>
+            <view class="validation-summary-title">{{ androidPhonePreflight.statusText }}</view>
+          </view>
+          <text class="phone-preflight-state">{{ androidPhonePreflight.readyForPhone ? '可上手机' : '先处理' }}</text>
+        </view>
+        <text class="panel-hint">{{ androidPhonePreflight.nextAction }}</text>
         <view class="android-validation-list">
           <view
             class="android-validation-item"
@@ -266,6 +274,7 @@ import { clearSourceCookies, getSourceCookieSummary, saveSourceCookie } from '..
 import { openSourceLogin, probeWebViewBridge, readSourceLoginCookie } from '../../common/webViewBridge.js'
 import { assessSourceBridgeReadiness } from '../../common/sourceBridgeReadiness.js'
 import { buildRenderedFetchTrialTarget, runRenderedFetchTrial } from '../../common/sourceRenderedFetchTrial.js'
+import { buildAndroidPhonePreflight } from '../../common/sourceAndroidValidation.js'
 
 function validationLabel(state) {
   if (state === 'ready') return '已通过'
@@ -534,6 +543,15 @@ export default {
       }
       return summary
     },
+    androidPhonePreflight() {
+      return buildAndroidPhonePreflight({
+        sourceId: this.sourceId,
+        sourceName: this.sourceName,
+        platform: this.runtimePlatform,
+        summary: this.androidValidationSummary,
+        checklist: this.androidValidationItems
+      })
+    },
     candidateLanes() {
       return buildCandidateLanes('explore', this.capability, this.session)
     },
@@ -716,6 +734,7 @@ export default {
         platform: this.runtimePlatform,
         generatedAt: new Date().toISOString(),
         summary: this.androidValidationSummary,
+        phonePreflight: this.androidPhonePreflight,
         checklist: this.androidValidationItems,
         bridgeProbeReport: this.bridgeProbeReport,
         renderedTrialTarget: this.renderedTrialTarget,
@@ -848,6 +867,7 @@ export default {
         capability: this.capability,
         bridgeReadiness: this.bridgeReadiness,
         androidValidationSummary: this.androidValidationSummary,
+        androidPhonePreflight: this.androidPhonePreflight,
         androidValidationItems: this.androidValidationItems,
         sessionBridgeReport: this.sessionBridgeReport,
         bridgeProbeReport: this.bridgeProbeReport,
@@ -1226,7 +1246,8 @@ export default {
   gap: 14rpx;
 }
 
-.android-validation-summary {
+.android-validation-summary,
+.android-phone-preflight {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1251,13 +1272,26 @@ export default {
   border-color: rgba(224, 173, 89, 0.58);
 }
 
+.android-phone-preflight.blocked {
+  border-color: rgba(207, 78, 67, 0.58);
+}
+
+.android-phone-preflight.phone-required {
+  border-color: rgba(224, 173, 89, 0.58);
+}
+
+.android-phone-preflight.complete {
+  border-color: rgba(142, 207, 194, 0.58);
+}
+
 .validation-summary-label {
   color: var(--app-muted, #a9b6bb);
   font-size: 21rpx;
 }
 
 .validation-summary-title,
-.validation-summary-count {
+.validation-summary-count,
+.phone-preflight-state {
   color: var(--app-text, #f4f6f5);
   font-size: 26rpx;
   font-weight: 800;
@@ -1267,7 +1301,8 @@ export default {
   margin-top: 4rpx;
 }
 
-.validation-summary-count {
+.validation-summary-count,
+.phone-preflight-state {
   flex-shrink: 0;
 }
 
@@ -1566,7 +1601,8 @@ export default {
     width: 100%;
   }
 
-  .android-validation-summary {
+  .android-validation-summary,
+  .android-phone-preflight {
     align-items: stretch;
     flex-direction: column;
   }

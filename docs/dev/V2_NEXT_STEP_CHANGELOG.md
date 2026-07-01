@@ -263,6 +263,9 @@
 - `backend\.venv\Scripts\python.exe -m pytest backend\tests -q`
 - `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('pages.json','utf8')); JSON.parse(fs.readFileSync('manifest.json','utf8')); console.log('json config ok')"`
 - `git diff --check`
+- HBuilderX `uniapp-cli` H5 production build with `scripts\patch_h5_build.py`
+- `Select-String -Path 'unpackage\dist\build\h5\static\js\*.js' -Pattern 'androidPhonePreflight','phonePreflight','手机预检','readyForPhone' -SimpleMatch`
+- `Invoke-WebRequest -UseBasicParsing 'http://127.0.0.1:8080/#/pages/library/library'`
 
 ### Acceptance Result - Source Hub Android Session Entry Milestone
 - Targeted Source Hub page contract and WebView bridge tests passed.
@@ -703,3 +706,48 @@
 
 ### Next Step
 - Continue toward the phone-connected validation flow from the summarized Android gate evidence.
+
+## Date: 2026-06-30
+
+### Completed - Source Hub Android Phone Preflight Milestone
+- Added `common/sourceAndroidValidation.js` with `buildAndroidPhonePreflight()` as a reusable Android phone-side preflight report builder.
+- The preflight report distinguishes `blocked`, `phone-required`, and `complete` states from the current Android validation checklist.
+- Source Hub now shows a `手机预检` block with readiness status and the next phone-side action.
+- Android validation reports now include `phonePreflight`, and copied diagnostics now include `androidPhonePreflight`.
+- Added focused coverage in `tests/sourceAndroidValidation.test.mjs` and extended Source Hub contract coverage.
+
+### Modified Files - Source Hub Android Phone Preflight Milestone
+- `common/sourceAndroidValidation.js`
+- `pages/sourceHub/sourceHub.vue`
+- `tests/sourceAndroidValidation.test.mjs`
+- `tests/sourceHub.test.mjs`
+- `docs/dev/V2_NEXT_STEP_CHANGELOG.md`
+- `docs/DESKTOP_V2_DEVELOPMENT_PLAN.md`
+
+### Test Commands - Source Hub Android Phone Preflight Milestone
+- `node tests\sourceAndroidValidation.test.mjs`
+- `node tests\sourceHub.test.mjs`
+- `node tests\webViewBridgeProbe.test.mjs`
+- `node tests\sourceRenderedFetchTrial.test.mjs`
+- `node tests\sourceBridgeReadiness.test.mjs`
+- `Get-ChildItem tests -Filter *.test.mjs | Sort-Object Name | ForEach-Object { node $_.FullName; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }`
+- `backend\.venv\Scripts\python.exe -m pytest backend\tests -q`
+- `node -e "const fs=require('fs'); JSON.parse(fs.readFileSync('pages.json','utf8')); JSON.parse(fs.readFileSync('manifest.json','utf8')); console.log('json config ok')"`
+- `git diff --check`
+
+### Acceptance Result - Source Hub Android Phone Preflight Milestone
+- Focused Android preflight and Source Hub contract tests passed.
+- WebView bridge probe, rendered fetch trial, and bridge readiness tests passed.
+- Full frontend `.mjs` regression suite passed.
+- Backend pytest passed with `58 passed`; the existing pytest cache warning remains non-blocking.
+- `pages.json` and `manifest.json` parse successfully.
+- `git diff --check` passed with only LF/CRLF working-copy warnings.
+- H5 production build completed; existing uni-h5 bundle size and Browserslist notices remain non-blocking.
+- Built Source Hub bundle contains `androidPhonePreflight`, `phonePreflight`, `手机预检`, and `readyForPhone`.
+- Desktop H5 entry `http://127.0.0.1:8080/#/pages/library/library` returned HTTP 200 from a localhost-bound static server.
+
+### Known Issues - Source Hub Android Phone Preflight Milestone
+- The preflight report organizes current evidence and phone-side steps; it still cannot prove native WebView rendering, login navigation, or Cookie capture until Android runtime validation.
+
+### Next Step
+- Commit and push this milestone, then continue toward milestone APK readiness.
