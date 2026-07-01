@@ -1062,3 +1062,39 @@ git diff --check
 ```
 
 阶段结果：APK readiness 单测通过；readiness 脚本显示 H5 构建、Source Hub 手机预检产物、Android Bridge 契约、APK 构建脚本均为 ready，当前唯一自动门禁是 GitHub 同步；前端 `.mjs` 全量回归通过，CI 已改为发现并运行全部 `tests/*.test.mjs`；后端 pytest 通过 `58 passed`；`pages.json` / `manifest.json` 解析通过；`git diff --check` 通过。下一步需要获得用户对 `git push origin main` 的明确授权并完成推送，然后重新运行 readiness；若状态变为 `ready-to-package`，再通知用户连接手机并进入里程碑 APK 打包。
+## 2026-07-01 APK milestone packaging and phone validation
+
+### Goal
+
+Move from desktop readiness into the milestone APK packaging point after the phone was connected and authorized.
+
+### Completed
+
+- Re-ran `node scripts\check_apk_milestone_readiness.mjs`; status was `ready-to-package`.
+- Confirmed local branch was synced with `origin/main`.
+- Built `release/android-v2/V2.apk` through `scripts\build_android_webview_apk.ps1`.
+- APK signature verification passed for v1, v2, and v3 schemes.
+- Installed the APK to phone `AADMVB3602032395` with `adb install -r release\android-v2\V2.apk`; install returned `Success`.
+- Started `com.novelreader.v1/.MainActivity` on the connected phone.
+- Verified the foreground window is `com.novelreader.v1/com.novelreader.v1.MainActivity`.
+- Verified the app process exists through `adb shell pidof com.novelreader.v1`.
+- Exported UI hierarchy on the phone and confirmed package `com.novelreader.v1` contains an `android.webkit.WebView`.
+
+### Validation Commands
+
+```powershell
+node scripts\check_apk_milestone_readiness.mjs
+git status --short --branch
+powershell.exe -ExecutionPolicy Bypass -File scripts\build_android_webview_apk.ps1
+adb devices -l
+adb install -r release\android-v2\V2.apk
+adb shell am start -n com.novelreader.v1/.MainActivity
+adb shell dumpsys window
+adb shell pidof com.novelreader.v1
+adb shell uiautomator dump /sdcard/window-novel-reader.xml
+adb shell cat /sdcard/window-novel-reader.xml
+```
+
+### Result
+
+Milestone APK packaging, signing, installation, startup, foreground Activity verification, process verification, and WebView host verification completed successfully. HonorSuite `hwtransport.exe` still intermittently occupies ADB port `5037`, causing unstable screenshot capture, so deeper rendered-content screenshot validation should continue after closing HonorSuite or stabilizing ADB.

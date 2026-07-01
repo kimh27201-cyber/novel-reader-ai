@@ -798,3 +798,31 @@
 
 ### Next Step
 - After GitHub sync is authorized and completed, rerun the readiness script. If it reports `ready-to-package`, notify the user to connect the phone before starting the milestone APK build.
+
+## Date: 2026-07-01
+
+### Completed - Milestone APK Build and Phone Install
+- Confirmed `node scripts\check_apk_milestone_readiness.mjs` reports `ready-to-package`.
+- Confirmed Git state is synced with `origin/main` before packaging.
+- Built milestone APK with `scripts\build_android_webview_apk.ps1`.
+- Generated `release/android-v2/V2.apk` with v1/v2/v3 signature verification passing.
+- Installed `release/android-v2/V2.apk` on the connected Honor/Android phone through ADB.
+- Launched `com.novelreader.v1/.MainActivity` on the phone and confirmed the app process is running.
+- Confirmed the foreground window is `com.novelreader.v1/com.novelreader.v1.MainActivity`.
+- Dumped phone UI hierarchy and confirmed the running package hosts an `android.webkit.WebView`.
+
+### Acceptance Evidence - Milestone APK Build and Phone Install
+- `adb devices -l` reported `AADMVB3602032395 device product:REA-AN00 model:REA_AN00`.
+- `adb install -r release\android-v2\V2.apk` returned `Success`.
+- `adb shell am start -n com.novelreader.v1/.MainActivity` started or brought the current task to front.
+- `adb shell dumpsys window` reported `mCurrentFocus=... com.novelreader.v1/com.novelreader.v1.MainActivity`.
+- `adb shell pidof com.novelreader.v1` returned process id `24250` during validation.
+- `adb shell uiautomator dump /sdcard/window-novel-reader.xml` succeeded, and the dumped hierarchy contained package `com.novelreader.v1` with class `android.webkit.WebView`.
+
+### Known Issues - Milestone APK Build and Phone Install
+- HonorSuite `hwtransport.exe` intermittently occupies ADB port `5037` and causes repeated `adb server version (39) doesn't match this client (41)` messages.
+- Because of that ADB port conflict, screenshot capture was not stable enough to save a usable local PNG in this run.
+- The APK build itself, signature verification, install, launch, foreground Activity check, process check, and WebView hierarchy check all completed successfully.
+
+### Next Step
+- Continue from the installed milestone APK into deeper phone-side WebView behavior checks, especially rendered fetch, login navigation, and Cookie bridge validation.
