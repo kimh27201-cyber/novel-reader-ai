@@ -1,411 +1,190 @@
-# 小说解码 App 后端
+# 解码阅读 V2 后端
 
-这是小说解码 App 的 Python 后端：FastAPI + SQLAlchemy + SQLite + JWT。当前已实现健康检查、用户注册登录、书架、章节、阅读记录、书源导入、动态解析、本地演示书源、AI 章节总结和 AI 问答。
+基于 FastAPI、SQLAlchemy、Alembic 的可选云后端。未登录用户仍可使用客户端本地阅读；登录后可使用书架与进度同步、后端书源解析、受保护的 HTTP 代理和 AI 阅读助手。
 
-## 目录
+## 技术栈与目录
+
+- Python 3.12、FastAPI、Pydantic 2
+- SQLAlchemy 2、Alembic
+- 本地开发使用 SQLite，正式部署推荐 PostgreSQL 16
+- JWT access token + 可轮换、可撤销的 refresh token
+- pytest、GitHub Actions、Docker Compose
 
 ```text
 backend/
-  app/
-    api/          # API 路由
-    core/         # 配置与安全工具
-    db/           # 数据库连接
-    models/       # SQLAlchemy Model
-    schemas/      # Pydantic Schema
-    services/     # 书源解析、演示书源等业务服务
-    main.py       # FastAPI 入口
-  scripts/
-    init_db.py    # 初始化 SQLite 表
-  tests/
-    test_auth.py     # 鉴权接口测试
-    test_library.py  # 书架、章节、阅读记录接口测试
-    test_ai.py       # AI 总结和问答接口测试
-    test_demo_source.py # 本地演示书源测试
-    test_sources.py  # 书源导入和解析接口测试
+  app/api/          # HTTP 路由
+  app/core/         # 配置、安全与可观测性
+  app/db/           # 数据库连接
+  app/models/       # SQLAlchemy 模型
+  app/schemas/      # 请求/响应模型
+  app/services/     # 认证、同步、书源网关与解析服务
+  migrations/       # Alembic 迁移
+  tests/            # 后端测试
 ```
 
-## 启动
+## 本地启动
+
+在 `D:\Codex\novel-reader-uniapp\backend` 执行：
 
 ```powershell
-cd D:\Codex\novel-reader-uniapp\backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m ensurepip --upgrade
 python -m pip install -r requirements.txt
-copy .env.example .env
-python scripts/init_db.py
-uvicorn app.main:app --reload --port 8000
+Copy-Item .env.example .env
+python -m alembic upgrade head
+python -m uvicorn app.main:app --reload --port 8000
 ```
 
-打开：
+启动后可访问：
 
-- Swagger 文档：http://127.0.0.1:8000/docs
-- 健康检查：http://127.0.0.1:8000/api/health
+- Swagger：`http://127.0.0.1:8000/docs`
+- 基础健康检查：`GET http://127.0.0.1:8000/api/health`
+- 存活检查：`GET http://127.0.0.1:8000/api/health/live`
+- 就绪检查：`GET http://127.0.0.1:8000/api/health/ready`
+
+`ready` 会同时检查数据库连接和 Alembic 版本；数据库未迁移到最新版本时返回 `503`。
+
+## 环境变量
+
+完整默认值见 `.env.example`，Docker 示例见 `.env.docker.example`。常用配置：
+
+| 变量 | 说明 |
+| --- | --- |
+| `APP_ENV` | `development`、`testing` 或 `production` |
+| `DATABASE_URL` | SQLAlchemy 数据库 URL |
+| `JWT_SECRET_KEY` | JWT 签名密钥；生产环境至少 32 字符且不得使用默认值 |
+| `ACCESS_TOKEN_EXPIRE_MINUTES` | access token 有效分钟数 |
+| `REFRESH_TOKEN_EXPIRE_DAYS` | refresh token 有效天数 |
+| `ALLOW_QUERY_TOKEN_AUTH` | 是否兼容 URL 查询参数 token，默认 `false` |
+| `BCRYPT_ROUNDS` | bcrypt 成本；测试环境可设为 `4` |
+| `CORS_ALLOW_ORIGINS` | 逗号分隔的允许来源；生产环境禁止 `*` |
+| `PROXY_ALLOW_PRIVATE_NETWORKS` | 是否允许代理访问私网；生产环境必须为 `false` |
+| `PROXY_TIMEOUT_SECONDS` | 代理超时秒数 |
+| `PROXY_MAX_REQUEST_BYTES` | 代理请求体上限 |
+| `PROXY_MAX_RESPONSE_BYTES` | 代理响应体上限 |
+| `SOURCE_TIMEOUT_SECONDS` | 单个书源请求超时秒数 |
+| `SOURCE_MAX_CONCURRENCY` | 书源最大并发数 |
+| `SOURCE_RETRY_COUNT` | 幂等 GET 失败重试次数 |
+| `SOURCE_REQUEST_INTERVAL_MS` | 同一主机最小请求间隔 |
+| `SOURCE_CACHE_MAX_ENTRIES` | 书源内存缓存最大条目数 |
+| `SESSION_ENCRYPTION_KEY` | Cookie/存储状态加密密钥；生产环境必填且应与 JWT 密钥不同 |
+| `AI_PROVIDER` | `mock`、`deepseek` 或 `openai` |
+
+生产环境还必须满足：
+
+```env
+APP_ENV=production
+JWT_SECRET_KEY=<至少 32 字符的随机密钥>
+CORS_ALLOW_ORIGINS=https://your-frontend.example.com
+PROXY_ALLOW_PRIVATE_NETWORKS=false
+SESSION_ENCRYPTION_KEY=<独立随机密钥>
+```
+
+应用会在配置不安全时拒绝启动。不要把真实 token、Cookie、AI Key 或密钥提交到仓库。
 
 ## 数据库迁移
 
-项目已经接入 Alembic。开发环境可以继续使用 `python scripts/init_db.py` 快速建表；正式演示、Docker 或 PostgreSQL 环境建议使用迁移：
-
 ```powershell
 cd D:\Codex\novel-reader-uniapp\backend
 .\.venv\Scripts\Activate.ps1
-alembic upgrade head
+python -m alembic current
+python -m alembic upgrade head
 ```
 
-如果本地 SQLite 已经用 `python scripts/init_db.py` 建过表，第一次接入 Alembic 时先执行：
+不要对已经由 Alembic 管理的数据库执行 `alembic stamp head`，否则可能跳过真实表结构变更。迁移前先备份正式数据库。
 
-```powershell
-alembic stamp head
-alembic upgrade head
-```
-
-当前初始迁移文件：
-
-```text
-migrations\versions\0001_initial_schema.py
-```
+当前模型包含用户、书籍、章节、书源、书源会话、阅读进度、AI 记录、refresh token、同步变更/设备以及书源健康检查等表。章节、阅读进度、书源和书源会话均有数据库唯一约束，外键删除行为由迁移明确管理。
 
 ## 测试
 
 ```powershell
 cd D:\Codex\novel-reader-uniapp\backend
 .\.venv\Scripts\Activate.ps1
-pytest
+$env:BCRYPT_ROUNDS='4'
+python -m pytest
 ```
 
-## API
+CI 执行以下检查：
 
-### GET /api/health
+1. 在 PostgreSQL 16 上从空库执行全部 Alembic 迁移。
+2. 对 PostgreSQL 实例执行 readiness、注册、登录、当前用户和书架 API 冒烟测试。
+3. 在 `0003_source_sessions` SQLite 中写入旧业务数据和归一化重复行，再升级并验证去重、引用重指与外键完整性。
+4. 分别在 SQLite 和 PostgreSQL 16 上运行完整 pytest 测试套件。
+5. 运行全部前端工具测试。
 
-返回服务状态。
+启动本地 API 后，可以运行可重复的阅读主链路验收脚本：
 
-### POST /api/auth/register
-
-注册用户。
-
-```json
-{
-  "username": "reader",
-  "email": "reader@example.com",
-  "password": "secret123"
-}
+```powershell
+cd D:\Codex\novel-reader-uniapp\backend
+$env:ACCEPTANCE_BASE_URL='http://127.0.0.1:8000'
+python scripts/acceptance_smoke.py
 ```
 
-### POST /api/auth/login
+脚本会执行：注册/登录 → 导入本地演示书源 → 多源搜索 → 详情 → 目录 → 正文 → 加入书架 → 保存进度 → 第二设备同步。它只使用仓库内置演示源，不访问真实小说站点。
 
-登录并返回 JWT。
+真实站点不进入自动化测试。发布前应选择至少 3 个明确允许公开访问的普通书源，手工执行同一条链路，并记录站点、测试时间、搜索/详情/目录/正文各阶段状态、HTTP 状态和失败原因；不得测试需要绕过登录、会员、付费、广告或其他访问限制的站点。
 
-```json
-{
-  "username": "reader",
-  "password": "secret123"
-}
+## Docker Compose
+
+在项目根目录执行：
+
+```powershell
+cd D:\Codex\novel-reader-uniapp
+docker compose up --build -d
+docker compose ps
+docker compose logs -f api
 ```
 
-响应：
+API 容器启动时自动执行 `alembic upgrade head`。Compose 为 API 和 PostgreSQL 配置了健康检查，并限制 JSON 日志为每个文件 10 MB、最多 3 个文件。
 
-```json
-{
-  "access_token": "...",
-  "token_type": "bearer"
-}
+仓库中的 Docker 环境文件用于本地演示。正式部署前必须替换数据库口令、JWT 密钥、会话加密密钥和 CORS 来源，并设置 `APP_ENV=production`、`PROXY_ALLOW_PRIVATE_NETWORKS=false`。
+
+### PostgreSQL 备份
+
+Compose 将项目根目录的 `backups/` 挂载到数据库容器的 `/backups`。备份前先确保目录存在：
+
+```powershell
+New-Item -ItemType Directory -Force .\backups | Out-Null
+$stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
+docker compose exec -T db pg_dump -U novel_reader -d novel_reader -Fc -f "/backups/novel_reader-$stamp.dump"
 ```
 
-### GET /api/auth/me
+验证备份内容：
 
-请求头：
+```powershell
+docker compose exec -T db pg_restore -l /backups/novel_reader-YYYYMMDD-HHMMSS.dump
+```
+
+恢复会覆盖数据库内容，应先停止 API 并再次备份，再按实际文件名执行：
+
+```powershell
+docker compose stop api
+docker compose exec -T db pg_restore -U novel_reader -d novel_reader --clean --if-exists /backups/novel_reader-YYYYMMDD-HHMMSS.dump
+docker compose start api
+```
+
+## 鉴权与接口
+
+除注册、登录、refresh 和健康检查外，业务接口都通过请求头鉴权：
 
 ```text
 Authorization: Bearer <access_token>
 ```
 
-返回当前登录用户。
+默认不接受 `?access_token=...`，避免 token 进入浏览器历史、访问日志和代理日志。登录响应同时返回 access token、refresh token 和 `expires_in`；refresh token 每次刷新后都会轮换，客户端必须保存最新值。
 
-## 数据库
+完整请求示例和同步协议见 [API 文档](../docs/API.md)。
 
-默认使用 SQLite：
+## 书源安全边界
 
-```text
-sqlite:///./data/novel_reader.db
-```
+- 后端只执行受支持的 CSS/JSONPath/文本提取规则，不执行任意第三方 JavaScript。
+- 不绕过登录、会员、付费、广告或站点访问限制。
+- 已保存的 Cookie 和浏览器存储状态在数据库中加密；Cookie、User-Agent、Referer 会用于该用户对应书源的后续请求。
+- `POST /api/search/books` 可并发搜索启用的书源，按“标准化书名 + 作者”去重，并保留候选书源；单源失败不会拖垮整批结果。
+- 单源和批量 diagnostics 会依次检查搜索、详情、目录、正文阶段，返回 `healthy`、`degraded` 或 `unavailable` 及失败阶段。
+- 生产模式阻止 loopback、私网、链路本地地址和解析到这些地址的域名，降低 SSRF 风险。
+- HTTP 代理仅允许 `GET`、`POST`，并限制请求体、响应体和超时。
 
-已建立的表：
+## 日志
 
-- `users`
-- `books`
-- `chapters`
-- `book_sources`
-- `reading_history`
-- `ai_summaries`
-- `chat_records`
-
-当前阶段已开放 `users`、`books`、`chapters`、`reading_history`、`book_sources`、`ai_summaries`、`chat_records` 相关接口。
-
-## 书架与章节接口
-
-所有接口都需要请求头：
-
-```text
-Authorization: Bearer <access_token>
-```
-
-### GET /api/books
-
-获取当前用户书架。
-
-### POST /api/books
-
-新增一本书。
-
-```json
-{
-  "title": "星轨图书馆",
-  "author": "示例作者",
-  "cover_url": "",
-  "description": "一本用于测试的小说",
-  "book_url": "https://example.com/book/1",
-  "toc_url": "https://example.com/book/1/catalog"
-}
-```
-
-### GET /api/books/{book_id}
-
-获取当前用户拥有的一本书。
-
-### GET /api/books/{book_id}/chapters
-
-获取书籍章节列表。
-
-### POST /api/books/{book_id}/chapters
-
-新增章节。
-
-```json
-{
-  "chapter_index": 0,
-  "title": "第一章 失重借阅证",
-  "url": "https://example.com/book/1/0",
-  "content": "凌晨四点，星轨图书馆经过城市上空。",
-  "is_cached": true
-}
-```
-
-### GET /api/chapters/{chapter_id}
-
-获取章节正文。只能访问当前用户书架里的章节。
-
-## 阅读记录接口
-
-### POST /api/reading-history
-
-保存或更新当前用户对一本书的阅读进度。
-
-```json
-{
-  "book_id": 1,
-  "chapter_id": 1,
-  "chapter_index": 0,
-  "page_index": 3,
-  "progress_percent": 18.5
-}
-```
-
-### GET /api/reading-history?book_id=1
-
-读取指定书籍的阅读进度。
-
-## 书源接口
-
-所有接口都需要请求头：
-
-```text
-Authorization: Bearer <access_token>
-```
-
-### POST /api/sources/import
-
-导入 JSON 书源。`content` 可以是单个书源对象、书源数组，或包含 `sources` 数组的对象。
-
-```json
-{
-  "content": "{\"bookSourceName\":\"测试小说源\",\"bookSourceUrl\":\"https://example.com\",\"searchUrl\":\"https://example.com/search?q={{key}}\",\"ruleSearch\":{\"bookList\":\".result-list li\",\"name\":\"h3 a@text\",\"author\":\".author@text\",\"bookUrl\":\"h3 a@href\"},\"ruleToc\":{\"chapterList\":\".chapter-list a\",\"chapterName\":\"@text\",\"chapterUrl\":\"@href\"},\"ruleContent\":{\"content\":\"#content@text\"}}"
-}
-```
-
-### POST /api/sources/import-demo
-
-导入内置的本地演示书源。这个接口适合在 Swagger 里快速展示“搜索、目录、正文解析”的完整流程，不依赖外部小说网站。
-
-响应里的 `sources[0].id` 就是后面接口要用的 `source_id`。
-
-### GET /api/sources
-
-获取当前用户导入的书源列表。
-
-### POST /api/sources/{source_id}/search
-
-根据书源规则搜索小说。
-
-```json
-{
-  "keyword": "星轨",
-  "page": 1
-}
-```
-
-### POST /api/sources/{source_id}/toc
-
-根据书源目录规则解析章节列表。
-
-```json
-{
-  "book_url": "https://example.com/book/1",
-  "toc_url": "https://example.com/book/1/catalog"
-}
-```
-
-### POST /api/sources/{source_id}/content
-
-根据书源正文规则解析章节正文。
-
-```json
-{
-  "chapter_url": "https://example.com/book/1/0"
-}
-```
-
-## 书源规则支持范围
-
-当前后端解析器支持：
-
-- `searchUrl`
-- `ruleSearch.bookList/name/author/bookUrl`
-- `ruleToc.chapterList/chapterName/chapterUrl`
-- `ruleContent.content`
-- 基础 CSS 选择器，如 `.list a`、`#content`
-- `@text`、`@html`、`@href`、`@src`
-- `||` 兜底规则
-- `##regex##replace` 正则替换
-- `{{key}}`、`{{keyword}}`、`{{page}}` 模板
-- 基础 JSONPath，如 `$.data.books[*]`
-
-暂不执行 JS、Cookie、登录、WebView 或付费绕过规则。导入这类规则时会标记为不兼容。
-
-## AI 接口
-
-AI 接口需要登录。默认 `AI_PROVIDER=mock`，不配置 API Key 也能在 Swagger 里跑通。配置 DeepSeek 或 OpenAI 后，会调用真实模型。
-
-`.env` 示例：
-
-```env
-AI_PROVIDER=mock
-AI_API_KEY=
-AI_BASE_URL=
-AI_MODEL=
-AI_TIMEOUT_SECONDS=30
-CORS_ALLOW_ORIGINS=*
-```
-
-DeepSeek 示例：
-
-```env
-AI_PROVIDER=deepseek
-AI_API_KEY=你的 DeepSeek Key
-AI_BASE_URL=https://api.deepseek.com
-AI_MODEL=deepseek-chat
-```
-
-OpenAI 示例：
-
-```env
-AI_PROVIDER=openai
-AI_API_KEY=你的 OpenAI Key
-AI_BASE_URL=https://api.openai.com/v1
-AI_MODEL=gpt-4o-mini
-```
-
-### POST /api/ai/summary
-
-生成章节总结，并保存到 `ai_summaries` 表。
-
-```json
-{
-  "chapter_text": "凌晨四点，星轨图书馆经过城市上空。安禾第一次看见它时，以为那只是一颗移动得过慢的星星。",
-  "book_id": 1,
-  "chapter_id": 1
-}
-```
-
-`book_id` 和 `chapter_id` 可以不传；如果传了，后端会校验它们属于当前登录用户。
-
-### GET /api/ai/summaries
-
-读取当前用户的 AI 总结历史。
-
-可选筛选：
-
-```text
-GET /api/ai/summaries?book_id=1
-GET /api/ai/summaries?chapter_id=1
-```
-
-### POST /api/ai/chat
-
-基于当前上下文进行小说问答，并保存到 `chat_records` 表。
-
-```json
-{
-  "question": "安禾看到了什么？",
-  "context": "凌晨四点，星轨图书馆经过城市上空。安禾第一次看见它时，以为那只是一颗移动得过慢的星星。",
-  "book_id": 1,
-  "chapter_id": 1
-}
-```
-
-### GET /api/ai/chats
-
-读取当前用户的 AI 问答历史。
-
-可选筛选：
-
-```text
-GET /api/ai/chats?book_id=1
-GET /api/ai/chats?chapter_id=1
-```
-
-## Swagger 可视化演示流程
-
-先启动后端并打开 `http://127.0.0.1:8000/docs`，然后按顺序操作：
-
-1. `POST /api/auth/register` 注册用户。
-2. `POST /api/auth/login` 登录，复制返回的 `access_token`。
-3. 点击 Swagger 右上角 `Authorize`，只粘贴 token 本身，不要手动加 `Bearer`。
-4. `POST /api/sources/import-demo` 导入本地演示书源，记住返回的 `id`。
-5. `POST /api/sources/{source_id}/search` 搜索：
-
-```json
-{
-  "keyword": "星轨",
-  "page": 1
-}
-```
-
-6. 把搜索结果里的 `book_url` 填到 `POST /api/sources/{source_id}/toc`：
-
-```json
-{
-  "book_url": "http://127.0.0.1:8000/demo-source/books/star-library/catalog",
-  "toc_url": "http://127.0.0.1:8000/demo-source/books/star-library/catalog"
-}
-```
-
-7. 把目录结果里的第一章 `url` 填到 `POST /api/sources/{source_id}/content`：
-
-```json
-{
-  "chapter_url": "http://127.0.0.1:8000/demo-source/books/star-library/chapters/1"
-}
-```
-
-8. 把正文结果里的 `content` 复制到 `POST /api/ai/summary` 的 `chapter_text`，测试 AI 总结。
-9. 再把正文作为 `POST /api/ai/chat` 的 `context`，输入一个问题，测试 AI 问答。
+请求日志包含 request ID、用户 ID、路由、状态码和耗时；上游错误使用错误码分类。日志不得记录 Authorization、refresh token、Cookie、章节正文或 AI Key。排查问题时优先使用响应头中的 request ID 关联日志。

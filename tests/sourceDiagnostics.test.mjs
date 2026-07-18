@@ -84,7 +84,15 @@ const sources = pickOnlineSearchSources(Object.values(store['sources:user']))
 assert.equal(sources.length, 0)
 
 const unsupported = Object.values(store['sources:user']).find(source => source.name === 'Diagnostic Unsupported')
-const diagnostics = getSourceDiagnostics(unsupported)
+assert.equal(unsupported, undefined)
+const unsupportedCandidate = {
+  id: 'diagnostic-unsupported',
+  name: 'Diagnostic Unsupported',
+  group: 'Imported',
+  enabled: true,
+  raw: incompatibleSource
+}
+const diagnostics = getSourceDiagnostics(unsupportedCandidate)
 assert.equal(diagnostics.compatible, false)
 assert.equal(diagnostics.searchable, false)
 assert.equal(diagnostics.networkStatus, 'incompatible')
@@ -94,8 +102,8 @@ assert.ok(diagnostics.reasons.some(reason => reason.includes('Cookie')))
 assert.ok(diagnostics.reasons.some(reason => reason.includes('登录')))
 
 await assert.rejects(
-  () => testSourceSearch(unsupported.id, '星轨图书馆'),
-  /不兼容/
+  () => testSourceSearch(unsupportedCandidate.id, '星轨图书馆'),
+  /不存在|删除/
 )
 
 const compatible = Object.values(store['sources:user']).find(source => source.name === 'Diagnostic Compatible')
@@ -189,18 +197,17 @@ globalThis.fetch = async url => {
 const progress = []
 const batchResult = await batchTestSources({
   keyword: '星轨图书馆',
-  sourceIds: [compatible.id, compatibleTwo.id, unsupported.id],
+  sourceIds: [compatible.id, compatibleTwo.id],
   onProgress: item => progress.push(item)
 })
-assert.equal(batchResult.total, 3)
+assert.equal(batchResult.total, 2)
 assert.equal(batchResult.tested, 2)
 assert.equal(batchResult.passed, 1)
 assert.equal(batchResult.failed, 1)
-assert.equal(batchResult.skipped, 1)
+assert.equal(batchResult.skipped, 0)
 assert.equal(batchResult.results.find(item => item.sourceId === compatible.id).status, 'passed')
 assert.equal(batchResult.results.find(item => item.sourceId === compatibleTwo.id).status, 'failed')
-assert.equal(batchResult.results.find(item => item.sourceId === unsupported.id).status, 'skipped')
-assert.equal(progress.length, 3)
+assert.equal(progress.length, 2)
 assert.equal(getSourceConfig(compatibleTwo.id).lastTest.status, 'failed')
 assert.equal(pickOnlineSearchSources(getSourceConfigs()).some(source => source.id === compatibleTwo.id), false)
 
@@ -225,7 +232,7 @@ assert.match(library, /批量检测/)
 assert.match(library, /测试全部启用源/)
 assert.match(library, /测试当前分组/)
 assert.match(library, /正在测试/)
-assert.match(library, /发现页只使用已通过测试的书源/)
+assert.match(library, /发现页只会使用可正常搜索的书源/)
 assert.match(library, /规则兼容，待网络测试/)
 assert.match(library, /网络是否可用以单源测试为准/)
 assert.match(library, /规则本身仍兼容/)
@@ -235,6 +242,6 @@ assert.match(library, /规则状态/)
 assert.match(library, /搜索/)
 assert.match(library, /目录/)
 assert.match(library, /正文/)
-assert.match(library, /发现页会使用已通过测试的书源/)
+assert.match(library, /发现页会使用它搜索/)
 
 console.log('sourceDiagnostics tests passed')

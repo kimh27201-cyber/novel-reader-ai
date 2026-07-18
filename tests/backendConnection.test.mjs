@@ -14,9 +14,9 @@ assert.equal(normalizeBackendBaseUrl('192.168.1.8:8000'), 'http://192.168.1.8:80
 
 const loopback = analyzeBackendBaseUrl('http://localhost:8000')
 assert.equal(loopback.normalized, 'http://localhost:8000')
-assert.equal(loopback.mobileReady, false)
-assert.match(loopback.message, /真机/)
-assert.match(loopback.message, /局域网 IP/)
+assert.equal(loopback.mobileReady, true)
+assert.equal(loopback.connectionMode, 'adb-reverse')
+assert.match(loopback.message, /ADB reverse/)
 
 const lan = analyzeBackendBaseUrl('http://192.168.1.8:8000')
 assert.equal(lan.mobileReady, true)
@@ -30,7 +30,8 @@ try {
   assert.equal(appRuntimeLan.mobileReady, true)
   const appRuntimeLoopback = analyzeBackendBaseUrl('http://127.0.0.1:8000')
   assert.equal(appRuntimeLoopback.host, '127.0.0.1')
-  assert.equal(appRuntimeLoopback.mobileReady, false)
+  assert.equal(appRuntimeLoopback.mobileReady, true)
+  assert.equal(appRuntimeLoopback.connectionMode, 'adb-reverse')
 } finally {
   globalThis.URL = originalURL
 }
@@ -64,6 +65,6 @@ assert.match(profile, /saveBackendBaseUrl/)
 assert.match(profile, /backendAddressTip/)
 assert.match(profile, /refreshBackendMe\(\{ silent: true, throwOnError: true \}\)/)
 assert.match(profile, /if \(options\.throwOnError\) throw error/)
-assert.match(profile, /真机/)
+assert.match(profile, /阅读服务/)
 
 console.log('backendConnection tests passed')

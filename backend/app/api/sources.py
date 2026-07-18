@@ -1,12 +1,12 @@
 import json
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.auth import get_current_user
 from app.db.session import get_db
-from app.models.models import Book, BookSource, SourceSession, User
+from app.models.models import BookSource, SourceSession, User
 from app.schemas.sources import (
     SourceBookInfoRequest,
     SourceBookInfoResponse,
@@ -18,6 +18,7 @@ from app.schemas.sources import (
     SourceSessionDeleteResponse,
     SourceSessionRead,
     SourceSessionWrite,
+    SourceUpdate,
     SourceSearchRequest,
     SourceSearchResponse,
     SourceTocRequest,
@@ -32,6 +33,20 @@ from app.services.source_parser import (
     parse_source_json,
     search_source,
 )
+from app.services.session_crypto import decrypt_session_value
+from app.services.source_service import (
+    SourceConflictError,
+    SourceNotFoundError,
+    delete_source as delete_source_service,
+    delete_source_session as delete_source_session_service,
+    get_owned_source as get_owned_source_service,
+    get_source_session as get_source_session_service,
+    list_sources as list_sources_service,
+    save_source_configs as save_source_configs_service,
+    save_source_session as save_source_session_service,
+    source_to_parser_dict,
+    update_source as update_source_service,
+)
 
 
 router = APIRouter(prefix="/api/sources", tags=["sources"])
@@ -40,25 +55,15 @@ router = APIRouter(prefix="/api/sources", tags=["sources"])
 def raise_source_bad_gateway(exc: httpx.HTTPError) -> None:
     raise HTTPException(
         status_code=status.HTTP_502_BAD_GATEWAY,
-        detail=f"Source request failed: {exc}",
+        detail=f"Source request failed ({exc.__class__.__name__})",
     ) from exc
 
 
 def get_owned_source(source_id: int, user_id: int, db: Session) -> BookSource:
-    source = db.query(BookSource).filter(BookSource.id == source_id, BookSource.user_id == user_id).first()
-    if not source:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Source not found")
-    return source
-
-
-def source_to_parser_dict(source: BookSource) -> dict:
-    return {
-        "id": source.id,
-        "name": source.name,
-        "base_url": source.base_url,
-        "group": source.group,
-        "raw": json.loads(source.raw_json),
-    }
+    try:
+        return get_owned_source_service(db, source_id=source_id, user_id=user_id)
+    except SourceNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
 
 def empty_source_session(source_id: int) -> SourceSessionRead:
@@ -70,12 +75,12 @@ def source_session_to_read(session: SourceSession) -> SourceSessionRead:
         source_id=session.source_id,
         exists=True,
         origin=session.origin,
-        cookie=session.cookie,
         user_agent=session.user_agent,
         referer=session.referer,
-        storage_state_json=session.storage_state_json,
-        local_storage_json=session.local_storage_json,
-        session_storage_json=session.session_storage_json,
+        cookie=decrypt_session_value(session.cookie),
+        storage_state_json=decrypt_session_value(session.storage_state_json),
+        local_storage_json=decrypt_session_value(session.local_storage_json),
+        session_storage_json=decrypt_session_value(session.session_storage_json),
         expires_at=session.expires_at,
         last_verified_at=session.last_verified_at,
         status=session.status,
@@ -84,32 +89,10 @@ def source_session_to_read(session: SourceSession) -> SourceSessionRead:
 
 
 def save_source_configs(configs: list[dict], db: Session, current_user: User) -> list[BookSource]:
-    imported: list[BookSource] = []
-    for config in configs:
-        existing = (
-            db.query(BookSource)
-            .filter(
-                BookSource.user_id == current_user.id,
-                BookSource.name == config["name"],
-                BookSource.base_url == config["base_url"],
-            )
-            .first()
-        )
-        source = existing or BookSource(user_id=current_user.id)
-        source.name = config["name"]
-        source.base_url = config["base_url"]
-        source.group = config["group"]
-        source.enabled = config["enabled"]
-        source.raw_json = json.dumps(config["raw"], ensure_ascii=False)
-        source.compatibility = config["compatibility"]
-        if not existing:
-            db.add(source)
-        imported.append(source)
-
-    db.commit()
-    for source in imported:
-        db.refresh(source)
-    return imported
+    try:
+        return save_source_configs_service(db, configs=configs, user_id=current_user.id)
+    except SourceConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
 
 @router.post("/import", response_model=SourceImportResponse, status_code=status.HTTP_201_CREATED)
@@ -145,15 +128,12 @@ def import_demo_source(
 
 @router.get("", response_model=list[SourceRead])
 def list_sources(
+    limit: int = Query(default=100, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[BookSource]:
-    return (
-        db.query(BookSource)
-        .filter(BookSource.user_id == current_user.id)
-        .order_by(BookSource.updated_at.desc(), BookSource.id.desc())
-        .all()
-    )
+    return list_sources_service(db, user_id=current_user.id, limit=limit, offset=offset)
 
 
 @router.delete("/{source_id}")
@@ -162,18 +142,31 @@ def delete_source(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict[str, bool | int]:
-    source = get_owned_source(source_id, current_user.id, db)
-    db.query(SourceSession).filter(
-        SourceSession.user_id == current_user.id,
-        SourceSession.source_id == source.id,
-    ).delete(synchronize_session=False)
-    db.query(Book).filter(Book.user_id == current_user.id, Book.source_id == source.id).update(
-        {Book.source_id: None},
-        synchronize_session=False,
-    )
-    db.delete(source)
-    db.commit()
+    try:
+        delete_source_service(db, source_id=source_id, user_id=current_user.id)
+    except SourceNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     return {"deleted": True, "id": source_id}
+
+
+@router.patch("/{source_id}", response_model=SourceRead)
+def update_source(
+    source_id: int,
+    payload: SourceUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> BookSource:
+    try:
+        return update_source_service(
+            db,
+            source_id=source_id,
+            user_id=current_user.id,
+            changes=payload.model_dump(exclude_unset=True),
+        )
+    except SourceNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except SourceConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
 
 @router.get("/{source_id}/session", response_model=SourceSessionRead)
@@ -182,13 +175,11 @@ def get_source_session(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> SourceSessionRead:
-    source = get_owned_source(source_id, current_user.id, db)
-    session = (
-        db.query(SourceSession)
-        .filter(SourceSession.user_id == current_user.id, SourceSession.source_id == source.id)
-        .first()
-    )
-    return source_session_to_read(session) if session else empty_source_session(source.id)
+    try:
+        session = get_source_session_service(db, source_id=source_id, user_id=current_user.id)
+    except SourceNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return source_session_to_read(session) if session else empty_source_session(source_id)
 
 
 @router.put("/{source_id}/session", response_model=SourceSessionRead)
@@ -198,28 +189,17 @@ def save_source_session(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> SourceSessionRead:
-    source = get_owned_source(source_id, current_user.id, db)
-    session = (
-        db.query(SourceSession)
-        .filter(SourceSession.user_id == current_user.id, SourceSession.source_id == source.id)
-        .first()
-    )
-    if not session:
-        session = SourceSession(user_id=current_user.id, source_id=source.id)
-        db.add(session)
-
-    session.origin = payload.origin
-    session.cookie = payload.cookie
-    session.user_agent = payload.user_agent
-    session.referer = payload.referer
-    session.storage_state_json = payload.storage_state_json
-    session.local_storage_json = payload.local_storage_json
-    session.session_storage_json = payload.session_storage_json
-    session.expires_at = payload.expires_at
-    session.last_verified_at = payload.last_verified_at
-    session.status = payload.status or "active"
-    db.commit()
-    db.refresh(session)
+    try:
+        session = save_source_session_service(
+            db,
+            source_id=source_id,
+            user_id=current_user.id,
+            values=payload.model_dump(),
+        )
+    except SourceNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except SourceConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     return source_session_to_read(session)
 
 
@@ -229,14 +209,15 @@ def delete_source_session(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> SourceSessionDeleteResponse:
-    source = get_owned_source(source_id, current_user.id, db)
-    deleted = (
-        db.query(SourceSession)
-        .filter(SourceSession.user_id == current_user.id, SourceSession.source_id == source.id)
-        .delete(synchronize_session=False)
-    )
-    db.commit()
-    return SourceSessionDeleteResponse(deleted=deleted > 0, source_id=source.id)
+    try:
+        deleted, owned_source_id = delete_source_session_service(
+            db,
+            source_id=source_id,
+            user_id=current_user.id,
+        )
+    except SourceNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    return SourceSessionDeleteResponse(deleted=deleted, source_id=owned_source_id)
 
 
 @router.post("/{source_id}/search", response_model=SourceSearchResponse)
@@ -250,8 +231,8 @@ async def search_books_from_source(
     if not source.enabled:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Source is disabled")
     try:
-        books = await search_source(source_to_parser_dict(source), payload.keyword, payload.page)
-    except (SourceParseError, json.JSONDecodeError) as exc:
+        books = await search_source(source_to_parser_dict(source, db), payload.keyword, payload.page)
+    except (SourceParseError, json.JSONDecodeError, ValueError) as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except httpx.HTTPError as exc:
         raise_source_bad_gateway(exc)
@@ -270,8 +251,8 @@ async def parse_book_info_from_source(
 ) -> SourceBookInfoResponse:
     source = get_owned_source(source_id, current_user.id, db)
     try:
-        book = await load_book_info(source_to_parser_dict(source), payload.model_dump())
-    except (SourceParseError, json.JSONDecodeError) as exc:
+        book = await load_book_info(source_to_parser_dict(source, db), payload.model_dump())
+    except (SourceParseError, json.JSONDecodeError, ValueError) as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except httpx.HTTPError as exc:
         raise_source_bad_gateway(exc)
@@ -292,8 +273,8 @@ async def parse_toc_from_source(
 ) -> SourceTocResponse:
     source = get_owned_source(source_id, current_user.id, db)
     try:
-        chapters = await load_toc(source_to_parser_dict(source), payload.book_url, payload.toc_url)
-    except (SourceParseError, json.JSONDecodeError) as exc:
+        chapters = await load_toc(source_to_parser_dict(source, db), payload.book_url, payload.toc_url)
+    except (SourceParseError, json.JSONDecodeError, ValueError) as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except httpx.HTTPError as exc:
         raise_source_bad_gateway(exc)
@@ -309,8 +290,8 @@ async def parse_content_from_source(
 ) -> SourceContentResponse:
     source = get_owned_source(source_id, current_user.id, db)
     try:
-        content = await load_content(source_to_parser_dict(source), payload.chapter_url)
-    except (SourceParseError, json.JSONDecodeError) as exc:
+        content = await load_content(source_to_parser_dict(source, db), payload.chapter_url)
+    except (SourceParseError, json.JSONDecodeError, ValueError) as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except httpx.HTTPError as exc:
         raise_source_bad_gateway(exc)

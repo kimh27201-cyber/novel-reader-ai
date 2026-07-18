@@ -5,7 +5,7 @@ from pathlib import Path
 TESTS_DIR = Path(__file__).resolve().parent
 sys.path.append(str(TESTS_DIR))
 
-from helpers import configure_test_environment
+from helpers import configure_test_environment, reset_database
 
 
 BACKEND_DIR = configure_test_environment(__file__)
@@ -26,8 +26,7 @@ client = TestClient(app)
 
 
 def setup_function():
-    Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
+    reset_database(Base, engine)
 
 
 def auth_headers(username="aiuser", email="ai@example.com"):

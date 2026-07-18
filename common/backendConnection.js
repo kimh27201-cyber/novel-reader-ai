@@ -27,14 +27,17 @@ export function analyzeBackendBaseUrl(value) {
   const normalized = normalizeBackendBaseUrl(value)
   const host = getHost(normalized).toLowerCase()
   const isLoopback = ['127.0.0.1', 'localhost', '::1'].includes(host)
-  const mobileReady = !!host && !isLoopback
+  const mobileReady = !!host
   return {
     normalized,
     host,
     mobileReady,
+    connectionMode: isLoopback ? 'adb-reverse' : 'lan',
     message: mobileReady
-      ? '当前地址适合真机访问，请确认手机和电脑在同一局域网。'
-      : '真机不能访问 127.0.0.1 / localhost，请改成电脑局域网 IP，例如 http://192.168.x.x:8000。'
+      ? (isLoopback
+        ? '当前地址适合 USB 数据线联调：请保持 ADB reverse tcp:8000 tcp:8000。'
+        : '当前地址适合真机访问，请确认手机和电脑在同一局域网。')
+      : '后端地址无效，请填写 http://127.0.0.1:8000 或电脑局域网 IP。'
   }
 }
 
@@ -42,6 +45,7 @@ export function buildBackendStartCommands(lanIp = '电脑局域网 IP') {
   return [
     'cd D:\\Codex\\novel-reader-uniapp\\backend',
     '.\\.venv\\Scripts\\python.exe -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000',
-    `手机端后端地址填写：http://${lanIp}:8000`
+    '数据线联调：ADB reverse tcp:8000 tcp:8000 后填写 http://127.0.0.1:8000',
+    `局域网联调：手机端后端地址填写：http://${lanIp}:8000`
   ]
 }

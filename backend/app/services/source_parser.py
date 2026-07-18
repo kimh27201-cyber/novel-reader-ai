@@ -6,12 +6,13 @@ from urllib.parse import quote, urljoin
 import httpx
 from bs4 import BeautifulSoup
 
+from app.services.source_gateway import close_http_client, fetch, get_http_client
+
 
 UNSUPPORTED_RULE_PATTERN = re.compile(
     r"(<js>|</js>|@js:|java\.|cookie\.|webview|loginUrl|header\s*=|eval\()",
     re.IGNORECASE,
 )
-_SOURCE_HTTP_CLIENT: httpx.AsyncClient | None = None
 
 
 class SourceParseError(ValueError):
@@ -163,25 +164,37 @@ def parse_request_spec(spec: str, context: dict[str, Any], base_url: str) -> dic
 
 
 def get_source_http_client() -> httpx.AsyncClient:
-    global _SOURCE_HTTP_CLIENT
-    if _SOURCE_HTTP_CLIENT is None or _SOURCE_HTTP_CLIENT.is_closed:
-        _SOURCE_HTTP_CLIENT = httpx.AsyncClient(
-            timeout=httpx.Timeout(8.0, connect=4.0),
-            follow_redirects=True,
-            limits=httpx.Limits(max_connections=20, max_keepalive_connections=10),
-        )
-    return _SOURCE_HTTP_CLIENT
+    return get_http_client()
+
+
+async def close_source_http_client() -> None:
+    await close_http_client()
 
 
 async def request_text(spec: dict[str, Any]) -> str:
-    response = await get_source_http_client().request(
+    response = await fetch(
         spec.get("method", "GET"),
         spec["url"],
         headers=spec.get("headers") or {},
-        content=spec.get("data"),
+        content=str(spec.get("data") or "").encode("utf-8") if spec.get("data") is not None else None,
+        cache_ttl_seconds=int(spec.get("cache_ttl_seconds") or 0),
+        force_refresh=bool(spec.get("force_refresh")),
     )
     response.raise_for_status()
     return response.text
+
+
+def apply_source_session(spec: dict[str, Any], source: dict[str, Any], *, cache_ttl_seconds: int = 0, force_refresh: bool = False) -> dict[str, Any]:
+    headers = {
+        **(source.get("session_headers") or {}),
+        **(spec.get("headers") or {}),
+    }
+    return {
+        **spec,
+        "headers": headers,
+        "cache_ttl_seconds": cache_ttl_seconds,
+        "force_refresh": force_refresh,
+    }
 
 
 def field_rule(rule: dict[str, Any], names: list[str]) -> str:
@@ -346,7 +359,7 @@ def as_list(value: Any) -> list[Any]:
     return [] if value is None or value == "" else [value]
 
 
-async def search_source(source: dict[str, Any], keyword: str, page: int) -> list[dict[str, Any]]:
+async def search_source(source: dict[str, Any], keyword: str, page: int, force_refresh: bool = False) -> list[dict[str, Any]]:
     raw = source["raw"]
     rule = raw.get("ruleSearch") or {}
     if isinstance(rule, str):
@@ -354,7 +367,12 @@ async def search_source(source: dict[str, Any], keyword: str, page: int) -> list
     search_url = raw.get("searchUrl")
     if not search_url or not rule:
         raise SourceParseError("This source has no search rule")
-    spec = parse_request_spec(search_url, {"key": keyword, "keyword": keyword, "page": page}, source["base_url"])
+    spec = apply_source_session(
+        parse_request_spec(search_url, {"key": keyword, "keyword": keyword, "page": page}, source["base_url"]),
+        source,
+        cache_ttl_seconds=60,
+        force_refresh=force_refresh,
+    )
     payload = parse_response_payload(await request_text(spec))
     list_rule = field_rule(rule, ["bookList", "list", "books"])
     items = apply_list_rule(payload, list_rule, {"key": keyword, "keyword": keyword, "page": page, "$": payload})
@@ -379,7 +397,7 @@ async def search_source(source: dict[str, Any], keyword: str, page: int) -> list
     return books
 
 
-async def load_book_info(source: dict[str, Any], book: dict[str, Any]) -> dict[str, str]:
+async def load_book_info(source: dict[str, Any], book: dict[str, Any], force_refresh: bool = False) -> dict[str, str]:
     raw = source["raw"]
     rule = raw.get("ruleBookInfo") or {}
     if isinstance(rule, str):
@@ -409,7 +427,12 @@ async def load_book_info(source: dict[str, Any], book: dict[str, Any]) -> dict[s
         "latestChapter": fallback["latest_chapter"],
         "coverUrl": fallback["cover_url"],
     }
-    spec = parse_request_spec(book_url, context, source["base_url"])
+    spec = apply_source_session(
+        parse_request_spec(book_url, context, source["base_url"]),
+        source,
+        cache_ttl_seconds=300,
+        force_refresh=force_refresh,
+    )
     payload = parse_response_payload(await request_text(spec))
     context = {**context, "$": payload}
 
@@ -428,7 +451,7 @@ async def load_book_info(source: dict[str, Any], book: dict[str, Any]) -> dict[s
     }
 
 
-async def load_toc(source: dict[str, Any], book_url: str, toc_url: str | None = None) -> list[dict[str, Any]]:
+async def load_toc(source: dict[str, Any], book_url: str, toc_url: str | None = None, force_refresh: bool = False) -> list[dict[str, Any]]:
     raw = source["raw"]
     rule = raw.get("ruleToc") or {}
     if isinstance(rule, str):
@@ -436,7 +459,12 @@ async def load_toc(source: dict[str, Any], book_url: str, toc_url: str | None = 
     if not rule:
         raise SourceParseError("This source has no toc rule")
     target_url = toc_url or book_url
-    spec = parse_request_spec(target_url, {"bookUrl": book_url, "tocUrl": target_url}, source["base_url"])
+    spec = apply_source_session(
+        parse_request_spec(target_url, {"bookUrl": book_url, "tocUrl": target_url}, source["base_url"]),
+        source,
+        cache_ttl_seconds=600,
+        force_refresh=force_refresh,
+    )
     payload = parse_response_payload(await request_text(spec))
     list_rule = field_rule(rule, ["chapterList", "list", "toc"])
     items = apply_list_rule(payload, list_rule, {"bookUrl": book_url, "tocUrl": target_url, "$": payload})
@@ -452,14 +480,18 @@ async def load_toc(source: dict[str, Any], book_url: str, toc_url: str | None = 
     return chapters
 
 
-async def load_content(source: dict[str, Any], chapter_url: str) -> str:
+async def load_content(source: dict[str, Any], chapter_url: str, force_refresh: bool = False) -> str:
     raw = source["raw"]
     rule = raw.get("ruleContent") or {}
     if isinstance(rule, str):
         rule = json.loads(rule)
     if not rule:
         raise SourceParseError("This source has no content rule")
-    spec = parse_request_spec(chapter_url, {"chapterUrl": chapter_url}, source["base_url"])
+    spec = apply_source_session(
+        parse_request_spec(chapter_url, {"chapterUrl": chapter_url}, source["base_url"]),
+        source,
+        force_refresh=force_refresh,
+    )
     response_text = await request_text(spec)
     payload = parse_response_payload(response_text)
     content = pick_text(payload, rule, ["content", "text"], {"chapterUrl": chapter_url, "$": payload})

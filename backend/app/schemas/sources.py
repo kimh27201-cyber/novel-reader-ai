@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -14,6 +15,9 @@ class SourceRead(BaseModel):
     group: str
     enabled: bool
     compatibility: str
+    sync_id: str
+    version: int
+    health_status: str
     created_at: datetime
     updated_at: datetime
 
@@ -23,6 +27,14 @@ class SourceRead(BaseModel):
 class SourceImportResponse(BaseModel):
     imported_count: int
     sources: list[SourceRead]
+
+
+class SourceUpdate(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=255)
+    base_url: str | None = Field(default=None, min_length=1, max_length=1000)
+    group: str | None = Field(default=None, max_length=100)
+    enabled: bool | None = None
+    raw: dict[str, Any] | None = None
 
 
 class SourceSearchRequest(BaseModel):

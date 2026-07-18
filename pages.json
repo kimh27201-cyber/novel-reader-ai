@@ -29,6 +29,13 @@
       }
     },
     {
+      "path": "pages/sources/import-logs",
+      "style": {
+        "navigationBarTitleText": "导入日志",
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/search/search",
       "style": {
         "navigationBarTitleText": "发现源",

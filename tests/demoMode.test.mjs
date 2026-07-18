@@ -14,8 +14,8 @@ assert.deepEqual(account, {
 })
 
 const loopbackPreset = buildDemoModePreset('http://127.0.0.1:8000')
-assert.equal(loopbackPreset.backendReady, false)
-assert.match(loopbackPreset.backendMessage, /局域网 IP/)
+assert.equal(loopbackPreset.backendReady, true)
+assert.match(loopbackPreset.backendMessage, /ADB reverse/)
 assert.equal(loopbackPreset.username, 'student')
 assert.equal(loopbackPreset.password, 'secret123')
 

@@ -33,6 +33,37 @@ assert.equal(applyRule(items[1], 'h3 a@href'), '/book/2')
 assert.equal(applyRule(items[0], '.missing@text||.author@text'), '作者甲')
 assert.equal(applyRule('作者：张三 / 类型：玄幻', '##.*作者[:： ]*([^\\s/]+).*##$1'), '张三')
 
+const cssPrefixedHtml = `
+  <div class="item">
+    <a href="/book/448"><img src="/cover.jpg"></a>
+    <div class="itemtxt">
+      <h3><a href="/book/448">斗破苍穹</a></h3>
+      <p><span>已完结</span><span>玄幻</span></p>
+      <p><a href="/zuozhe/?tag=author">作者：天蚕土豆</a></p>
+      <ul><li><a href="/1.html">第一章</a></li><li><a href="/2.html">最终章</a></li></ul>
+    </div>
+  </div>
+`
+const cssPrefixedItems = applyListRule(cssPrefixedHtml, '@css:div.item')
+assert.equal(cssPrefixedItems.length, 1)
+assert.equal(applyRule(cssPrefixedItems[0], '@css:div.itemtxt h3 a@text'), '斗破苍穹')
+assert.equal(applyRule(cssPrefixedItems[0], '@css:div.itemtxt a[href*="/zuozhe/"]@text'), '作者：天蚕土豆')
+assert.equal(applyRule(cssPrefixedItems[0], '@css:div.itemtxt p span:nth-of-type(2)@text'), '玄幻')
+assert.equal(applyRule(cssPrefixedItems[0], '@css:div.itemtxt ul li:last-child a@text'), '最终章')
+
+const tocHtml = `
+  <div id="list" class="dir clear">
+    <ul>
+      <li><a href="/book/1.html">Chapter 1</a></li>
+      <li><a href="/book/2.html">Chapter 2</a></li>
+    </ul>
+  </div>
+`
+const tocItems = applyListRule(tocHtml, '@css:div#list.dir.clear ul li a')
+assert.equal(tocItems.length, 2)
+assert.equal(applyRule(tocItems[0], 'text'), 'Chapter 1')
+assert.equal(applyRule(tocItems[1], 'href'), '/book/2.html')
+
 const legado3Html = `
   <div class="book">
     <a href="/book/3"><span class="name">第三本书</span></a>

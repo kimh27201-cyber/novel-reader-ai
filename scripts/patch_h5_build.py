@@ -6,7 +6,35 @@ import os
 import re
 import glob
 
-H5_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "unpackage", "dist", "build", "h5")
+DEFAULT_H5_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "unpackage", "dist", "build", "h5")
+H5_DIR = os.environ.get("H5_DIR", DEFAULT_H5_DIR)
+
+
+def patch_source_engine_bundle(content):
+    """Backport the tested selector parser into a stale H5 bundle.
+
+    This is used only when HBuilderX cannot rebuild. It fails closed if the
+    expected old minified implementation cannot be located.
+    """
+    selector_start = content.find('function Y(e,t){const r=t.match')
+    selector_end = content.find('function W(e,t,r){', selector_start)
+    if selector_start < 0 or selector_end < 0:
+        return content, False
+
+    replacement = r'''function Y(e,t){const r=String(t||"").trim().replace(/^css:/i,""),n=r.match(/^(.*?):nth-(?:of-type|child)\((\d+)\)$/i),o=n?n[1]:r,i=n?Math.max(0,Number(n[2])-1):/:last-child$/i.test(o)?"last":/:first-child$/i.test(o)?0:null,s=/:last-child$/i.test(o)?o.replace(/:last-child$/i,""):/:first-child$/i.test(o)?o.replace(/:first-child$/i,""):o,a=s.match(/^(.*?)(?:\.|\[)(\d+)\]?$/),u=a?a[1]:s,c=null!==i?i:a?Number(a[2]):null,l=u.match(/^(.*?)(\[[^\]]+\])$/),f=l?l[1]:u,d=l?l[2].match(/^\[\s*([\w:-]+)\s*(\*?=)\s*["']?([^"'\]]*)["']?\s*\]$/):null,{tag:p,id:h,className:g}=V(f),m=/<([a-zA-Z][\w:-]*)([^>]*)>/gi,v=[];let y;while(y=m.exec(e)){const t=y[1],r=y[2]||"";if(p&&t.toLowerCase()!==String(p).toLowerCase())continue;if(h&&!new RegExp(`\\bid=["']?${oe(h)}["']?`,"i").test(r))continue;if(g&&!new RegExp(`\\bclass=["'][^"']*\\b${oe(g)}\\b`,"i").test(r))continue;if(d){const e=z(`<x ${r}></x>`,d[1]);if(!e||(d[2]==="*="?!e.includes(d[3]):e!==d[3]))continue}if(/^(img|input|meta|link|br)$/i.test(t)){v.push(y[0]);continue}const n=new RegExp(`<\\/${oe(t)}>` ,"i"),o=e.slice(m.lastIndex),i=o.match(n);v.push(i?e.slice(y.index,m.lastIndex+i.index+i[0].length):y[0])}return"last"===c?v.length?[v[v.length-1]]:[]:null!==c?v[c]?[v[c]]:[]:v}'''
+    content = content[:selector_start] + replacement + content[selector_end:]
+
+    old_selector_parser = 'function V(e){if(e.startsWith("#"))return{id:e.slice(1)};if(e.startsWith("."))return{className:e.slice(1)};const t=e.match(/^([a-zA-Z][\\w:-]*)?\\.([\\w-]+)$/);if(t)return{tag:t[1]||"",className:t[2]};const r=e.match(/^([a-zA-Z][\\w:-]*)?#([\\w-]+)$/);return r?{tag:r[1]||"",id:r[2]}:{tag:e||""}}'
+    new_selector_parser = 'function V(e){const t=e.match(/^([a-zA-Z][\\w:-]*)/),r=t?t[1]:"",n=e.slice(r.length),o=n.match(/#([\\w-]+)/),i=[...n.matchAll(/\\.([\\w-]+)/g)].map(e=>e[1]);return n&&n.replace(/#[\\w-]+|\\.[\\w-]+/g,"")?{tag:e||""}:{tag:r,id:o?o[1]:"",className:i.join(" ")}}'
+    if old_selector_parser not in content:
+        raise RuntimeError("Old source-engine selector parser was not found in H5 bundle")
+    content = content.replace(old_selector_parser, new_selector_parser, 1)
+
+    old_normalizer = 'function ee(e){const t=String(e||"").trim();return t.startsWith("class.")?"."+t.slice(6):t.startsWith("id.")?"#"+t.slice(3):t.startsWith("tag.")?t.slice(4):t}'
+    new_normalizer = 'function ee(e){const t=String(e||"").trim();return/^css:/i.test(t)?t.replace(/^css:/i,""):t.startsWith("class.")?"."+t.slice(6):t.startsWith("id.")?"#"+t.slice(3):t.startsWith("tag.")?t.slice(4):t}'
+    if old_normalizer not in content:
+        raise RuntimeError("Old source-engine selector normalizer was not found in H5 bundle")
+    return content.replace(old_normalizer, new_normalizer, 1), True
 
 def patch_file(filepath):
     """Apply all patches to a single JS or CSS file."""
@@ -17,6 +45,10 @@ def patch_file(filepath):
 
     # ── JS patches ──
     if filepath.endswith('.js'):
+        content, source_engine_patched = patch_source_engine_bundle(content)
+        if source_engine_patched:
+            print(f"  [SOURCE-ENGINE] {os.path.basename(filepath)}")
+
         # 1. contentWidth default: 82 → 88
         #    Matches patterns like: contentWidth:82, or contentWidth:82}
         content = re.sub(r'(contentWidth\s*:\s*)82([,;}])', r'\g<1>88\2', content)

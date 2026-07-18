@@ -41,10 +41,12 @@ const incompatible = {
 assert.deepEqual(getSourceConfigs(), [])
 
 const first = importSourcesWithStats(JSON.stringify([source, incompatible]))
-assert.equal(first.imported, 2)
+assert.equal(first.imported, 1)
 assert.equal(first.updated, 0)
+assert.equal(first.skipped, 1)
 assert.equal(first.incompatible, 1)
 assert.equal(first.sources.length, 2)
+assert.equal(getSourceConfigs().some(item => item.name === 'Unsupported Source'), false)
 
 const second = importSourcesWithStats(JSON.stringify([source]))
 assert.equal(second.imported, 0)
@@ -125,7 +127,7 @@ const preview = previewSourcesImport(JSON.stringify([
   incompatible
 ]))
 assert.equal(preview.imported, 1)
-assert.equal(preview.updated, 2)
+assert.equal(preview.updated, 1)
 assert.equal(preview.incompatible, 1)
 assert.ok(preview.groups.includes('User Import'))
 assert.equal(getSourceConfigs().length, beforePreviewCount)

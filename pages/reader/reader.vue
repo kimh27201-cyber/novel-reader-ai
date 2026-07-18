@@ -1,6 +1,6 @@
 <template>
-  <view class="reader-page" :style="pageStyle">
-    <view class="reader-embed text-only-reader" :class="{ immersive: prefs.immersiveMode }">
+  <view class="reader-page" :class="themeClass" :style="pageStyle">
+    <view class="reader-embed text-only-reader" :class="{ immersive: prefs.immersiveMode, 'controls-open': controlsVisible }">
       <view
         class="reading-surface"
         :style="readerSurfaceStyle"
@@ -23,9 +23,16 @@
 
         <view
           class="reader-content"
-          :class="{ quiet: loadingChapter }"
+          :key="pageTurnKey"
+          :class="['page-turn-' + prefs.pageTurnMode, 'page-turn-' + pageTurnDirection, { quiet: loadingChapter, 'page-turn-active': pageTurnAnimating }]"
           :style="readerContentStyle"
         >
+          <view class="reader-progress-mark" v-if="!loadingChapter && !chapterLoadError">
+            <view class="reader-progress-rail">
+              <view class="reader-progress-rail-fill" :style="{ width: pageProgressPercent + '%' }"></view>
+            </view>
+            <text>{{ chapterIndex + 1 }} / {{ totalChapters }}</text>
+          </view>
           <text
             class="reader-paragraph"
             v-for="(paragraph, index) in pageParagraphs"
@@ -38,7 +45,7 @@
 
       </view>
 
-      <view class="top-chrome reader-safe-top" v-if="controlsVisible">
+      <view class="top-chrome reader-safe-top" :class="{ 'reader-chrome-visible': controlsVisible }">
         <button class="icon-button touch-hit" aria-label="返回" @tap.stop="back">‹</button>
         <view class="top-title">
           <view>{{ book.title }}</view>
@@ -47,14 +54,14 @@
         <button class="icon-button touch-hit" aria-label="更多操作" @tap.stop="toggleMore">•••</button>
       </view>
 
-      <view class="quick-actions" v-if="controlsVisible && !settingsVisible && !catalogVisible && !moreVisible">
+      <view class="quick-actions" :class="{ 'reader-chrome-visible': controlsVisible && !settingsVisible && !catalogVisible && !moreVisible }">
         <button class="quick-action touch-hit" aria-label="目录" @tap.stop="openCatalog">☰</button>
         <button class="quick-action touch-hit" aria-label="搜索本章" @tap.stop="searchInChapter">⌕</button>
         <button class="quick-action touch-hit" aria-label="重新解码" @tap.stop="retryChapter">↻</button>
         <button class="quick-action touch-hit" aria-label="调节亮度" @tap.stop="adjustBrightness">◐</button>
       </view>
 
-      <view class="more-menu" v-if="moreVisible">
+      <view class="more-menu app-motion-dialog" v-if="moreVisible">
         <button class="more-item touch-hit" @tap.stop="aiSummarizeChapter">AI 总结本章</button>
         <button class="more-item touch-hit" @tap.stop="aiAskChapter">AI 问答本章</button>
         <button class="more-item touch-hit" @tap.stop="toggleCurrentBookmark">{{ currentBookmarkActive ? '取消书签' : '加入书签' }}</button>
@@ -64,7 +71,7 @@
         <button class="more-item touch-hit" @tap.stop="back">回到书架</button>
       </view>
 
-      <view class="bottom-chrome" v-if="controlsVisible && !settingsVisible && !catalogVisible">
+      <view class="bottom-chrome" :class="{ 'reader-chrome-visible': controlsVisible && !settingsVisible && !catalogVisible }">
         <view class="chapter-row">
           <button class="chapter-button touch-hit" :disabled="chapterIndex <= 0" @tap.stop="prevChapter">上一章</button>
           <view class="chapter-track" @tap.stop>
@@ -92,7 +99,7 @@
         </view>
       </view>
 
-      <view class="settings-panel" v-if="settingsVisible">
+      <view class="settings-panel app-motion-sheet reader-settings-enter" v-if="settingsVisible">
         <view class="panel-head">
           <view>
             <view class="panel-title">{{ settingsMode === 'interface' ? '界面设置' : '阅读设置' }}</view>
@@ -111,7 +118,7 @@
           <view class="control-row">
             <text>字号</text>
             <button class="step-button" @tap.stop="changeFont(-1)">−</button>
-            <slider class="reader-slider" :value="prefs.fontSize" min="16" max="20" activeColor="#df7458" @change="changeFontSlider" />
+            <slider class="reader-slider" :value="prefs.fontSize" min="16" max="20" :activeColor="appAccent" @change="changeFontSlider" />
             <button class="step-button" @tap.stop="changeFont(1)">＋</button>
             <text class="control-value">{{ prefs.fontSize }}</text>
           </view>
@@ -119,7 +126,7 @@
           <view class="control-row">
             <text>行距</text>
             <button class="step-button" @tap.stop="changeLineHeight(-0.08)">−</button>
-            <slider class="reader-slider" :value="lineHeightSlider" min="145" max="186" activeColor="#df7458" @change="changeLineHeightSlider" />
+            <slider class="reader-slider" :value="lineHeightSlider" min="145" max="186" :activeColor="appAccent" @change="changeLineHeightSlider" />
             <button class="step-button" @tap.stop="changeLineHeight(0.08)">＋</button>
             <text class="control-value">{{ prefs.lineHeight.toFixed(2) }}</text>
           </view>
@@ -127,7 +134,7 @@
           <view class="control-row">
             <text>段距</text>
             <button class="step-button" @tap.stop="changeParagraphSpacing(-0.1)">−</button>
-            <slider class="reader-slider" :value="paragraphSlider" min="0" max="220" activeColor="#df7458" @change="changeParagraphSlider" />
+            <slider class="reader-slider" :value="paragraphSlider" min="0" max="220" :activeColor="appAccent" @change="changeParagraphSlider" />
             <button class="step-button" @tap.stop="changeParagraphSpacing(0.1)">＋</button>
             <text class="control-value">{{ prefs.paragraphSpacing.toFixed(1) }}</text>
           </view>
@@ -135,7 +142,7 @@
           <view class="control-row">
             <text>缩进</text>
             <button class="step-button" @tap.stop="changeTextIndent(-0.5)">−</button>
-            <slider class="reader-slider" :value="textIndentSlider" min="0" max="40" activeColor="#df7458" @change="changeTextIndentSlider" />
+            <slider class="reader-slider" :value="textIndentSlider" min="0" max="40" :activeColor="appAccent" @change="changeTextIndentSlider" />
             <button class="step-button" @tap.stop="changeTextIndent(0.5)">＋</button>
             <text class="control-value">{{ prefs.textIndent.toFixed(1) }}</text>
           </view>
@@ -143,7 +150,7 @@
           <view class="control-row">
             <text>边距</text>
             <button class="step-button" @tap.stop="changeContentWidth(-4)">−</button>
-            <slider class="reader-slider" :value="prefs.contentWidth" min="72" max="98" activeColor="#df7458" @change="changeContentWidthSlider" />
+            <slider class="reader-slider" :value="prefs.contentWidth" min="72" max="98" :activeColor="appAccent" @change="changeContentWidthSlider" />
             <button class="step-button" @tap.stop="changeContentWidth(4)">＋</button>
             <text class="control-value">{{ prefs.contentWidth }}%</text>
           </view>
@@ -165,7 +172,7 @@
         <view class="reader-setting-list" v-else>
           <view class="control-row">
             <text>亮度</text>
-            <slider class="reader-slider wide" :value="prefs.brightness" min="40" max="100" activeColor="#df7458" @change="changeBrightness" />
+            <slider class="reader-slider wide" :value="prefs.brightness" min="40" max="100" :activeColor="appAccent" @change="changeBrightness" />
             <text class="control-value">{{ prefs.brightness }}%</text>
           </view>
           <view class="turn-row">
@@ -176,17 +183,17 @@
           </view>
           <view class="setting-item">
             <text>沉浸模式</text>
-            <switch :checked="prefs.immersiveMode" color="#7cc1b6" @change="togglePref('immersiveMode', $event)" />
+            <switch :checked="prefs.immersiveMode" :color="appAccent" @change="togglePref('immersiveMode', $event)" />
           </view>
           <view class="setting-item">
             <text>自动同步云端进度</text>
-            <switch :checked="prefs.autoSyncProgress" color="#7cc1b6" @change="togglePref('autoSyncProgress', $event)" />
+            <switch :checked="prefs.autoSyncProgress" :color="appAccent" @change="togglePref('autoSyncProgress', $event)" />
           </view>
         </view>
       </view>
 
-      <view class="catalog-mask" v-if="catalogVisible" @tap.stop="closeCatalog">
-        <view class="catalog-panel" @tap.stop>
+      <view class="catalog-mask app-motion-overlay" v-if="catalogVisible" @tap.stop="closeCatalog">
+        <view class="catalog-panel app-motion-sheet" @tap.stop>
           <view class="panel-head">
             <view>
               <view class="panel-title">目录与书签</view>
@@ -281,6 +288,7 @@ import {
   saveBackendReadingHistory
 } from '../../common/backendLibrary.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
+import { isMotionReduced, setNavigationMotion } from '../../common/motion.js'
 
 const CATALOG_BATCH_SIZE = 120
 
@@ -306,6 +314,12 @@ export default {
       chromeTimer: null,
       touchStartX: 0,
       touchStartY: 0,
+      pageTurnDirection: 'forward',
+      pageTurnKey: 0,
+      pageTurnTimer: null,
+      pageTurnToken: 0,
+      pageTurnAnimating: false,
+      motionReduced: isMotionReduced(),
       appThemeId: getAppThemeId(),
       catalogTab: 'catalog',
       catalogKeyword: '',
@@ -328,6 +342,12 @@ export default {
     pageProgressPercent() {
       const total = Math.max(this.pages.length, 1)
       return Math.min(100, Math.max(4, Math.round(((this.pageIndex + 1) / total) * 100)))
+    },
+    appAccent() {
+      return getAppThemeStyle(this.appThemeId)['--app-accent'] || '#df7458'
+    },
+    themeClass() {
+      return `theme-${this.appThemeId}`
     },
     activeChapterId() {
       return `chapter-${Math.max(0, this.chapterIndex - 2)}`
@@ -423,15 +443,46 @@ export default {
     this.prefs = savePrefs({ ...this.prefs, readingMode: 'page' })
     this.loadBookmarks()
     this.loadInitialBook(options)
+    if (typeof uni !== 'undefined' && typeof uni.$on === 'function') {
+      uni.$on('app:motion-changed', this.handleMotionChange)
+    }
   },
   onShow() {
     this.appThemeId = getAppThemeId()
+    this.motionReduced = isMotionReduced()
     this.loadBookmarks()
   },
   onUnload() {
     this.stopReadAloud()
+    this.clearPageTurnAnimation()
+    this.clearChromeTimer()
+    if (typeof uni !== 'undefined' && typeof uni.$off === 'function') {
+      uni.$off('app:motion-changed', this.handleMotionChange)
+    }
   },
   methods: {
+    handleMotionChange(state) {
+      this.motionReduced = !!(state && state.reduced)
+    },
+    playPageTurn(direction) {
+      this.pageTurnDirection = direction === 'back' ? 'back' : 'forward'
+      this.clearPageTurnAnimation()
+      if (this.motionReduced || this.prefs.pageTurnMode === 'none') return
+      this.pageTurnKey += 1
+      this.pageTurnAnimating = true
+      const token = ++this.pageTurnToken
+      const duration = this.prefs.pageTurnMode === 'cover' ? 220 : 210
+      this.pageTurnTimer = setTimeout(() => {
+        if (token === this.pageTurnToken) this.pageTurnAnimating = false
+      }, duration)
+    },
+    clearPageTurnAnimation() {
+      if (this.pageTurnTimer) {
+        clearTimeout(this.pageTurnTimer)
+        this.pageTurnTimer = null
+      }
+      this.pageTurnAnimating = false
+    },
     async loadInitialBook(options) {
       try {
         if (isBackendBookId(this.bookId)) {
@@ -612,6 +663,7 @@ export default {
     nextPage() {
       if (this.loadingChapter) return
       if (this.pageIndex < this.pages.length - 1) {
+        this.playPageTurn('forward')
         this.pageIndex += 1
         this.persist()
         return
@@ -621,6 +673,7 @@ export default {
     prevPage() {
       if (this.loadingChapter) return
       if (this.pageIndex > 0) {
+        this.playPageTurn('back')
         this.pageIndex -= 1
         this.persist()
         return
@@ -1024,9 +1077,11 @@ export default {
       this.stopReadAloud()
       const pages = getCurrentPages()
       if (pages.length > 1) {
+        setNavigationMotion('enter', 'back')
         uni.navigateBack()
         return
       }
+      setNavigationMotion('tab', 'back')
       uni.switchTab({ url: '/pages/bookshelf/bookshelf' })
     }
   }
@@ -1043,7 +1098,7 @@ export default {
   padding: 34rpx;
   margin: 0 auto;
   box-sizing: border-box;
-  border-radius: 0 0 24rpx 24rpx;
+  border-radius: 0 0 var(--app-card-radius, 24rpx) var(--app-card-radius, 24rpx);
   transition: background 0.2s ease, color 0.2s ease;
 }
 
@@ -1067,8 +1122,8 @@ export default {
   min-height: 760rpx;
   margin: 0 auto;
   overflow: hidden;
-  border-radius: 24rpx;
-  background: var(--app-panel);
+  border-radius: calc(var(--app-card-radius, 24rpx) + 4rpx);
+  background: var(--app-stage);
 }
 
 .reading-surface {
@@ -1078,6 +1133,7 @@ export default {
   flex-direction: column;
   padding: calc(16rpx + env(safe-area-inset-top)) 0 calc(72rpx + env(safe-area-inset-bottom));
   box-sizing: border-box;
+  box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.05);
   transition: background 0.2s ease, color 0.2s ease;
 }
 
@@ -1108,16 +1164,89 @@ export default {
   width: 88%;
   margin-left: auto;
   margin-right: auto;
-  padding-bottom: 0;
+  padding-top: 22rpx;
+  padding-bottom: 10rpx;
   box-sizing: border-box;
   transition: opacity 0.2s ease, max-width 0.2s ease;
+}
+
+.reader-content.page-turn-slide.page-turn-forward:not(.quiet) {
+  animation: reader-page-slide-forward 210ms var(--app-motion-standard) both;
+}
+
+.reader-content.page-turn-slide.page-turn-back:not(.quiet) {
+  animation: reader-page-slide-back 210ms var(--app-motion-standard) both;
+}
+
+.reader-content.page-turn-cover.page-turn-forward:not(.quiet) {
+  transform-origin: right center;
+  animation: reader-page-cover-forward 220ms var(--app-motion-smooth) both;
+}
+
+.reader-content.page-turn-cover.page-turn-back:not(.quiet) {
+  transform-origin: left center;
+  animation: reader-page-cover-back 220ms var(--app-motion-smooth) both;
+}
+
+@keyframes reader-page-slide-forward {
+  from { opacity: 0; transform: translate3d(22rpx, 0, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes reader-page-slide-back {
+  from { opacity: 0; transform: translate3d(-22rpx, 0, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes reader-page-cover-forward {
+  from { opacity: 0.12; transform: translate3d(12rpx, 0, 0) scaleX(0.96); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scaleX(1); }
+}
+
+@keyframes reader-page-cover-back {
+  from { opacity: 0.12; transform: translate3d(-12rpx, 0, 0) scaleX(0.96); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scaleX(1); }
 }
 
 
 .reader-paragraph {
   display: block;
+  color: inherit;
+  font-weight: 400;
+  text-align: justify;
+  text-justify: inter-ideograph;
+  word-break: break-word;
+  overflow-wrap: anywhere;
   white-space: pre-wrap;
   font-family: "KaiTi", "STKaiti", "FZKai-Z03", "PingFang SC", "Microsoft YaHei", serif;
+}
+
+.reader-progress-mark {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  height: 30rpx;
+  margin: 0 0 22rpx;
+  opacity: 0.58;
+  font-family: var(--app-heading-font);
+  font-size: 18rpx;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 1rpx;
+}
+
+.reader-progress-rail {
+  width: 74rpx;
+  height: 4rpx;
+  overflow: hidden;
+  border-radius: 999rpx;
+  background: currentColor;
+  opacity: 0.32;
+}
+
+.reader-progress-rail-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--app-accent);
 }
 
 
@@ -1150,7 +1279,7 @@ export default {
   min-height: 76rpx;
   padding: 0 14rpx;
   border: 1rpx solid var(--app-border);
-  border-radius: 999rpx;
+  border-radius: var(--app-control-radius, 999rpx);
   color: var(--app-reader-control-text);
   /* color-mix with solid fallback for older WebViews */
   background: var(--app-reader-control);
@@ -1163,9 +1292,9 @@ export default {
 .close-button {
   width: 58rpx;
   height: 58rpx;
-  border-radius: 999rpx;
+  border-radius: calc(var(--app-control-radius, 999rpx) - 2rpx);
   color: var(--app-reader-control-text);
-  background: rgba(255, 255, 255, 0.24);
+  background: var(--app-panel);
   font-size: 34rpx;
   transition: opacity 0.15s ease, transform 0.15s ease;
 }
@@ -1225,6 +1354,7 @@ export default {
 .quick-action {
   width: 88rpx;
   height: 88rpx;
+  border: 1rpx solid var(--app-border);
   background: var(--app-reader-control);
   box-shadow: var(--app-floating-shadow);
   font-size: 32rpx;
@@ -1239,7 +1369,7 @@ export default {
   bottom: 28rpx;
   z-index: 10;
   border: 1rpx solid var(--app-border);
-  border-radius: 28rpx;
+  border-radius: var(--app-card-radius, 28rpx);
   color: var(--app-reader-control-text);
   background: var(--app-reader-control);
   background: color-mix(in srgb, var(--app-reader-control) 94%, transparent);
@@ -1257,7 +1387,7 @@ export default {
 .chapter-button {
   min-width: 112rpx;
   height: 48rpx;
-  border-radius: 16rpx;
+  border-radius: var(--app-control-radius, 16rpx);
   color: var(--app-text);
   background: var(--app-panel);
   font-size: 24rpx;
@@ -1281,10 +1411,10 @@ export default {
 .dock-tool {
   flex: 1;
   min-width: 0;
-  min-height: 68rpx;
+  min-height: 88rpx;
   flex-direction: column;
   gap: 5rpx;
-  border-radius: 16rpx;
+  border-radius: var(--app-control-radius, 16rpx);
   color: var(--app-text);
   background: var(--app-panel);
   font-size: 23rpx;
@@ -1309,14 +1439,14 @@ export default {
   width: 250rpx;
   overflow: hidden;
   border: 1rpx solid var(--app-border);
-  border-radius: 22rpx;
-  background: var(--app-panel);
+  border-radius: var(--app-card-radius, 22rpx);
+  background: var(--app-panel-strong);
   box-shadow: var(--app-floating-shadow);
 }
 
 .more-item {
   width: 100%;
-  min-height: 70rpx;
+  min-height: 88rpx;
   justify-content: flex-start;
   padding: 0 22rpx;
   box-sizing: border-box;
@@ -1366,7 +1496,7 @@ export default {
 .turn-row button {
   height: 58rpx;
   border: 1rpx solid var(--app-border);
-  border-radius: 16rpx;
+  border-radius: var(--app-control-radius, 16rpx);
   color: var(--app-text);
   background: var(--app-panel);
   font-size: 23rpx;
@@ -1409,7 +1539,7 @@ export default {
 .step-button {
   width: 54rpx;
   height: 54rpx;
-  border-radius: 16rpx;
+  border-radius: var(--app-control-radius, 16rpx);
   color: var(--app-text);
   background: var(--app-panel);
   font-size: 28rpx;
@@ -1449,7 +1579,7 @@ export default {
 
 .theme-chip.active {
   border-color: var(--app-accent);
-  box-shadow: 0 0 0 4rpx rgba(223, 116, 88, 0.16);
+  box-shadow: var(--app-glow);
 }
 
 .reader-setting-list {
@@ -1486,7 +1616,7 @@ export default {
   align-items: flex-end;
   padding: 28rpx;
   box-sizing: border-box;
-  background: rgba(10, 18, 20, 0.18);
+  background: rgba(0, 0, 0, 0.28);
 }
 
 .catalog-panel {
@@ -1508,7 +1638,7 @@ export default {
   height: 64rpx;
   padding: 0 22rpx;
   border: 1rpx solid var(--app-border);
-  border-radius: 18rpx;
+  border-radius: var(--app-control-radius, 18rpx);
   color: var(--app-text);
   background: var(--app-bg);
   font-size: 24rpx;
@@ -1524,7 +1654,7 @@ export default {
   gap: 18rpx;
   min-height: 86rpx;
   padding: 0 18rpx;
-  border-radius: 18rpx;
+  border-radius: var(--app-control-radius, 18rpx);
   color: var(--app-text);
   background: var(--app-panel);
   margin-bottom: 12rpx;
@@ -1581,7 +1711,7 @@ export default {
 
 .empty-state {
   padding: 48rpx 24rpx;
-  border-radius: 20rpx;
+  border-radius: var(--app-card-radius, 20rpx);
   color: var(--app-muted);
   background: var(--app-panel);
   text-align: center;
@@ -1593,7 +1723,8 @@ export default {
   width: 88%;
   margin: 44rpx auto 0;
   padding: 24rpx;
-  border-radius: 22rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: var(--app-card-radius, 22rpx);
   box-sizing: border-box;
   color: var(--app-text);
   background: var(--app-panel);
@@ -1638,7 +1769,9 @@ export default {
 
 .retry-button {
   width: 96rpx;
-  height: 56rpx;
+  min-width: 88rpx;
+  min-height: 88rpx;
+  height: 88rpx;
   border-radius: 16rpx;
   color: var(--app-on-accent);
   background: var(--app-accent);
@@ -1709,5 +1842,283 @@ export default {
   .reader-content {
     width: 92%;
   }
+}
+
+/* V2 reader pass: the page is a reading surface first; controls arrive from its edges. */
+.reader-page {
+  background: var(--app-stage);
+}
+
+.reading-surface {
+  background-image: var(--app-reader-texture);
+  background-blend-mode: screen;
+}
+
+.reader-content {
+  max-width: 920rpx;
+}
+
+.reader-embed.controls-open .reader-content {
+  /* Chrome floats above the text: opening it must not repaginate the chapter. */
+  padding-top: 22rpx;
+  padding-bottom: 10rpx;
+  transition: none;
+}
+
+.reader-progress-mark {
+  font-family: var(--app-utility-font);
+  letter-spacing: 1rpx;
+}
+
+.reader-progress-rail {
+  height: 3rpx;
+  border-radius: 2rpx;
+}
+
+.reader-progress-rail-fill,
+.chapter-track-fill {
+  background: linear-gradient(90deg, var(--app-accent-2), var(--app-accent), var(--app-accent-3));
+}
+
+.reader-chrome-enter-top {
+  animation: reader-chrome-in-top var(--app-motion-duration-normal) var(--app-motion-smooth) both;
+}
+
+.reader-chrome-enter-bottom {
+  animation: reader-chrome-in-bottom var(--app-motion-duration-normal) var(--app-motion-spring) both;
+}
+
+.reader-chrome-enter-side {
+  animation: reader-chrome-in-side var(--app-motion-duration-normal) var(--app-motion-smooth) both;
+}
+
+.reader-settings-enter {
+  animation: reader-chrome-in-bottom var(--app-motion-duration-normal) var(--app-motion-spring) both;
+}
+
+/* Keep reader chrome mounted so dismissal can be an exit transition instead of an abrupt removal. */
+.top-chrome,
+.quick-actions,
+.bottom-chrome {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--app-motion-duration-exit) var(--app-motion-standard), transform var(--app-motion-duration-exit) var(--app-motion-standard);
+}
+
+.top-chrome { transform: translate3d(0, -22rpx, 0); }
+.quick-actions { transform: translate3d(18rpx, 0, 0); }
+.bottom-chrome { transform: translate3d(0, 28rpx, 0); }
+
+.top-chrome.reader-chrome-visible,
+.quick-actions.reader-chrome-visible,
+.bottom-chrome.reader-chrome-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate3d(0, 0, 0);
+  transition-duration: var(--app-motion-duration-normal);
+}
+
+.top-chrome,
+.bottom-chrome,
+.settings-panel {
+  border-width: var(--app-card-border-width, 1rpx);
+  box-shadow: var(--app-card-outline), var(--app-floating-shadow);
+}
+
+.top-chrome .icon-button,
+.quick-action,
+.dock-tool {
+  min-width: var(--app-touch-target-min, 88rpx);
+  min-height: var(--app-touch-target-min, 88rpx);
+}
+
+.bottom-chrome {
+  border-radius: var(--app-card-radius, 16rpx) var(--app-card-radius, 16rpx) 0 0;
+}
+
+.dock-tool {
+  font-family: var(--app-utility-font);
+  font-size: 20rpx;
+  letter-spacing: .5rpx;
+}
+
+.catalog-mask {
+  z-index: var(--app-z-modal, 400);
+  align-items: stretch;
+  justify-content: flex-end;
+  padding: 0;
+  background: rgba(1, 4, 9, 0.48);
+}
+
+.catalog-panel {
+  width: min(84%, 690rpx);
+  max-height: 100%;
+  height: 100%;
+  padding: calc(28rpx + env(safe-area-inset-top)) 28rpx calc(28rpx + env(safe-area-inset-bottom));
+  border: 0;
+  border-left: 1rpx solid var(--app-border);
+  border-radius: var(--app-card-radius, 16rpx) 0 0 var(--app-card-radius, 16rpx);
+  background: var(--app-panel-strong);
+  box-shadow: -20rpx 0 70rpx rgba(0, 0, 0, 0.30);
+  animation: reader-catalog-in var(--app-motion-duration-slow) var(--app-motion-smooth) both;
+}
+
+.catalog-item,
+.bookmark-item {
+  border-radius: var(--app-control-radius, 12rpx);
+  border: 1rpx solid transparent;
+  background: transparent;
+}
+
+.catalog-item:active,
+.bookmark-item:active {
+  border-color: var(--app-border);
+  background: var(--app-input);
+}
+
+.catalog-item.active {
+  color: var(--app-on-accent);
+  border-color: var(--app-accent);
+  background: var(--app-accent);
+}
+
+.theme-candy.reader-page .top-chrome,
+.theme-candy.reader-page .bottom-chrome,
+.theme-candy.reader-page .settings-panel,
+.theme-candy.reader-page .catalog-panel {
+  border: 2rpx solid rgba(52, 42, 50, 0.78);
+}
+
+.theme-candy.reader-page .reader-progress-rail-fill,
+.theme-candy.reader-page .chapter-track-fill {
+  background: linear-gradient(90deg, #55c7e8 0 35%, #ff7a59 35% 70%, #ffd34e 70% 100%);
+}
+
+.theme-sakura.reader-page .top-chrome,
+.theme-sakura.reader-page .bottom-chrome,
+.theme-sakura.reader-page .settings-panel {
+  box-shadow: 0 10rpx 42rpx rgba(217, 96, 154, 0.16);
+}
+
+.theme-cyber.reader-page .top-chrome,
+.theme-cyber.reader-page .bottom-chrome,
+.theme-cyber.reader-page .settings-panel,
+.theme-cyber.reader-page .catalog-panel,
+.theme-cyber.reader-page .catalog-item,
+.theme-cyber.reader-page .bookmark-item {
+  border-radius: var(--app-card-radius, 8rpx);
+}
+
+.theme-cyber.reader-page .reader-progress-rail-fill,
+.theme-cyber.reader-page .chapter-track-fill {
+  background: repeating-linear-gradient(90deg, var(--app-accent) 0 22rpx, transparent 22rpx 28rpx);
+}
+
+.theme-noirGold.reader-page .catalog-panel {
+  box-shadow: inset 0 0 0 8rpx rgba(213, 175, 98, 0.022), -20rpx 0 70rpx rgba(0, 0, 0, 0.40);
+}
+
+/* Reader chrome pass: tap-to-reveal controls float as rounded tools in every theme. */
+.reader-page {
+  --reader-chrome-radius: 30rpx;
+  --reader-control-radius: 18rpx;
+  --reader-catalog-radius: 32rpx;
+}
+
+.theme-xuanye.reader-page {
+  --reader-chrome-radius: 28rpx;
+  --reader-control-radius: 16rpx;
+  --reader-catalog-radius: 30rpx;
+}
+
+.theme-candy.reader-page {
+  --reader-chrome-radius: 24rpx;
+  --reader-control-radius: 18rpx;
+  --reader-catalog-radius: 28rpx;
+}
+
+.theme-sakura.reader-page {
+  --reader-chrome-radius: 32rpx;
+  --reader-control-radius: 20rpx;
+  --reader-catalog-radius: 34rpx;
+}
+
+.theme-cyber.reader-page {
+  --reader-chrome-radius: 20rpx;
+  --reader-control-radius: 14rpx;
+  --reader-catalog-radius: 24rpx;
+}
+
+.theme-noirGold.reader-page {
+  --reader-chrome-radius: 26rpx;
+  --reader-control-radius: 16rpx;
+  --reader-catalog-radius: 30rpx;
+}
+
+.reader-page .top-chrome {
+  border-radius: var(--reader-chrome-radius);
+}
+
+.reader-page .bottom-chrome,
+.reader-page .settings-panel {
+  border-radius: var(--reader-chrome-radius);
+}
+
+.reader-page .chapter-button,
+.reader-page .dock-tool,
+.reader-page .more-menu,
+.reader-page .more-item,
+.reader-page .interface-tab,
+.reader-page .catalog-tab,
+.reader-page .font-control,
+.reader-page .theme-chip,
+.reader-page .catalog-item,
+.reader-page .bookmark-item,
+.reader-page .retry-button {
+  border-radius: var(--reader-control-radius);
+}
+
+.reader-page .catalog-panel {
+  top: 18rpx;
+  bottom: 18rpx;
+  height: auto;
+  margin-left: 18rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: var(--reader-catalog-radius);
+}
+
+.theme-cyber.reader-page .top-chrome,
+.theme-cyber.reader-page .bottom-chrome,
+.theme-cyber.reader-page .settings-panel {
+  border-radius: var(--reader-chrome-radius);
+}
+
+.theme-cyber.reader-page .catalog-panel {
+  border-radius: var(--reader-catalog-radius);
+}
+
+.theme-cyber.reader-page .catalog-item,
+.theme-cyber.reader-page .bookmark-item {
+  border-radius: var(--reader-control-radius);
+}
+
+@keyframes reader-chrome-in-top {
+  from { opacity: 0; transform: translate3d(0, -26rpx, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes reader-chrome-in-bottom {
+  from { opacity: 0; transform: translate3d(0, 34rpx, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes reader-chrome-in-side {
+  from { opacity: 0; transform: translate3d(28rpx, 0, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes reader-catalog-in {
+  from { opacity: 0; transform: translate3d(100%, 0, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
 }
 </style>

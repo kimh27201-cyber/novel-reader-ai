@@ -6,7 +6,7 @@ import json
 TESTS_DIR = Path(__file__).resolve().parent
 sys.path.append(str(TESTS_DIR))
 
-from helpers import configure_test_environment
+from helpers import configure_test_environment, reset_database
 
 
 BACKEND_DIR = configure_test_environment(__file__)
@@ -23,8 +23,7 @@ client = TestClient(app)
 
 
 def setup_function():
-    Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
+    reset_database(Base, engine)
 
 
 def auth_headers(username="reader", email="reader@example.com"):
@@ -276,3 +275,107 @@ def test_save_and_read_reading_history():
     assert loaded.json()["chapter_id"] == chapter["id"]
     assert loaded.json()["page_index"] == 3
     assert loaded.json()["progress_percent"] == 18.5
+
+
+def test_update_and_delete_book_are_owner_scoped():
+    owner_headers = auth_headers()
+    other_headers = auth_headers("other", "other@example.com")
+    book = create_book(owner_headers, title="Original title")
+
+    cross_user_update = client.patch(
+        f"/api/books/{book['id']}",
+        headers=other_headers,
+        json={"title": "Stolen title"},
+    )
+    updated = client.patch(
+        f"/api/books/{book['id']}",
+        headers=owner_headers,
+        json={"title": "Updated title", "author": "Updated author"},
+    )
+    cross_user_delete = client.delete(
+        f"/api/books/{book['id']}",
+        headers=other_headers,
+    )
+    deleted = client.delete(
+        f"/api/books/{book['id']}",
+        headers=owner_headers,
+    )
+
+    assert cross_user_update.status_code == 404
+    assert updated.status_code == 200
+    assert updated.json()["title"] == "Updated title"
+    assert updated.json()["author"] == "Updated author"
+    assert updated.json()["version"] == book["version"] + 1
+    assert cross_user_delete.status_code == 404
+    assert deleted.status_code == 200
+    assert client.get(f"/api/books/{book['id']}", headers=owner_headers).status_code == 404
+    assert client.get("/api/books", headers=owner_headers).json() == []
+
+
+def test_book_list_supports_limit_offset_and_validates_bounds():
+    headers = auth_headers()
+    created_ids = []
+    for index in range(3):
+        response = client.post(
+            "/api/books",
+            headers=headers,
+            json={
+                "title": f"Book {index}",
+                "book_url": f"https://example.com/book/{index}",
+            },
+        )
+        assert response.status_code == 201
+        created_ids.append(response.json()["id"])
+
+    first_page = client.get("/api/books?limit=2&offset=0", headers=headers)
+    second_page = client.get("/api/books?limit=2&offset=2", headers=headers)
+    too_large = client.get("/api/books?limit=201", headers=headers)
+    negative_offset = client.get("/api/books?offset=-1", headers=headers)
+
+    assert first_page.status_code == 200
+    assert len(first_page.json()) == 2
+    assert second_page.status_code == 200
+    assert len(second_page.json()) == 1
+    assert {book["id"] for book in first_page.json() + second_page.json()} == set(created_ids)
+    assert too_large.status_code == 422
+    assert negative_offset.status_code == 422
+
+
+def test_reading_history_upserts_one_row_per_user_and_book():
+    headers = auth_headers()
+    book = create_book(headers)
+
+    first = client.post(
+        "/api/reading-history",
+        headers=headers,
+        json={"book_id": book["id"], "chapter_index": 1, "page_index": 2, "progress_percent": 10},
+    )
+    second = client.post(
+        "/api/reading-history",
+        headers=headers,
+        json={"book_id": book["id"], "chapter_index": 3, "page_index": 4, "progress_percent": 50},
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert second.json()["id"] == first.json()["id"]
+    assert second.json()["chapter_index"] == 3
+    assert second.json()["progress_percent"] == 50
+
+
+def test_book_rejects_source_owned_by_another_user():
+    owner_headers = auth_headers()
+    other_headers = auth_headers("source-owner", "source-owner@example.com")
+    foreign_source = import_source(other_headers)
+
+    response = client.post(
+        "/api/books",
+        headers=owner_headers,
+        json={
+            "title": "Foreign source book",
+            "book_url": "https://example.com/foreign",
+            "source_id": foreign_source["id"],
+        },
+    )
+
+    assert response.status_code == 400

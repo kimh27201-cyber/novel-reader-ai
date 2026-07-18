@@ -1,47 +1,109 @@
-<template>
-  <view class="decoder-source-page app-page" :style="themeVars">
+﻿<template>
+  <view class="tab-page-shell" :class="themeClass" :style="themeVars">
+  <view class="decoder-source-page app-page tab-page-content" :class="[themeClass, pageMotionClass]">
     <view class="source-discover-top">
-      <view class="source-search-pill">
-        <text class="source-search-icon">⌕</text>
-        <input
-          class="source-search-input"
-          v-model="sourceKeyword"
-          placeholder="筛选发现源"
-          confirm-type="search"
-        />
+      <view class="source-page-identity">
+        <text class="source-page-eyebrow">解码阅读</text>
+        <view class="source-page-title">书源 <text>{{ sourceStats.total }} 源</text></view>
       </view>
-      <button class="source-filter-trigger" @tap="openFilterSheet">筛选</button>
+      <view class="source-top-controls">
+        <view class="source-search-pill">
+          <text class="source-search-icon">⌕</text>
+          <input
+            class="source-search-input"
+            v-model="sourceKeyword"
+            placeholder="筛选书源"
+            confirm-type="search"
+          />
+        </view>
+        <button class="source-filter-trigger" aria-label="筛选书源" @tap="openFilterSheet">筛选</button>
+      </view>
     </view>
 
     <scroll-view class="decoder-source-scroll" scroll-y :show-scrollbar="false">
+      <view class="source-import-hub">
+        <view class="import-hub-copy">
+          <text class="import-hub-eyebrow">ADD A SOURCE</text>
+          <view class="import-hub-title">从任意入口开始导入</view>
+          <text class="source-hint">导入前会先识别格式，并明确提示新增、覆盖与不兼容结果。</text>
+        </view>
+        <view class="import-hub-actions">
+          <button class="import-hub-action import-hub-link" @tap="openImportDrawer('url')">
+            <view class="import-hub-symbol"></view>
+            <view class="import-hub-action-copy"><text class="import-hub-action-title">链接导入</text><text class="import-hub-action-desc">粘贴书源 URL</text></view>
+          </button>
+          <button class="import-hub-action import-hub-json" @tap="openImportDrawer('json')">
+            <view class="import-hub-symbol"></view>
+            <view class="import-hub-action-copy"><text class="import-hub-action-title">JSON 导入</text><text class="import-hub-action-desc">粘贴配置内容</text></view>
+          </button>
+          <button class="import-hub-action import-hub-scan" @tap="scanSourceQr">
+            <view class="import-hub-symbol"></view>
+            <view class="import-hub-action-copy"><text class="import-hub-action-title">扫码导入</text><text class="import-hub-action-desc">扫描二维码添加</text></view>
+          </button>
+          <button class="import-hub-action import-hub-file" @tap="chooseSourceJsonFile">
+            <view class="import-hub-symbol"></view>
+            <view class="import-hub-action-copy"><text class="import-hub-action-title">文件导入</text><text class="import-hub-action-desc">选择本地 JSON</text></view>
+          </button>
+        </view>
+      </view>
+
       <view class="installed-source-list">
         <view
           class="installed-source-row"
-          v-for="source in v2SourceRows"
+          v-for="(source, index) in v2SourceRows"
           :key="source.rowKey"
+          :style="{ '--source-enter-delay': `${Math.min(index, 10) * 60}ms` }"
           @tap="openSourceHub(source)"
         >
-          <view class="source-row-icon" :class="source.iconClass">{{ source.icon }}</view>
+          <view class="source-row-icon" :class="source.iconClass"><view class="source-row-signal"></view></view>
           <view class="source-main">
             <view class="source-name">{{ source.name }}</view>
             <text class="source-meta">{{ source.meta }}</text>
+            <text class="source-compatibility-tag" v-if="source.partialUnsupported">部分不兼容</text>
           </view>
           <button
             class="source-detail-action"
             aria-label="书源详情"
             @tap.stop="openSourceDetail(source.raw)"
           >
-            ⓘ
+            <text class="source-detail-mark">i</text>
           </button>
           <text class="chevron">›</text>
         </view>
       </view>
 
-      <view class="management-tools">
+      <view class="source-empty-state" v-if="!v2SourceRows.length">
+        <view class="source-empty-mark">源</view>
+        <view class="source-empty-title">书源列表还是空的</view>
+        <text class="source-hint">可粘贴 URL 或 JSON、扫描二维码，或选择本地 JSON 文件。</text>
+      </view>
+
+      <view class="recent-import-panel recent-import source-meta-section" v-if="recentImportHistory.length">
+        <view class="recent-import-head">
+          <view>
+            <view class="tools-title">最近导入</view>
+            <text class="source-hint">显示最近 20 条导入、覆盖、跳过和不兼容记录。</text>
+          </view>
+          <button class="small-action" @tap="openImportLogs">查看日志</button>
+        </view>
+        <view
+          class="recent-import-row"
+          v-for="item in recentImportHistory"
+          :key="`${item.id}-${item.importTime}-${item.action}`"
+        >
+          <text class="batch-result-status" :class="item.visible ? 'passed' : 'incompatible'">{{ importHistoryActionLabel(item.action) }}</text>
+          <view class="recent-import-copy">
+            <view class="recent-import-name">{{ item.name || '未命名书源' }}</view>
+            <text class="source-hint">{{ item.importMethod }} · {{ item.compatibleLevel || 'unknown' }} · {{ item.visible ? '列表可见' : (item.reason || '未写入列表') }}</text>
+          </view>
+        </view>
+      </view>
+
+      <view class="management-tools source-meta-section">
         <view class="tools-head" @tap="toolsExpanded = !toolsExpanded">
           <view>
-            <view class="tools-title">管理工具</view>
-            <text class="source-hint">批量检测、分组筛选和批量启停。</text>
+            <view class="tools-title">书源整理</view>
+            <text class="source-hint">筛选、整理和检查已导入的书源。</text>
           </view>
           <text class="tools-toggle">{{ toolsExpanded ? '收起' : '展开' }}</text>
         </view>
@@ -78,7 +140,7 @@
           <view class="batch-panel readiness-panel">
             <view class="batch-head">
               <view>
-                <view class="test-title">真实导入自检</view>
+                <view class="test-title">确认导入</view>
                 <text class="source-hint">{{ importReadinessSummaryText }}</text>
               </view>
               <button class="small-action" @tap="refreshImportReadiness">刷新</button>
@@ -100,12 +162,12 @@
           <view class="batch-panel tools-batch-panel">
             <view class="batch-head">
               <view>
-                <view class="test-title">批量检测</view>
-                <text class="source-hint">发现页只使用已通过测试的书源；发现页会使用已通过测试的书源。失败源会保留网络失败、规则不兼容、无搜索结果或超时原因。</text>
+                <view class="test-title">检查书源</view>
+                <text class="source-hint">发现页只会使用可正常搜索的书源；若不可用，会保留原因方便处理。</text>
               </view>
               <view class="batch-actions">
                 <button class="small-action primary" :loading="batchTesting" @tap="runBatchSourceTest('all')">测试全部启用源</button>
-                <button class="small-action" :disabled="sourceGroupFilter === '全部分组'" :loading="batchTesting" @tap="runBatchSourceTest('group')">测试当前分组</button>
+                <button class="small-action" :disabled="sourceGroupFilter === allSourceGroup" :loading="batchTesting" @tap="runBatchSourceTest('group')">测试当前分组</button>
                 <button class="small-action" :loading="batchHealthTesting" @tap="runBatchSourceHealth('all')">健康检测</button>
               </view>
             </view>
@@ -126,11 +188,15 @@
       </view>
     </scroll-view>
 
-    <button class="source-primary-add-button" @tap="openImportDrawer('repo')">扫码/链接添加书源</button>
+    <button
+      v-if="!filterSheetVisible && !importDrawerVisible && !txtVisible && !sourceDetailVisible && !sourceEditVisible"
+      class="source-primary-add-button"
+      @tap="openImportDrawer('repo')"
+    >扫码/链接添加书源</button>
 
-    <view class="drawer-mask" v-if="filterSheetVisible || importDrawerVisible || txtVisible || sourceDetailVisible || sourceEditVisible" @tap="closePanels"></view>
+    <view class="drawer-mask app-motion-overlay" v-if="filterSheetVisible || importDrawerVisible || txtVisible || sourceDetailVisible || sourceEditVisible" @tap="closePanels"></view>
 
-    <view class="source-filter-sheet app-floating-panel" v-if="filterSheetVisible">
+    <view class="source-filter-sheet app-floating-panel app-motion-sheet" v-if="filterSheetVisible">
       <view class="drawer-head">
         <view>
           <text class="eyebrow">SOURCE FILTER</text>
@@ -184,7 +250,7 @@
       </view>
     </view>
 
-    <view class="import-drawer app-floating-panel" v-if="importDrawerVisible">
+    <view class="import-drawer app-floating-panel app-motion-sheet" v-if="importDrawerVisible">
       <view class="drawer-head">
         <view>
           <text class="eyebrow">ADD SOURCE</text>
@@ -212,14 +278,18 @@
         v-if="sourceImportMode === 'json'"
         class="source-area"
         v-model="sourceImportText"
+        :disabled="sourceImportPreviewing || sourceImporting"
         maxlength="-1"
         placeholder="粘贴书源 JSON、sources 包装结构、yuedu:// 或 legado:// 一键导入链接"
+        @input="invalidateSourceImportPreview"
       ></textarea>
       <input
         v-else
         class="field"
         v-model="sourceImportUrl"
+        :disabled="sourceImportPreviewing || sourceImporting"
         :placeholder="sourceImportMode === 'repo' ? '粘贴 yck2026/yckceo 源仓库详情页 URL' : '粘贴 JSON 直链或一键导入链接'"
+        @input="invalidateSourceImportPreview"
       />
       <text class="source-hint">{{ sourceImportHint }}</text>
 
@@ -229,8 +299,22 @@
         <text class="source-hint">分组：{{ sourceImportPreview.groups.join('、') || '未分组' }}</text>
         <text class="source-hint" v-if="sourceImportPreview.sourceUrl">JSON：{{ sourceImportPreview.sourceUrl }}</text>
       </view>
-      <button class="outline-action wide" :loading="sourceImportPreviewing" @tap="previewSourceImport">导入前预览</button>
-      <button class="submit-button" :loading="sourceImporting" @tap="submitSourceImport">导入书源</button>
+      <view class="source-import-feedback app-motion-feedback" v-if="sourceImportFeedback" :class="sourceImportFeedback.tone">
+        <view class="source-import-feedback-title">{{ sourceImportFeedback.title }}</view>
+        <text>{{ sourceImportFeedback.detail }}</text>
+      </view>
+      <button
+        class="outline-action wide"
+        :disabled="sourceImportPreviewing || sourceImporting || !sourceImportRaw"
+        :loading="sourceImportPreviewing"
+        @tap="previewSourceImport"
+      >导入前预览</button>
+      <button
+        class="submit-button"
+        :disabled="sourceImportPreviewing || sourceImporting || !sourceImportRaw"
+        :loading="sourceImporting"
+        @tap="submitSourceImport"
+      >{{ sourceImportPreview ? '确认导入' : '导入书源' }}</button>
 
       <view class="quick-actions">
         <button class="outline-action" @tap="importFromClipboard">剪贴板</button>
@@ -240,7 +324,7 @@
       </view>
     </view>
 
-    <view class="import-drawer app-floating-panel" v-if="txtVisible">
+    <view class="import-drawer app-floating-panel app-motion-sheet" v-if="txtVisible">
       <view class="drawer-head">
         <view>
           <text class="eyebrow">TXT IMPORT</text>
@@ -260,7 +344,7 @@
       <button class="submit-button" :disabled="!importFileText" @tap="submitImport">加入书架</button>
     </view>
 
-    <view class="import-drawer app-floating-panel" v-if="sourceEditVisible && editingSource">
+    <view class="import-drawer app-floating-panel app-motion-sheet" v-if="sourceEditVisible && editingSource">
       <view class="drawer-head">
         <view>
           <text class="eyebrow">EDIT SOURCE</text>
@@ -274,7 +358,7 @@
       <button class="submit-button" @tap="saveSourceEdit">保存修改</button>
     </view>
 
-    <view class="import-drawer source-detail-drawer app-floating-panel" v-if="sourceDetailVisible && selectedSource">
+    <view class="import-drawer source-detail-drawer app-floating-panel app-motion-sheet" v-if="sourceDetailVisible && selectedSource">
       <view class="drawer-head">
         <view>
           <text class="eyebrow">SOURCE DETAIL</text>
@@ -360,7 +444,7 @@
 
         <view class="health-card" v-if="sourceDiagnostics">
           <view>
-            <view class="test-title">健康评分 {{ sourceHealthScore }}</view>
+            <view class="test-title">书源状态 {{ sourceHealthScore }}</view>
             <text class="source-hint">全链路检测会依次验证搜索、详情、目录、正文和加入书架缓存。</text>
             <text class="source-hint">{{ sourceHealthText }}</text>
             <text class="source-hint source-health-warning" v-if="sourceHealthFailureText">{{ sourceHealthFailureText }}</text>
@@ -373,10 +457,10 @@
         <view class="acceptance-card" v-if="sourceDiagnostics">
           <view class="test-head">
             <view>
-              <view class="test-title">真实链路验收</view>
+            <view class="test-title">确认可读</view>
               <text class="source-hint">{{ sourceAcceptanceText }}</text>
             </view>
-            <button class="small-action primary" :loading="sourceAcceptanceTesting" @tap="runSelectedSourceAcceptance">开始验收</button>
+            <button class="small-action primary" :loading="sourceAcceptanceTesting" @tap="runSelectedSourceAcceptance">开始确认</button>
           </view>
           <view class="acceptance-summary" v-if="sourceAcceptanceReport">
             <text class="acceptance-status" :class="sourceAcceptanceReport.status">{{ sourceAcceptanceReport.status }}</text>
@@ -462,6 +546,8 @@
       </view>
     </view>
   </view>
+  <GlassTabBar active-path="pages/library/library" />
+  </view>
 </template>
 
 <script>
@@ -471,6 +557,7 @@ import {
   batchTestSources,
   batchSetSourcesEnabled,
   deleteUserSource,
+  getRecentImportHistory,
   getSourceAntiCrawlerSettings,
   getSourceDiagnostics,
   getSourceExploreEntries,
@@ -487,6 +574,7 @@ import {
   updateSourceMetadata
 } from '../../common/bookSources.js'
 import { getAppThemeId, getAppThemeStyle } from '../../common/appTheme.js'
+import GlassTabBar from '../../custom-tab-bar/index.vue'
 import {
   chooseSingleFile,
   getClipboardText,
@@ -506,7 +594,17 @@ import {
   runSourceAcceptance
 } from '../../common/sourceAcceptance.js'
 import { resolveMarketScanTarget } from '../../common/sourceMarket.js'
+import {
+  ALL_SOURCE_GROUP,
+  filterLibrarySources,
+  getLibrarySourceGroups,
+  normalizeLibrarySources
+} from '../../common/sourceLibrary.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
+import { markTabDirty, markTabFresh, shouldRefreshTab } from '../../common/tabFreshness.js'
+import { getNavigationMotion } from '../../common/motion.js'
+import { markTabRouteShown } from '../../common/tabNavigation.js'
+import { ensureNativeTabBarHidden } from '../../common/tabShell.js'
 import { clearSourceCookies, saveSourceCookie } from '../../common/sourceCookieJar.js'
 import { openSourceLogin, readSourceLoginCookie } from '../../common/webViewBridge.js'
 import apiClient from '../../common/apiClient.js'
@@ -517,9 +615,12 @@ import {
 } from '../../common/backendLibrary.js'
 
 export default {
+  components: { GlassTabBar },
   data() {
     return {
       sources: [],
+      pageMotionKind: '',
+      pageMotionDirection: 'forward',
       toolsExpanded: false,
       importDrawerVisible: false,
       filterSheetVisible: false,
@@ -531,6 +632,8 @@ export default {
       sourceImportPreviewing: false,
       sourceImportPreview: null,
       sourceImportPreviewRaw: '',
+      sourceImportFeedback: null,
+      recentImportHistory: getRecentImportHistory(),
       sourceDetailVisible: false,
       sourceEditVisible: false,
       editingSource: null,
@@ -566,7 +669,8 @@ export default {
       sourceFilter: 'all',
       sourceSort: 'manual',
       sourceKeyword: '',
-      sourceGroupFilter: '全部分组',
+      sourceGroupFilter: ALL_SOURCE_GROUP,
+      allSourceGroup: ALL_SOURCE_GROUP,
       themeId: getAppThemeId(),
       importTitle: '',
       importAuthor: '',
@@ -591,6 +695,14 @@ export default {
     themeVars() {
       return getAppThemeStyle(this.themeId)
     },
+    themeClass() {
+      return `theme-${this.themeId}`
+    },
+    pageMotionClass() {
+      return this.pageMotionKind === 'tab'
+        ? `app-tab-enter app-tab-enter-${this.pageMotionDirection === 'back' ? 'back' : 'forward'}`
+        : ''
+    },
     importPreview() {
       const chapters = parseTxtChapters(this.importFileText)
       return {
@@ -602,6 +714,9 @@ export default {
       if (this.sourceImportMode === 'json') return '支持单个对象、数组、sources 包装结构和一键导入链接。'
       if (this.sourceImportMode === 'repo') return '粘贴 yck2026/yckceo 详情页，系统会通过后端代理下载页面并优先读取 JSON 地址。'
       return '支持直接 JSON 链接、yuedu://、legado:// 和包含 src= 的链接；网络内容会通过后端代理下载。'
+    },
+    sourceImportRaw() {
+      return String(this.sourceImportMode === 'json' ? this.sourceImportText : this.sourceImportUrl).trim()
     },
     sourceStats() {
       return {
@@ -618,7 +733,8 @@ export default {
           type: 'source',
           id: source.id,
           name: source.name,
-          meta: `${source.group || '未分组'} · ${source.enabled ? '已启用' : '已停用'}`,
+          meta: `${source.group || '未分组'} · ${source.enabled ? '已启用' : '已停用'} · ${this.sourceCompatibilityLabel(source)}`,
+          partialUnsupported: this.isPartialUnsupportedSource(source),
           icon: this.sourceListIcon(index),
           iconClass: this.sourceListIconClass(index),
           raw: source
@@ -716,27 +832,32 @@ export default {
       ].filter(Boolean)
     },
     sourceGroups() {
-      const groups = this.sources.map(source => source.group || '未分组')
-      return ['全部分组', ...Array.from(new Set(groups))]
+      return getLibrarySourceGroups(this.sources)
     },
     visibleSources() {
-      const keyword = this.sourceKeyword.trim().toLowerCase()
-      const list = this.sources.filter(source => {
-        if (this.sourceFilter === 'enabled' && !source.enabled) return false
-        if (this.sourceFilter === 'disabled' && source.enabled) return false
-        if (this.sourceFilter === 'incompatible' && getSourceDiagnostics(source).compatible) return false
-        if (this.sourceGroupFilter !== '全部分组' && source.group !== this.sourceGroupFilter) return false
-        if (!keyword) return true
-        return [source.name, source.group, source.baseUrl, source.compatibility]
-          .some(value => String(value || '').toLowerCase().includes(keyword))
+      const list = filterLibrarySources(this.sources, {
+        keyword: this.sourceKeyword,
+        sourceFilter: this.sourceFilter,
+        sourceGroupFilter: this.sourceGroupFilter,
+        getDiagnostics: getSourceDiagnostics
       })
       return this.sortSources(list)
     }
   },
+  onLoad() {
+    if (uni.$on) uni.$on('sources:changed', this.handleSourcesChanged)
+  },
   onShow() {
+    markTabRouteShown('pages/library/library')
+    ensureNativeTabBarHidden()
     this.themeId = getAppThemeId()
-    this.sources = getSourceConfigs()
-    this.refreshImportReadiness()
+    const motion = getNavigationMotion()
+    this.pageMotionKind = motion.kind
+    this.pageMotionDirection = motion.direction
+    if (shouldRefreshTab('library')) this.refreshInstalledSources()
+  },
+  onUnload() {
+    if (uni.$off) uni.$off('sources:changed', this.handleSourcesChanged)
   },
   methods: {
     sourceListIcon(index) {
@@ -745,6 +866,36 @@ export default {
     },
     sourceListIconClass(index) {
       return ['blue', 'ink', 'rainbow', 'plain', 'red'][index % 5]
+    },
+    refreshInstalledSources(options = {}) {
+      this.sources = normalizeLibrarySources(getSourceConfigs())
+      this.recentImportHistory = getRecentImportHistory()
+      if (this.sourceGroupFilter !== ALL_SOURCE_GROUP && !this.sourceGroups.includes(this.sourceGroupFilter)) {
+        this.sourceGroupFilter = ALL_SOURCE_GROUP
+      }
+      if (options.readiness !== false) this.refreshImportReadiness()
+      markTabFresh('library')
+    },
+    handleSourcesChanged() {
+      markTabDirty('library')
+      this.refreshInstalledSources()
+    },
+    openImportLogs() {
+      uni.navigateTo({ url: '/pages/sources/import-logs' })
+    },
+    isPartialUnsupportedSource(source) {
+      return source && (source.compatibleLevel === 'h5Unsupported' || source.compatibleLevel === 'partialCompatible' || source.h5Unsupported === true)
+    },
+    sourceCompatibilityLabel(source) {
+      if (this.isPartialUnsupportedSource(source)) return '部分不兼容'
+      return source && (source.compatibleLevel || source.compatibilityLevel) || 'unknown'
+    },
+    importHistoryActionLabel(action) {
+      if (action === 'added') return '新增'
+      if (action === 'overwritten') return '覆盖'
+      if (action === 'unsupported') return '不兼容'
+      if (action === 'skipped') return '跳过'
+      return '记录'
     },
     refreshImportReadiness() {
       this.importReadiness = buildImportReadiness()
@@ -780,10 +931,11 @@ export default {
     },
     setImportMode(mode) {
       this.sourceImportMode = mode
-      this.sourceImportPreview = null
+      this.invalidateSourceImportPreview()
     },
     openImportDrawer(mode = this.sourceImportMode) {
       this.sourceImportMode = mode
+      this.invalidateSourceImportPreview()
       this.importDrawerVisible = true
       this.txtVisible = false
       this.sourceEditVisible = false
@@ -813,7 +965,14 @@ export default {
       this.sourceImportPreview = null
       this.sourceImportText = ''
       this.sourceImportUrl = ''
-      this.sources = getSourceConfigs()
+      this.sourceImportFeedback = null
+      this.refreshInstalledSources({ readiness: false })
+    },
+    invalidateSourceImportPreview() {
+      if (this.sourceImporting || this.sourceImportPreviewing) return
+      this.sourceImportPreview = null
+      this.sourceImportPreviewRaw = ''
+      this.sourceImportFeedback = null
     },
     openSourceDetail(source) {
       this.selectedSource = source
@@ -915,7 +1074,7 @@ export default {
           name: this.sourceEditName,
           group: this.sourceEditGroup
         })
-        this.sources = getSourceConfigs()
+        this.refreshInstalledSources({ readiness: false })
         uni.showToast({ title: '书源信息已保存', icon: 'none' })
         this.closePanels()
       } catch (error) {
@@ -947,7 +1106,7 @@ export default {
         .filter(source => source.enabled)
         .filter(source => {
           if (scope !== 'group') return true
-          if (this.sourceGroupFilter === '全部分组') return true
+          if (this.sourceGroupFilter === ALL_SOURCE_GROUP) return true
           return source.group === this.sourceGroupFilter
         })
         .map(source => source.id)
@@ -973,7 +1132,7 @@ export default {
         })
         this.batchTestResult = result
         this.batchTestItems = result.results
-        this.sources = getSourceConfigs()
+        this.refreshInstalledSources({ readiness: false })
         uni.showToast({ title: `检测完成：通过 ${result.passed} / 失败 ${result.failed}`, icon: 'none' })
       } catch (error) {
         uni.showToast({ title: friendlyErrorMessage(error, '批量检测失败'), icon: 'none' })
@@ -1011,7 +1170,7 @@ export default {
           ...item,
           message: `健康评分 ${item.score || 0} · ${item.message || ''}`
         }))
-        this.sources = getSourceConfigs()
+        this.refreshInstalledSources({ readiness: false })
         this.refreshSelectedSource()
         uni.showToast({ title: `健康检测完成：通过 ${result.passed} / 失败 ${result.failed}`, icon: 'none' })
       } catch (error) {
@@ -1048,7 +1207,7 @@ export default {
       this.sourceAntiSaving = true
       try {
         saveSourceAntiCrawlerSettings(this.selectedSource.id, this.antiCrawler)
-        this.sources = getSourceConfigs()
+        this.refreshInstalledSources({ readiness: false })
         this.refreshSelectedSource()
         uni.showToast({ title: '反爬策略已保存', icon: 'none' })
       } catch (error) {
@@ -1085,7 +1244,7 @@ export default {
           items: []
         }
       } finally {
-        this.sources = getSourceConfigs()
+        this.refreshInstalledSources({ readiness: false })
         this.refreshSelectedSource()
         this.sourceTesting = false
         setTimeout(() => { this.sourceProgressText = '' }, 1200)
@@ -1144,7 +1303,7 @@ export default {
           }))
         }
       } finally {
-        this.sources = getSourceConfigs()
+        this.refreshInstalledSources({ readiness: false })
         this.refreshSelectedSource()
         this.sourceFlowTesting = false
         setTimeout(() => { this.sourceProgressText = '' }, 1200)
@@ -1175,14 +1334,14 @@ export default {
           items: []
         }
       } finally {
-        this.sources = getSourceConfigs()
+        this.refreshInstalledSources({ readiness: false })
         this.refreshSelectedSource()
         this.sourceHealthTesting = false
         setTimeout(() => { this.sourceProgressText = '' }, 1200)
       }
     },
     async submitSourceImport() {
-      const raw = String(this.sourceImportMode === 'json' ? this.sourceImportText : this.sourceImportUrl).trim()
+      const raw = this.sourceImportRaw
       if (!raw) {
         uni.showToast({ title: '请先粘贴书源内容或 URL', icon: 'none' })
         return
@@ -1196,7 +1355,7 @@ export default {
       }
       const result = await this.applySourceImportPreview('已导入')
       if (result) {
-        const firstSource = (result.sources || []).find(source => source && source.id && source.action !== 'skip')
+        const firstSource = (result.importedSources || []).find(source => source && source.id)
         this.sourceImportText = ''
         this.sourceImportUrl = ''
         this.sourceImportPreview = null
@@ -1210,21 +1369,39 @@ export default {
       }
     },
     async previewSourceImport() {
-      const raw = String(this.sourceImportMode === 'json' ? this.sourceImportText : this.sourceImportUrl).trim()
+      const raw = this.sourceImportRaw
       if (!raw) {
         uni.showToast({ title: '请先粘贴书源内容或 URL', icon: 'none' })
         return
       }
       this.sourceImportPreviewing = true
+      this.sourceImportFeedback = {
+        tone: 'loading',
+        title: '正在识别导入内容',
+        detail: '正在检查格式与兼容性，请稍候。'
+      }
       try {
-        this.sourceImportPreview = this.sourceImportMode === 'json'
+        this.sourceImportPreview = this.sourceImportMode === 'json' && /^[\[{]/.test(raw)
           ? previewSourcesImport(raw)
           : await previewSourcesFromAny(raw)
         this.sourceImportPreviewRaw = raw
+        const preview = this.sourceImportPreview
+        const overwriteHint = preview.updated ? `其中 ${preview.updated} 个会覆盖已有书源。` : '确认后才会写入书源列表。'
+        this.sourceImportFeedback = {
+          tone: preview.incompatible ? 'warning' : 'ready',
+          title: preview.incompatible ? '识别完成，存在不兼容项' : '识别完成，等待确认导入',
+          detail: `新增 ${preview.imported} 个，覆盖 ${preview.updated} 个，不兼容 ${preview.incompatible} 个。${overwriteHint}`
+        }
       } catch (error) {
         this.sourceImportPreview = null
         this.sourceImportPreviewRaw = ''
-        uni.showToast({ title: friendlyErrorMessage(error, '当前内容无法预览，请确认是书源 JSON 或 URL'), icon: 'none' })
+        const message = friendlyErrorMessage(error, '当前内容无法预览，请确认是书源 JSON 或 URL')
+        this.sourceImportFeedback = {
+          tone: 'failed',
+          title: '无法识别导入内容',
+          detail: message
+        }
+        uni.showToast({ title: message, icon: 'none' })
       } finally {
         this.sourceImportPreviewing = false
       }
@@ -1233,15 +1410,31 @@ export default {
       if (!this.sourceImportPreview) return null
       this.sourceImporting = true
       try {
-        const result = applyImportPreview(this.sourceImportPreview)
-        this.sources = getSourceConfigs()
+        const result = applyImportPreview(this.sourceImportPreview, { importMethod: this.sourceImportMode })
+        this.refreshInstalledSources({ readiness: false })
+        if (uni.$emit) uni.$emit('sources:changed')
+        const written = result.actualWritten || result.imported + result.updated
+        const title = written > 0
+          ? `${successPrefix}：${result.imported} 新增 / ${result.updated} 覆盖 / ${result.skipped || 0} 跳过 / 可见 ${result.visible || 0}`
+          : `未导入有效书源：${result.skipped || 0} 跳过 / ${result.incompatible || 0} 不兼容`
+        this.sourceImportFeedback = {
+          tone: written > 0 ? 'success' : 'warning',
+          title: written > 0 ? '导入完成' : '没有可写入的书源',
+          detail: title
+        }
         uni.showToast({
-          title: `${successPrefix}：${result.imported} 新增 / ${result.updated} 覆盖 / ${result.skipped || 0} 跳过`,
+          title,
           icon: 'none'
         })
         return result
       } catch (error) {
-        uni.showToast({ title: friendlyErrorMessage(error, '导入书源失败'), icon: 'none' })
+        const message = friendlyErrorMessage(error, '导入书源失败')
+        this.sourceImportFeedback = {
+          tone: 'failed',
+          title: '导入失败',
+          detail: message
+        }
+        uni.showToast({ title: message, icon: 'none' })
         return null
       } finally {
         this.sourceImporting = false
@@ -1251,7 +1444,8 @@ export default {
       this.sourceImporting = true
       try {
         const result = await importSourcesFromAny(raw)
-        this.sources = getSourceConfigs()
+        this.refreshInstalledSources({ readiness: false })
+        if (uni.$emit) uni.$emit('sources:changed')
         uni.showToast({
           title: `${successPrefix}：${result.imported} 新增 / ${result.updated} 覆盖 / ${result.incompatible} 不兼容`,
           icon: 'none'
@@ -1303,7 +1497,7 @@ export default {
     },
     toggleSource(source) {
       setSourceEnabled(source.id, !source.enabled)
-      this.sources = getSourceConfigs()
+      this.refreshInstalledSources({ readiness: false })
       this.refreshSelectedSource()
     },
     batchToggleVisibleSources(enabled) {
@@ -1313,7 +1507,7 @@ export default {
         return
       }
       const result = batchSetSourcesEnabled(ids, enabled)
-      this.sources = getSourceConfigs()
+      this.refreshInstalledSources({ readiness: false })
       this.refreshSelectedSource()
       uni.showToast({ title: `${enabled ? '已启用' : '已停用'} ${result.updated} 个书源`, icon: 'none' })
     },
@@ -1337,7 +1531,7 @@ export default {
     async removeSource(source) {
       const sourceSnapshot = { ...source }
       deleteUserSource(source.id)
-      this.sources = getSourceConfigs()
+      this.refreshInstalledSources({ readiness: false })
       this.selectedSource = null
       this.sourceDiagnostics = null
       this.closePanels()
@@ -1418,11 +1612,13 @@ export default {
 }
 
 .decoder-source-page {
+  --tabbar-reserved-height: 140rpx;
+  --source-fab-height: 88rpx;
   box-sizing: border-box;
   width: 100%;
   max-width: 1120px;
   min-height: 100vh;
-  padding: 0 30rpx 128rpx;
+  padding: 0 30rpx calc(128rpx + var(--tabbar-reserved-height) + env(safe-area-inset-bottom));
   margin: 0 auto;
   color: var(--app-text);
   background: var(--app-bg);
@@ -1481,7 +1677,9 @@ export default {
 }
 
 .decoder-source-scroll {
-  height: calc(100vh - 266rpx);
+  box-sizing: border-box;
+  height: calc(100vh - 266rpx - var(--tabbar-reserved-height) - env(safe-area-inset-bottom));
+  padding-bottom: calc(var(--source-fab-height) + 48rpx);
 }
 
 .installed-source-list {
@@ -1585,6 +1783,59 @@ export default {
   border: 1rpx solid var(--app-border);
   border-radius: 18rpx;
   background: var(--app-panel);
+}
+
+.recent-import-panel {
+  margin: 20rpx 0 0;
+  padding: 20rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: 18rpx;
+  background: var(--app-panel);
+}
+
+.recent-import-head,
+.recent-import-row {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.recent-import-head {
+  justify-content: space-between;
+  margin-bottom: 14rpx;
+}
+
+.recent-import-row {
+  min-height: 72rpx;
+  padding: 12rpx 0;
+  border-top: 1rpx solid var(--app-border);
+}
+
+.recent-import-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.recent-import-name {
+  overflow: hidden;
+  color: var(--app-text);
+  font-size: 28rpx;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.decoder-source-page .source-compatibility-tag {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 8rpx;
+  padding: 4rpx 10rpx;
+  border-radius: 8rpx;
+  background: rgba(216, 177, 93, 0.16);
+  color: var(--app-accent, #d8b15d);
+  font-size: 20rpx;
+  font-weight: 700;
+  line-height: 1.2;
 }
 
 button::after {
@@ -2076,7 +2327,7 @@ button,
 .source-primary-add-button {
   position: fixed;
   left: 50%;
-  bottom: 28rpx;
+  bottom: calc(var(--tabbar-reserved-height) + 28rpx + env(safe-area-inset-bottom));
   z-index: 16;
   width: min(calc(100vw - 60rpx), 900px);
   height: 88rpx;
@@ -2105,7 +2356,7 @@ button,
 .source-filter-sheet {
   position: fixed;
   left: 50%;
-  bottom: 124rpx;
+  bottom: calc(var(--tabbar-reserved-height) + var(--source-fab-height) + 48rpx + env(safe-area-inset-bottom));
   z-index: 20;
   width: min(calc(100vw - 48rpx), 960px);
   max-height: 78vh;
@@ -2118,7 +2369,7 @@ button,
 }
 
 .source-filter-sheet {
-  bottom: 132rpx;
+  bottom: calc(var(--tabbar-reserved-height) + var(--source-fab-height) + 56rpx + env(safe-area-inset-bottom));
   max-height: 72vh;
   border-radius: 30rpx 30rpx 24rpx 24rpx;
 }
@@ -2640,5 +2891,581 @@ button,
   .status-switch {
     min-width: 68rpx;
   }
+}
+
+/* Source import: one short path from entry to preview to confirmation. */
+.decoder-source-page {
+  --source-ui-font: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.source-discover-top {
+  display: flex;
+  align-items: flex-end;
+  min-height: 164rpx;
+  margin-bottom: 18rpx;
+  padding-top: 56rpx;
+  background: var(--app-top);
+  box-shadow: 0 1rpx 0 var(--app-border);
+}
+
+.source-page-identity {
+  flex-shrink: 0;
+  margin-right: 22rpx;
+}
+
+.source-page-eyebrow,
+.import-hub-eyebrow {
+  display: block;
+  color: var(--app-muted);
+  font-family: var(--source-ui-font);
+  font-size: 19rpx;
+  font-weight: 650;
+  letter-spacing: 3rpx;
+  line-height: 28rpx;
+}
+
+.source-page-title {
+  position: relative;
+  color: var(--app-text);
+  font-family: var(--source-ui-font);
+  font-size: 38rpx;
+  font-weight: 760;
+  line-height: 48rpx;
+}
+
+.source-page-title::after {
+  position: absolute;
+  left: 0;
+  bottom: -8rpx;
+  width: 36rpx;
+  height: 4rpx;
+  border-radius: 999rpx;
+  background: var(--app-accent-3);
+  content: "";
+}
+
+.source-page-title text {
+  margin-left: 8rpx;
+  color: var(--app-muted);
+  font-size: 20rpx;
+  font-weight: 500;
+}
+
+.source-top-controls {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  gap: 10rpx;
+}
+
+.source-search-pill {
+  height: 66rpx;
+  border-radius: 14rpx;
+  background: var(--app-input);
+}
+
+.source-search-input {
+  height: 66rpx;
+  font-family: var(--source-ui-font);
+}
+
+.source-filter-trigger {
+  width: 82rpx;
+  height: 66rpx;
+  border-radius: 14rpx;
+  font-family: var(--source-ui-font);
+  font-weight: 700;
+}
+
+.decoder-source-scroll {
+  height: calc(100vh - 326rpx - var(--tabbar-reserved-height) - env(safe-area-inset-bottom));
+}
+
+.source-import-hub {
+  position: relative;
+  overflow: hidden;
+  padding: 24rpx;
+  margin-bottom: 20rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: 18rpx;
+  background: var(--app-panel);
+  box-shadow: var(--app-shadow);
+}
+
+.source-import-hub::before {
+  position: absolute;
+  left: 0;
+  top: 24rpx;
+  bottom: 24rpx;
+  width: 5rpx;
+  border-radius: 0 999rpx 999rpx 0;
+  background: var(--app-accent-3);
+  content: "";
+}
+
+.import-hub-copy {
+  padding-left: 10rpx;
+}
+
+.import-hub-title {
+  margin-top: 7rpx;
+  color: var(--app-text);
+  font-family: var(--source-ui-font);
+  font-size: 31rpx;
+  font-weight: 720;
+  line-height: 40rpx;
+}
+
+.import-hub-actions {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10rpx;
+  margin-top: 20rpx;
+}
+
+.import-hub-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  height: 106rpx;
+  padding: 0 4rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: 13rpx;
+  color: var(--app-text);
+  font-family: var(--source-ui-font);
+  font-size: 21rpx;
+  background: var(--app-input);
+}
+
+.import-hub-action text:first-child {
+  margin-bottom: 8rpx;
+  color: var(--app-accent);
+  font-size: 30rpx;
+  font-weight: 700;
+}
+
+.import-hub-action:active,
+.installed-source-row:active {
+  opacity: 0.82;
+  transform: scale(0.985);
+}
+
+.source-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 290rpx;
+  padding: 36rpx;
+  border: 1rpx dashed var(--app-border);
+  border-radius: 18rpx;
+  text-align: center;
+  background: var(--app-panel);
+}
+
+.source-empty-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 70rpx;
+  height: 84rpx;
+  margin-bottom: 22rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: 7rpx 7rpx 20rpx 7rpx;
+  color: var(--app-accent-3);
+  font-family: "KaiTi", "STKaiti", serif;
+  font-size: 32rpx;
+  box-shadow: inset 0 0 0 8rpx var(--app-input);
+}
+
+.source-empty-title {
+  color: var(--app-text);
+  font-family: var(--source-ui-font);
+  font-size: 30rpx;
+  font-weight: 720;
+}
+
+.installed-source-row,
+.recent-import-panel,
+.decoder-source-page .management-tools {
+  background: var(--app-panel);
+}
+
+.installed-source-row {
+  min-height: 112rpx;
+  padding: 18rpx;
+  transition: transform 180ms ease-out, opacity 180ms ease-out;
+}
+
+.decoder-source-page .source-name,
+.recent-import-name {
+  font-family: var(--source-ui-font);
+}
+
+.import-drawer {
+  border: 1rpx solid var(--app-border);
+  background: var(--app-panel-strong);
+  box-shadow: var(--app-floating-shadow);
+}
+
+.import-methods {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10rpx;
+}
+
+.quick-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10rpx;
+}
+
+.method-card {
+  min-height: 116rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: 14rpx;
+  font-family: var(--source-ui-font);
+  background: var(--app-input);
+}
+
+.method-card.active {
+  border-color: var(--app-accent);
+  color: var(--app-on-accent);
+  background: var(--app-accent);
+}
+
+.source-area,
+.field {
+  border-color: var(--app-border);
+  border-radius: 14rpx;
+  font-family: var(--source-ui-font);
+  background: var(--app-input);
+}
+
+.source-import-feedback {
+  margin-top: 16rpx;
+  padding: 16rpx 18rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: 14rpx;
+  color: var(--app-muted);
+  font-family: var(--source-ui-font);
+  font-size: 23rpx;
+  line-height: 34rpx;
+  background: var(--app-input);
+}
+
+.source-import-feedback-title {
+  margin-bottom: 5rpx;
+  color: var(--app-text);
+  font-size: 26rpx;
+  font-weight: 720;
+}
+
+.source-import-feedback.loading { border-color: var(--app-accent); }
+.source-import-feedback.ready { border-color: var(--app-accent); }
+.source-import-feedback.success { border-color: var(--app-accent-3); }
+.source-import-feedback.warning { border-color: var(--app-accent-3); }
+.source-import-feedback.failed { border-color: #DC2626; }
+
+.import-drawer .outline-action[disabled],
+.import-drawer .submit-button[disabled] {
+  color: var(--app-muted);
+  border-color: var(--app-border);
+  background: var(--app-input);
+  opacity: 0.52;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .installed-source-row { transition: none; }
+}
+
+/* V2 source pass: import methods become recognisable tools instead of text glyphs. */
+.source-discover-top {
+  position: relative;
+  z-index: var(--app-z-sticky, 200);
+  border-bottom: 1rpx solid color-mix(in srgb, var(--app-border) 86%, transparent);
+}
+
+.source-import-hub {
+  border-width: var(--app-card-border-width, 1rpx);
+  border-radius: var(--app-card-radius, 16rpx);
+  box-shadow: var(--app-card-outline), var(--app-shadow);
+}
+
+.import-hub-action {
+  min-height: 130rpx;
+  border-radius: var(--app-control-radius, 12rpx);
+  font-family: var(--app-utility-font);
+  font-size: 21rpx;
+  font-weight: 700;
+  letter-spacing: 1rpx;
+}
+
+.import-hub-symbol {
+  position: relative;
+  display: block;
+  width: 42rpx;
+  height: 42rpx;
+  margin: 0 auto 12rpx;
+  color: var(--app-accent);
+}
+
+.import-hub-link .import-hub-symbol::before,
+.import-hub-link .import-hub-symbol::after {
+  position: absolute;
+  top: 10rpx;
+  width: 24rpx;
+  height: 16rpx;
+  border: 3rpx solid currentColor;
+  border-radius: 12rpx;
+  content: '';
+}
+
+.import-hub-link .import-hub-symbol::before { left: 0; transform: rotate(-38deg); }
+.import-hub-link .import-hub-symbol::after { right: 0; transform: rotate(-38deg); }
+
+.import-hub-json .import-hub-symbol {
+  border-top: 3rpx solid currentColor;
+  border-bottom: 3rpx solid currentColor;
+}
+
+.import-hub-json .import-hub-symbol::before,
+.import-hub-json .import-hub-symbol::after {
+  position: absolute;
+  top: 4rpx;
+  bottom: 4rpx;
+  width: 11rpx;
+  border: 3rpx solid currentColor;
+  content: '';
+}
+
+.import-hub-json .import-hub-symbol::before { left: 0; border-right: 0; }
+.import-hub-json .import-hub-symbol::after { right: 0; border-left: 0; }
+
+.import-hub-scan .import-hub-symbol {
+  background: linear-gradient(90deg, currentColor 0 8rpx, transparent 8rpx 14rpx, currentColor 14rpx 24rpx, transparent 24rpx 30rpx, currentColor 30rpx 42rpx);
+}
+
+.import-hub-scan .import-hub-symbol::before {
+  position: absolute;
+  inset: -6rpx;
+  border: 3rpx solid currentColor;
+  content: '';
+}
+
+.import-hub-file .import-hub-symbol {
+  border: 3rpx solid currentColor;
+}
+
+.import-hub-file .import-hub-symbol::before {
+  position: absolute;
+  right: -3rpx;
+  top: -3rpx;
+  width: 15rpx;
+  height: 15rpx;
+  border-bottom: 3rpx solid currentColor;
+  border-left: 3rpx solid currentColor;
+  background: var(--app-panel-strong);
+  content: '';
+}
+
+.source-row-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.source-row-signal {
+  width: 18rpx;
+  height: 18rpx;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 7rpx color-mix(in srgb, currentColor 12%, transparent);
+}
+
+.source-detail-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.source-detail-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30rpx;
+  height: 30rpx;
+  border: 2rpx solid currentColor;
+  border-radius: 50%;
+  font-family: Georgia, serif;
+  font-size: 21rpx;
+  font-style: italic;
+  font-weight: 700;
+}
+
+.installed-source-row {
+  border-width: var(--app-card-border-width, 1rpx);
+  box-shadow: none;
+  animation: source-row-enter 360ms var(--app-motion-smooth) both;
+  animation-delay: var(--source-enter-delay, 0ms);
+  will-change: transform, opacity;
+}
+
+.installed-source-row:active {
+  border-color: var(--app-accent);
+  background: color-mix(in srgb, var(--app-panel) 84%, var(--app-accent));
+}
+
+.theme-candy.decoder-source-page .import-hub-action,
+.theme-candy.decoder-source-page .installed-source-row {
+  border: 2rpx solid rgba(52, 42, 50, 0.78);
+}
+
+.theme-cyber.decoder-source-page .source-import-hub,
+.theme-cyber.decoder-source-page .import-hub-action,
+.theme-cyber.decoder-source-page .installed-source-row {
+  border-radius: var(--app-card-radius, 8rpx);
+}
+
+.theme-noirGold.decoder-source-page .source-import-hub {
+  box-shadow: inset 0 0 0 7rpx rgba(213, 175, 98, 0.022), var(--app-shadow);
+}
+
+/* Information architecture pass: import is the primary action; records and tools stay secondary. */
+.source-import-hub {
+  padding: 30rpx;
+}
+
+.import-hub-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16rpx;
+  margin-top: 26rpx;
+}
+
+.import-hub-action {
+  min-height: 154rpx;
+  height: auto;
+  flex-direction: row;
+  justify-content: flex-start;
+  gap: 16rpx;
+  padding: 20rpx 18rpx;
+  text-align: left;
+  letter-spacing: 0;
+}
+
+.import-hub-action .import-hub-symbol {
+  flex: 0 0 42rpx;
+  margin: 0;
+}
+
+.import-hub-action-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.import-hub-action-title,
+.import-hub-action-desc {
+	display: block;
+	max-width: 100%;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
+.import-hub-action-title {
+	margin-bottom: 0;
+	color: var(--app-text);
+	font-family: var(--app-display-font);
+	font-size: 25rpx;
+	font-weight: 760;
+  line-height: 34rpx;
+}
+
+.import-hub-action-desc {
+  margin-top: 5rpx;
+  color: var(--app-muted);
+  font-family: var(--app-body-font);
+  font-size: 18rpx;
+  font-weight: 500;
+  line-height: 26rpx;
+}
+
+.import-hub-action:nth-child(1),
+.import-hub-action:nth-child(4) {
+  background: color-mix(in srgb, var(--app-panel) 82%, var(--app-accent));
+}
+
+.import-hub-action:nth-child(2),
+.import-hub-action:nth-child(3) {
+  background: color-mix(in srgb, var(--app-panel) 86%, var(--app-accent-2));
+}
+
+.decoder-source-page .source-meta-section {
+  margin-top: 34rpx;
+  padding: 24rpx 0 0;
+  border: 0;
+  border-top: 1rpx solid var(--app-border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.decoder-source-page .source-meta-section .tools-head,
+.decoder-source-page .source-meta-section .recent-import-head {
+  padding: 0 4rpx;
+}
+
+.decoder-source-page .source-meta-section .recent-import-row {
+  margin: 0 4rpx;
+  border-top: 1rpx solid color-mix(in srgb, var(--app-border) 72%, transparent);
+}
+
+@media (max-width: 360px) {
+  .source-import-hub {
+    padding: 24rpx;
+  }
+
+  .import-hub-actions {
+    gap: 12rpx;
+  }
+
+  .import-hub-action {
+    gap: 12rpx;
+    min-height: 142rpx;
+    padding: 16rpx 14rpx;
+  }
+
+  .import-hub-action-title { font-size: 23rpx; }
+  .import-hub-action-desc { font-size: 17rpx; }
+}
+
+.drawer-mask {
+  animation: source-drawer-mask-in 200ms ease both;
+}
+
+.import-drawer,
+.source-filter-sheet {
+  animation: source-drawer-enter var(--app-motion-duration-normal) var(--app-motion-spring) both;
+}
+
+@keyframes source-row-enter {
+  from { opacity: 0; transform: translate3d(0, 20rpx, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+@keyframes source-drawer-mask-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes source-drawer-enter {
+  from { opacity: 0; transform: translate3d(-50%, 40rpx, 0); }
+  to { opacity: 1; transform: translate3d(-50%, 0, 0); }
 }
 </style>

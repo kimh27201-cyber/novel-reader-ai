@@ -3,6 +3,7 @@ import { friendlyErrorMessage } from './uiFeedback.js'
 const DEFAULT_BASE_URL = 'http://127.0.0.1:8000'
 const BASE_URL_KEY = 'novelReaderBackendBaseUrl'
 const TOKEN_KEY = 'novelReaderBackendToken'
+const REFRESH_TOKEN_KEY = 'novelReaderBackendRefreshToken'
 const DIAGNOSTIC_LIMIT = 20
 
 export class ApiError extends Error {
@@ -86,14 +87,6 @@ function mergeLoginTokenFromHeader(path, data, response) {
   }
 }
 
-function appendAccessToken(path, token) {
-  if (!token) {
-    return path
-  }
-  const separator = path.includes('?') ? '&' : '?'
-  return `${path}${separator}access_token=${encodeURIComponent(token)}`
-}
-
 function redactUrl(value) {
   return String(value || '').replace(/access_token=[^&]+/g, 'access_token=<redacted>')
 }
@@ -114,6 +107,8 @@ export function createApiClient(deps = {}) {
   const requestAdapter = deps.request || (options => defaultRequest(options))
   const diagnostics = []
   let memoryToken = ''
+  let memoryRefreshToken = ''
+  let refreshPromise = null
 
   function recordDiagnostic(entry) {
     const safeEntry = {
@@ -157,12 +152,40 @@ export function createApiClient(deps = {}) {
     })
   }
 
-  function clearToken() {
-    memoryToken = ''
-    removeStorageSync(TOKEN_KEY)
+  function getRefreshToken() {
+    const storedToken = String(getStorageSync(REFRESH_TOKEN_KEY) || '')
+    if (storedToken) {
+      memoryRefreshToken = storedToken
+      return storedToken
+    }
+    return memoryRefreshToken
   }
 
-  function request(path, options = {}) {
+  function setRefreshToken(token) {
+    memoryRefreshToken = String(token || '')
+    if (memoryRefreshToken) {
+      setStorageSync(REFRESH_TOKEN_KEY, memoryRefreshToken)
+    } else {
+      removeStorageSync(REFRESH_TOKEN_KEY)
+    }
+  }
+
+  function setTokenPair(data = {}) {
+    if (data.access_token) setToken(data.access_token)
+    if (data.refresh_token) setRefreshToken(data.refresh_token)
+    return data
+  }
+
+  function clearTokens() {
+    memoryToken = ''
+    memoryRefreshToken = ''
+    removeStorageSync(TOKEN_KEY)
+    removeStorageSync(REFRESH_TOKEN_KEY)
+  }
+
+  const clearToken = clearTokens
+
+  function rawRequest(path, options = {}) {
     const method = options.method || 'GET'
     const auth = options.auth !== false
     const header = {
@@ -174,9 +197,8 @@ export function createApiClient(deps = {}) {
     }
     if (auth && getToken()) {
       header.Authorization = `Bearer ${getToken()}`
-      header['X-Access-Token'] = getToken()
     }
-    const requestPath = auth ? appendAccessToken(path, getToken()) : path
+    const requestPath = path
     const requestUrl = `${getBaseUrl()}${requestPath}`
 
     return new Promise((resolve, reject) => {
@@ -202,9 +224,6 @@ export function createApiClient(deps = {}) {
           if (statusCode >= 200 && statusCode < 300) {
             resolve(data)
             return
-          }
-          if (statusCode === 401) {
-            clearToken()
           }
           response.data = data
           reject(new ApiError(getErrorMessage(response.data, `请求失败：${statusCode}`), statusCode, response.data))
@@ -242,9 +261,6 @@ export function createApiClient(deps = {}) {
             resolve(data)
             return
           }
-          if (statusCode === 401) {
-            clearToken()
-          }
           response.data = data
           reject(new ApiError(getErrorMessage(response.data, `请求失败：${statusCode}`), statusCode, response.data))
         }).catch(error => {
@@ -254,12 +270,58 @@ export function createApiClient(deps = {}) {
     })
   }
 
+  function refreshTokens() {
+    if (refreshPromise) return refreshPromise
+    const refreshToken = getRefreshToken()
+    if (!refreshToken) {
+      return Promise.reject(new ApiError('登录状态已过期，请重新登录', 401, null))
+    }
+    refreshPromise = rawRequest('/api/auth/refresh', {
+      method: 'POST',
+      auth: false,
+      data: { refresh_token: refreshToken }
+    }).then(setTokenPair).catch(error => {
+      clearTokens()
+      throw error
+    }).finally(() => {
+      refreshPromise = null
+    })
+    return refreshPromise
+  }
+
+  async function request(path, options = {}) {
+    try {
+      return await rawRequest(path, options)
+    } catch (error) {
+      const canRefresh = error instanceof ApiError && error.statusCode === 401 &&
+        options.auth !== false && options.retryAfterRefresh !== false && !!getRefreshToken()
+      if (!canRefresh) {
+        if (error instanceof ApiError && error.statusCode === 401 && options.auth !== false) clearTokens()
+        throw error
+      }
+      await refreshTokens()
+      const retryData = typeof options.dataAfterRefresh === 'function'
+        ? options.dataAfterRefresh()
+        : options.data
+      try {
+        return await rawRequest(path, { ...options, data: retryData, retryAfterRefresh: false })
+      } catch (retryError) {
+        if (retryError instanceof ApiError && retryError.statusCode === 401) clearTokens()
+        throw retryError
+      }
+    }
+  }
+
   return {
     getBaseUrl,
     setBaseUrl,
     getToken,
     setToken,
+    getRefreshToken,
+    setRefreshToken,
+    setTokenPair,
     clearToken,
+    clearTokens,
     getDiagnostics() {
       return diagnostics.slice()
     },
@@ -273,11 +335,26 @@ export function createApiClient(deps = {}) {
         auth: false,
         data: { username, password }
       }).then(data => {
-        if (data && data.access_token) {
-          setToken(data.access_token)
-        }
+        setTokenPair(data)
+        if (!data || !data.refresh_token) setRefreshToken('')
         return data
       })
+    },
+    refresh() {
+      return refreshTokens()
+    },
+    async logout() {
+      const refreshToken = getRefreshToken()
+      try {
+        if (!refreshToken) return { revoked: false }
+        return await request('/api/auth/logout', {
+          method: 'POST',
+          data: { refresh_token: refreshToken },
+          dataAfterRefresh: () => ({ refresh_token: getRefreshToken() })
+        })
+      } finally {
+        clearTokens()
+      }
     },
     getMe() {
       return request('/api/auth/me')
@@ -285,8 +362,8 @@ export function createApiClient(deps = {}) {
     healthCheck() {
       return request('/api/health', { auth: false })
     },
-    listBooks() {
-      return request('/api/books')
+    listBooks(params = {}) {
+      return request(`/api/books${buildQuery(params)}`)
     },
     createBook(payload) {
       return request('/api/books', {
@@ -296,6 +373,15 @@ export function createApiClient(deps = {}) {
     },
     getBook(bookId) {
       return request(`/api/books/${bookId}`)
+    },
+    updateBook(bookId, payload) {
+      return request(`/api/books/${bookId}`, {
+        method: 'PATCH',
+        data: payload
+      })
+    },
+    deleteBook(bookId) {
+      return request(`/api/books/${bookId}`, { method: 'DELETE' })
     },
     listChapters(bookId) {
       return request(`/api/books/${bookId}/chapters`)
@@ -324,8 +410,8 @@ export function createApiClient(deps = {}) {
     getReadingHistory(bookId) {
       return request(`/api/reading-history${buildQuery({ book_id: bookId })}`)
     },
-    listSources() {
-      return request('/api/sources')
+    listSources(params = {}) {
+      return request(`/api/sources${buildQuery(params)}`)
     },
     importDemoSource() {
       return request('/api/sources/import-demo', {
@@ -341,6 +427,12 @@ export function createApiClient(deps = {}) {
     deleteSource(sourceId) {
       return request(`/api/sources/${sourceId}`, {
         method: 'DELETE'
+      })
+    },
+    updateSource(sourceId, payload) {
+      return request(`/api/sources/${sourceId}`, {
+        method: 'PATCH',
+        data: payload
       })
     },
     getSourceSession(sourceId) {
@@ -371,7 +463,7 @@ export function createApiClient(deps = {}) {
     proxyFetch(url, options = {}) {
       return request('/api/proxy/fetch', {
         method: 'POST',
-        auth: false,
+        auth: true,
         data: {
           url,
           method: String(options.method || 'GET').toUpperCase(),
@@ -386,6 +478,24 @@ export function createApiClient(deps = {}) {
       return request(`/api/sources/${sourceId}/search`, {
         method: 'POST',
         data: { keyword, page }
+      })
+    },
+    multiSourceSearch(payload) {
+      return request('/api/search/books', {
+        method: 'POST',
+        data: payload
+      })
+    },
+    diagnoseSource(sourceId, payload = {}) {
+      return request(`/api/sources/${sourceId}/diagnostics`, {
+        method: 'POST',
+        data: payload
+      })
+    },
+    diagnoseSources(payload = {}) {
+      return request('/api/sources/diagnostics', {
+        method: 'POST',
+        data: payload
       })
     },
     loadSourceToc(sourceId, { bookUrl, tocUrl = null }) {
@@ -435,6 +545,22 @@ export function createApiClient(deps = {}) {
     listAiCalls(params = {}) {
       const query = buildQuery(params)
       return request(`/api/ai/calls${query}`)
+    },
+    syncPush({ deviceId, device_id, mutations = [] }) {
+      return request('/api/sync/push', {
+        method: 'POST',
+        data: {
+          device_id: deviceId || device_id,
+          mutations
+        }
+      })
+    },
+    syncPull({ deviceId, device_id, cursor = 0, limit = 200 }) {
+      return request(`/api/sync/pull${buildQuery({
+        device_id: deviceId || device_id,
+        cursor,
+        limit
+      })}`)
     }
   }
 }

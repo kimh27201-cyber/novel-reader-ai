@@ -1,15 +1,25 @@
 import logging
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from jwt import InvalidTokenError
-from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.core.security import create_access_token, decode_access_token, hash_password, verify_password
+from app.core.security import decode_access_token
+from app.core.config import get_settings
 from app.db.session import get_db
 from app.models.models import User
-from app.schemas.auth import Token, UserLogin, UserRead, UserRegister
+from app.schemas.auth import LogoutRequest, LogoutResponse, RefreshTokenRequest, Token, UserLogin, UserRead, UserRegister
+from app.services.auth_service import (
+    DuplicateUserError,
+    InvalidCredentialsError,
+    get_active_user,
+    login_user as login_user_service,
+    logout_user as logout_user_service,
+    refresh_access_token as refresh_access_token_service,
+    register_user as register_user_service,
+)
+from app.services.token_service import RefreshTokenError
 
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -25,14 +35,16 @@ def normalize_bearer_token(value: str) -> str:
 
 
 def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(bearer_scheme),
     x_access_token: str | None = Header(default=None, alias="X-Access-Token"),
     access_token: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ) -> User:
-    token_source = "authorization" if credentials else "x-access-token" if x_access_token else "query" if access_token else "missing"
+    query_token = access_token if get_settings().allow_query_token_auth else None
+    token_source = "authorization" if credentials else "x-access-token" if x_access_token else "query" if query_token else "missing"
     logger.info("auth token source=%s", token_source)
-    token = credentials.credentials if credentials else x_access_token or access_token
+    token = credentials.credentials if credentials else x_access_token or query_token
     if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -48,49 +60,63 @@ def get_current_user(
             detail="Invalid authentication token",
         )
 
-    user = db.get(User, user_id)
-    if not user or not user.is_active:
+    user = get_active_user(db, user_id)
+    if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="User not found or disabled",
         )
+    request.state.user_id = user.id
     return user
 
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 def register_user(payload: UserRegister, db: Session = Depends(get_db)) -> User:
-    username = payload.username.strip()
-    email = payload.email.strip().lower()
-    existing = db.query(User).filter(or_(User.username == username, User.email == email)).first()
-    if existing:
+    try:
+        return register_user_service(
+            db,
+            username=payload.username,
+            email=payload.email,
+            password=payload.password,
+        )
+    except DuplicateUserError as exc:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Username or email already registered",
-        )
-
-    user = User(
-        username=username,
-        email=email,
-        hashed_password=hash_password(payload.password),
-    )
-    db.add(user)
-    db.commit()
-    db.refresh(user)
-    return user
+            detail=str(exc),
+        ) from exc
 
 
 @router.post("/login", response_model=Token)
 def login_user(payload: UserLogin, response: Response, db: Session = Depends(get_db)) -> Token:
-    user = db.query(User).filter(User.username == payload.username.strip()).first()
-    if not user or not verify_password(payload.password, user.hashed_password):
+    try:
+        pair = login_user_service(db, username=payload.username, password=payload.password)
+    except InvalidCredentialsError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Incorrect username or password",
-        )
-    token = create_access_token(str(user.id))
-    response.headers["X-Access-Token"] = token
+            detail=str(exc),
+        ) from exc
+    response.headers["X-Access-Token"] = str(pair["access_token"])
     response.headers["Access-Control-Expose-Headers"] = "X-Access-Token"
-    return Token(access_token=token)
+    return Token(**pair)
+
+
+@router.post("/refresh", response_model=Token)
+def refresh_access_token(payload: RefreshTokenRequest, db: Session = Depends(get_db)) -> Token:
+    try:
+        pair = refresh_access_token_service(db, payload.refresh_token)
+    except RefreshTokenError as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(exc)) from exc
+    return Token(**pair)
+
+
+@router.post("/logout", response_model=LogoutResponse)
+def logout_user(
+    payload: LogoutRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> LogoutResponse:
+    revoked = logout_user_service(db, payload.refresh_token, current_user.id)
+    return LogoutResponse(revoked=revoked)
 
 
 @router.get("/me", response_model=UserRead)

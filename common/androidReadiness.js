@@ -6,6 +6,16 @@ function stateLabel(state) {
   return '待处理'
 }
 
+function backendAddressDetail(backend) {
+  if (!backend.mobileReady) {
+    return '请填写 http://127.0.0.1:8000，或填写电脑局域网 IP。'
+  }
+  if (backend.connectionMode === 'adb-reverse') {
+    return `手机将通过 ADB reverse 访问 ${backend.normalized}，请保持数据线连接。`
+  }
+  return `手机将访问 ${backend.normalized}，请保持手机和电脑在同一 Wi-Fi。`
+}
+
 export function getAndroidDemoReadiness(options = {}) {
   const backend = analyzeBackendBaseUrl(options.backendBaseUrl)
   const hasHealth = !!String(options.backendHealth || '').trim()
@@ -13,11 +23,9 @@ export function getAndroidDemoReadiness(options = {}) {
   const items = [
     {
       id: 'backend-address',
-      title: '局域网后端地址',
+      title: '后端地址',
       state: backend.mobileReady ? 'ready' : 'action',
-      detail: backend.mobileReady
-        ? `手机将访问 ${backend.normalized}，请保持同一 Wi-Fi。`
-        : '请把 127.0.0.1 / localhost 改成电脑局域网 IP。'
+      detail: backendAddressDetail(backend)
     },
     {
       id: 'backend-health',
@@ -29,7 +37,7 @@ export function getAndroidDemoReadiness(options = {}) {
       id: 'backend-login',
       title: '后端登录状态',
       state: hasUser ? 'ready' : 'action',
-      detail: hasUser ? `已登录：${options.backendUser.username || '当前用户'}` : '登录后再录屏 AI 与云端书架链路。'
+      detail: hasUser ? `已登录：${options.backendUser.username || '当前用户'}` : '登录后再验收 AI 与云端书架链路。'
     },
     {
       id: 'dcloud-appid',

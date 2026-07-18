@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from uuid import uuid4
 
 import jwt
 from passlib.context import CryptContext
@@ -7,7 +8,11 @@ from passlib.context import CryptContext
 from app.core.config import get_settings
 
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+pwd_context = CryptContext(
+    schemes=["bcrypt"],
+    deprecated="auto",
+    bcrypt__rounds=get_settings().bcrypt_rounds,
+)
 
 
 def hash_password(password: str) -> str:
@@ -23,7 +28,12 @@ def create_access_token(subject: str, expires_delta: timedelta | None = None) ->
     expire = datetime.now(timezone.utc) + (
         expires_delta or timedelta(minutes=settings.access_token_expire_minutes)
     )
-    payload: dict[str, Any] = {"sub": subject, "exp": expire}
+    payload: dict[str, Any] = {
+        "sub": subject,
+        "exp": expire,
+        "iat": datetime.now(timezone.utc),
+        "jti": uuid4().hex,
+    }
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
 

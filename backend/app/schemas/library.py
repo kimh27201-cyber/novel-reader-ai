@@ -11,12 +11,25 @@ class BookCreate(BaseModel):
     book_url: str = Field(default="", max_length=1000)
     toc_url: str = Field(default="", max_length=1000)
     source_id: int | None = None
+    sync_id: str | None = Field(default=None, min_length=8, max_length=32)
+
+
+class BookUpdate(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=255)
+    author: str | None = Field(default=None, max_length=255)
+    cover_url: str | None = Field(default=None, max_length=1000)
+    description: str | None = None
+    book_url: str | None = Field(default=None, max_length=1000)
+    toc_url: str | None = Field(default=None, max_length=1000)
+    source_id: int | None = None
 
 
 class BookRead(BaseModel):
     id: int
     user_id: int
     source_id: int | None
+    sync_id: str
+    version: int
     title: str
     author: str
     cover_url: str
@@ -74,6 +87,8 @@ class ReadingHistoryRead(BaseModel):
     id: int
     user_id: int
     book_id: int
+    sync_id: str
+    version: int
     chapter_id: int | None
     chapter_index: int
     page_index: int

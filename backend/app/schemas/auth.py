@@ -26,4 +26,18 @@ class UserRead(BaseModel):
 
 class Token(BaseModel):
     access_token: str
+    refresh_token: str | None = None
     token_type: str = "bearer"
+    expires_in: int | None = None
+
+
+class RefreshTokenRequest(BaseModel):
+    refresh_token: str = Field(min_length=20, max_length=500)
+
+
+class LogoutRequest(BaseModel):
+    refresh_token: str = Field(min_length=20, max_length=500)
+
+
+class LogoutResponse(BaseModel):
+    revoked: bool

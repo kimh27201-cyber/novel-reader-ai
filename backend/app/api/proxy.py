@@ -4,13 +4,18 @@ from typing import Any
 from urllib.parse import urlparse
 
 import httpx
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
+
+from app.api.auth import get_current_user
+from app.core.config import get_settings
+from app.models.models import User
+from app.services.source_gateway import UpstreamResponseTooLarge, close_http_client, fetch, get_http_client, validate_target
 
 
 router = APIRouter(prefix="/api/proxy", tags=["proxy"])
 
-ALLOWED_METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE"}
+ALLOWED_METHODS = {"GET", "POST"}
 BLOCKED_REQUEST_HEADERS = {
     "host",
     "content-length",
@@ -49,26 +54,39 @@ def proxy_health() -> dict[str, str]:
 
 
 @router.post("/fetch", response_model=ProxyFetchResponse)
-async def proxy_fetch(payload: ProxyFetchRequest) -> ProxyFetchResponse:
+async def proxy_fetch(
+    payload: ProxyFetchRequest,
+    _: User = Depends(get_current_user),
+) -> ProxyFetchResponse:
     validate_proxy_request(payload)
+    await validate_proxy_target(payload.url)
     started_at = time.monotonic()
     await throttle_by_host(payload.url, payload.throttle_ms)
     request_headers = sanitize_headers(payload.headers)
 
     try:
-        response = await get_proxy_http_client().request(
+        response = await fetch(
             payload.method.upper(),
             payload.url,
             headers=request_headers,
             content=payload.body.encode("utf-8") if payload.body is not None else None,
+            throttle_ms=0,
         )
-    except httpx.HTTPError as exc:
+    except UpstreamResponseTooLarge as exc:
+        raise HTTPException(status_code=status.HTTP_413_CONTENT_TOO_LARGE, detail=str(exc)) from exc
+    except (httpx.HTTPError, ValueError) as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=f"Proxy request failed: {exc}",
         ) from exc
 
     decoded_text, encoding = decode_response_text_with_encoding(response, payload.charset or "")
+    settings = get_settings()
+    if len(response.content or b"") > settings.proxy_max_response_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail="Proxy response is too large",
+        )
     return ProxyFetchResponse(
         text=decoded_text,
         status_code=response.status_code,
@@ -81,14 +99,11 @@ async def proxy_fetch(payload: ProxyFetchRequest) -> ProxyFetchResponse:
 
 
 def get_proxy_http_client() -> httpx.AsyncClient:
-    global _proxy_http_client
-    if _proxy_http_client is None or getattr(_proxy_http_client, "is_closed", False):
-        _proxy_http_client = httpx.AsyncClient(
-            follow_redirects=True,
-            timeout=15.0,
-            limits=httpx.Limits(max_connections=40, max_keepalive_connections=20),
-        )
-    return _proxy_http_client
+    return get_http_client()
+
+
+async def close_proxy_http_client() -> None:
+    await close_http_client()
 
 
 def validate_proxy_request(payload: ProxyFetchRequest) -> None:
@@ -97,6 +112,21 @@ def validate_proxy_request(payload: ProxyFetchRequest) -> None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only http and https URLs can be proxied")
     if payload.method.upper() not in ALLOWED_METHODS:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unsupported method: {payload.method}")
+    body_size = len((payload.body or "").encode("utf-8"))
+    if body_size > get_settings().proxy_max_request_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail="Proxy request body is too large",
+        )
+
+
+async def validate_proxy_target(url: str) -> None:
+    try:
+        await validate_target(url)
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
 
 
 async def throttle_by_host(url: str, throttle_ms: int | None = None) -> None:

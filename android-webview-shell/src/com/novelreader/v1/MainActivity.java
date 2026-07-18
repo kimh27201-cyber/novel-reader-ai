@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.Manifest;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
@@ -44,6 +45,7 @@ import org.json.JSONObject;
 
 public class MainActivity extends Activity {
     private static final String TAG = "NovelReaderWebView";
+    private static final String APP_URL = "file:///android_asset/www/index.html";
     private static final int CAMERA_PERMISSION_REQUEST = 1001;
     private static final int FILE_CHOOSER_REQUEST = 1002;
     private static final int SCAN_QR_REQUEST = 1003;
@@ -51,6 +53,8 @@ public class MainActivity extends Activity {
     private PermissionRequest pendingPermissionRequest;
     private ValueCallback<Uri[]> filePathCallback;
     private String scanCallbackName;
+    private PendingDeepLinkStore pendingDeepLinkStore;
+    private boolean pageLoaded;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -63,8 +67,22 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT
             )
         );
+        pendingDeepLinkStore = new PendingDeepLinkStore();
         configureWebView(webView);
-        webView.loadUrl("file:///android_asset/www/index.html");
+        String initialDeepLink = extractIncomingDeepLink(getIntent());
+        if (initialDeepLink != null) {
+            pendingDeepLinkStore.save(initialDeepLink, "onCreate");
+            openImportScanPage();
+        } else {
+            webView.loadUrl(APP_URL);
+        }
+    }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        handleIncomingDeepLink(intent);
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -90,6 +108,7 @@ public class MainActivity extends Activity {
         }
         view.addJavascriptInterface(new LocalChapterBridge(), "NovelReaderLocalStorage");
         view.addJavascriptInterface(new ScanBridge(), "NovelReaderScan");
+        view.addJavascriptInterface(new DeepLinkBridge(), "NovelReaderDeepLinkBridge");
         view.addJavascriptInterface(new RenderedHtmlBridge(), "NovelReaderWebViewParser");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             WebView.setWebContentsDebuggingEnabled(false);
@@ -162,6 +181,7 @@ public class MainActivity extends Activity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 Log.d(TAG, "page finished: " + url);
+                pageLoaded = true;
             }
 
             @Override
@@ -220,6 +240,84 @@ public class MainActivity extends Activity {
                 dispatchScanResult(callback, false, "", "原生扫码启动失败");
                 return true;
             }
+        }
+    }
+
+    public class DeepLinkBridge {
+        @JavascriptInterface
+        public String peekDeepLink() {
+            return pendingDeepLinkStore.peekDeepLink();
+        }
+
+        @JavascriptInterface
+        public boolean ackDeepLink(String id) {
+            return pendingDeepLinkStore.ackDeepLink(id);
+        }
+
+        @JavascriptInterface
+        public String consumeDeepLink() {
+            return pendingDeepLinkStore.consumeUri();
+        }
+    }
+
+    private class PendingDeepLinkStore {
+        private static final String PREFS = "novel_reader_pending_deep_link";
+        private static final String KEY_ID = "id";
+        private static final String KEY_URI = "uri";
+        private static final String KEY_CREATED_AT = "createdAt";
+        private static final String KEY_SOURCE = "source";
+        private final SharedPreferences prefs = getSharedPreferences(PREFS, MODE_PRIVATE);
+
+        void save(String uri, String source) {
+            if (uri == null || uri.trim().isEmpty()) {
+                return;
+            }
+            String normalized = uri.trim();
+            String id = System.currentTimeMillis() + "_" + Math.abs(normalized.hashCode());
+            prefs.edit()
+                .putString(KEY_ID, id)
+                .putString(KEY_URI, normalized)
+                .putLong(KEY_CREATED_AT, System.currentTimeMillis())
+                .putString(KEY_SOURCE, source == null ? "" : source)
+                .apply();
+        }
+
+        String peekDeepLink() {
+            String uri = prefs.getString(KEY_URI, "");
+            if (uri == null || uri.trim().isEmpty()) {
+                return "{\"ok\":false,\"reason\":\"empty\"}";
+            }
+            try {
+                JSONObject payload = new JSONObject();
+                payload.put("ok", true);
+                payload.put("id", prefs.getString(KEY_ID, ""));
+                payload.put("uri", uri);
+                payload.put("createdAt", prefs.getLong(KEY_CREATED_AT, 0));
+                payload.put("source", prefs.getString(KEY_SOURCE, ""));
+                return payload.toString();
+            } catch (Exception error) {
+                Log.e(TAG, "deep link peek failed: " + error.getMessage());
+                return "{\"ok\":false,\"reason\":\"peek-failed\"}";
+            }
+        }
+
+        boolean ackDeepLink(String id) {
+            String storedId = prefs.getString(KEY_ID, "");
+            if (id == null || storedId == null || !storedId.equals(id)) {
+                return false;
+            }
+            clear();
+            return true;
+        }
+
+        void clear() {
+            prefs.edit().clear().apply();
+        }
+
+        String consumeUri() {
+            String uri = prefs.getString(KEY_URI, "");
+            clear();
+            return uri == null ? "" : uri;
         }
     }
 
@@ -513,6 +611,34 @@ public class MainActivity extends Activity {
                 webView.loadUrl("javascript:" + script);
             }
         });
+    }
+
+    private String extractIncomingDeepLink(Intent intent) {
+        if (intent == null) {
+            return null;
+        }
+        String uri = intent.getDataString();
+        if (uri == null || uri.trim().isEmpty()) {
+            return null;
+        }
+        return uri.trim();
+    }
+
+    private void handleIncomingDeepLink(Intent intent) {
+        String uri = extractIncomingDeepLink(intent);
+        if (uri == null) {
+            return;
+        }
+        pendingDeepLinkStore.save(uri, "onNewIntent");
+        openImportScanPage();
+    }
+
+    private void openImportScanPage() {
+        if (webView == null) {
+            return;
+        }
+        pageLoaded = false;
+        webView.loadUrl(APP_URL + "#/pages/import/scan?fromDeepLink=1");
     }
 
     private String escapeJson(String value) {

@@ -110,6 +110,15 @@ const jsPreview = mixedPreview.sources.find(item => item.name === 'JS Source')
 assert.equal(jsPreview.compatible, false)
 assert.ok(jsPreview.reasons.some(reason => reason.includes('JS')))
 
+const beforeIncompatibleImportCount = getSourceConfigs().length
+const incompatibleOnlyPreview = buildImportPreview(normalizeBookSources(jsSource, { source: 'paste' }), getSourceConfigs())
+const incompatibleOnlyResult = applyImportPreview(incompatibleOnlyPreview)
+assert.equal(incompatibleOnlyResult.imported, 0)
+assert.equal(incompatibleOnlyResult.updated, 0)
+assert.equal(incompatibleOnlyResult.skipped, 1)
+assert.equal(getSourceConfigs().length, beforeIncompatibleImportCount)
+assert.equal(getSourceConfigs().some(source => source.name === 'JS Source'), false)
+
 const safeJsPreview = previewSourcesImport(JSON.stringify([safeJsSource]))
 assert.equal(safeJsPreview.incompatible, 0)
 assert.equal(safeJsPreview.sources[0].compatible, true)

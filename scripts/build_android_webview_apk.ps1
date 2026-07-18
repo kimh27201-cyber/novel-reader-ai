@@ -2,18 +2,24 @@ param(
     [string]$SdkRoot = "D:\program\Android\SDK",
     [string]$BuildToolsVersion = "37.0.0",
     [string]$PlatformVersion = "android-36.1",
-    [string]$NodePath = "D:\HBuilderX\plugins\node\node.exe"
+    [string]$NodePath = "D:\HBuilderX\plugins\node\node.exe",
+    [string]$H5RootOverride = "",
+    [string]$BuildRootOverride = "",
+    [string]$AssetsRootOverride = "",
+    [string]$ReleaseRootOverride = ""
 )
 
 $ErrorActionPreference = "Stop"
 
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $RepoRoot = [System.IO.Path]::GetFullPath((Join-Path $ScriptDir ".."))
+$WorkspaceRoot = [System.IO.Path]::GetFullPath((Join-Path $RepoRoot ".."))
 $ShellRoot = Join-Path $RepoRoot "android-webview-shell"
-$H5Root = Join-Path $RepoRoot "unpackage\dist\build\h5"
-$BuildRoot = Join-Path $ShellRoot "build"
-$AssetsRoot = Join-Path $ShellRoot "assets\www"
-$ReleaseRoot = Join-Path $RepoRoot "release\android-v2"
+$H5Root = if ($H5RootOverride) { [System.IO.Path]::GetFullPath($H5RootOverride) } else { Join-Path $RepoRoot "unpackage\dist\build\h5" }
+$BuildRoot = if ($BuildRootOverride) { [System.IO.Path]::GetFullPath($BuildRootOverride) } else { Join-Path $ShellRoot "build" }
+$AssetsRoot = if ($AssetsRootOverride) { [System.IO.Path]::GetFullPath($AssetsRootOverride) } else { Join-Path $ShellRoot "assets\www" }
+$AssetsContainer = Split-Path -Parent $AssetsRoot
+$ReleaseRoot = if ($ReleaseRootOverride) { [System.IO.Path]::GetFullPath($ReleaseRootOverride) } else { Join-Path $RepoRoot "release\android-v2" }
 $Keystore = Join-Path $RepoRoot "release\novel-reader-update.keystore"
 $LegacyUpdateKeystore = Join-Path $RepoRoot "release\android-v1\novel-reader-v1-test.keystore"
 
@@ -21,6 +27,13 @@ function Assert-RepoPath([string]$Path) {
     $full = [System.IO.Path]::GetFullPath($Path)
     if (-not $full.StartsWith($RepoRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
         throw "Refusing to modify path outside repository: $full"
+    }
+}
+
+function Assert-WorkspacePath([string]$Path) {
+    $full = [System.IO.Path]::GetFullPath($Path)
+    if (-not $full.StartsWith($WorkspaceRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Refusing to modify path outside workspace: $full"
     }
 }
 
@@ -99,9 +112,10 @@ Require-File $Zipalign
 Require-File $Apksigner
 Require-File $NodePath
 
-Assert-RepoPath $BuildRoot
-Assert-RepoPath $AssetsRoot
-Assert-RepoPath $ReleaseRoot
+Assert-WorkspacePath $BuildRoot
+Assert-WorkspacePath $AssetsRoot
+Assert-WorkspacePath $AssetsContainer
+Assert-WorkspacePath $ReleaseRoot
 Assert-RepoPath $Keystore
 Assert-RepoPath $LegacyUpdateKeystore
 
@@ -146,9 +160,9 @@ Invoke-Checked { & $Aapt2 link `
         --java $GenRoot `
         --min-sdk-version 23 `
         --target-sdk-version 36 `
-        -A (Join-Path $ShellRoot "assets") `
+        -A $AssetsContainer `
         $CompiledRes }
-Add-ZipDirectory -ZipPath $UnsignedApk -SourceRoot (Join-Path $ShellRoot "assets") -EntryRoot "assets"
+Add-ZipDirectory -ZipPath $UnsignedApk -SourceRoot $AssetsContainer -EntryRoot "assets"
 Assert-ApkAsset -ApkPath $UnsignedApk -EntryName "assets/www/index.html"
 
 $JavaFiles = Get-ChildItem -Path (Join-Path $ShellRoot "src") -Filter "*.java" -Recurse | ForEach-Object { $_.FullName }

@@ -114,13 +114,14 @@ async def request_observability_middleware(request: Request, call_next) -> Respo
         return response
     except Exception:
         status_code = 500
-        logger.exception(
+        logger.error(
             json.dumps(
                 {
                     "event": "request_failed",
                     "request_id": request_id,
                     "method": request.method,
                     "path": request.url.path,
+                    "user_id": getattr(request.state, "user_id", None),
                 },
                 ensure_ascii=False,
             )
@@ -140,6 +141,7 @@ async def request_observability_middleware(request: Request, call_next) -> Respo
                     "request_id": request_id,
                     "method": request.method,
                     "path": request.url.path,
+                    "user_id": getattr(request.state, "user_id", None),
                     "status_code": status_code,
                     "duration_ms": duration_ms,
                 },

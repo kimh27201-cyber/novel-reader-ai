@@ -2,19 +2,19 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { getAndroidDemoReadiness } from '../common/androidReadiness.js'
 
-const blocked = getAndroidDemoReadiness({
+const adbReverse = getAndroidDemoReadiness({
   backendBaseUrl: 'http://127.0.0.1:8000',
   backendUser: null,
   backendHealth: ''
 })
 
-assert.equal(blocked.canRecordDemo, false)
-assert.equal(blocked.readyCount, 0)
-assert.equal(blocked.actionCount, 3)
-assert.equal(blocked.manualCount, 2)
-assert.equal(blocked.items[0].id, 'backend-address')
-assert.equal(blocked.items[0].state, 'action')
-assert.match(blocked.items[0].detail, /局域网 IP/)
+assert.equal(adbReverse.canRecordDemo, false)
+assert.equal(adbReverse.readyCount, 1)
+assert.equal(adbReverse.actionCount, 2)
+assert.equal(adbReverse.manualCount, 2)
+assert.equal(adbReverse.items[0].id, 'backend-address')
+assert.equal(adbReverse.items[0].state, 'ready')
+assert.match(adbReverse.items[0].detail, /ADB reverse/)
 
 const ready = getAndroidDemoReadiness({
   backendBaseUrl: 'http://192.168.1.8:8000',
@@ -33,6 +33,13 @@ assert.deepEqual(
 assert.match(ready.summary, /主链路已准备/)
 assert.match(ready.items[3].detail, /DCloud AppID/)
 assert.match(ready.items[4].detail, /HBuilderX/)
+
+const invalid = getAndroidDemoReadiness({
+  backendBaseUrl: 'http://',
+  backendUser: null,
+  backendHealth: ''
+})
+assert.equal(invalid.items[0].state, 'action')
 
 const manifest = JSON.parse(readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'))
 assert.equal(manifest.versionName, '1.0.0')

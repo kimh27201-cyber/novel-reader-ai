@@ -61,6 +61,6 @@ assert.match(library, /buildImportReadiness/)
 assert.match(library, /summarizeImportReadiness/)
 assert.match(library, /importReadiness/)
 assert.match(library, /refreshImportReadiness/)
-assert.match(library, /真实导入自检/)
+assert.match(library, /确认导入/)
 
 console.log('importReadiness tests passed')

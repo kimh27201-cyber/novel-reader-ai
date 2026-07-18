@@ -19,6 +19,8 @@ android-webview-shell/build/
 release/
 
 # Local tooling and acceptance artifacts
+.agents/
+.npm-cache/
 .claude/
 .playwright-cli/
 output/

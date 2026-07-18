@@ -1,5 +1,6 @@
 <template>
-  <view class="profile-page app-page" :style="themeVars">
+  <view class="tab-page-shell" :class="themeClass" :style="themeVars">
+  <view class="profile-page app-page tab-page-content" :class="[themeClass, pageMotionClass]">
     <view class="top-zone">
       <view>
         <text class="eyebrow">ME</text>
@@ -9,40 +10,45 @@
     </view>
 
     <view class="backend-card">
-      <view class="backend-head">
+      <view class="backend-head" @tap="backendExpanded = !backendExpanded">
         <view>
-          <view class="backend-title">后端连接</view>
+          <view class="backend-title">阅读服务</view>
           <text class="backend-desc">{{ backendStatusDesc }}</text>
         </view>
-        <text class="backend-status" :class="{ online: backend.user }">{{ backend.user ? 'ONLINE' : 'OFFLINE' }}</text>
+        <view class="backend-head-right">
+          <text class="backend-status" :class="{ online: backend.user, loading: backend.loading }">{{ backend.user ? '已连接' : '未连接' }}</text>
+          <text class="backend-expand-arrow">{{ backendExpanded ? '▴' : '▾' }}</text>
+        </view>
       </view>
 
-      <input class="backend-input" v-model="backend.baseUrl" placeholder="后端地址" />
-      <view class="backend-tip" :class="{ warning: !backendAddressTip.mobileReady }">
-        <text>{{ backendAddressTip.message }}</text>
-      </view>
-      <view class="backend-grid">
-        <input class="backend-input" v-model="backend.username" placeholder="用户名" />
-        <input class="backend-input" v-model="backend.password" password placeholder="密码" />
-      </view>
-      <text class="backend-error" v-if="backend.error">{{ backend.error }}</text>
-      <text class="backend-health" v-if="backend.health">{{ backend.health }}</text>
-      <view class="backend-hint" v-if="!backend.user && debugModeEnabled">
-        <view class="hint-title">FastAPI 未启动时</view>
-        <text class="hint-command" v-for="line in backendStartCommands" :key="line">{{ line }}</text>
-      </view>
-      <view class="backend-actions">
-        <button class="backend-button" @tap="saveBackendBaseUrl">保存地址</button>
-        <button class="backend-button" :loading="backend.loading" @tap="checkBackendHealth">自检后端</button>
-        <button class="backend-button primary" :loading="backend.loading" @tap="loginBackend">登录后端</button>
-        <button class="backend-button" :loading="backend.loading" @tap="refreshBackendMe">刷新状态</button>
-        <button class="backend-button" @tap="copyBackendDiagnostics">复制日志</button>
-        <button class="backend-button" v-if="debugModeEnabled" @tap="openSwagger">打开 Swagger</button>
-        <button class="backend-button ghost" @tap="logoutBackend">退出</button>
+      <view class="backend-detail" v-if="backendExpanded">
+        <input class="backend-input" v-model="backend.baseUrl" placeholder="后端地址" />
+        <view class="backend-tip" :class="{ warning: !backendAddressTip.mobileReady }">
+          <text>{{ backendAddressTip.message }}</text>
+        </view>
+        <view class="backend-grid">
+          <input class="backend-input" v-model="backend.username" placeholder="用户名" />
+          <input class="backend-input" v-model="backend.password" password placeholder="密码" />
+        </view>
+        <text class="backend-error app-motion-feedback" v-if="backend.error">{{ backend.error }}</text>
+        <text class="backend-health app-motion-feedback" v-if="backend.health">{{ backend.health }}</text>
+        <view class="backend-hint" v-if="!backend.user && debugModeEnabled">
+          <view class="hint-title">FastAPI 未启动时</view>
+          <text class="hint-command" v-for="line in backendStartCommands" :key="line">{{ line }}</text>
+        </view>
+        <view class="backend-actions">
+          <button class="backend-button" @tap="saveBackendBaseUrl">保存地址</button>
+          <button class="backend-button" :loading="backend.loading" @tap="checkBackendHealth">检查连接</button>
+          <button class="backend-button primary" :loading="backend.loading" @tap="loginBackend">登录后端</button>
+          <button class="backend-button" :loading="backend.loading" @tap="refreshBackendMe">刷新状态</button>
+          <button class="backend-button" @tap="copyBackendDiagnostics">复制诊断</button>
+          <button class="backend-button" v-if="debugModeEnabled" @tap="openSwagger">打开 Swagger</button>
+          <button class="backend-button ghost" @tap="logoutBackend">退出</button>
+        </view>
       </view>
     </view>
 
-    <view class="development-card" v-if="debugModeEnabled">
+    <view class="development-card" v-if="debugModeEnabled && devPanelVisible">
       <view class="development-head">
         <view>
           <text class="eyebrow">DEBUG MODE</text>
@@ -138,11 +144,12 @@
     </view>
 
     <view class="settings-list">
+      <text class="section-label settings-section-first">常用</text>
       <view class="setting-item" v-for="item in mainItems" :key="item.id" @tap="openItem(item.id)">
         <text class="setting-icon">{{ item.icon }}</text>
         <view class="setting-copy">
-          <view class="setting-title">{{ item.title }}</view>
-          <text class="setting-desc">{{ item.desc }}</text>
+          <view class="setting-title">{{ item.id === 'web' ? '阅读服务' : item.title }}</view>
+          <text class="setting-desc">{{ item.id === 'web' ? '登录后可使用 AI 总结与问答' : item.desc }}</text>
         </view>
         <view class="setting-extra" v-if="item.id === 'theme'">{{ activeThemeName }}</view>
         <view class="setting-extra" v-if="item.id === 'web'">{{ backend.user ? '已连接' : '未启动' }}</view>
@@ -164,6 +171,14 @@
           <text class="setting-desc">与界面/颜色相关的一些设置</text>
         </view>
       </view>
+      <view class="setting-item" @tap="cycleMotionPreference">
+        <text class="setting-icon">◌</text>
+        <view class="setting-copy">
+          <view class="setting-title">动效效果</view>
+          <text class="setting-desc">控制转场、弹层与阅读翻页的动态效果</text>
+        </view>
+        <view class="setting-extra">{{ motionPreferenceLabel }}</view>
+      </view>
       <view class="setting-item" @tap="showBoundary">
         <text class="setting-icon">⌾</text>
         <view class="setting-copy">
@@ -175,38 +190,90 @@
         <text class="setting-icon">i</text>
         <view class="setting-copy">
           <view class="setting-title">关于</view>
-          <text class="setting-desc">{{ debugModeEnabled ? '调试模式已开启' : '连续点击版本号 7 次开启调试模式' }}</text>
+          <text class="setting-desc">{{ debugModeEnabled ? (devPanelVisible ? '调试面板已展开 · 点击隐藏' : '调试模式已开启 · 点击展开面板') : '' }}</text>
         </view>
         <view class="setting-extra">V1</view>
       </view>
     </view>
 
-    <view class="theme-panel app-floating-panel" v-if="themeVisible">
+    <view class="theme-panel-mask app-motion-overlay" v-if="themeVisible" @tap="closeThemePanel"></view>
+    <view class="theme-panel app-floating-panel app-motion-sheet profile-theme-panel-enter" v-if="themeVisible">
       <view class="panel-head">
-        <view class="panel-title">主题模式</view>
-        <button class="close-button" @tap="themeVisible = false">×</button>
-      </view>
-      <view class="theme-row" v-for="theme in themes" :key="theme.id" :class="{ active: themeId === theme.id }" @tap="chooseTheme(theme.id)">
         <view>
-          <view class="theme-name">{{ theme.name }}</view>
-          <text class="theme-desc">{{ theme.desc }}</text>
+          <view class="panel-kicker">PERSONAL STYLE</view>
+          <view class="panel-title">选择你的阅读气质</view>
+          <text class="panel-desc">轻触预览，确认后才会保存</text>
         </view>
-        <view class="theme-swatch">
-          <text
-            class="swatch-dot"
-            v-for="color in theme.swatch"
-            :key="color"
-            :style="{ background: color }"
-          ></text>
+        <button class="close-button" aria-label="关闭主题选择" @tap="closeThemePanel">×</button>
+      </view>
+      <scroll-view class="theme-grid" scroll-y :show-scrollbar="false">
+        <view class="theme-grid-inner">
+          <view
+            class="theme-card"
+            v-for="theme in themes"
+            :key="theme.id"
+            :class="{ active: pendingThemeId === theme.id, saved: savedThemeId === theme.id, 'app-motion-feedback': pendingThemeId === theme.id && pendingThemeId !== savedThemeId }"
+            @tap="previewTheme(theme.id)"
+          >
+            <view class="theme-preview" :class="`theme-${theme.id}`" :style="theme.vars">
+              <view class="theme-preview-pattern"></view>
+              <view class="theme-preview-seal"></view>
+              <view class="theme-preview-top">
+                <text>{{ theme.preview.kicker }}</text>
+                <text class="theme-preview-dot">●</text>
+              </view>
+              <view class="theme-preview-book">
+                <view class="theme-preview-spine"></view>
+                <view>
+                  <text class="theme-preview-title">{{ theme.preview.sample }}</text>
+                  <text class="theme-preview-motif">{{ theme.preview.motif }}</text>
+                </view>
+                <text class="theme-preview-arrow">›</text>
+              </view>
+            </view>
+            <view class="theme-card-copy">
+              <view class="theme-name-line">
+                <view class="theme-name">{{ theme.name }}</view>
+                <text class="theme-saved-badge" v-if="savedThemeId === theme.id" aria-label="当前主题">✓</text>
+              </view>
+              <text class="theme-category">{{ theme.category }}</text>
+              <text class="theme-desc">{{ theme.desc }}</text>
+            </view>
+            <view class="theme-swatch">
+              <text
+                class="swatch-dot"
+                v-for="color in theme.swatch"
+                :key="color"
+                :style="{ background: color }"
+              ></text>
+            </view>
+          </view>
         </view>
+      </scroll-view>
+      <view class="theme-panel-actions">
+        <button class="theme-cancel-button" @tap="closeThemePanel">取消</button>
+        <button class="theme-apply-button" @tap="applyTheme">应用 {{ pendingThemeName }}</button>
       </view>
     </view>
+  </view>
+  <GlassTabBar active-path="pages/profile/profile" />
   </view>
 </template>
 
 <script>
 import { exportTrackedBooks } from '../../common/tracking.js'
-import { appThemes, getAppThemeId, getAppThemeStyle, saveAppTheme } from '../../common/appTheme.js'
+import {
+  appThemes,
+  applyAppThemeChrome,
+  getAppThemeId,
+  getAppThemeStyle,
+  previewAppTheme,
+  saveAppTheme
+} from '../../common/appTheme.js'
+import GlassTabBar from '../../custom-tab-bar/index.vue'
+import { getMotionPreference, getNavigationMotion, saveMotionPreference } from '../../common/motion.js'
+import { markTabRouteShown } from '../../common/tabNavigation.js'
+import { ensureNativeTabBarHidden } from '../../common/tabShell.js'
 import apiClient from '../../common/apiClient.js'
 import { analyzeBackendBaseUrl, buildBackendStartCommands } from '../../common/backendConnection.js'
 import { getAndroidDemoReadiness } from '../../common/androidReadiness.js'
@@ -227,11 +294,19 @@ import {
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 
 export default {
+  components: { GlassTabBar },
   data() {
     return {
       themeId: getAppThemeId(),
+      savedThemeId: getAppThemeId(),
+      pendingThemeId: getAppThemeId(),
       themes: appThemes,
       themeVisible: false,
+      pageMotionKind: '',
+      pageMotionDirection: 'forward',
+      themePreviewTimer: null,
+      themePreviewToken: 0,
+      motionPreference: getMotionPreference(),
       backend: {
         baseUrl: '',
         username: 'student',
@@ -241,6 +316,8 @@ export default {
         health: '',
         error: ''
       },
+      backendExpanded: false,
+      devPanelVisible: false,
       deviceValidationItems: DEVICE_VALIDATION_ITEMS,
       deviceValidationState: getDeviceValidationState(),
       debugModeState: getDebugModeState(),
@@ -259,11 +336,29 @@ export default {
     themeVars() {
       return getAppThemeStyle(this.themeId)
     },
+    themeClass() {
+      return `theme-${this.themeId}`
+    },
+    pageMotionClass() {
+      return this.pageMotionKind === 'tab'
+        ? `app-tab-enter app-tab-enter-${this.pageMotionDirection === 'back' ? 'back' : 'forward'}`
+        : ''
+    },
     activeThemeName() {
       return (this.themes.find(theme => theme.id === this.themeId) || this.themes[0]).name
     },
+    pendingThemeName() {
+      return (this.themes.find(theme => theme.id === this.pendingThemeId) || this.themes[0]).name
+    },
     themeAccent() {
       return getAppThemeStyle(this.themeId)['--app-accent']
+    },
+    motionPreferenceLabel() {
+      return {
+        system: '跟随系统',
+        reduced: '减少动效',
+        full: '完整动效'
+      }[this.motionPreference] || '跟随系统'
     },
     backendStatusDesc() {
       return this.backend.user
@@ -306,11 +401,38 @@ export default {
     }
   },
   onShow() {
-    this.themeId = getAppThemeId()
+    markTabRouteShown('pages/profile/profile')
+    ensureNativeTabBarHidden()
+    const savedThemeId = getAppThemeId()
+    this.savedThemeId = savedThemeId
+    this.pendingThemeId = savedThemeId
+    this.themeId = savedThemeId
+    const motion = getNavigationMotion()
+    this.pageMotionKind = motion.kind
+    this.pageMotionDirection = motion.direction
+    this.motionPreference = getMotionPreference()
     this.debugModeState = getDebugModeState()
     this.loadBackendState()
   },
+  onUnload() {
+    this.clearThemePreview()
+  },
+  onBackPress() {
+    if (this.themeVisible) {
+      this.closeThemePanel()
+      return true
+    }
+    return false
+  },
   methods: {
+    cycleMotionPreference() {
+      const preferences = ['system', 'reduced', 'full']
+      const index = preferences.indexOf(this.motionPreference)
+      const next = preferences[(index + 1) % preferences.length]
+      const state = saveMotionPreference(next)
+      this.motionPreference = state.preference
+      uni.showToast({ title: `动效：${this.motionPreferenceLabel}`, icon: 'none' })
+    },
     loadBackendState() {
       this.backend.baseUrl = apiClient.getBaseUrl()
       if (apiClient.getToken()) {
@@ -369,11 +491,11 @@ export default {
       try {
         this.backend.baseUrl = apiClient.setBaseUrl(this.backend.baseUrl)
         const result = await apiClient.healthCheck()
-        this.backend.health = `健康检查通过：${result.status || 'ok'}`
-        uni.showToast({ title: '后端健康检查通过', icon: 'none' })
+        this.backend.health = `连接检查通过：${result.status || 'ok'}`
+        uni.showToast({ title: '连接检查通过', icon: 'none' })
       } catch (error) {
         this.backend.health = ''
-        this.backend.error = friendlyErrorMessage(error, '后端健康检查失败')
+        this.backend.error = friendlyErrorMessage(error, '连接检查失败')
         uni.showToast({ title: this.backend.error, icon: 'none' })
       } finally {
         this.backend.loading = false
@@ -390,7 +512,7 @@ export default {
       const diagnostics = apiClient.getDiagnostics ? apiClient.getDiagnostics() : []
       const payload = diagnostics.length
         ? JSON.stringify(diagnostics, null, 2)
-        : '暂无 API 诊断日志。请先点“自检后端”或“登录后端”后再复制。'
+        : '暂无诊断信息。请先点“检查连接”或“登录后端”后再复制。'
       uni.setClipboardData({
         data: payload,
         success: () => uni.showToast({ title: '诊断日志已复制', icon: 'none' })
@@ -422,9 +544,15 @@ export default {
       uni.showToast({ title: '验收清单已重置', icon: 'none' })
     },
     onVersionTap() {
+      if (this.debugModeEnabled) {
+        this.devPanelVisible = !this.devPanelVisible
+        uni.showToast({ title: this.devPanelVisible ? '调试面板已展开' : '调试面板已隐藏', icon: 'none' })
+        return
+      }
       const state = tapDebugModeVersion()
       this.debugModeState = state
       if (state.enabled) {
+        this.devPanelVisible = true
         uni.showToast({ title: '调试模式已开启', icon: 'none' })
         return
       }
@@ -463,12 +591,47 @@ export default {
       })
     },
     openThemePanel() {
+      this.clearThemePreview()
+      const savedThemeId = getAppThemeId()
+      this.savedThemeId = savedThemeId
+      this.pendingThemeId = savedThemeId
+      this.themeId = savedThemeId
       this.themeVisible = true
     },
-    chooseTheme(themeId) {
-      this.themeId = saveAppTheme(themeId)
+    previewTheme(themeId) {
+      if (!this.themes.some(theme => theme.id === themeId)) return
+      this.pendingThemeId = themeId
+      this.clearThemePreview()
+      const token = ++this.themePreviewToken
+      this.themePreviewTimer = setTimeout(() => {
+        if (token !== this.themePreviewToken) return
+        this.themePreviewTimer = null
+        this.themeId = previewAppTheme(themeId)
+      }, 120)
+    },
+    clearThemePreview() {
+      if (this.themePreviewTimer) {
+        clearTimeout(this.themePreviewTimer)
+        this.themePreviewTimer = null
+      }
+      this.themePreviewToken += 1
+    },
+    closeThemePanel() {
+      this.clearThemePreview()
+      this.themeId = this.savedThemeId
+      this.pendingThemeId = this.savedThemeId
       this.themeVisible = false
-      uni.showToast({ title: '主题已切换', icon: 'none' })
+      previewAppTheme(this.savedThemeId)
+    },
+    applyTheme() {
+      this.clearThemePreview()
+      const nextThemeId = saveAppTheme(this.pendingThemeId)
+      this.savedThemeId = nextThemeId
+      this.pendingThemeId = nextThemeId
+      this.themeId = nextThemeId
+      this.themeVisible = false
+      applyAppThemeChrome(nextThemeId)
+      uni.showToast({ title: `已应用${this.pendingThemeName}`, icon: 'none' })
     },
     exportBackup() {
       uni.setClipboardData({
@@ -494,7 +657,8 @@ export default {
   min-height: 100vh;
   margin: 0 auto;
   padding: 86rpx 40rpx 132rpx;
-  background: #1f1f1f;
+  color: var(--app-text);
+  background: var(--app-bg);
 }
 
 button::after {
@@ -508,7 +672,7 @@ button::after {
   min-height: 116rpx;
   margin: -86rpx -40rpx 34rpx;
   padding: 86rpx 40rpx 28rpx;
-  background: #60757d;
+  background: var(--app-top);
 }
 
 .eyebrow {
@@ -548,6 +712,29 @@ button::after {
   border-radius: 22rpx;
   background: rgba(47, 48, 45, 0.94);
   box-shadow: inset 0 1rpx 0 rgba(255, 255, 255, 0.04);
+}
+
+.backend-head {
+  cursor: pointer;
+}
+
+.backend-head-right {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  flex-shrink: 0;
+}
+
+.backend-expand-arrow {
+  color: var(--app-muted);
+  font-size: 26rpx;
+  line-height: 1;
+}
+
+.backend-detail {
+  margin-top: 18rpx;
+  padding-top: 18rpx;
+  border-top: 1rpx solid rgba(255, 255, 255, 0.06);
 }
 
 .development-card {
@@ -1190,7 +1377,7 @@ button::after {
 .profile-page {
   background:
     radial-gradient(circle at 20% 0%, rgba(96, 117, 125, 0.18), transparent 30%),
-    linear-gradient(180deg, #20211f 0%, #1b1c1a 100%);
+    linear-gradient(180deg, var(--app-stage) 0%, var(--app-bg) 100%);
 }
 
 .top-zone {
@@ -1381,5 +1568,602 @@ button::after {
 .close-button {
   color: var(--app-text);
   border-color: var(--app-text);
+}
+
+/* Personal theme studio: each card previews its own tokens while the page previews the pending choice. */
+.theme-panel-mask {
+  position: fixed;
+  z-index: 18;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.52);
+}
+
+.theme-panel {
+  z-index: 20;
+  bottom: calc(124rpx + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  max-height: calc(100vh - 166rpx - env(safe-area-inset-bottom));
+  padding: 28rpx 28rpx 24rpx;
+  overflow: hidden;
+  border-radius: var(--app-card-radius, 24rpx) var(--app-card-radius, 24rpx) 0 0;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.panel-head {
+  flex-shrink: 0;
+  margin-bottom: 22rpx;
+  padding-right: 4rpx;
+}
+
+.panel-kicker {
+  color: var(--app-accent-3);
+  font-size: 18rpx;
+  font-weight: 750;
+  letter-spacing: 4rpx;
+  line-height: 28rpx;
+}
+
+.panel-title {
+  margin-top: 4rpx;
+  font-family: var(--app-heading-font);
+  font-size: 34rpx;
+  font-weight: 780;
+  line-height: 46rpx;
+}
+
+.panel-desc {
+  display: block;
+  margin-top: 5rpx;
+  color: var(--app-muted);
+  font-size: 21rpx;
+  line-height: 30rpx;
+}
+
+.theme-panel .close-button {
+  flex-shrink: 0;
+  width: 72rpx;
+  height: 72rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: var(--app-control-radius, 14rpx);
+  color: var(--app-muted);
+  background: var(--app-input);
+}
+
+.theme-grid {
+  flex: 1;
+  min-height: 0;
+  height: 60vh;
+  max-height: 920rpx;
+}
+
+.theme-grid-inner {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16rpx;
+  padding: 2rpx 2rpx 18rpx;
+}
+
+.theme-card {
+  position: relative;
+  min-width: 0;
+  padding: 12rpx;
+  overflow: hidden;
+  border: 2rpx solid var(--app-border);
+  border-radius: var(--app-card-radius, 18rpx);
+  background: var(--app-panel);
+  box-shadow: none;
+  transition: transform var(--app-motion-fast), border-color var(--app-motion-fast), background var(--app-motion-fast);
+}
+
+.theme-card:active {
+  transform: scale(0.98);
+}
+
+.theme-card.active {
+  border-color: var(--app-accent);
+  background: var(--app-surface);
+  box-shadow: inset 0 0 0 1rpx var(--app-accent);
+}
+
+.theme-preview {
+  position: relative;
+  height: 154rpx;
+  padding: 14rpx;
+  overflow: hidden;
+  border: 1rpx solid var(--app-border);
+  border-radius: var(--app-card-radius, 14rpx);
+  color: var(--app-text);
+  background: var(--app-bg);
+}
+
+.theme-preview-pattern {
+  position: absolute;
+  z-index: 0;
+  inset: 0;
+  opacity: 0.34;
+  background-image: var(--app-pattern);
+  background-size: 64rpx 64rpx;
+}
+
+.theme-preview-top,
+.theme-preview-book {
+  position: relative;
+  z-index: 1;
+}
+
+.theme-preview-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--app-muted);
+  font-size: 14rpx;
+  font-weight: 700;
+  letter-spacing: 1rpx;
+  line-height: 22rpx;
+}
+
+.theme-preview-dot {
+  color: var(--app-accent-3);
+  font-size: 12rpx;
+}
+
+.theme-preview-book {
+  display: flex;
+  align-items: center;
+  min-height: 82rpx;
+  margin-top: 12rpx;
+  padding: 10rpx 12rpx 10rpx 18rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: var(--app-control-radius, 10rpx);
+  background: var(--app-panel-strong);
+  box-shadow: none;
+}
+
+.theme-preview-spine {
+  position: absolute;
+  left: 0;
+  top: 12rpx;
+  bottom: 12rpx;
+  width: 4rpx;
+  background: var(--app-accent-3);
+}
+
+.theme-preview-title,
+.theme-preview-motif {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.theme-preview-title {
+  color: var(--app-text);
+  font-family: var(--app-heading-font);
+  font-size: 18rpx;
+  font-weight: 800;
+  line-height: 26rpx;
+}
+
+.theme-preview-motif {
+  margin-top: 2rpx;
+  color: var(--app-muted);
+  font-size: 13rpx;
+  line-height: 20rpx;
+}
+
+.theme-preview-arrow {
+  margin-left: auto;
+  color: var(--app-accent);
+  font-size: 34rpx;
+}
+
+.theme-card-copy {
+  padding: 14rpx 4rpx 0;
+}
+
+.theme-name-line {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.theme-name {
+  min-width: 0;
+  overflow: hidden;
+  font-family: var(--app-heading-font);
+  font-size: 25rpx;
+  font-weight: 780;
+  line-height: 34rpx;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.theme-saved-badge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28rpx;
+  height: 28rpx;
+  flex-shrink: 0;
+  margin-left: 8rpx;
+  padding: 0;
+  border-radius: 50%;
+  color: var(--app-on-accent);
+  font-size: 14rpx;
+  line-height: 20rpx;
+  background: var(--app-accent);
+}
+
+.theme-category {
+  display: block;
+  margin-top: 3rpx;
+  color: var(--app-accent-3);
+  font-size: 17rpx;
+  font-weight: 700;
+  line-height: 25rpx;
+}
+
+.theme-desc {
+  display: -webkit-box;
+  height: 56rpx;
+  margin-top: 5rpx;
+  overflow: hidden;
+  font-size: 18rpx;
+  line-height: 28rpx;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.theme-swatch {
+  gap: 7rpx;
+  padding: 12rpx 4rpx 3rpx;
+}
+
+.swatch-dot {
+  width: 20rpx;
+  height: 20rpx;
+  border-color: var(--app-border);
+}
+
+.theme-panel-actions {
+  display: grid;
+  flex-shrink: 0;
+  grid-template-columns: 0.72fr 1.28fr;
+  gap: 14rpx;
+  padding-top: 18rpx;
+  border-top: 1rpx solid var(--app-border);
+}
+
+.theme-cancel-button,
+.theme-apply-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 82rpx;
+  border-radius: var(--app-control-radius, 14rpx);
+  font-size: 24rpx;
+  font-weight: 720;
+}
+
+.theme-cancel-button {
+  color: var(--app-text);
+  background: var(--app-input);
+}
+
+.theme-apply-button {
+  color: var(--app-on-accent);
+  background: var(--app-accent);
+  box-shadow: none;
+}
+
+.backend-card,
+.demo-card,
+.apk-card,
+.validation-card,
+.setting-item {
+  border-radius: var(--app-card-radius, 18rpx);
+}
+
+@media (max-width: 380px) {
+  .theme-panel {
+    padding-right: 20rpx;
+    padding-left: 20rpx;
+  }
+
+  .theme-grid-inner {
+    gap: 12rpx;
+  }
+
+  .theme-preview {
+    height: 144rpx;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .theme-card {
+    transition: none;
+  }
+}
+
+/* V2 profile pass: organise control surfaces, let the chosen theme be the hero. */
+.settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.section-label.settings-section-first {
+  margin-top: 0;
+}
+
+.section-label {
+  display: block;
+  margin-top: var(--app-space-xl, 48rpx);
+  margin-bottom: var(--app-space-sm, 16rpx);
+  color: var(--app-accent-3);
+  font-family: var(--app-utility-font);
+  font-size: 19rpx;
+  font-weight: 750;
+  letter-spacing: 1.8rpx;
+  line-height: 30rpx;
+}
+
+.backend-card,
+.setting-item {
+  border-width: var(--app-card-border-width, 1rpx);
+  box-shadow: var(--app-card-outline), var(--app-shadow);
+}
+
+.backend-head {
+  padding-bottom: 18rpx;
+  border-bottom: 1rpx solid var(--app-border);
+}
+
+.backend-status {
+  font-family: var(--app-utility-font);
+  letter-spacing: 1rpx;
+}
+
+.backend-actions {
+  gap: 12rpx;
+}
+
+.backend-button {
+  min-height: var(--app-touch-target-min, 88rpx);
+  border-radius: var(--app-control-radius, 12rpx);
+}
+
+.setting-item {
+  position: relative;
+  min-height: 112rpx;
+  margin-bottom: 12rpx;
+  border-radius: var(--app-control-radius, 12rpx);
+  background: var(--app-panel);
+}
+
+.setting-item::after {
+  position: absolute;
+  right: 22rpx;
+  width: 10rpx;
+  height: 10rpx;
+  border-top: 2rpx solid var(--app-muted);
+  border-right: 2rpx solid var(--app-muted);
+  content: '';
+  transform: rotate(45deg);
+}
+
+.setting-item:active {
+  border-color: var(--app-accent);
+  background: color-mix(in srgb, var(--app-panel) 78%, var(--app-accent));
+}
+
+.setting-extra {
+  margin-right: 30rpx;
+  font-family: var(--app-utility-font);
+  font-size: 19rpx;
+  letter-spacing: .6rpx;
+}
+
+.theme-panel {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  animation: profile-theme-sheet-in var(--app-motion-duration-slow) var(--app-motion-spring) both;
+}
+
+.theme-preview {
+  height: 174rpx;
+  border-radius: 12rpx;
+  box-shadow: inset 0 0 0 5rpx rgba(255, 255, 255, 0.025);
+}
+
+.theme-preview::after {
+  position: absolute;
+  z-index: 3;
+  left: 50%;
+  bottom: 8rpx;
+  width: 42rpx;
+  height: 4rpx;
+  border-radius: 4rpx;
+  background: color-mix(in srgb, var(--app-text) 32%, transparent);
+  content: '';
+  transform: translateX(-50%);
+}
+
+.theme-card {
+  animation: profile-theme-card-in 320ms var(--app-motion-smooth) both;
+}
+
+.theme-card:nth-child(2) { animation-delay: 45ms; }
+.theme-card:nth-child(3) { animation-delay: 90ms; }
+.theme-card:nth-child(4) { animation-delay: 135ms; }
+.theme-card:nth-child(5) { animation-delay: 180ms; }
+
+.theme-card.active {
+  transform: translate3d(0, -4rpx, 0);
+}
+
+.theme-card.active .theme-preview {
+  border-color: var(--app-accent);
+}
+
+.theme-candy.profile-page .backend-card,
+.theme-candy.profile-page .setting-item,
+.theme-candy.profile-page .theme-card {
+  border: 2rpx solid rgba(52, 42, 50, 0.78);
+}
+
+.theme-cyber.profile-page .backend-card,
+.theme-cyber.profile-page .setting-item,
+.theme-cyber.profile-page .theme-card {
+  border-radius: var(--profile-surface-radius, 20rpx);
+}
+
+.theme-cyber.profile-page .theme-panel {
+  border-radius: var(--profile-panel-radius, 26rpx);
+}
+
+.theme-cyber.profile-page .theme-preview {
+  border-radius: calc(var(--profile-surface-radius, 20rpx) - 8rpx);
+}
+
+.theme-noirGold.profile-page .backend-card,
+.theme-noirGold.profile-page .setting-item,
+.theme-noirGold.profile-page .theme-card {
+  box-shadow: inset 0 0 0 6rpx rgba(213, 175, 98, 0.022), var(--app-shadow);
+}
+
+/* Profile control pass: every theme uses rounded, touchable surfaces instead of square modules. */
+.profile-page {
+  --profile-surface-radius: 28rpx;
+  --profile-control-radius: 18rpx;
+  --profile-panel-radius: 32rpx;
+}
+
+.theme-xuanye.profile-page {
+  --profile-surface-radius: 26rpx;
+  --profile-control-radius: 16rpx;
+  --profile-panel-radius: 30rpx;
+}
+
+.theme-candy.profile-page {
+  --profile-surface-radius: 24rpx;
+  --profile-control-radius: 18rpx;
+  --profile-panel-radius: 30rpx;
+}
+
+.theme-sakura.profile-page {
+  --profile-surface-radius: 30rpx;
+  --profile-control-radius: 20rpx;
+  --profile-panel-radius: 34rpx;
+}
+
+.theme-cyber.profile-page {
+  --profile-surface-radius: 20rpx;
+  --profile-control-radius: 14rpx;
+  --profile-panel-radius: 26rpx;
+}
+
+.theme-noirGold.profile-page {
+  --profile-surface-radius: 24rpx;
+  --profile-control-radius: 16rpx;
+  --profile-panel-radius: 30rpx;
+}
+
+.profile-page .backend-card,
+.profile-page .development-card,
+.profile-page .demo-card,
+.profile-page .apk-card,
+.profile-page .validation-card,
+.profile-page .setting-item,
+.profile-page .theme-card {
+  overflow: hidden;
+  border-radius: var(--profile-surface-radius);
+}
+
+.profile-page .theme-panel {
+  right: 24rpx;
+  bottom: calc(154rpx + env(safe-area-inset-bottom));
+  left: 24rpx;
+  border-radius: var(--profile-panel-radius);
+  box-shadow: 0 24rpx 72rpx rgba(20, 19, 25, 0.26), var(--app-shadow);
+}
+
+.profile-page .theme-preview {
+  border-radius: calc(var(--profile-surface-radius) - 8rpx);
+}
+
+.profile-page .theme-preview-book,
+.profile-page .backend-input,
+.profile-page .backend-tip,
+.profile-page .backend-hint,
+.profile-page .backend-button,
+.profile-page .demo-button,
+.profile-page .validation-button,
+.profile-page .theme-cancel-button,
+.profile-page .theme-apply-button {
+  border-radius: var(--profile-control-radius);
+}
+
+.profile-page .help-button,
+.profile-page .close-button {
+  border-radius: 50%;
+}
+
+.profile-page .setting-item {
+  padding-right: 42rpx;
+}
+
+.profile-page .setting-icon {
+  width: 76rpx;
+  height: 76rpx;
+  margin-left: 18rpx;
+  border-radius: calc(var(--profile-control-radius) - 4rpx);
+  background: color-mix(in srgb, var(--app-accent) 12%, var(--app-panel));
+}
+
+.theme-xuanye.profile-page .setting-icon,
+.theme-cyber.profile-page .setting-icon {
+  box-shadow: inset 0 0 0 1rpx color-mix(in srgb, var(--app-accent) 38%, transparent);
+}
+
+.theme-cyber.profile-page .theme-apply-button,
+.theme-cyber.profile-page .backend-button.primary {
+  border-radius: var(--profile-control-radius, 14rpx);
+}
+
+.theme-candy.profile-page .setting-icon {
+  border: 2rpx solid rgba(52, 42, 50, 0.76);
+  box-shadow: 3rpx 3rpx 0 rgba(85, 199, 232, 0.36);
+}
+
+.theme-sakura.profile-page .setting-icon {
+  background: linear-gradient(135deg, rgba(233, 122, 174, 0.18), rgba(165, 139, 231, 0.16));
+}
+
+.theme-noirGold.profile-page .setting-icon {
+  border: 1rpx solid rgba(213, 175, 98, 0.38);
+  background: rgba(213, 175, 98, 0.08);
+}
+
+.theme-panel-mask {
+  animation: profile-overlay-in 200ms ease both;
+}
+
+@keyframes profile-theme-sheet-in {
+  from { opacity: 0; transform: translate3d(-50%, 48rpx, 0); }
+  to { opacity: 1; transform: translate3d(-50%, 0, 0); }
+}
+
+@keyframes profile-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes profile-theme-card-in {
+  from { opacity: 0; transform: translate3d(0, 18rpx, 0); }
+  to { opacity: 1; transform: translate3d(0, 0, 0); }
 }
 </style>

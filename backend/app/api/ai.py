@@ -1,7 +1,7 @@
 import json
 import time
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.auth import get_current_user
@@ -138,6 +138,8 @@ async def create_ai_summary(
 def list_ai_summaries(
     book_id: int | None = None,
     chapter_id: int | None = None,
+    limit: int = Query(default=100, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[AISummaryResponse]:
@@ -147,7 +149,7 @@ def list_ai_summaries(
         query = query.filter(AiSummary.book_id == book_id)
     if chapter_id is not None:
         query = query.filter(AiSummary.chapter_id == chapter_id)
-    records = query.order_by(AiSummary.created_at.desc(), AiSummary.id.desc()).all()
+    records = query.order_by(AiSummary.created_at.desc(), AiSummary.id.desc()).offset(offset).limit(limit).all()
     return [summary_to_response(record) for record in records]
 
 
@@ -210,6 +212,8 @@ async def create_ai_chat(
 def list_ai_chats(
     book_id: int | None = None,
     chapter_id: int | None = None,
+    limit: int = Query(default=100, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[ChatRecord]:
@@ -219,7 +223,7 @@ def list_ai_chats(
         query = query.filter(ChatRecord.book_id == book_id)
     if chapter_id is not None:
         query = query.filter(ChatRecord.chapter_id == chapter_id)
-    return query.order_by(ChatRecord.created_at.desc(), ChatRecord.id.desc()).all()
+    return query.order_by(ChatRecord.created_at.desc(), ChatRecord.id.desc()).offset(offset).limit(limit).all()
 
 
 @router.get("/calls", response_model=list[AICallLogResponse])
@@ -228,6 +232,8 @@ def list_ai_call_logs(
     chapter_id: int | None = None,
     call_type: str | None = None,
     status_value: str | None = None,
+    limit: int = Query(default=100, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[AiCallLog]:
@@ -241,4 +247,4 @@ def list_ai_call_logs(
         query = query.filter(AiCallLog.call_type == call_type.strip())
     if status_value:
         query = query.filter(AiCallLog.status == status_value.strip())
-    return query.order_by(AiCallLog.created_at.desc(), AiCallLog.id.desc()).all()
+    return query.order_by(AiCallLog.created_at.desc(), AiCallLog.id.desc()).offset(offset).limit(limit).all()

@@ -2,14 +2,24 @@ import os
 import sqlite3
 import tempfile
 from pathlib import Path
+from typing import Any
+
+
+_INITIALIZED_ENGINES: set[int] = set()
 
 
 def configure_test_environment(test_file: str) -> Path:
     backend_dir = Path(test_file).resolve().parents[1]
-    database_path = _resolve_writable_database_path(backend_dir)
-
-    os.environ["DATABASE_URL"] = f"sqlite:///{database_path.as_posix()}"
+    test_database_url = os.environ.get("NOVEL_READER_TEST_DATABASE_URL", "").strip()
+    if test_database_url:
+        os.environ["DATABASE_URL"] = test_database_url
+    else:
+        database_path = _resolve_writable_database_path(backend_dir)
+        os.environ["DATABASE_URL"] = f"sqlite:///{database_path.as_posix()}"
     os.environ["JWT_SECRET_KEY"] = "test-secret-key"
+    os.environ["APP_ENV"] = "test"
+    os.environ["BCRYPT_ROUNDS"] = "4"
+    os.environ["ALLOW_QUERY_TOKEN_AUTH"] = "false"
 
     return backend_dir
 
@@ -45,3 +55,14 @@ def _can_write_sqlite_database(database_path: Path) -> bool:
         return True
     except (OSError, sqlite3.Error):
         return False
+
+
+def reset_database(base: Any, engine: Any) -> None:
+    """Reset test rows without rebuilding the complete schema for every test."""
+    engine_key = id(engine)
+    if engine_key not in _INITIALIZED_ENGINES:
+        base.metadata.create_all(bind=engine)
+        _INITIALIZED_ENGINES.add(engine_key)
+    with engine.begin() as connection:
+        for table in reversed(base.metadata.sorted_tables):
+            connection.execute(table.delete())

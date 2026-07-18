@@ -20,9 +20,15 @@ import { friendlyErrorMessage } from './uiFeedback.js'
 import { normalizeHeaders } from './headerUtils.js'
 import { clearSourceCookies, getSourceCookie } from './sourceCookieJar.js'
 import { buildSourceSessionHeaders, getActiveSourceSession } from './sourceSession.js'
+import {
+  clearImportLogs as clearStoredImportLogs,
+  getImportLogs as getStoredImportLogs,
+  saveImportLog
+} from './sourceImportLog.js'
 
 const USER_SOURCES_KEY = 'sources:user'
 const SOURCE_SETTINGS_KEY = 'sources:settings'
+const IMPORT_HISTORY_KEY = 'sources:import-history'
 const ONLINE_SEARCH_SETTINGS_KEY = 'sources:online-search-settings'
 const ONLINE_BOOKS_KEY = 'sources:online-books'
 const ONLINE_DRAFT_KEY = 'sources:online-draft'
@@ -135,6 +141,17 @@ function getUserSources() {
 
 function writeUserSources(sources) {
   writeStorage(USER_SOURCES_KEY, sources)
+}
+
+function uniqueStrings(values = []) {
+  const seen = new Set()
+  return (Array.isArray(values) ? values : [values])
+    .map(value => String(value || '').trim())
+    .filter(value => {
+      if (!value || seen.has(value)) return false
+      seen.add(value)
+      return true
+    })
 }
 
 function getSourceSettings() {
@@ -1023,6 +1040,12 @@ export function getSourceQualityStats() {
 
 export function detectImportInputType(input) {
   const payload = detectSourceImportPayload(input)
+  const yck = resolveYckCeoUrl(payload.value || input)
+  if (yck.isYck) {
+    if (yck.action === 'navigate') return { type: 'repository-list', value: yck.url }
+    if (yck.kind === 'content') return { type: 'repository-detail', value: yck.url, sourceUrl: yck.sourceUrl }
+    if (yck.kind === 'json') return { type: 'json-url', value: yck.url, sourceUrl: yck.sourceUrl }
+  }
   if (payload.type === 'repository-page') {
     const value = String(payload.value || '').trim()
     if (/\/yuedu\/shuyuan\/index\.html(?:[?#].*)?$/i.test(value)) {
@@ -1033,6 +1056,71 @@ export function detectImportInputType(input) {
     }
   }
   return payload
+}
+
+export function extractYckSourceId(input) {
+  const value = normalizeYckInput(input)
+  const match = value.match(/\/yuedu\/shuyuan\/(?:content|json)\/id\/(\d+)\.(?:html|json)(?:[?#].*)?$/i)
+  return match ? match[1] : ''
+}
+
+export function buildYckJsonUrl(id) {
+  const value = String(id || '').trim()
+  return value ? `https://www.yckceo.com/yuedu/shuyuan/json/id/${value}.json` : ''
+}
+
+export function buildYckContentUrl(id) {
+  const value = String(id || '').trim()
+  return value ? `https://www.yckceo.com/yuedu/shuyuan/content/id/${value}.html` : ''
+}
+
+export function detectYckCeoUrl(input) {
+  const value = normalizeYckInput(input)
+  if (!/https?:\/\/(?:www\.)?yck(?:ceo\.com|2026\.top)\//i.test(value)) {
+    return { isYck: false, kind: '', id: '', url: value }
+  }
+  if (/\/yuedu\/shuyuan\/index\.html(?:[?#].*)?$/i.test(value)) {
+    return { isYck: true, kind: 'list', id: '', url: value }
+  }
+  const id = extractYckSourceId(value)
+  if (/\/yuedu\/shuyuan\/content\/id\/\d+\.html(?:[?#].*)?$/i.test(value)) {
+    return { isYck: true, kind: 'content', id, url: value }
+  }
+  if (/\/yuedu\/shuyuan\/json\/id\/\d+\.json(?:[?#].*)?$/i.test(value)) {
+    return { isYck: true, kind: 'json', id, url: value }
+  }
+  return { isYck: true, kind: 'unknown', id, url: value }
+}
+
+export function resolveYckCeoUrl(input) {
+  const detected = detectYckCeoUrl(input)
+  if (!detected.isYck) return detected
+  if (detected.kind === 'list') {
+    return { ...detected, action: 'navigate', sourceUrl: detected.url }
+  }
+  if (detected.kind === 'content' && detected.id) {
+    const jsonUrl = buildYckJsonUrl(detected.id)
+    return {
+      ...detected,
+      originalUrl: detected.url,
+      url: jsonUrl,
+      action: 'fetch-json',
+      sourceUrl: jsonUrl
+    }
+  }
+  if (detected.kind === 'json') {
+    return {
+      ...detected,
+      action: 'fetch-json',
+      sourceUrl: detected.url
+    }
+  }
+  return detected
+}
+
+function normalizeYckInput(input) {
+  const payload = detectSourceImportPayload(input)
+  return String(payload.value || input || '').trim()
 }
 
 export async function resolveImportInput(input, options = {}) {
@@ -1059,14 +1147,15 @@ export async function resolveImportInput(input, options = {}) {
     detected.type === 'repository-page' ||
     detected.type === 'url'
   ) {
-    const loaded = await loadSourceImportTextFromUrl(detected.value, options)
+    const requestUrl = detected.sourceUrl || detected.value
+    const loaded = await loadSourceImportTextFromUrl(requestUrl, options)
     return {
       type: loaded.inputType || (detected.type === 'import-link' ? 'json-url' : detected.type),
       rawSources: loaded.text,
       sourceUrl: loaded.sourceUrl,
       sourceMeta: {
         source: options.source || importSourceLabel(detected.type),
-        sourceUrl: loaded.sourceUrl || detected.value
+        sourceUrl: loaded.sourceUrl || requestUrl
       }
     }
   }
@@ -1097,14 +1186,71 @@ export function normalizeBookSources(rawSources, sourceMeta = {}) {
 
 export function analyzeBookSourceCompatibility(source) {
   const raw = (source && (source.raw || source)) || {}
-  const reasons = getUnsupportedRuleReasons(source)
   const features = source && source.features || detectSourceFeatures(raw)
-  const compatible = reasons.length === 0 && !hasUnsupportedRule(raw)
   const ruleSearch = normalizeRuleObject(raw.ruleSearch)
   const ruleBookInfo = normalizeRuleObject(raw.ruleBookInfo)
   const ruleToc = normalizeRuleObject(raw.ruleToc)
   const ruleContent = normalizeRuleObject(raw.ruleContent)
+  const ruleExplore = normalizeRuleObject(raw.ruleExplore)
+  const name = String(raw.bookSourceName || raw.name || source && source.name || '').trim()
+  const baseUrl = String(raw.bookSourceUrl || raw.sourceUrl || source && source.baseUrl || '').trim()
+  const unsupportedReasons = []
+  const stageUnsupported = {
+    search: hasStageUnsupportedRule({ searchUrl: raw.searchUrl, ruleSearch: raw.ruleSearch }),
+    explore: hasStageUnsupportedRule({ exploreUrl: raw.exploreUrl || raw.ruleExploreUrl || raw.explore, ruleExplore: raw.ruleExplore }),
+    detail: hasStageUnsupportedRule(raw.ruleBookInfo),
+    toc: hasStageUnsupportedRule(raw.ruleToc),
+    content: hasStageUnsupportedRule(raw.ruleContent)
+  }
+
+  Object.keys(stageUnsupported).forEach(stage => {
+    if (!stageUnsupported[stage]) return
+    unsupportedReasons.push({
+      stage,
+      reason: stageUnsupported[stage]
+    })
+  })
+
+  const hasSearchRule = !!(raw.searchUrl && Object.keys(ruleSearch).length)
+  const hasExploreUrl = !!(raw.exploreUrl || raw.ruleExploreUrl || raw.explore)
+  const hasExploreRule = hasExploreUrl && Object.keys(ruleExplore).length > 0
+  const hasDetailRule = Object.keys(ruleBookInfo).length > 0
+  const hasTocRule = Object.keys(ruleToc).length > 0
+  const hasContentRule = Object.keys(ruleContent).length > 0
+  const searchable = hasSearchRule && !stageUnsupported.search
+  const discoverable = hasExploreRule && !stageUnsupported.explore
+  const detailReadable = hasDetailRule && !stageUnsupported.detail
+  const tocReadable = hasTocRule && !stageUnsupported.toc
+  const contentReadable = hasContentRule && !stageUnsupported.content
+  const diagnosticExploreOnly = hasExploreUrl && !stageUnsupported.explore
+  const importable = !!(name && baseUrl && (searchable || discoverable || diagnosticExploreOnly))
+
+  let level = 'compatible'
+  if (!importable) level = 'importUnsupported'
+  else if (stageUnsupported.search || stageUnsupported.explore || stageUnsupported.detail || stageUnsupported.toc) level = 'h5Unsupported'
+  else if (stageUnsupported.content || features.cookie || features.login || features.webView) level = 'partialCompatible'
+
+  const compatible = level === 'compatible'
+  const reasons = uniqueStrings(unsupportedReasons.map(item => item.reason))
+  if (!importable && !reasons.length) {
+    reasons.push('Missing required fields or no currently usable search/explore/detail/toc/content rule')
+    unsupportedReasons.push({
+      stage: 'import',
+      reason: 'Missing required fields or no currently usable search/explore/detail/toc/content rule'
+    })
+  }
+
   return {
+    importable,
+    visibleAfterImport: importable,
+    searchable,
+    discoverable,
+    detailReadable,
+    tocReadable,
+    contentReadable,
+    level,
+    compatibleLevel: level,
+    unsupportedReasons,
     compatible,
     reasons: compatible ? [] : (reasons.length ? reasons : ['Contains unsupported complex rules']),
     features,
@@ -1120,6 +1266,23 @@ export function analyzeBookSourceCompatibility(source) {
   }
 }
 
+function hasStageUnsupportedRule(value) {
+  if (!value) return ''
+  const text = typeof value === 'string' ? value : JSON.stringify(value)
+  if (!text || text === '{}') return ''
+  const checks = [
+    { pattern: /@js:/i, reason: 'rule uses @js, current safe H5 parser will not execute third-party JS' },
+    { pattern: /java\.ajax/i, reason: 'JS rule calls java.ajax, H5 engine cannot execute Android/Legado runtime APIs' },
+    { pattern: /org\.jsoup/i, reason: 'JS rule depends on org.jsoup, H5 engine cannot execute Android/Legado runtime APIs' },
+    { pattern: /\bjava\./i, reason: 'JS rule depends on java.*, H5 engine cannot execute Android/Legado runtime APIs' },
+    { pattern: /webview/i, reason: 'rule requires WebView-rendered execution' },
+    { pattern: /\beval\s*\(|\bFunction\s*\(/i, reason: 'rule uses dynamic JavaScript execution' },
+    { pattern: /CryptoJS|base64 dynamic decode/i, reason: 'rule appears to require dynamic decode or crypto logic' }
+  ]
+  const found = checks.find(item => item.pattern.test(text))
+  return found ? found.reason : ''
+}
+
 export function buildImportPreview(sources = [], existingSources = getUserSources(), options = {}) {
   const existing = Array.isArray(existingSources) ? existingSources : []
   const existingIds = new Set(existing.map(source => source.id))
@@ -1129,15 +1292,28 @@ export function buildImportPreview(sources = [], existingSources = getUserSource
     const compatibility = analyzeBookSourceCompatibility(source)
     const duplicate = existingIds.has(source.id) || seenIds.has(source.id)
     seenIds.add(source.id)
-    const action = duplicate
-      ? (duplicateStrategy === 'skip' ? 'skip' : 'overwrite')
-      : 'import'
+    const unsupported = !compatibility.importable
+    const compatible = compatibility.compatible
+    const action = unsupported
+      ? 'incompatible'
+      : duplicate
+        ? (duplicateStrategy === 'skip' ? 'skip' : 'overwrite')
+        : 'import'
     return {
       ...source,
       action,
       duplicate,
-      compatible: compatibility.compatible,
-      compatibilityStatus: compatibility.compatible ? 'compatible' : 'incompatible',
+      unsupported,
+      compatible,
+      compatibilityStatus: compatibility.level,
+      compatibleLevel: compatibility.level,
+      importable: compatibility.importable,
+      searchable: compatibility.searchable,
+      discoverable: compatibility.discoverable,
+      detailReadable: compatibility.detailReadable,
+      tocReadable: compatibility.tocReadable,
+      contentReadable: compatibility.contentReadable,
+      unsupportedReasons: compatibility.unsupportedReasons,
       reasons: compatibility.reasons,
       rules: compatibility.rules,
       features: compatibility.features,
@@ -1163,7 +1339,8 @@ function summarizeImportPreviewRows(rows = []) {
     updated: rows.filter(source => source.action === 'overwrite').length,
     skipped: rows.filter(source => source.action === 'skip').length,
     failed: 0,
-    incompatible: rows.filter(source => !source.compatible).length,
+    incompatible: rows.filter(source => source.action === 'incompatible' || source.compatibleLevel === 'h5Unsupported' || source.compatibleLevel === 'importUnsupported').length,
+    partialCompatible: rows.filter(source => source.compatibleLevel === 'partialCompatible').length,
     groups: Array.from(new Set(groups)),
     sources: rows
   }
@@ -1179,18 +1356,31 @@ export function applyImportPreview(preview, options = {}) {
   let imported = 0
   let updated = 0
   let skipped = 0
+  const historyRows = []
 
   rows.forEach(row => {
     const exists = nextById.has(row.id)
+    if (row.unsupported === true || row.action === 'incompatible') {
+      skipped += 1
+      skippedIds.add(row.id)
+      historyRows.push(buildImportHistoryItem(row, 'unsupported', options))
+      return
+    }
     if (exists && (duplicateStrategy === 'skip' || row.action === 'skip')) {
       skipped += 1
       skippedIds.add(row.id)
+      historyRows.push(buildImportHistoryItem(row, 'skipped', options))
       return
     }
     nextById.set(row.id, stripImportPreviewFields(row))
     appliedIds.add(row.id)
-    if (exists) updated += 1
-    else imported += 1
+    if (exists) {
+      updated += 1
+      historyRows.push(buildImportHistoryItem(row, 'overwritten', options))
+    } else {
+      imported += 1
+      historyRows.push(buildImportHistoryItem(row, 'added', options))
+    }
   })
 
   const appliedRows = rows
@@ -1198,15 +1388,206 @@ export function applyImportPreview(preview, options = {}) {
     .map(row => nextById.get(row.id))
   const untouchedRows = current.filter(source => !appliedIds.has(source.id))
   writeUserSources([...appliedRows, ...untouchedRows])
+  const visibleCheck = verifyImportedSourcesVisible(appliedRows)
+  recordImportHistory(historyRows.map(item => ({
+    ...item,
+    visible: visibleCheck.items.some(visibleItem => visibleItem.id === item.id && visibleItem.visible)
+  })))
 
-  return {
+  const result = {
     total: rows.length,
     imported,
     updated,
     skipped,
     failed: 0,
-    incompatible: rows.filter(source => !source.compatible).length,
+    incompatible: rows.filter(source => source.action === 'incompatible' || source.compatibleLevel === 'h5Unsupported' || source.compatibleLevel === 'importUnsupported').length,
+    partialCompatible: rows.filter(source => source.compatibleLevel === 'partialCompatible').length,
+    actualWritten: imported + updated,
+    visible: visibleCheck.visible,
+    visibleCheck,
+    importedSources: appliedRows,
     sources: rows
+  }
+  result.importLog = recordImportLog(buildImportLog(preview, rows, result, options))
+  return result
+}
+
+export function verifyImportedSourcesVisible(importedSources = []) {
+  const visibleSources = getSourceConfigs()
+  const visibleById = new Map(visibleSources.map(source => [source.id, source]))
+  const items = (Array.isArray(importedSources) ? importedSources : []).map(source => {
+    const visible = !!(source && source.id && visibleById.has(source.id))
+    return {
+      id: source && source.id || '',
+      name: source && source.name || '',
+      visible,
+      enabled: visible ? !!visibleById.get(source.id).enabled : false,
+      reason: visible ? '' : 'Imported source was not found by getSourceConfigs() after persistence'
+    }
+  })
+  return {
+    total: items.length,
+    visible: items.filter(item => item.visible).length,
+    hidden: items.filter(item => !item.visible).length,
+    items
+  }
+}
+
+export function recordImportHistory(items = []) {
+  const rows = (Array.isArray(items) ? items : [items]).filter(Boolean)
+  if (!rows.length) return getRecentImportHistory()
+  const current = getRecentImportHistory(100)
+  const next = [
+    ...rows.map(item => ({
+      id: item.id || '',
+      name: item.name || '',
+      url: item.url || '',
+      group: item.group || '',
+      sourceType: item.sourceType || '',
+      importMethod: item.importMethod || 'unknown',
+      importTime: item.importTime || Date.now(),
+      action: item.action || 'skipped',
+      visible: !!item.visible,
+      compatibleLevel: item.compatibleLevel || '',
+      reason: item.reason || ''
+    })),
+    ...current
+  ].slice(0, 20)
+  writeStorage(IMPORT_HISTORY_KEY, next)
+  return next
+}
+
+export function getRecentImportHistory(limit = 20) {
+  const rows = readStorage(IMPORT_HISTORY_KEY, [])
+  const list = Array.isArray(rows) ? rows : []
+  return list.slice(0, Math.max(0, Number(limit) || 20))
+}
+
+export function recordImportLog(entry = {}) {
+  return saveImportLog(entry)
+}
+
+export function getImportLogs(limit = 20) {
+  return getStoredImportLogs(limit)
+}
+
+export function clearImportLogs() {
+  return clearStoredImportLogs()
+}
+
+function buildImportLog(preview, rows = [], result = {}, options = {}) {
+  const normalizedRows = Array.isArray(rows) ? rows : []
+  const sourceRow = normalizedRows.find(row => row && (row.source || row.sourceUrl)) || {}
+  const rawType = options.rawType
+    || options.originalType
+    || preview && preview.originalType
+    || preview && preview.type
+    || sourceRow.source
+    || (normalizedRows.length ? detectSourceFormat(normalizedRows[0].raw || normalizedRows[0]) : '')
+    || 'unknown'
+  const items = normalizedRows.map(row => buildImportLogItem(row, result))
+  const success = items.filter(item => item.status === 'success').length
+  const unsupported = items.filter(item => item.status === 'unsupported').length
+  const duplicated = items.filter(item => item.status === 'duplicated').length
+  const skipped = items.filter(item => item.status === 'skipped').length
+  const failed = items.filter(item => item.status === 'failed' || item.status === 'blocked').length
+  return {
+    id: `import-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    time: new Date().toISOString(),
+    source: options.importMethod || sourceRow.source || 'unknown',
+    rawType,
+    sourceText: options.sourceText || options.sourceUrl || preview && preview.sourceUrl || sourceRow.sourceUrl || '',
+    total: normalizedRows.length,
+    success,
+    failed,
+    skipped,
+    duplicated,
+    unsupported,
+    items,
+    storageCount: getSourceConfigs().length,
+    importTime: Date.now(),
+    sourceUrl: options.sourceUrl || preview && preview.sourceUrl || sourceRow.sourceUrl || '',
+    originalType: rawType,
+    parsedCount: normalizedRows.length,
+    successCount: Number(result.actualWritten || 0),
+    importedCount: Number(result.imported || 0),
+    updatedCount: Number(result.updated || 0),
+    skippedCount: Number(result.skipped || 0),
+    incompatibleCount: Number(result.incompatible || 0),
+    failedCount: failed
+  }
+}
+
+function buildImportLogItem(row = {}, result = {}) {
+  const raw = row.raw || row || {}
+  const reason = collectImportFailureReasons([row]).join('; ')
+  const saved = Array.isArray(result.importedSources)
+    ? result.importedSources.some(source => source && source.id === row.id)
+    : false
+  const h5Unsupported = row.compatibleLevel === 'h5Unsupported' || row.compatibleLevel === 'partialCompatible'
+  let status = 'success'
+  let itemReason = saved ? '导入成功，已保存到本地书源列表' : ''
+  if (row.action === 'incompatible' || row.unsupported === true) {
+    status = 'blocked'
+    itemReason = reason || '书源缺少必要字段或需要当前版本不支持的特殊能力'
+  } else if (row.action === 'skip' && row.duplicate) {
+    status = 'duplicated'
+    itemReason = '重复书源，已跳过'
+  } else if (row.action === 'skip') {
+    status = 'skipped'
+    itemReason = reason || '已跳过'
+  } else if (saved && h5Unsupported) {
+    status = 'unsupported'
+    itemReason = reason || '该书源部分规则依赖 JS / WebView，当前版本不执行第三方 JS'
+  }
+  return {
+    name: row.name || row.sourceName || raw.bookSourceName || '',
+    url: raw.bookSourceUrl || row.baseUrl || '',
+    status,
+    reason: itemReason,
+    h5Unsupported,
+    unsupportedReason: h5Unsupported ? itemReason : '',
+    saved
+  }
+}
+
+function collectImportFailureReasons(rows = []) {
+  const reasons = []
+  rows.forEach(row => {
+    if (Array.isArray(row.unsupportedReasons)) {
+      row.unsupportedReasons.forEach(item => reasons.push(item && item.reason))
+    }
+    if (Array.isArray(row.reasons)) {
+      row.reasons.forEach(reason => reasons.push(reason))
+    }
+  })
+  return uniqueStrings(reasons)
+}
+
+function buildImportHistoryItem(row, action, options = {}) {
+  const raw = row && (row.raw || row) || {}
+  return {
+    id: row.id,
+    name: row.name || row.sourceName || raw.bookSourceName || '',
+    url: raw.bookSourceUrl || row.baseUrl || '',
+    group: row.group || raw.bookSourceGroup || '',
+    sourceType: row.format || row.formatVersion || detectSourceFormat(raw),
+    importMethod: options.importMethod || row.source || row.sourceMeta && row.sourceMeta.source || 'unknown',
+    importTime: Date.now(),
+    action,
+    visible: false,
+    compatibleLevel: row.compatibleLevel || row.compatibilityStatus || '',
+    /*
+    reason: Array.isArray(row.unsupportedReasons) && row.unsupportedReasons.length
+      ? row.unsupportedReasons.map(item => item.reason).join('；')
+      : Array.isArray(row.reasons) ? row.reasons.join('；') : ''
+  }
+}
+
+    */
+    reason: Array.isArray(row.unsupportedReasons) && row.unsupportedReasons.length
+      ? uniqueStrings(row.unsupportedReasons.map(item => item.reason)).join('; ')
+      : Array.isArray(row.reasons) ? uniqueStrings(row.reasons).join('; ') : ''
   }
 }
 
@@ -1214,8 +1595,16 @@ function stripImportPreviewFields(source) {
   const {
     action,
     duplicate,
+    unsupported,
     compatible,
     compatibilityStatus,
+    importable,
+    searchable,
+    discoverable,
+    detailReadable,
+    tocReadable,
+    contentReadable,
+    unsupportedReasons,
     reasons,
     rules,
     requiresCookie,
@@ -1776,6 +2165,9 @@ function getExploreRuleCompatibility(source) {
   const raw = source && (source.raw || source) || {}
   const exploreUrl = raw.exploreUrl || raw.ruleExploreUrl || raw.explore || ''
   const ruleExplore = raw.ruleExplore || {}
+  if (/@js:/i.test(String(exploreUrl || '')) || /@js:/i.test(JSON.stringify(ruleExplore || {}))) {
+    return { compatible: false, reason: '该书源发现页依赖 @js，当前 H5 引擎暂不支持执行第三方 JS', reasonCode: 'complex_explore_rule' }
+  }
   if (hasUnsupportedRule({ exploreUrl, ruleExplore }) || /webview/i.test(JSON.stringify({ exploreUrl, ruleExplore }))) {
     return { compatible: false, reason: '该书源的发现入口包含复杂 JS 或 WebView 规则', reasonCode: 'complex_explore_rule' }
   }

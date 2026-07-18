@@ -172,7 +172,7 @@ export function extractImportLinkUrl(value) {
   const direct = raw.match(/(?:src|url|data)=([^&\s"'<>]+)/i)
   if (direct) return decodeURIComponentSafe(direct[1])
 
-  if (/^(?:yuedu|legado):\/\//i.test(raw)) {
+  if (/^(?:yuedu|legado|booksource):\/\//i.test(raw)) {
     const queryStart = raw.indexOf('?')
     if (queryStart >= 0) {
       const params = new URLSearchParams(raw.slice(queryStart + 1))
@@ -547,13 +547,15 @@ function selectHtml(html, selector) {
 }
 
 function selectSimpleHtml(html, selector) {
-  const indexMatch = selector.match(/^(.*?)(?:\.|\[)(\d+)\]?$/)
-  const cleanSelector = indexMatch ? indexMatch[1] : selector
-  const requestedIndex = indexMatch ? Number(indexMatch[2]) : null
-  const { tag, id, className } = parseSimpleSelector(cleanSelector)
+  const pseudo = extractSelectorPseudo(selector)
+  const indexMatch = pseudo.selector.match(/^(.*?)(?:\.|\[)(\d+)\]?$/)
+  const cleanSelector = indexMatch ? indexMatch[1] : pseudo.selector
+  const requestedIndex = indexMatch ? Number(indexMatch[2]) : pseudo.index
+  const { tag, id, classNames, attr } = parseSimpleSelector(cleanSelector)
 
-  if (!tag && (id || className)) {
-    const tagged = selectByAttribute(html, id, className)
+  if (id || classNames.length || attr) {
+    const tagged = selectByAttribute(html, id, classNames, attr, tag)
+    if (requestedIndex === 'last') return tagged.length ? [tagged[tagged.length - 1]] : []
     if (requestedIndex !== null) return tagged[requestedIndex] ? [tagged[requestedIndex]] : []
     return tagged
   }
@@ -566,7 +568,8 @@ function selectSimpleHtml(html, selector) {
   while ((match = pattern.exec(html))) {
     const attrs = match[2] || ''
     if (id && !new RegExp(`\\bid=["']?${escapeRegExp(id)}["']?`, 'i').test(attrs)) continue
-    if (className && !new RegExp(`\\bclass=["'][^"']*\\b${escapeRegExp(className)}\\b`, 'i').test(attrs)) continue
+    if (!hasRequiredClasses(attrs, classNames)) continue
+    if (attr && !matchesAttributeSelector(attrs, attr)) continue
     matches.push(match[0])
   }
 
@@ -575,15 +578,17 @@ function selectSimpleHtml(html, selector) {
     const attrs = match[2] || ''
     if (!/^(img|input|meta|link|br)$/i.test(match[1])) continue
     if (id && !new RegExp(`\\bid=["']?${escapeRegExp(id)}["']?`, 'i').test(attrs)) continue
-    if (className && !new RegExp(`\\bclass=["'][^"']*\\b${escapeRegExp(className)}\\b`, 'i').test(attrs)) continue
+    if (!hasRequiredClasses(attrs, classNames)) continue
+    if (attr && !matchesAttributeSelector(attrs, attr)) continue
     matches.push(match[0])
   }
 
+  if (requestedIndex === 'last') return matches.length ? [matches[matches.length - 1]] : []
   if (requestedIndex !== null) return matches[requestedIndex] ? [matches[requestedIndex]] : []
   return matches
 }
 
-function selectByAttribute(html, id, className) {
+function selectByAttribute(html, id, classNames = [], attr = null, tagName = '') {
   const pattern = /<([a-zA-Z][\w:-]*)([^>]*)>/gi
   const matches = []
   let match
@@ -591,8 +596,10 @@ function selectByAttribute(html, id, className) {
   while ((match = pattern.exec(html))) {
     const tag = match[1]
     const attrs = match[2] || ''
+    if (tagName && tag.toLowerCase() !== String(tagName).toLowerCase()) continue
     if (id && !new RegExp(`\\bid=["']?${escapeRegExp(id)}["']?`, 'i').test(attrs)) continue
-    if (className && !new RegExp(`\\bclass=["'][^"']*\\b${escapeRegExp(className)}\\b`, 'i').test(attrs)) continue
+    if (!hasRequiredClasses(attrs, classNames)) continue
+    if (attr && !matchesAttributeSelector(attrs, attr)) continue
 
     if (/^(img|input|meta|link|br)$/i.test(tag)) {
       matches.push(match[0])
@@ -609,13 +616,51 @@ function selectByAttribute(html, id, className) {
 }
 
 function parseSimpleSelector(selector) {
-  if (selector.startsWith('#')) return { id: selector.slice(1) }
-  if (selector.startsWith('.')) return { className: selector.slice(1) }
-  const classMatch = selector.match(/^([a-zA-Z][\w:-]*)?\.([\w-]+)$/)
-  if (classMatch) return { tag: classMatch[1] || '', className: classMatch[2] }
-  const idMatch = selector.match(/^([a-zA-Z][\w:-]*)?#([\w-]+)$/)
-  if (idMatch) return { tag: idMatch[1] || '', id: idMatch[2] }
-  return { tag: selector || '' }
+  const attrMatch = selector.match(/^(.*?)(\[[^\]]+\])$/)
+  const baseSelector = attrMatch ? attrMatch[1] : selector
+  const attr = attrMatch ? parseAttributeSelector(attrMatch[2]) : null
+  const tagMatch = baseSelector.match(/^([a-zA-Z][\w:-]*)/)
+  const tag = tagMatch ? tagMatch[1] : ''
+  const suffix = baseSelector.slice(tag.length)
+  const idMatch = suffix.match(/#([\w-]+)/)
+  const classNames = [...suffix.matchAll(/\.([\w-]+)/g)].map(match => match[1])
+
+  if (suffix && suffix.replace(/#[\w-]+|\.[\w-]+/g, '')) {
+    return { tag: baseSelector || '', id: '', classNames: [], attr }
+  }
+
+  return { tag, id: idMatch ? idMatch[1] : '', classNames, attr }
+}
+
+function hasRequiredClasses(attrs, classNames = []) {
+  const expected = Array.isArray(classNames) ? classNames : [classNames]
+  return expected.every(className => new RegExp(`\\bclass=["'][^"']*\\b${escapeRegExp(className)}\\b`, 'i').test(attrs))
+}
+
+function extractSelectorPseudo(selector) {
+  const text = String(selector || '').trim()
+  const indexed = text.match(/^(.*?):nth-(?:of-type|child)\((\d+)\)$/i)
+  if (indexed) return { selector: indexed[1], index: Math.max(0, Number(indexed[2]) - 1) }
+  if (/:last-child$/i.test(text)) return { selector: text.replace(/:last-child$/i, ''), index: 'last' }
+  if (/:first-child$/i.test(text)) return { selector: text.replace(/:first-child$/i, ''), index: 0 }
+  return { selector: text, index: null }
+}
+
+function parseAttributeSelector(selector) {
+  const match = String(selector || '').match(/^\[\s*([\w:-]+)\s*(\*?=)\s*["']?([^"'\]]*)["']?\s*\]$/)
+  if (!match) return null
+  return {
+    name: match[1],
+    operator: match[2],
+    value: match[3]
+  }
+}
+
+function matchesAttributeSelector(attrs, attr) {
+  if (!attr || !attr.name) return true
+  const value = extractAttr(`<x ${attrs}></x>`, attr.name)
+  if (!value) return false
+  return attr.operator === '*=' ? value.includes(attr.value) : value === attr.value
 }
 
 function applyAccessor(input, accessor) {
@@ -689,6 +734,7 @@ function isSelectorToken(token) {
 
 function normalizeSelectorToken(token) {
   const value = String(token || '').trim()
+  if (/^css:/i.test(value)) return value.replace(/^css:/i, '')
   if (value.startsWith('class.')) return `.${value.slice(6)}`
   if (value.startsWith('id.')) return `#${value.slice(3)}`
   if (value.startsWith('tag.')) return value.slice(4)

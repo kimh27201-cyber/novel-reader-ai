@@ -8,8 +8,30 @@ on:
 
 jobs:
   backend:
-    name: Backend pytest
+    name: Backend migrations and tests
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: novel_reader_test
+          POSTGRES_USER: novel_reader
+          POSTGRES_PASSWORD: novel_reader_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U novel_reader -d novel_reader_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      APP_ENV: testing
+      JWT_SECRET_KEY: ci-only-jwt-secret-key-not-for-production
+      BCRYPT_ROUNDS: "4"
+      AI_PROVIDER: mock
+      SESSION_ENCRYPTION_KEY: ci-only-session-encryption-key
 
     defaults:
       run:
@@ -29,19 +51,96 @@ jobs:
       - name: Install backend dependencies
         run: python -m pip install -r requirements.txt
 
-      - name: Run Alembic migration check
+      - name: Migrate PostgreSQL 16 to head
         run: python -m alembic upgrade head
         env:
-          DATABASE_URL: "sqlite:///:memory:"
-          SECRET_KEY: "ci-secret-key"
-          AI_PROVIDER: "mock"
+          DATABASE_URL: postgresql+psycopg://novel_reader:novel_reader_password@127.0.0.1:5432/novel_reader_test
 
-      - name: Run backend tests
+      - name: Run PostgreSQL API smoke test
+        shell: bash
+        env:
+          DATABASE_URL: postgresql+psycopg://novel_reader:novel_reader_password@127.0.0.1:5432/novel_reader_test
+        run: |
+          python - <<'PY'
+          from fastapi.testclient import TestClient
+          from app.main import app
+
+          with TestClient(app) as client:
+              assert client.get("/api/health/ready").status_code == 200
+              registered = client.post(
+                  "/api/auth/register",
+                  json={
+                      "username": "ci_reader",
+                      "email": "ci_reader@example.com",
+                      "password": "ci-secret123",
+                  },
+              )
+              assert registered.status_code == 201, registered.text
+              login = client.post(
+                  "/api/auth/login",
+                  json={"username": "ci_reader", "password": "ci-secret123"},
+              )
+              assert login.status_code == 200, login.text
+              token = login.json()["access_token"]
+              headers = {"Authorization": f"Bearer {token}"}
+              assert client.get("/api/auth/me", headers=headers).status_code == 200
+              assert client.get("/api/books", headers=headers).status_code == 200
+          PY
+
+      - name: Prepare legacy SQLite data at revision 0003
+        shell: bash
+        run: |
+          DATABASE_URL=sqlite:////tmp/novel-reader-upgrade.db python -m alembic upgrade 0003_source_sessions
+
+          python - <<'PY'
+          import sqlite3
+
+          db = sqlite3.connect("/tmp/novel-reader-upgrade.db")
+          db.execute("INSERT INTO users VALUES (1, 'legacy', 'legacy@example.com', 'hash', 1, '2025-01-01')")
+          source = "INSERT INTO book_sources VALUES (?, 1, ?, ?, 'legacy', 1, '{}', 'v1 compatible', ?, ?)"
+          db.execute(source, (1, "Legacy Source ", "https://legacy.example.com/", "2025-01-01", "2025-01-01"))
+          db.execute(source, (2, "Legacy Source", "https://legacy.example.com", "2025-01-02", "2025-01-02"))
+          db.execute("INSERT INTO books VALUES (1, 1, 1, 'Legacy Book', 'Author', '', '', 'https://legacy.example.com/book', '', '2025-01-01', '2025-01-01')")
+          chapter = "INSERT INTO chapters VALUES (?, 1, 0, ?, '', '', 0, ?, ?)"
+          db.execute(chapter, (1, "Old chapter", "2025-01-01", "2025-01-01"))
+          db.execute(chapter, (2, "New chapter", "2025-01-02", "2025-01-02"))
+          history = "INSERT INTO reading_history VALUES (?, 1, 1, ?, 0, 0, 1.0, ?)"
+          db.execute(history, (1, 1, "2025-01-01"))
+          db.execute(history, (2, 2, "2025-01-02"))
+          session = "INSERT INTO source_sessions VALUES (?, 1, ?, '', '', '', '', '', '', '', 0, 0, 'active', ?, ?)"
+          db.execute(session, (1, 1, "2025-01-01", "2025-01-01"))
+          db.execute(session, (2, 2, "2025-01-02", "2025-01-02"))
+          db.commit()
+          db.close()
+          PY
+
+      - name: Upgrade populated SQLite database and verify integrity
+        shell: bash
+        run: |
+          DATABASE_URL=sqlite:////tmp/novel-reader-upgrade.db python -m alembic upgrade head
+
+          python - <<'PY'
+          import sqlite3
+
+          db = sqlite3.connect("/tmp/novel-reader-upgrade.db")
+          assert db.execute("SELECT count(*) FROM book_sources").fetchone()[0] == 1
+          assert db.execute("SELECT count(*) FROM chapters").fetchone()[0] == 1
+          assert db.execute("SELECT count(*) FROM reading_history").fetchone()[0] == 1
+          assert db.execute("SELECT count(*) FROM source_sessions").fetchone()[0] == 1
+          assert db.execute("PRAGMA foreign_key_check").fetchall() == []
+          assert db.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0005_foreign_key_delete_policies"
+          db.close()
+          PY
+
+      - name: Run backend test suite on SQLite
         run: python -m pytest
         env:
-          DATABASE_URL: "sqlite:///:memory:"
-          SECRET_KEY: "ci-secret-key"
-          AI_PROVIDER: "mock"
+          NOVEL_READER_TEST_DATA_DIR: /tmp/novel-reader-tests
+
+      - name: Run backend test suite on PostgreSQL 16
+        run: python -m pytest
+        env:
+          NOVEL_READER_TEST_DATABASE_URL: postgresql+psycopg://novel_reader:novel_reader_password@127.0.0.1:5432/novel_reader_test
 
   frontend-tools:
     name: Frontend utility tests

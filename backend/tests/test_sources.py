@@ -8,7 +8,7 @@ import httpx
 TESTS_DIR = Path(__file__).resolve().parent
 sys.path.append(str(TESTS_DIR))
 
-from helpers import configure_test_environment
+from helpers import configure_test_environment, reset_database
 
 
 BACKEND_DIR = configure_test_environment(__file__)
@@ -17,16 +17,17 @@ sys.path.append(str(BACKEND_DIR))
 
 from fastapi.testclient import TestClient
 
-from app.db.session import Base, engine
+from app.db.session import Base, SessionLocal, engine
 from app.main import app
+from app.models.models import BookSource, SourceSession
+from app.services.source_secrets import reveal_source_secrets
 
 
 client = TestClient(app)
 
 
 def setup_function():
-    Base.metadata.drop_all(bind=engine)
-    Base.metadata.create_all(bind=engine)
+    reset_database(Base, engine)
 
 
 def auth_headers():
@@ -340,3 +341,115 @@ def test_content_empty_error_includes_diagnostics(monkeypatch):
     assert "https://example.com/book/1/empty" in detail
     assert "ruleContent.content" in detail
     assert "响应长度" in detail
+
+
+def test_source_session_secrets_are_encrypted_at_rest_and_injected_into_requests(monkeypatch):
+    headers = auth_headers()
+    source = import_sample_source(headers)
+    cookie = "sid=super-secret; theme=dark"
+    local_storage = '{"accessToken":"private-value"}'
+    saved = client.put(
+        f"/api/sources/{source['id']}/session",
+        headers=headers,
+        json={
+            "cookie": cookie,
+            "user_agent": "NovelReaderTest/2.0",
+            "referer": "https://example.com/login",
+            "local_storage_json": local_storage,
+        },
+    )
+    assert saved.status_code == 200
+
+    db = SessionLocal()
+    try:
+        stored = db.query(SourceSession).filter(SourceSession.source_id == source["id"]).one()
+        assert stored.cookie.startswith("enc:v1:")
+        assert stored.cookie != cookie
+        assert cookie not in stored.cookie
+        assert stored.local_storage_json.startswith("enc:v1:")
+        assert stored.local_storage_json != local_storage
+    finally:
+        db.close()
+
+    captured = {}
+
+    async def fake_request_text(spec):
+        captured.update(spec)
+        return '<ul class="result-list"></ul>'
+
+    monkeypatch.setattr("app.services.source_parser.request_text", fake_request_text)
+    response = client.post(
+        f"/api/sources/{source['id']}/search",
+        headers=headers,
+        json={"keyword": "test", "page": 1},
+    )
+
+    assert response.status_code == 200
+    assert captured["headers"]["Cookie"] == cookie
+    assert captured["headers"]["User-Agent"] == "NovelReaderTest/2.0"
+    assert captured["headers"]["Referer"] == "https://example.com/login"
+
+
+def test_update_source_and_list_pagination_are_owner_scoped():
+    owner_headers = auth_headers_for("owner", "owner@example.com")
+    other_headers = auth_headers_for("other", "other@example.com")
+    source_ids = []
+    for index in range(3):
+        config = json.loads(sample_source_json())
+        config["bookSourceName"] = f"Source {index}"
+        config["bookSourceUrl"] = f"https://source-{index}.example.com"
+        imported = client.post(
+            "/api/sources/import",
+            headers=owner_headers,
+            json={"content": json.dumps(config)},
+        )
+        assert imported.status_code == 201
+        source_ids.append(imported.json()["sources"][0]["id"])
+
+    cross_user = client.patch(
+        f"/api/sources/{source_ids[0]}",
+        headers=other_headers,
+        json={"enabled": False},
+    )
+    updated = client.patch(
+        f"/api/sources/{source_ids[0]}",
+        headers=owner_headers,
+        json={"enabled": False, "group": "paused"},
+    )
+    first_page = client.get("/api/sources?limit=2&offset=0", headers=owner_headers)
+    second_page = client.get("/api/sources?limit=2&offset=2", headers=owner_headers)
+    invalid = client.get("/api/sources?limit=201", headers=owner_headers)
+
+    assert cross_user.status_code == 404
+    assert updated.status_code == 200
+    assert updated.json()["enabled"] is False
+    assert updated.json()["group"] == "paused"
+    assert len(first_page.json()) == 2
+    assert len(second_page.json()) == 1
+    assert {item["id"] for item in first_page.json() + second_page.json()} == set(source_ids)
+    assert invalid.status_code == 422
+
+
+def test_update_source_rules_and_base_url_encrypts_embedded_credentials():
+    headers = auth_headers()
+    source = import_sample_source(headers)
+    raw = {
+        "searchUrl": 'search?q={{key}}, {"headers":{"Cookie":"sid=private"}}',
+        "ruleSearch": {"bookList": ".book"},
+    }
+
+    response = client.patch(
+        f"/api/sources/{source['id']}",
+        headers=headers,
+        json={"base_url": "https://updated.example.com/", "raw": raw},
+    )
+
+    assert response.status_code == 200
+    db = SessionLocal()
+    try:
+        stored = db.get(BookSource, source["id"])
+        assert stored.base_url == "https://updated.example.com"
+        assert "sid=private" not in stored.raw_json
+        assert reveal_source_secrets(json.loads(stored.raw_json)) == raw
+    finally:
+        db.close()
