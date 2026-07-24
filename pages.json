@@ -78,6 +78,13 @@
       }
     },
     {
+      "path": "pages/voice/voice",
+      "style": {
+        "navigationBarTitleText": "声音选择",
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/aiHistory/aiHistory",
       "style": {
         "navigationBarTitleText": "AI 记录",

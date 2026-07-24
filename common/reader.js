@@ -15,8 +15,15 @@ const defaultPrefs = {
   showChapterInfo: false,
   immersiveMode: false,
   autoSyncProgress: true,
+  ttsRate: 1,
+  ttsAutoNextChapter: true,
+  ttsVoiceProvider: 'system',
+  ttsVoiceId: '',
+  ttsVoiceName: '系统默认',
   readingMode: 'page'
 }
+
+const TTS_RATES = [0.8, 1, 1.2, 1.5, 2]
 
 export const themes = [
   { id: 'eye', name: '护眼夜', background: '#10181a', text: '#dfe8e4', muted: '#8fb1aa' },
@@ -45,6 +52,13 @@ function normalizePrefs(raw) {
   prefs.showChapterInfo = prefs.showChapterInfo === true
   prefs.immersiveMode = prefs.immersiveMode === true
   prefs.autoSyncProgress = prefs.autoSyncProgress !== false
+  const ttsRate = Number(prefs.ttsRate)
+  prefs.ttsRate = TTS_RATES.includes(ttsRate) ? ttsRate : defaultPrefs.ttsRate
+  prefs.ttsAutoNextChapter = prefs.ttsAutoNextChapter !== false
+  prefs.ttsVoiceProvider = prefs.ttsVoiceProvider === 'system' ? 'system' : defaultPrefs.ttsVoiceProvider
+  prefs.ttsVoiceId = String(prefs.ttsVoiceId || '').trim().slice(0, 256)
+  prefs.ttsVoiceName = String(prefs.ttsVoiceName || '').trim().slice(0, 80) || defaultPrefs.ttsVoiceName
+  if (!prefs.ttsVoiceId) prefs.ttsVoiceName = defaultPrefs.ttsVoiceName
   if (!themes.some(theme => theme.id === prefs.theme)) {
     prefs.theme = defaultPrefs.theme
   }

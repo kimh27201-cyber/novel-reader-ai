@@ -101,9 +101,25 @@ const androidPicked = await chooseSingleFile({}, {
   runtime: androidRuntime
 })
 assert.equal(androidPicked.path, 'content://downloads/document/42')
-assert.equal(androidPicked.name, 'content://downloads/document/42')
+assert.equal(androidPicked.name, 'selected-file.txt')
 assert.equal(launchedIntent.intent.action, 'android.intent.action.OPEN_DOCUMENT')
 assert.equal(launchedIntent.intent.type, 'text/plain')
+
+let placeholderChooseFileCalled = false
+const androidPickedWithPlaceholder = await chooseSingleFile({
+  chooseFile() {
+    placeholderChooseFileCalled = true
+    throw new Error('API chooseFile is not yet implemented')
+  }
+}, {
+  extension: ['.json'],
+  label: '本地 JSON',
+  runtime: androidRuntime
+})
+assert.equal(placeholderChooseFileCalled, false)
+assert.equal(androidPickedWithPlaceholder.path, 'content://downloads/document/42')
+assert.equal(androidPickedWithPlaceholder.name, 'selected-file.json')
+assertFileExtension(androidPickedWithPlaceholder, '.json', '请选择 .json 书源文件')
 
 assert.equal(await getClipboardText({
   getClipboardData(options) {

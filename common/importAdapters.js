@@ -73,11 +73,16 @@ export function assertFileExtension(file, extension, message) {
 
 export function chooseSingleFile(api, options = {}) {
   const uniApi = getUniApi(api)
-  if (!uniApi.chooseFile) {
-    const runtime = options.runtime || globalThis
-    if (canUseAndroidDocumentPicker(runtime)) {
-      return chooseAndroidDocumentFile(options, runtime)
-    }
+  const runtime = options.runtime || globalThis
+
+  // App-Plus exposes uni.chooseFile as a placeholder on Android. Calling it
+  // only prints "API chooseFile is not yet implemented" and never opens the
+  // picker, so prefer the native document picker whenever the bridge exists.
+  if (canUseAndroidDocumentPicker(runtime)) {
+    return chooseAndroidDocumentFile(options, runtime)
+  }
+
+  if (typeof uniApi.chooseFile !== 'function') {
     return Promise.reject(new Error('当前环境暂不支持文件选择，请使用粘贴导入'))
   }
 
@@ -145,14 +150,20 @@ function chooseAndroidDocumentFile(options = {}, runtime = globalThis) {
           return undefined
         }
 
-        const uri = data.getData()
-        const path = uri && uri.toString ? uri.toString() : String(uri || '')
+        if (android.importClass) android.importClass(data)
+        const uri = invokeAndroid(android, data, 'getData')
+        if (uri && android.importClass) android.importClass(uri)
+        const path = uri
+          ? String(invokeAndroid(android, uri, 'toString') || '')
+          : ''
         if (!path) {
           reject(new Error('没有选择文件'))
           return undefined
         }
 
-        resolve({ path, name: path, type: 'android-content-uri' })
+        const name = getAndroidDocumentName(android, main, uri) ||
+          getAndroidFallbackFileName(path, options.extension)
+        resolve({ path, name, type: 'android-content-uri' })
         return undefined
       }
 
@@ -238,6 +249,47 @@ function scanWithUniCode(uniApi, options = {}, fallbackToWebScanner) {
       }
     })
   })
+}
+
+function invokeAndroid(android, target, method, ...args) {
+  if (target && typeof target[method] === 'function') {
+    return target[method](...args)
+  }
+  return android.invoke(target, method, ...args)
+}
+
+function getAndroidDocumentName(android, activity, uri) {
+  let cursor = null
+  try {
+    const resolver = invokeAndroid(android, activity, 'getContentResolver')
+    const columns = android.importClass('android.provider.OpenableColumns')
+    cursor = invokeAndroid(android, resolver, 'query', uri, null, null, null, null)
+    if (!cursor) return ''
+    if (android.importClass) android.importClass(cursor)
+    if (!invokeAndroid(android, cursor, 'moveToFirst')) return ''
+    const displayNameColumn = columns && columns.DISPLAY_NAME
+      ? columns.DISPLAY_NAME
+      : '_display_name'
+    const columnIndex = invokeAndroid(android, cursor, 'getColumnIndex', displayNameColumn)
+    if (columnIndex == null || columnIndex < 0) return ''
+    return String(invokeAndroid(android, cursor, 'getString', columnIndex) || '').trim()
+  } catch (error) {
+    return ''
+  } finally {
+    try {
+      if (cursor) invokeAndroid(android, cursor, 'close')
+    } catch (error) {
+      // The selected content URI is still readable without a display name.
+    }
+  }
+}
+
+function getAndroidFallbackFileName(path, extensions = []) {
+  const pathName = getPickedFileName({ path })
+  if (/\.[a-z0-9]+$/i.test(pathName)) return pathName
+  const list = Array.isArray(extensions) ? extensions : [extensions]
+  const extension = String(list[0] || '').trim()
+  return `selected-file${extension.startsWith('.') ? extension : extension ? `.${extension}` : ''}`
 }
 
 function canUseNativeScanBridge(runtime = globalThis) {

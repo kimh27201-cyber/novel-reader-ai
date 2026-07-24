@@ -12,6 +12,9 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.speech.tts.TextToSpeech;
+import android.speech.tts.UtteranceProgressListener;
+import android.speech.tts.Voice;
 import android.util.Base64;
 import android.util.Log;
 import android.view.ViewGroup;
@@ -39,6 +42,7 @@ import java.net.URL;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -55,6 +59,13 @@ public class MainActivity extends Activity {
     private String scanCallbackName;
     private PendingDeepLinkStore pendingDeepLinkStore;
     private boolean pageLoaded;
+    private final Object ttsLock = new Object();
+    private final Map<String, String> ttsCallbacks = new HashMap<>();
+    private TextToSpeech textToSpeech;
+    private Voice defaultTtsVoice;
+    private volatile boolean ttsReady;
+    private volatile String ttsStatus = "initializing";
+    private volatile String ttsMessage = "";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -68,6 +79,7 @@ public class MainActivity extends Activity {
             )
         );
         pendingDeepLinkStore = new PendingDeepLinkStore();
+        initializeTextToSpeech();
         configureWebView(webView);
         String initialDeepLink = extractIncomingDeepLink(getIntent());
         if (initialDeepLink != null) {
@@ -110,6 +122,7 @@ public class MainActivity extends Activity {
         view.addJavascriptInterface(new ScanBridge(), "NovelReaderScan");
         view.addJavascriptInterface(new DeepLinkBridge(), "NovelReaderDeepLinkBridge");
         view.addJavascriptInterface(new RenderedHtmlBridge(), "NovelReaderWebViewParser");
+        view.addJavascriptInterface(new TextToSpeechBridge(), "NovelReaderTts");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             WebView.setWebContentsDebuggingEnabled(false);
         }
@@ -613,6 +626,244 @@ public class MainActivity extends Activity {
         });
     }
 
+    private void initializeTextToSpeech() {
+        ttsStatus = "initializing";
+        ttsMessage = "";
+        textToSpeech = new TextToSpeech(getApplicationContext(), new TextToSpeech.OnInitListener() {
+            @Override
+            public void onInit(int status) {
+                synchronized (ttsLock) {
+                    if (textToSpeech == null) {
+                        return;
+                    }
+                    if (status != TextToSpeech.SUCCESS) {
+                        ttsReady = false;
+                        ttsStatus = "unavailable";
+                        ttsMessage = "系统语音服务初始化失败";
+                        return;
+                    }
+
+                    int languageResult = textToSpeech.setLanguage(Locale.SIMPLIFIED_CHINESE);
+                    if (languageResult == TextToSpeech.LANG_MISSING_DATA
+                            || languageResult == TextToSpeech.LANG_NOT_SUPPORTED) {
+                        ttsReady = false;
+                        ttsStatus = "unavailable";
+                        ttsMessage = "系统语音服务不支持中文";
+                        return;
+                    }
+                    defaultTtsVoice = textToSpeech.getVoice();
+
+                    textToSpeech.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                        @Override
+                        public void onStart(String utteranceId) {
+                            // The JavaScript controller already enters playing state
+                            // when speak() accepts an utterance.
+                        }
+
+                        @Override
+                        public void onDone(String utteranceId) {
+                            dispatchTtsResult(utteranceId, "done", "");
+                        }
+
+                        @Override
+                        public void onError(String utteranceId) {
+                            dispatchTtsResult(utteranceId, "error", "系统语音服务朗读失败");
+                        }
+
+                        @Override
+                        public void onError(String utteranceId, int errorCode) {
+                            dispatchTtsResult(
+                                utteranceId,
+                                "error",
+                                "系统语音服务朗读失败（错误码 " + errorCode + "）"
+                            );
+                        }
+                    });
+                    ttsReady = true;
+                    ttsStatus = "ready";
+                    ttsMessage = "";
+                }
+            }
+        });
+    }
+
+    public class TextToSpeechBridge {
+        @JavascriptInterface
+        public String getState() {
+            try {
+                JSONObject payload = new JSONObject();
+                payload.put("available", ttsReady);
+                payload.put("ready", ttsReady);
+                payload.put("status", ttsStatus);
+                payload.put("language", "zh-CN");
+                payload.put("message", ttsMessage);
+                return payload.toString();
+            } catch (Exception error) {
+                return "{\"available\":false,\"ready\":false,\"status\":\"error\","
+                    + "\"language\":\"zh-CN\",\"message\":\"无法读取系统语音服务状态\"}";
+            }
+        }
+
+        @JavascriptInterface
+        public String getVoices() {
+            try {
+                JSONObject payload = new JSONObject();
+                JSONArray voicesJson = new JSONArray();
+                synchronized (ttsLock) {
+                    if (ttsReady && textToSpeech != null) {
+                        Voice currentVoice = textToSpeech.getVoice();
+                        Set<Voice> voices = textToSpeech.getVoices();
+                        if (voices != null) {
+                            for (Voice voice : voices) {
+                                if (!isSelectableChineseVoice(voice)) {
+                                    continue;
+                                }
+                                JSONObject item = new JSONObject();
+                                item.put("id", voice.getName());
+                                item.put("name", voice.getName());
+                                item.put("lang", voice.getLocale().toLanguageTag());
+                                item.put("provider", "system");
+                                item.put("quality", voice.getQuality());
+                                item.put("latency", voice.getLatency());
+                                item.put("networkRequired", false);
+                                item.put("isDefault", voice.equals(currentVoice));
+                                voicesJson.put(item);
+                            }
+                        }
+                    }
+                }
+                payload.put("voices", voicesJson);
+                return payload.toString();
+            } catch (Exception error) {
+                Log.e(TAG, "tts voice enumeration failed: " + error.getMessage());
+                return "{\"voices\":[]}";
+            }
+        }
+
+        @JavascriptInterface
+        public boolean setVoice(String voiceId) {
+            String normalizedId = voiceId == null ? "" : voiceId.trim();
+            synchronized (ttsLock) {
+                if (!ttsReady || textToSpeech == null) {
+                    return false;
+                }
+                if (normalizedId.isEmpty()) {
+                    if (defaultTtsVoice != null) {
+                        return textToSpeech.setVoice(defaultTtsVoice) == TextToSpeech.SUCCESS;
+                    }
+                    return textToSpeech.setLanguage(Locale.SIMPLIFIED_CHINESE) >= TextToSpeech.LANG_AVAILABLE;
+                }
+
+                Set<Voice> voices = textToSpeech.getVoices();
+                if (voices != null) {
+                    for (Voice voice : voices) {
+                        if (isSelectableChineseVoice(voice) && normalizedId.equals(voice.getName())) {
+                            return textToSpeech.setVoice(voice) == TextToSpeech.SUCCESS;
+                        }
+                    }
+                }
+                if (defaultTtsVoice != null) {
+                    textToSpeech.setVoice(defaultTtsVoice);
+                }
+                return false;
+            }
+        }
+
+        @JavascriptInterface
+        public boolean speak(
+                String text,
+                float rate,
+                String utteranceId,
+                String callbackName) {
+            String normalizedText = text == null ? "" : text.trim();
+            String normalizedId = utteranceId == null ? "" : utteranceId.trim();
+            String normalizedCallback = callbackName == null ? "" : callbackName.trim();
+            if (normalizedText.isEmpty() || normalizedId.isEmpty() || normalizedCallback.isEmpty()) {
+                return false;
+            }
+
+            synchronized (ttsLock) {
+                if (!ttsReady || textToSpeech == null) {
+                    return false;
+                }
+                float safeRate = rate;
+                if (Float.isNaN(safeRate) || Float.isInfinite(safeRate)) {
+                    safeRate = 1.0f;
+                }
+                safeRate = Math.max(0.5f, Math.min(2.0f, safeRate));
+                textToSpeech.stop();
+                ttsCallbacks.clear();
+                ttsCallbacks.put(normalizedId, normalizedCallback);
+                if (textToSpeech.setSpeechRate(safeRate) != TextToSpeech.SUCCESS) {
+                    ttsCallbacks.remove(normalizedId);
+                    return false;
+                }
+                int result = textToSpeech.speak(
+                    normalizedText,
+                    TextToSpeech.QUEUE_FLUSH,
+                    null,
+                    normalizedId
+                );
+                if (result != TextToSpeech.SUCCESS) {
+                    ttsCallbacks.remove(normalizedId);
+                    return false;
+                }
+                return true;
+            }
+        }
+
+        @JavascriptInterface
+        public boolean stop() {
+            synchronized (ttsLock) {
+                ttsCallbacks.clear();
+                return textToSpeech != null && textToSpeech.stop() == TextToSpeech.SUCCESS;
+            }
+        }
+    }
+
+    private boolean isSelectableChineseVoice(Voice voice) {
+        if (voice == null || voice.getLocale() == null || voice.isNetworkConnectionRequired()) {
+            return false;
+        }
+        String language = voice.getLocale().getLanguage();
+        return "zh".equalsIgnoreCase(language)
+            || "cmn".equalsIgnoreCase(language)
+            || "yue".equalsIgnoreCase(language);
+    }
+
+    private void dispatchTtsResult(String utteranceId, String status, String message) {
+        final String callbackName;
+        synchronized (ttsLock) {
+            callbackName = ttsCallbacks.remove(utteranceId);
+        }
+        if (callbackName == null || callbackName.trim().isEmpty() || webView == null) {
+            return;
+        }
+        try {
+            JSONObject payload = new JSONObject();
+            payload.put("utteranceId", utteranceId == null ? "" : utteranceId);
+            payload.put("status", status);
+            payload.put("message", message == null ? "" : message);
+            final String script =
+                "window['" + escapeJs(callbackName) + "'](" + payload.toString() + ")";
+            webView.post(new Runnable() {
+                @Override
+                public void run() {
+                    if (webView == null) {
+                        return;
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
+                        webView.evaluateJavascript(script, null);
+                        return;
+                    }
+                    webView.loadUrl("javascript:" + script);
+                }
+            });
+        } catch (Exception error) {
+            Log.e(TAG, "tts callback failed: " + error.getMessage());
+        }
+    }
+
     private String extractIncomingDeepLink(Intent intent) {
         if (intent == null) {
             return null;
@@ -848,6 +1099,17 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        synchronized (ttsLock) {
+            ttsCallbacks.clear();
+            if (textToSpeech != null) {
+                textToSpeech.stop();
+                textToSpeech.shutdown();
+                textToSpeech = null;
+            }
+            defaultTtsVoice = null;
+            ttsReady = false;
+            ttsStatus = "destroyed";
+        }
         if (webView != null) {
             webView.destroy();
             webView = null;

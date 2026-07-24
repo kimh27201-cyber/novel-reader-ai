@@ -37,6 +37,7 @@
             class="reader-paragraph"
             v-for="(paragraph, index) in pageParagraphs"
             :key="index"
+            :class="{ 'reader-paragraph-speaking': isReadAloudParagraphActive(index) }"
             :style="paragraphStyle"
           >
             {{ paragraph }}
@@ -85,8 +86,8 @@
             <text>目录</text>
           </button>
           <button class="dock-tool touch-hit" aria-label="听读" @tap.stop="toggleReadAloud">
-            <text class="dock-icon">◉</text>
-            <text>{{ speaking ? '停止' : '听读' }}</text>
+            <text class="dock-icon">{{ readAloudDockIcon }}</text>
+            <text>{{ readAloudDockLabel }}</text>
           </button>
           <button class="dock-tool touch-hit" aria-label="界面设置" @tap.stop="openInterfaceSettings">
             <text class="dock-icon">Aa</text>
@@ -189,6 +190,53 @@
             <text>自动同步云端进度</text>
             <switch :checked="prefs.autoSyncProgress" :color="appAccent" @change="togglePref('autoSyncProgress', $event)" />
           </view>
+          <button class="voice-selector-entry" @tap.stop="openVoiceSelector">
+            <view>
+              <text class="voice-selector-label">听读声音</text>
+              <text class="voice-selector-value">{{ prefs.ttsVoiceName || '系统默认' }}</text>
+            </view>
+            <text class="voice-selector-arrow">›</text>
+          </button>
+          <view class="setting-item">
+            <text>听读自动进入下一章</text>
+            <switch :checked="prefs.ttsAutoNextChapter" :color="appAccent" @change="togglePref('ttsAutoNextChapter', $event)" />
+          </view>
+          <view class="tts-rate-setting">
+            <text>听读语速</text>
+            <view class="tts-rate-options">
+              <button
+                class="tts-rate-button"
+                v-for="rate in readAloudRates"
+                :key="rate"
+                :class="{ active: prefs.ttsRate === rate }"
+                @tap.stop="setReadAloudRate(rate)"
+              >{{ rate }}x</button>
+            </view>
+          </view>
+        </view>
+      </view>
+
+      <view
+        class="read-aloud-player app-motion-dialog"
+        :class="{ 'controls-offset': controlsVisible && !settingsVisible && !catalogVisible }"
+        v-if="readAloudPlayerVisible && !settingsVisible && !catalogVisible && !moreVisible"
+        @tap.stop
+      >
+        <view class="read-aloud-player-head">
+          <view>
+            <view class="read-aloud-status">{{ readAloudStatusText }}</view>
+            <text class="read-aloud-position">{{ readAloudPositionText }}</text>
+          </view>
+          <text class="read-aloud-provider">{{ readAloudProviderLabel }}</text>
+        </view>
+        <view class="read-aloud-controls">
+          <button class="read-aloud-control" aria-label="上一段" @tap.stop="skipReadAloudParagraph(-1)">上一段</button>
+          <button class="read-aloud-control primary" :aria-label="readAloudDockLabel" @tap.stop="toggleReadAloud">
+            {{ readAloudDockLabel }}
+          </button>
+          <button class="read-aloud-control" aria-label="下一段" @tap.stop="skipReadAloudParagraph(1)">下一段</button>
+          <button class="read-aloud-control rate" aria-label="切换语速" @tap.stop="cycleReadAloudRate">{{ prefs.ttsRate }}x</button>
+          <button class="read-aloud-control stop" aria-label="停止听读" @tap.stop="stopReadAloud('user')">停止</button>
         </view>
       </view>
 
@@ -289,6 +337,10 @@ import {
 } from '../../common/backendLibrary.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 import { isMotionReduced, setNavigationMotion } from '../../common/motion.js'
+import {
+  createReadAloudController,
+  READ_ALOUD_RATES
+} from '../../common/readAloud.js'
 
 const CATALOG_BATCH_SIZE = 120
 
@@ -326,7 +378,18 @@ export default {
       catalogStartIndex: 0,
       catalogVisibleCount: CATALOG_BATCH_SIZE,
       settingsMode: 'interface',
-      speaking: false
+      readAloudRates: READ_ALOUD_RATES,
+      readAloudController: null,
+      readAloudState: {
+        status: 'idle',
+        rate: 1,
+        voiceId: '',
+        driverKind: 'unknown',
+        segmentIndex: -1,
+        segment: null,
+        chapterKey: null,
+        error: ''
+      }
     }
   },
   computed: {
@@ -430,6 +493,48 @@ export default {
     },
     currentBookmarkActive() {
       return this.bookmarks.some(item => item.chapterIndex === this.chapterIndex && item.pageIndex === this.pageIndex)
+    },
+    readAloudPlayerVisible() {
+      return ['initializing', 'speaking', 'paused', 'loading-next', 'error'].includes(this.readAloudState.status)
+    },
+    readAloudDockLabel() {
+      if (this.readAloudState.status === 'paused') return '继续'
+      if (this.readAloudState.status === 'loading-next') return '停止'
+      if (['initializing', 'speaking'].includes(this.readAloudState.status)) return '暂停'
+      return '听读'
+    },
+    readAloudDockIcon() {
+      if (this.readAloudState.status === 'paused') return '▶'
+      if (this.readAloudState.status === 'loading-next') return '■'
+      if (['initializing', 'speaking'].includes(this.readAloudState.status)) return 'Ⅱ'
+      return '◉'
+    },
+    readAloudStatusText() {
+      const labels = {
+        initializing: '正在初始化听读',
+        speaking: '正在听读',
+        paused: '听读已暂停',
+        'loading-next': '正在加载下一章',
+        error: '听读失败'
+      }
+      return this.readAloudState.status === 'error'
+        ? (this.readAloudState.error || labels.error)
+        : (labels[this.readAloudState.status] || '听读')
+    },
+    readAloudPositionText() {
+      const segment = this.readAloudState.segment
+      const page = segment ? segment.pageIndex + 1 : this.pageIndex + 1
+      const paragraph = segment ? segment.paragraphIndex + 1 : 1
+      return `${this.chapter.title || `第 ${this.chapterIndex + 1} 章`} · 第 ${page} 页 · 第 ${paragraph} 段`
+    },
+    readAloudProviderLabel() {
+      const labels = {
+        'novel-reader-tts': '系统语音',
+        'app-plus': '系统语音',
+        'web-speech': '浏览器语音',
+        unavailable: '不可用'
+      }
+      return labels[this.readAloudState.driverKind] || '设备语音'
     }
   },
   watch: {
@@ -450,10 +555,19 @@ export default {
   onShow() {
     this.appThemeId = getAppThemeId()
     this.motionReduced = isMotionReduced()
+    const latestPrefs = getPrefs()
+    const voiceChanged = latestPrefs.ttsVoiceId !== this.prefs.ttsVoiceId
+    this.prefs = latestPrefs
+    if (voiceChanged && this.readAloudController) {
+      this.readAloudController.setVoice(this.prefs.ttsVoiceId)
+    }
     this.loadBookmarks()
   },
+  onHide() {
+    this.stopReadAloud('page-hidden')
+  },
   onUnload() {
-    this.stopReadAloud()
+    this.disposeReadAloud()
     this.clearPageTurnAnimation()
     this.clearChromeTimer()
     if (typeof uni !== 'undefined' && typeof uni.$off === 'function') {
@@ -662,6 +776,7 @@ export default {
     },
     nextPage() {
       if (this.loadingChapter) return
+      this.stopReadAloud('manual-navigation')
       if (this.pageIndex < this.pages.length - 1) {
         this.playPageTurn('forward')
         this.pageIndex += 1
@@ -672,6 +787,7 @@ export default {
     },
     prevPage() {
       if (this.loadingChapter) return
+      this.stopReadAloud('manual-navigation')
       if (this.pageIndex > 0) {
         this.playPageTurn('back')
         this.pageIndex -= 1
@@ -682,10 +798,10 @@ export default {
     },
     nextChapter() {
       if (this.chapterIndex < this.book.chapters.length - 1) {
+        this.stopReadAloud('manual-navigation')
         this.chapterIndex += 1
         this.pageIndex = 0
         this.hideReaderChrome()
-        this.stopReadAloud()
         this.rebuildPages()
       } else {
         uni.showToast({ title: '已经读完', icon: 'none' })
@@ -693,8 +809,8 @@ export default {
     },
     prevChapter(toLastPage) {
       if (this.chapterIndex > 0) {
+        this.stopReadAloud('manual-navigation')
         this.chapterIndex -= 1
-        this.stopReadAloud()
         this.rebuildPages().then(() => {
           if (toLastPage) this.pageIndex = this.pages.length - 1
           this.persist()
@@ -774,7 +890,10 @@ export default {
     },
     saveReaderPrefs(rebuild = false) {
       this.prefs = savePrefs(this.prefs)
-      if (rebuild) this.rebuildPages()
+      if (rebuild) {
+        this.stopReadAloud('layout-changed')
+        this.rebuildPages()
+      }
     },
     changeFont(delta) {
       this.prefs.fontSize += delta
@@ -851,6 +970,7 @@ export default {
       this.moreVisible = false
     },
     jumpToBookmark(item) {
+      this.stopReadAloud('manual-navigation')
       this.chapterIndex = Math.max(0, Math.min(item.chapterIndex, this.totalChapters - 1))
       this.pageIndex = Math.max(0, item.pageIndex || 0)
       this.catalogVisible = false
@@ -879,39 +999,184 @@ export default {
         uni.showToast({ title: '本章未找到关键词', icon: 'none' })
         return
       }
+      this.stopReadAloud('manual-navigation')
       this.pageIndex = index
       this.persist()
       uni.showToast({ title: `已跳到第 ${index + 1} 页`, icon: 'none' })
     },
-    toggleReadAloud() {
-      if (this.speaking) {
-        this.stopReadAloud()
-        return
-      }
-      if (typeof window === 'undefined' || !window.speechSynthesis || typeof window.SpeechSynthesisUtterance !== 'function') {
-        uni.showToast({ title: '当前环境暂不支持听读', icon: 'none' })
-        return
-      }
-      const text = this.getCurrentChapterText().trim() || this.pageContent.trim()
-      if (!text) {
-        uni.showToast({ title: '当前没有可朗读正文', icon: 'none' })
-        return
-      }
-      const utterance = new window.SpeechSynthesisUtterance(text.slice(0, 4000))
-      utterance.lang = 'zh-CN'
-      utterance.rate = 0.95
-      utterance.onend = () => { this.speaking = false }
-      utterance.onerror = () => { this.speaking = false }
-      window.speechSynthesis.cancel()
-      window.speechSynthesis.speak(utterance)
-      this.speaking = true
-      uni.showToast({ title: '开始听读', icon: 'none' })
+    ensureReadAloudController() {
+      if (this.readAloudController) return this.readAloudController
+      this.readAloudController = createReadAloudController({
+        rate: this.prefs.ttsRate,
+        voiceId: this.prefs.ttsVoiceId,
+        onStateChange: this.handleReadAloudState,
+        onSegmentChange: this.handleReadAloudSegment,
+        onChapterComplete: this.handleReadAloudChapterComplete
+      })
+      this.readAloudState = this.readAloudController.getState()
+      return this.readAloudController
     },
-    stopReadAloud() {
-      if (typeof window !== 'undefined' && window.speechSynthesis) {
-        window.speechSynthesis.cancel()
+    handleReadAloudState(state) {
+      const previousStatus = this.readAloudState.status
+      this.readAloudState = { ...state }
+      if (state.status === 'error' && previousStatus !== 'error') {
+        uni.showToast({ title: state.error || '听读失败', icon: 'none' })
       }
-      this.speaking = false
+      if (state.status === 'completed' && previousStatus !== 'completed') {
+        uni.showToast({ title: '听读完成', icon: 'none' })
+        if (this.readAloudController) this.readAloudController.stop('completed')
+      }
+    },
+    handleReadAloudSegment(segment, index, state) {
+      if (!segment) return
+      if (segment.pageIndex !== this.pageIndex) {
+        this.playPageTurn(segment.pageIndex > this.pageIndex ? 'forward' : 'back')
+        this.pageIndex = Math.max(0, Math.min(segment.pageIndex, this.pages.length - 1))
+        this.persist()
+      }
+      this.readAloudState = { ...state, segment: { ...segment }, segmentIndex: index }
+    },
+    async handleReadAloudChapterComplete() {
+      if (!this.prefs.ttsAutoNextChapter || this.chapterIndex >= this.book.chapters.length - 1) {
+        return null
+      }
+      const previousReadPosition = {
+        chapterIndex: this.chapterIndex,
+        pageIndex: this.pageIndex,
+        pages: [...this.pages],
+        chapterLoadError: this.chapterLoadError,
+        loadingChapter: this.loadingChapter,
+        loadingText: this.loadingText
+      }
+      this.chapterIndex += 1
+      this.pageIndex = 0
+      this.playPageTurn('forward')
+      try {
+        await this.rebuildPages()
+        if (this.chapterLoadError) {
+          throw new Error(this.chapterLoadError)
+        }
+        if (this.loadingChapter || !this.pages.some(page => String(page || '').trim())) {
+          throw new Error('下一章没有可朗读正文')
+        }
+        this.persist()
+        return {
+          pages: this.pages,
+          startPageIndex: 0,
+          startParagraphIndex: 0,
+          chapterKey: String(this.chapterIndex)
+        }
+      } catch (error) {
+        this.chapterIndex = previousReadPosition.chapterIndex
+        this.pageIndex = previousReadPosition.pageIndex
+        this.pages = previousReadPosition.pages
+        this.chapterLoadError = previousReadPosition.chapterLoadError
+        this.loadingChapter = previousReadPosition.loadingChapter
+        this.loadingText = previousReadPosition.loadingText
+        this.persist()
+        throw error
+      }
+    },
+    startReadAloud() {
+      if (this.loadingChapter) {
+        uni.showToast({ title: '章节仍在加载，请稍候', icon: 'none' })
+        return false
+      }
+      if (this.chapterLoadError || !this.pages.some(page => String(page || '').trim())) {
+        uni.showToast({ title: this.chapterLoadError || '当前没有可朗读正文', icon: 'none' })
+        return false
+      }
+      const controller = this.ensureReadAloudController()
+      controller.setRate(this.prefs.ttsRate)
+      controller.setVoice(this.prefs.ttsVoiceId)
+      const started = controller.start({
+        pages: this.pages,
+        startPageIndex: this.pageIndex,
+        startParagraphIndex: 0,
+        chapterKey: String(this.chapterIndex)
+      })
+      if (started) {
+        this.clearChromeTimer()
+        uni.showToast({ title: '开始听读', icon: 'none' })
+      }
+      return started
+    },
+    toggleReadAloud() {
+      const status = this.readAloudState.status
+      if (status === 'paused') {
+        this.readAloudController && this.readAloudController.resume()
+        return
+      }
+      if (status === 'loading-next') {
+        this.stopReadAloud('user')
+        return
+      }
+      if (['initializing', 'speaking'].includes(status)) {
+        this.readAloudController && this.readAloudController.pause()
+        return
+      }
+      this.startReadAloud()
+    },
+    stopReadAloud(reason = 'stopped') {
+      if (this.readAloudController) {
+        this.readAloudController.stop(reason)
+      } else if (this.readAloudState.status !== 'idle') {
+        this.readAloudState = {
+          ...this.readAloudState,
+          status: 'idle',
+          segmentIndex: -1,
+          segment: null,
+          error: ''
+        }
+      }
+    },
+    disposeReadAloud() {
+      if (this.readAloudController) {
+        this.readAloudController.dispose()
+        this.readAloudController = null
+      }
+      this.readAloudState = {
+        status: 'idle',
+        rate: this.prefs.ttsRate,
+        voiceId: this.prefs.ttsVoiceId,
+        driverKind: 'unknown',
+        segmentIndex: -1,
+        segment: null,
+        chapterKey: null,
+        error: ''
+      }
+    },
+    skipReadAloudParagraph(direction) {
+      if (!this.readAloudController || !this.readAloudController.skipParagraph(direction)) {
+        uni.showToast({ title: '当前没有可跳转段落', icon: 'none' })
+      }
+    },
+    setReadAloudRate(rate) {
+      this.prefs.ttsRate = Number(rate)
+      this.saveReaderPrefs(false)
+      if (this.readAloudController) {
+        this.readAloudController.setRate(this.prefs.ttsRate)
+      }
+    },
+    cycleReadAloudRate() {
+      const currentIndex = this.readAloudRates.indexOf(this.prefs.ttsRate)
+      const nextIndex = currentIndex < 0 ? 0 : (currentIndex + 1) % this.readAloudRates.length
+      this.setReadAloudRate(this.readAloudRates[nextIndex])
+    },
+    openVoiceSelector() {
+      this.settingsVisible = false
+      this.disposeReadAloud()
+      setNavigationMotion('enter', 'forward')
+      uni.navigateTo({ url: '/pages/voice/voice' })
+    },
+    isReadAloudParagraphActive(paragraphIndex) {
+      const segment = this.readAloudState.segment
+      return !!(
+        segment &&
+        ['initializing', 'speaking', 'paused', 'loading-next'].includes(this.readAloudState.status) &&
+        segment.pageIndex === this.pageIndex &&
+        segment.paragraphIndex === paragraphIndex
+      )
     },
     copyProgress() {
       const text = `${this.book.title} · ${this.chapter.title || `第 ${this.chapterIndex + 1} 章`} · ${this.pageIndex + 1}/${this.pages.length}`
@@ -931,6 +1196,7 @@ export default {
       this.rebuildPages()
     },
     retryChapter() {
+      this.stopReadAloud('chapter-reload')
       this.chapterLoadError = ''
       if ((this.book.source === 'online' || this.book.source === 'backend') && this.book.chapters[this.chapterIndex]) {
         this.book.chapters[this.chapterIndex] = {
@@ -1219,6 +1485,14 @@ export default {
   overflow-wrap: anywhere;
   white-space: pre-wrap;
   font-family: "KaiTi", "STKaiti", "FZKai-Z03", "PingFang SC", "Microsoft YaHei", serif;
+  border-radius: 8rpx;
+  transition: background-color 160ms ease, box-shadow 160ms ease;
+}
+
+.reader-paragraph-speaking {
+  background: rgba(223, 116, 88, 0.14);
+  background: color-mix(in srgb, var(--app-accent) 18%, transparent);
+  box-shadow: 0 0 0 6rpx color-mix(in srgb, var(--app-accent) 18%, transparent);
 }
 
 .reader-progress-mark {
@@ -1431,6 +1705,125 @@ export default {
   font-weight: 800;
 }
 
+.read-aloud-player {
+  position: absolute;
+  left: 28rpx;
+  right: 28rpx;
+  bottom: calc(28rpx + env(safe-area-inset-bottom));
+  z-index: 13;
+  padding: 18rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: var(--app-card-radius, 24rpx);
+  color: var(--app-reader-control-text);
+  background: var(--app-reader-control);
+  background: color-mix(in srgb, var(--app-reader-control) 96%, transparent);
+  box-shadow: var(--app-floating-shadow);
+  transition: bottom var(--app-motion-duration-normal) var(--app-motion-standard);
+}
+
+.read-aloud-player.controls-offset {
+  bottom: calc(236rpx + env(safe-area-inset-bottom));
+}
+
+.read-aloud-player-head,
+.read-aloud-controls,
+.tts-rate-options {
+  display: flex;
+  align-items: center;
+}
+
+.read-aloud-player-head {
+  justify-content: space-between;
+  gap: 18rpx;
+  margin-bottom: 14rpx;
+}
+
+.read-aloud-status {
+  color: var(--app-text);
+  font-size: 26rpx;
+  font-weight: 800;
+}
+
+.read-aloud-position {
+  display: block;
+  max-width: 500rpx;
+  margin-top: 4rpx;
+  overflow: hidden;
+  color: var(--app-muted);
+  font-size: 20rpx;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.read-aloud-provider {
+  flex: none;
+  color: var(--app-accent);
+  font-size: 20rpx;
+  font-weight: 700;
+}
+
+.read-aloud-controls {
+  gap: 8rpx;
+}
+
+.read-aloud-control {
+  flex: 1;
+  min-width: 0;
+  min-height: 64rpx;
+  padding: 0 8rpx;
+  border-radius: var(--app-control-radius, 14rpx);
+  color: var(--app-text);
+  background: var(--app-panel);
+  font-size: 20rpx;
+}
+
+.read-aloud-control.primary {
+  color: var(--app-accent-contrast, #ffffff);
+  background: var(--app-accent);
+  font-weight: 800;
+}
+
+.read-aloud-control.rate {
+  color: var(--app-accent);
+  font-weight: 800;
+}
+
+.read-aloud-control.stop {
+  color: var(--app-danger, #d85b57);
+}
+
+.tts-rate-setting {
+  margin-top: 18rpx;
+}
+
+.tts-rate-setting > text {
+  display: block;
+  margin-bottom: 12rpx;
+  color: var(--app-text);
+  font-size: 24rpx;
+}
+
+.tts-rate-options {
+  gap: 8rpx;
+}
+
+.tts-rate-button {
+  flex: 1;
+  min-width: 0;
+  min-height: 58rpx;
+  padding: 0;
+  border-radius: var(--app-control-radius, 14rpx);
+  color: var(--app-muted);
+  background: var(--app-panel);
+  font-size: 20rpx;
+}
+
+.tts-rate-button.active {
+  color: var(--app-accent-contrast, #ffffff);
+  background: var(--app-accent);
+  font-weight: 800;
+}
+
 .more-menu {
   position: absolute;
   top: 116rpx;
@@ -1591,6 +1984,46 @@ export default {
   min-height: 68rpx;
   color: var(--app-text);
   font-size: 24rpx;
+}
+
+.voice-selector-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  min-height: 88rpx;
+  margin: 8rpx 0;
+  padding: 12rpx 16rpx;
+  border-radius: var(--app-control-radius, 14rpx);
+  color: var(--app-text);
+  text-align: left;
+  background: var(--app-panel);
+}
+
+.voice-selector-entry > view {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 4rpx;
+}
+
+.voice-selector-label {
+  font-size: 24rpx;
+}
+
+.voice-selector-value {
+  overflow: hidden;
+  color: var(--app-muted);
+  font-size: 20rpx;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.voice-selector-arrow {
+  margin-left: 16rpx;
+  color: var(--app-accent);
+  font-size: 42rpx;
+  line-height: 1;
 }
 
 .turn-row {
