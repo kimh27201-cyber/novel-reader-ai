@@ -39,6 +39,17 @@ def test_ai_call_log_migration_declares_call_log_table() -> None:
     assert '"duration_ms"' in migration
 
 
+def test_tts_call_log_migration_is_privacy_safe() -> None:
+    migration = (BACKEND_DIR / "migrations" / "versions" / "0006_tts_call_logs.py").read_text(encoding="utf-8")
+    assert 'revision = "0006_tts_call_logs"' in migration
+    assert 'down_revision = "0005_foreign_key_delete_policies"' in migration
+    assert '"tts_call_logs",' in migration
+    assert '"character_count"' in migration
+    assert '"cache_hit"' in migration
+    assert 'ondelete="CASCADE"' in migration
+    assert 'sa.Column("text"' not in migration
+
+
 def test_source_session_migration_declares_session_table() -> None:
     migration = (BACKEND_DIR / "migrations" / "versions" / "0003_source_sessions.py").read_text(encoding="utf-8")
     assert '"source_sessions",' in migration

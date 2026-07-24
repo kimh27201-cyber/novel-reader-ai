@@ -188,3 +188,47 @@ Authorization: Bearer <access_token>
 ## 日志
 
 请求日志包含 request ID、用户 ID、路由、状态码和耗时；上游错误使用错误码分类。日志不得记录 Authorization、refresh token、Cookie、章节正文或 AI Key。排查问题时优先使用响应头中的 request ID 关联日志。
+
+## 云端拟真 TTS
+
+云端 TTS 默认关闭，未配置时不会影响设备系统 TTS。启用火山引擎 V3 TTS：
+
+```env
+TTS_ENABLED=true
+TTS_APP_ID=<火山引擎应用 ID>
+TTS_ACCESS_TOKEN=<火山引擎 Access Token>
+TTS_RESOURCE_ID=seed-tts-1.0
+```
+
+凭据只放在后端环境变量中，不得写入前端或 APK。内置五种角色会分别使用与 Speaker 匹配的 `seed-tts-1.0`、`seed-icl-1.0` 或 `seed-icl-2.0`；`TTS_RESOURCE_ID` 只是自定义音色未声明 `resource_id` 时的后备值。`TTS_VOICES_JSON` 可覆盖逻辑角色与火山 Speaker ID 的白名单：
+
+```json
+[
+  {
+    "id": "recital",
+    "name": "内敛才俊",
+    "role": "朗诵",
+    "speaker_id": "控制台已授权的 Speaker ID",
+    "resource_id": "与该音色匹配的 seed-icl/seed-tts 资源 ID",
+    "is_default": true
+  }
+]
+```
+
+接口均要求登录，音频下载使用短期签名票据，不在 URL 中传递 access token：
+
+- `GET /api/tts/voices`
+- `POST /api/tts/synthesize`
+- `GET /api/tts/audio/{cache_key}?ticket=...`
+
+单次合成限制 300 字和 900 UTF-8 字节；默认每用户每天最多产生 50,000 个未缓存字符，全局最多并发 2 个上游请求。MP3 缓存默认保留 7 天、总量最多 1 GB。`tts_call_logs` 仅记录字符数、音色、耗时、缓存命中和错误码，不保存正文。
+
+真实服务验收需先启动已配置 TTS 的后端，然后执行：
+
+```powershell
+cd D:\Codex\novel-reader-uniapp\backend
+$env:TTS_ACCEPTANCE_BASE_URL='http://127.0.0.1:8000'
+.\.venv\Scripts\python.exe scripts\tts_real_service_acceptance.py
+```
+
+脚本会注册临时用户，并为所有可用云音色生成固定文案试听文件到 `data/tts-acceptance/`。自动测试会 mock 上游，不会消耗真实额度。

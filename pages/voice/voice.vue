@@ -6,7 +6,7 @@
         <text class="eyebrow">VOICE LIBRARY</text>
         <view class="page-title">谁来为你读</view>
       </view>
-      <button class="round-button refresh" :loading="loading" aria-label="刷新声音列表" @tap="loadVoices">↻</button>
+      <button class="round-button refresh" :loading="refreshing" aria-label="刷新声音列表" @tap="refreshAllVoices">↻</button>
     </view>
 
     <scroll-view class="voice-scroll" scroll-y :show-scrollbar="false">
@@ -14,58 +14,88 @@
         <view class="hero-wave" aria-hidden="true">
           <text v-for="height in heroWave" :key="height" :style="{ height: height + 'rpx' }"></text>
         </view>
-        <view class="hero-title">先听一句，再决定谁陪你读完这一章。</view>
-        <text class="hero-desc">角色效果由设备系统声音在本地调整音调与节奏生成，正文不会上传。</text>
+        <view class="hero-title">选一个真正有角色感的声音。</view>
+        <text class="hero-desc">AI 拟真音色更自然；设备声音与离线角色效果可在无网络时继续使用。</text>
       </view>
 
       <view class="section-head">
         <view>
-          <text class="section-kicker">角色音色</text>
-          <view class="section-title">选择一种本地角色效果</view>
+          <text class="section-kicker cloud">AI 拟真音色</text>
+          <view class="section-title">神经语音 · 云端生成</view>
         </view>
-        <text class="section-count">{{ roleVoices.length }} PRESETS</text>
+        <text class="section-count">{{ cloudVoices.length }} VOICES</text>
       </view>
 
-      <scroll-view class="role-strip" scroll-x :show-scrollbar="false">
-        <view class="role-row">
-          <view
-            class="role-card"
-            v-for="role in roleVoices"
-            :key="role.id"
-            :class="{
-              selected: selectedProvider === 'preset' && selectedId === role.id,
-              previewing: previewVoiceKey === roleKey(role)
-            }"
-          >
-            <view class="role-glyph">{{ role.glyph }}</view>
-            <view class="role-name-row">
-              <view class="role-name">{{ role.name }}</view>
+      <view class="cloud-disclosure">
+        <text class="cloud-disclosure-badge">AI</text>
+        <text>以下为 AI 合成音，不是真人录音。选择后仅将当前朗读片段发送至云端生成语音。</text>
+      </view>
+
+      <view class="status-card" v-if="cloudLoading">
+        <view class="status-orbit"></view>
+        <view>
+          <view class="status-title">正在连接拟真语音服务</view>
+          <text class="status-desc">正在读取账号可用的火山引擎音色。</text>
+        </view>
+      </view>
+
+      <view class="status-card cloud-unavailable" v-else-if="cloudMessage">
+        <view>
+          <view class="status-title">{{ cloudStatusTitle }}</view>
+          <text class="status-desc">{{ cloudMessage }}</text>
+        </view>
+        <button class="retry-button" v-if="hasLoginToken" @tap="loadCloudVoices">重试</button>
+      </view>
+
+      <view class="voice-list cloud-list" v-else>
+        <view
+          class="voice-card cloud-voice-card"
+          v-for="(voice, index) in cloudVoices"
+          :key="'volcengine:' + voice.id"
+          :class="{
+            selected: selectedProvider === 'volcengine' && selectedId === voice.id,
+            previewing: previewVoiceKey === cloudVoiceKey(voice)
+          }"
+        >
+          <view class="voice-card-main">
+            <view class="voice-signature cloud-signature" aria-hidden="true">
               <text
-                class="selected-badge"
-                v-if="selectedProvider === 'preset' && selectedId === role.id"
-              >当前</text>
+                v-for="bar in signatureBars(index + 12)"
+                :key="bar.key"
+                :style="{ height: bar.height + 'rpx' }"
+              ></text>
             </view>
-            <text class="role-desc">{{ role.desc }}</text>
-            <text class="role-params">音调 {{ role.pitch }} · 节奏 {{ role.rateScale }}x</text>
-            <view class="role-actions">
-              <button class="role-action preview" @tap.stop="previewRole(role)">
-                {{ previewVoiceKey === roleKey(role) ? '停止' : '试听' }}
-              </button>
-              <button
-                class="role-action select"
-                :disabled="selectedProvider === 'preset' && selectedId === role.id"
-                @tap.stop="selectRole(role)"
-              >
-                {{ selectedProvider === 'preset' && selectedId === role.id ? '已选择' : '选择' }}
-              </button>
+            <view class="voice-copy">
+              <view class="voice-name-row">
+                <view class="voice-name">{{ voice.name }}</view>
+                <text class="selected-badge" v-if="selectedProvider === 'volcengine' && selectedId === voice.id">当前</text>
+              </view>
+              <text class="voice-id">{{ voice.description || voice.role || 'AI 拟真旁白' }}</text>
+              <view class="voice-meta">
+                <text>AI 拟真</text>
+                <text>{{ formatLanguage(voice.lang) }}</text>
+                <text>需要联网</text>
+              </view>
             </view>
           </view>
+          <view class="voice-actions">
+            <button class="voice-action preview" @tap="previewCloudVoice(voice)">
+              {{ previewVoiceKey === cloudVoiceKey(voice) ? '停止试听' : '试听' }}
+            </button>
+            <button
+              class="voice-action select"
+              :disabled="selectedProvider === 'volcengine' && selectedId === voice.id"
+              @tap="selectCloudVoice(voice)"
+            >
+              {{ selectedProvider === 'volcengine' && selectedId === voice.id ? '已选择' : '选择' }}
+            </button>
+          </view>
         </view>
-      </scroll-view>
+      </view>
 
       <view class="section-head device-head">
         <view>
-          <text class="section-kicker">设备声音</text>
+          <text class="section-kicker">设备系统声音</text>
           <view class="section-title">当前可用的中文音色</view>
         </view>
         <text class="section-count">{{ voices.length }} VOICES</text>
@@ -139,11 +169,56 @@
         </view>
       </view>
 
-      <view class="privacy-note">
-        <text class="privacy-mark">LOCAL</text>
+      <view class="section-head device-head">
         <view>
-          <view>设备语音优先</view>
-          <text>Android 已排除明确要求联网的音色；浏览器是否联网由系统语音服务决定。</text>
+          <text class="section-kicker">离线角色效果</text>
+          <view class="section-title">本地音调与节奏模拟</view>
+        </view>
+        <text class="section-count">{{ roleVoices.length }} PRESETS</text>
+      </view>
+
+      <scroll-view class="role-strip" scroll-x :show-scrollbar="false">
+        <view class="role-row">
+          <view
+            class="role-card"
+            v-for="role in roleVoices"
+            :key="role.id"
+            :class="{
+              selected: selectedProvider === 'preset' && selectedId === role.id,
+              previewing: previewVoiceKey === roleKey(role)
+            }"
+          >
+            <view class="role-glyph">{{ role.glyph }}</view>
+            <view class="role-name-row">
+              <view class="role-name">{{ role.name }}</view>
+              <text
+                class="selected-badge"
+                v-if="selectedProvider === 'preset' && selectedId === role.id"
+              >当前</text>
+            </view>
+            <text class="role-desc">{{ role.desc }}</text>
+            <text class="role-params">音调 {{ role.pitch }} · 节奏 {{ role.rateScale }}x</text>
+            <view class="role-actions">
+              <button class="role-action preview" @tap.stop="previewRole(role)">
+                {{ previewVoiceKey === roleKey(role) ? '停止' : '试听' }}
+              </button>
+              <button
+                class="role-action select"
+                :disabled="selectedProvider === 'preset' && selectedId === role.id"
+                @tap.stop="selectRole(role)"
+              >
+                {{ selectedProvider === 'preset' && selectedId === role.id ? '已选择' : '选择' }}
+              </button>
+            </view>
+          </view>
+        </view>
+      </scroll-view>
+
+      <view class="privacy-note">
+        <text class="privacy-mark">PRIVACY</text>
+        <view>
+          <view>离线声音始终可用</view>
+          <text>未登录、未授权或云端服务异常时，仍可选择设备系统声音和离线角色效果。Android 已排除明确要求联网的音色。</text>
         </view>
       </view>
     </scroll-view>
@@ -152,11 +227,13 @@
 
 <script>
 import {
+  createCloudReadAloudDriver,
   createReadAloudDriver,
   READ_ALOUD_ROLE_PRESETS,
   resolveReadAloudVoiceProfile,
   SYSTEM_DEFAULT_VOICE
 } from '../../common/readAloud.js'
+import apiClient from '../../common/apiClient.js'
 import { getPrefs, savePrefs } from '../../common/reader.js'
 import { getAppThemeId, getAppThemeStyle } from '../../common/appTheme.js'
 import { isMotionReduced, setNavigationMotion } from '../../common/motion.js'
@@ -170,6 +247,11 @@ export default {
       prefs,
       themeId: getAppThemeId(),
       motionReduced: isMotionReduced(),
+      loggedIn: !!apiClient.getToken(),
+      cloudVoices: [],
+      cloudLoading: false,
+      cloudMessage: '',
+      cloudAvailable: false,
       voices: [{ ...SYSTEM_DEFAULT_VOICE }],
       selectedProvider: prefs.ttsVoiceProvider,
       selectedId: prefs.ttsVoiceId,
@@ -178,12 +260,23 @@ export default {
       previewVoiceKey: '',
       previewToken: 0,
       driver: null,
+      cloudDriver: null,
       loadToken: 0,
+      cloudLoadToken: 0,
       heroWave: [22, 42, 64, 34, 78, 52, 28, 66, 38, 54],
       roleVoices: READ_ALOUD_ROLE_PRESETS.map(role => ({ ...role }))
     }
   },
   computed: {
+    refreshing() {
+      return this.loading || this.cloudLoading
+    },
+    hasLoginToken() {
+      return this.loggedIn
+    },
+    cloudStatusTitle() {
+      return this.hasLoginToken ? '拟真语音暂不可用' : '登录后使用拟真音色'
+    },
     themeVars() {
       return {
         ...getAppThemeStyle(this.themeId),
@@ -192,11 +285,17 @@ export default {
     }
   },
   onLoad() {
-    this.loadVoices()
+    this.refreshAllVoices()
   },
   onShow() {
     this.themeId = getAppThemeId()
     this.motionReduced = isMotionReduced()
+    const wasLoggedIn = this.loggedIn
+    this.loggedIn = !!apiClient.getToken()
+    this.prefs = getPrefs()
+    this.selectedProvider = this.prefs.ttsVoiceProvider
+    this.selectedId = this.prefs.ttsVoiceId
+    if (!wasLoggedIn && this.loggedIn) this.loadCloudVoices()
   },
   onHide() {
     this.stopPreview()
@@ -205,9 +304,62 @@ export default {
     this.disposeDriver()
   },
   methods: {
+    refreshAllVoices() {
+      this.loadVoices()
+      this.loadCloudVoices()
+    },
     ensureDriver() {
       if (!this.driver) this.driver = createReadAloudDriver()
       return this.driver
+    },
+    ensureCloudDriver() {
+      if (!this.cloudDriver) this.cloudDriver = createCloudReadAloudDriver({ apiClient })
+      return this.cloudDriver
+    },
+    async loadCloudVoices() {
+      const token = ++this.cloudLoadToken
+      this.cloudLoading = true
+      this.cloudMessage = ''
+      this.cloudAvailable = false
+      if (!this.hasLoginToken) {
+        this.cloudVoices = []
+        this.cloudMessage = '请先在“我的”页面登录。未登录不影响设备声音和离线角色效果。'
+        this.cloudLoading = false
+        return
+      }
+      try {
+        const listed = await this.ensureCloudDriver().listVoices()
+        if (token !== this.cloudLoadToken) return
+        const availableVoices = Array.isArray(listed) ? listed : []
+        this.cloudAvailable = availableVoices.length > 0
+        this.cloudVoices = availableVoices.map(voice => ({
+          ...voice,
+          id: String(voice.id || voice.voice_id || '').trim(),
+          name: String(voice.name || voice.display_name || voice.id || voice.voice_id || 'AI 拟真音色'),
+          lang: voice.lang || 'zh-CN',
+          provider: 'volcengine',
+          networkRequired: true
+        })).filter(voice => voice.id)
+        if (!this.cloudAvailable || !this.cloudVoices.length) {
+          this.cloudMessage = '服务尚未配置可用音色，请检查后端火山引擎凭据和音色配置；离线声音仍可正常使用。'
+        }
+        this.reconcileCloudVoice(true)
+      } catch (error) {
+        if (token !== this.cloudLoadToken) return
+        this.cloudVoices = []
+        this.cloudMessage = this.cloudErrorMessage(error)
+      } finally {
+        if (token === this.cloudLoadToken) this.cloudLoading = false
+      }
+    },
+    cloudErrorMessage(error) {
+      const status = Number(error && error.statusCode)
+      if (status === 401) {
+        this.loggedIn = false
+        return '登录状态已失效，请重新登录。设备声音和离线角色效果仍可使用。'
+      }
+      if (status === 429) return '今日拟真语音额度已用完，请稍后再试或改用离线声音。'
+      return '请检查网络和后端拟真语音配置后重试；设备声音和离线角色效果仍可使用。'
     },
     async loadVoices() {
       const token = ++this.loadToken
@@ -237,6 +389,11 @@ export default {
     },
     reconcileSavedVoice() {
       this.prefs = getPrefs()
+      if (this.prefs.ttsVoiceProvider === 'volcengine') {
+        this.selectedProvider = 'volcengine'
+        this.selectedId = this.prefs.ttsVoiceId
+        return
+      }
       if (this.prefs.ttsVoiceProvider === 'preset') {
         const matchedRole = this.roleVoices.some(role => role.id === this.prefs.ttsVoiceId)
         if (matchedRole) {
@@ -263,6 +420,59 @@ export default {
       if (hadSavedVoice) {
         uni.showToast({ title: '原声音不可用，已恢复系统默认', icon: 'none' })
       }
+    },
+    reconcileCloudVoice(authoritative = false) {
+      this.prefs = getPrefs()
+      if (this.prefs.ttsVoiceProvider !== 'volcengine') return
+      const matched = this.cloudVoices.some(voice => voice.id === this.prefs.ttsVoiceId)
+      if (matched) {
+        this.selectedProvider = 'volcengine'
+        this.selectedId = this.prefs.ttsVoiceId
+        return
+      }
+      if (!authoritative || !this.cloudAvailable) return
+      this.prefs = savePrefs({
+        ...this.prefs,
+        ttsVoiceProvider: 'system',
+        ttsVoiceId: '',
+        ttsVoiceName: SYSTEM_DEFAULT_VOICE.name
+      })
+      this.selectedProvider = 'system'
+      this.selectedId = ''
+      uni.showToast({ title: '原拟真音色已下架，已恢复系统默认', icon: 'none' })
+    },
+    requestCloudConsent() {
+      const prefs = getPrefs()
+      if (prefs.ttsCloudConsent) return Promise.resolve(true)
+      return new Promise(resolve => {
+        uni.showModal({
+          title: '启用 AI 拟真音色',
+          content: '听读时会将当前短片段发送至云端生成语音，不会上传整本书。断网或服务不可用时可切换到设备声音。',
+          confirmText: '同意并继续',
+          cancelText: '暂不使用',
+          success: result => {
+            if (!result.confirm) {
+              resolve(false)
+              return
+            }
+            this.prefs = savePrefs({ ...getPrefs(), ttsCloudConsent: true })
+            resolve(true)
+          },
+          fail: () => resolve(false)
+        })
+      })
+    },
+    async selectCloudVoice(voice) {
+      if (!await this.requestCloudConsent()) return
+      this.prefs = savePrefs({
+        ...getPrefs(),
+        ttsVoiceProvider: 'volcengine',
+        ttsVoiceId: voice.id,
+        ttsVoiceName: voice.name
+      })
+      this.selectedProvider = 'volcengine'
+      this.selectedId = voice.id
+      uni.showToast({ title: `已选择${voice.name}`, icon: 'none' })
     },
     selectVoice(voice) {
       this.prefs = savePrefs({
@@ -300,6 +510,19 @@ export default {
         key: this.voiceKey(voice)
       })
     },
+    async previewCloudVoice(voice) {
+      const key = this.cloudVoiceKey(voice)
+      if (this.previewVoiceKey === key) {
+        this.stopPreview()
+        return
+      }
+      if (!await this.requestCloudConsent()) return
+      return this.previewSelection({
+        provider: 'volcengine',
+        id: voice.id,
+        key
+      })
+    },
     async previewSelection(selection) {
       const key = selection.key
       if (this.previewVoiceKey === key) {
@@ -311,7 +534,10 @@ export default {
       this.previewVoiceKey = key
       const profile = resolveReadAloudVoiceProfile(selection.provider, selection.id)
       try {
-        await this.ensureDriver().speak(PREVIEW_TEXT, {
+        const driver = selection.provider === 'volcengine'
+          ? this.ensureCloudDriver()
+          : this.ensureDriver()
+        await driver.speak(PREVIEW_TEXT, {
           rate: this.prefs.ttsRate * profile.rateScale,
           pitch: profile.pitch,
           voiceId: profile.voiceId,
@@ -335,14 +561,22 @@ export default {
       try {
         if (this.driver) this.driver.stop()
       } catch (error) {}
+      try {
+        if (this.cloudDriver) this.cloudDriver.stop()
+      } catch (error) {}
     },
     disposeDriver() {
       this.loadToken += 1
+      this.cloudLoadToken += 1
       this.stopPreview()
       try {
         if (this.driver && typeof this.driver.dispose === 'function') this.driver.dispose()
       } catch (error) {}
       this.driver = null
+      try {
+        if (this.cloudDriver && typeof this.cloudDriver.dispose === 'function') this.cloudDriver.dispose()
+      } catch (error) {}
+      this.cloudDriver = null
     },
     signatureBars(index) {
       const base = [22, 38, 54, 30, 46]
@@ -356,6 +590,9 @@ export default {
     },
     roleKey(role) {
       return `preset:${role.id}`
+    },
+    cloudVoiceKey(voice) {
+      return `volcengine:${voice.id}`
     },
     formatLanguage(lang) {
       const value = String(lang || 'zh-CN').replace(/_/g, '-')
@@ -534,6 +771,10 @@ button::after {
   font-weight: 800;
 }
 
+.section-kicker.cloud {
+  color: var(--app-accent);
+}
+
 .section-title {
   margin-top: 5rpx;
   font-family: var(--app-display-font);
@@ -662,6 +903,31 @@ button::after {
   margin-top: 34rpx;
 }
 
+.cloud-disclosure {
+  display: flex;
+  align-items: flex-start;
+  gap: 14rpx;
+  margin-bottom: 16rpx;
+  padding: 18rpx 20rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: var(--app-control-radius, 14rpx);
+  color: var(--app-muted);
+  background: var(--app-input);
+  font-size: 19rpx;
+  line-height: 1.55;
+}
+
+.cloud-disclosure-badge {
+  flex-shrink: 0;
+  padding: 3rpx 10rpx;
+  border-radius: 999rpx;
+  color: var(--app-on-accent);
+  background: linear-gradient(135deg, var(--app-accent), var(--app-accent-2));
+  font-family: var(--app-utility-font, monospace);
+  font-size: 17rpx;
+  font-weight: 900;
+}
+
 .status-card,
 .voice-card,
 .privacy-note {
@@ -681,6 +947,11 @@ button::after {
 
 .status-card.error {
   justify-content: space-between;
+}
+
+.status-card.cloud-unavailable {
+  justify-content: space-between;
+  border-style: dashed;
 }
 
 .status-orbit {
@@ -720,6 +991,34 @@ button::after {
   display: flex;
   flex-direction: column;
   gap: 16rpx;
+}
+
+.cloud-list {
+  gap: 18rpx;
+}
+
+.cloud-voice-card {
+  position: relative;
+  overflow: hidden;
+  border-color: color-mix(in srgb, var(--app-accent) 42%, var(--app-border));
+}
+
+.cloud-voice-card::before {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 6rpx;
+  height: 100%;
+  content: '';
+  background: linear-gradient(180deg, var(--app-accent), var(--app-accent-2), var(--app-accent-3));
+}
+
+.cloud-signature {
+  background: linear-gradient(
+    145deg,
+    color-mix(in srgb, var(--app-accent) 18%, var(--app-input)),
+    var(--app-input)
+  );
 }
 
 .voice-card {

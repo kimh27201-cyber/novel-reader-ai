@@ -3,6 +3,9 @@ import assert from 'node:assert/strict'
 const {
   READ_ALOUD_ROLE_PRESETS,
   READ_ALOUD_RATES,
+  VOLCENGINE_VOICE_PROVIDER,
+  createCloudReadAloudDriver,
+  createFallbackReadAloudDriver,
   createReadAloudController,
   createReadAloudDriver,
   normalizeReadAloudPitch,
@@ -37,6 +40,14 @@ assert.deepEqual(resolveReadAloudVoiceProfile('preset', 'uncle'), {
   rateScale: 0.92
 })
 assert.equal(resolveReadAloudVoiceProfile('preset', 'missing').provider, 'system')
+assert.deepEqual(resolveReadAloudVoiceProfile('volcengine', 'loli'), {
+  provider: 'volcengine',
+  presetId: '',
+  name: '',
+  voiceId: 'loli',
+  pitch: 1,
+  rateScale: 1
+})
 assert.deepEqual(splitReadAloudSegments([]), [])
 assert.deepEqual(splitReadAloudSegments([' \n ']), [])
 
@@ -202,6 +213,154 @@ const delayedList = delayedDriver.listVoices({ timeoutMs: 50 })
 delayedVoices = [{ voiceURI: 'late-zh', name: '延迟中文', lang: 'zh-CN' }]
 voicesChanged()
 assert.deepEqual((await delayedList).map(item => item.id), ['', 'late-zh'])
+
+const cloudSynthesisCalls = []
+const cloudAudioCalls = []
+const cloudApi = {
+  getBaseUrl() {
+    return 'https://reader.example'
+  },
+  async listTtsVoices() {
+    return {
+      provider: 'volcengine',
+      available: true,
+      voices: [
+        { id: 'loli', name: '可爱女生', lang: 'zh-CN' },
+        { id: 'english', name: 'English', lang: 'en-US' }
+      ]
+    }
+  },
+  async synthesizeTts(payload) {
+    cloudSynthesisCalls.push(payload)
+    return {
+      audio_url: `/api/tts/audio/cache-key?ticket=signed`,
+      cache_hit: cloudSynthesisCalls.length > 1
+    }
+  }
+}
+const cloudDriver = createCloudReadAloudDriver({
+  apiClient: cloudApi,
+  audioFactory(url, onEnded) {
+    const player = {
+      url,
+      stopped: false,
+      dispose() {
+        this.stopped = true
+      }
+    }
+    cloudAudioCalls.push(player)
+    queueMicrotask(onEnded)
+    return player
+  }
+})
+assert.equal(cloudDriver.available, true)
+assert.equal(cloudDriver.kind, 'volcengine-cloud')
+assert.deepEqual((await cloudDriver.listVoices()).map(item => item.id), ['loli'])
+const unavailableCloudDriver = createCloudReadAloudDriver({
+  apiClient: {
+    getBaseUrl: () => 'https://reader.example',
+    listTtsVoices: async () => ({
+      available: false,
+      voices: [{ id: 'loli', name: '可爱女生', lang: 'zh-CN', available: false }]
+    }),
+    synthesizeTts: async () => ({ audio_url: '/unused' })
+  },
+  audioFactory() {}
+})
+assert.deepEqual(await unavailableCloudDriver.listVoices(), [])
+await cloudDriver.prefetch('下一段正文', { voiceId: 'loli', rate: 1.2 })
+const cloudPlayResult = await cloudDriver.speak('下一段正文', {
+  voiceProvider: VOLCENGINE_VOICE_PROVIDER,
+  voiceId: 'loli',
+  rate: 1.2,
+  utteranceId: 'cloud-1'
+})
+assert.equal(cloudSynthesisCalls.length, 1)
+assert.deepEqual(cloudSynthesisCalls[0], {
+  text: '下一段正文',
+  voiceId: 'loli',
+  rate: 1.2
+})
+assert.equal(cloudAudioCalls[0].url, 'https://reader.example/api/tts/audio/cache-key?ticket=signed')
+assert.equal(cloudAudioCalls[0].stopped, true)
+assert.equal(cloudPlayResult.provider, VOLCENGINE_VOICE_PROVIDER)
+
+let resolveSlowSynthesis
+const stoppedCloudDriver = createCloudReadAloudDriver({
+  apiClient: {
+    getBaseUrl() {
+      return 'https://reader.example'
+    },
+    listTtsVoices: async () => ({ voices: [] }),
+    synthesizeTts() {
+      return new Promise(resolve => {
+        resolveSlowSynthesis = resolve
+      })
+    }
+  },
+  audioFactory() {
+    throw new Error('停止后不应开始播放')
+  }
+})
+const stoppedSpeaking = stoppedCloudDriver.speak('等待中的正文', {
+  voiceId: 'loli',
+  utteranceId: 'cloud-stopped'
+})
+const stoppedAssertion = assert.rejects(stoppedSpeaking, /听读已停止/)
+stoppedCloudDriver.stop()
+resolveSlowSynthesis({ audio_url: '/should-not-play' })
+await stoppedAssertion
+
+const fallbackEvents = []
+const fallbackCloud = {
+  available: true,
+  calls: 0,
+  async speak() {
+    this.calls += 1
+    throw new Error('云服务超时')
+  },
+  stop() {},
+  dispose() {}
+}
+const fallbackSystem = {
+  available: true,
+  calls: [],
+  async speak(text, options) {
+    this.calls.push({ text, options })
+    return { status: 'done' }
+  },
+  stop() {},
+  dispose() {}
+}
+const fallbackDriver = createFallbackReadAloudDriver(fallbackCloud, fallbackSystem, {
+  onFallback(event) {
+    fallbackEvents.push(event)
+  }
+})
+await fallbackDriver.speak('当前段', {
+  voiceProvider: VOLCENGINE_VOICE_PROVIDER,
+  voiceId: 'loli',
+  utteranceId: 'fallback-1'
+})
+await fallbackDriver.speak('后一段', {
+  voiceProvider: VOLCENGINE_VOICE_PROVIDER,
+  voiceId: 'loli',
+  utteranceId: 'fallback-2'
+})
+assert.equal(fallbackCloud.calls, 1)
+assert.equal(fallbackSystem.calls.length, 2)
+assert.equal(fallbackSystem.calls[0].options.voiceProvider, 'system')
+assert.equal(fallbackSystem.calls[0].options.voiceId, '')
+assert.equal(fallbackEvents.length, 1)
+assert.equal(fallbackEvents[0].message, '云端音色不可用，已切换系统声音')
+fallbackDriver.resetFallback()
+await fallbackDriver.speak('新会话', {
+  voiceProvider: VOLCENGINE_VOICE_PROVIDER,
+  voiceId: 'loli',
+  utteranceId: 'fallback-3'
+})
+assert.equal(fallbackCloud.calls, 2)
+assert.equal(fallbackEvents.length, 2)
 
 function createDeferredDriver() {
   const calls = []
@@ -370,6 +529,47 @@ assert.equal(roleController.setVoice('missing', 'preset'), '')
 await flush()
 assert.equal(roleController.getState().voiceProvider, 'system')
 assert.equal(roleDriver.calls[2].options.pitch, 1)
+
+const hybridCalls = []
+const hybridPrefetches = []
+let hybridFallbackHandler = null
+const hybridController = createReadAloudController({
+  driver: {
+    kind: 'cloud-with-system-fallback',
+    available: true,
+    setFallbackHandler(handler) {
+      hybridFallbackHandler = handler
+    },
+    resetFallback() {},
+    async speak(text, options) {
+      hybridCalls.push({ text, options })
+      if (hybridCalls.length === 1) {
+        hybridFallbackHandler({
+          provider: 'volcengine',
+          fallbackProvider: 'system',
+          message: '云端音色不可用，已切换系统声音',
+          error: 'timeout'
+        })
+      }
+      return { status: 'done' }
+    },
+    async prefetch(text, options) {
+      hybridPrefetches.push({ text, options })
+    },
+    stop() {},
+    dispose() {}
+  },
+  voiceProvider: 'volcengine',
+  voiceId: 'recital'
+})
+hybridController.start({ pages: ['第一段\n第二段'] })
+await flush()
+await flush()
+assert.equal(hybridCalls[0].options.voiceProvider, 'volcengine')
+assert.equal(hybridCalls[0].options.voiceId, 'recital')
+assert.equal(hybridPrefetches[0].text, '第二段')
+assert.equal(hybridController.getState().fallbackActive, true)
+assert.equal(hybridController.getState().notice, '云端音色不可用，已切换系统声音')
 
 const unavailable = createReadAloudController({
   driver: createReadAloudDriver({ window: null, plus: null })

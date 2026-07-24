@@ -389,6 +389,32 @@ async function testBackendV2ContractRoutes() {
   assert.deepEqual(calls[3].data, { device_id: 'device-1', mutations: [{ mutation_id: 'mutation-1' }] })
 }
 
+async function testTtsContractRoutes() {
+  const { client, calls } = createClient(() => ({
+    statusCode: 200,
+    data: { voices: [] }
+  }))
+  client.setToken('token-abc')
+
+  await client.listTtsVoices()
+  await client.synthesizeTts({
+    text: '云端试听文案',
+    voiceId: 'loli',
+    rate: 1.2
+  })
+
+  assert.deepEqual(calls.map(call => [call.method, call.url]), [
+    ['GET', 'http://127.0.0.1:8000/api/tts/voices'],
+    ['POST', 'http://127.0.0.1:8000/api/tts/synthesize']
+  ])
+  assert.deepEqual(calls[1].data, {
+    text: '云端试听文案',
+    voice_id: 'loli',
+    rate: 1.2
+  })
+  assert.equal(calls[1].header.Authorization, 'Bearer token-abc')
+}
+
 async function testUnauthorizedClearsToken() {
   const { client } = createClient(() => ({
     statusCode: 401,
@@ -449,6 +475,7 @@ await testUnauthorizedRefreshesAndRetriesOnce()
 await testLogoutRevokesAndClearsTokenPair()
 await testConcurrentUnauthorizedRequestsShareRefresh()
 await testBackendV2ContractRoutes()
+await testTtsContractRoutes()
 await testUnauthorizedClearsToken()
 await testUnifiedErrorMessageIsPreferred()
 await testPromiseRequestAdapterIsSupported()

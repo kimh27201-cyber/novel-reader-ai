@@ -20,6 +20,22 @@ class Settings(BaseSettings):
     ai_base_url: str = ""
     ai_model: str = ""
     ai_timeout_seconds: float = 30.0
+    tts_enabled: bool = False
+    tts_app_id: str = ""
+    tts_access_token: str = ""
+    tts_base_url: str = "https://openspeech.bytedance.com/api/v3/tts/unidirectional"
+    tts_resource_id: str = "seed-tts-1.0"
+    tts_model: str = "volcengine-v3"
+    tts_voices_json: str = ""
+    tts_timeout_seconds: float = Field(default=20.0, gt=0, le=120)
+    tts_retry_count: int = Field(default=1, ge=0, le=3)
+    tts_max_concurrency: int = Field(default=2, ge=1, le=10)
+    tts_concurrency_wait_seconds: float = Field(default=1.0, gt=0, le=30)
+    tts_daily_uncached_characters: int = Field(default=50_000, ge=1, le=10_000_000)
+    tts_cache_dir: str = "./data/tts-cache"
+    tts_cache_ttl_seconds: int = Field(default=604_800, ge=60, le=31_536_000)
+    tts_cache_max_bytes: int = Field(default=1_073_741_824, ge=1_048_576)
+    tts_ticket_expire_seconds: int = Field(default=300, ge=30, le=3600)
     cors_allow_origins: str = "*"
     proxy_allow_private_networks: bool = True
     proxy_timeout_seconds: float = Field(default=15.0, gt=0, le=120)
@@ -55,6 +71,8 @@ class Settings(BaseSettings):
             or self.session_encryption_key.lower().startswith("change-")
         ):
             raise ValueError("SESSION_ENCRYPTION_KEY must be changed and at least 32 characters in production")
+        if self.tts_enabled and (not self.tts_app_id or not self.tts_access_token):
+            raise ValueError("TTS_APP_ID and TTS_ACCESS_TOKEN are required when TTS_ENABLED=true")
         return self
 
 

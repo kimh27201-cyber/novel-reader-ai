@@ -1,3 +1,5 @@
+import apiClient from './apiClient.js'
+
 export const READ_ALOUD_RATES = Object.freeze([0.8, 1, 1.2, 1.5, 2])
 
 const DEFAULT_RATE = 1
@@ -6,6 +8,7 @@ const DEFAULT_MAX_CHARS = 300
 const CANCELLED_CODE = 'READ_ALOUD_CANCELLED'
 const SYSTEM_VOICE_PROVIDER = 'system'
 const PRESET_VOICE_PROVIDER = 'preset'
+export const VOLCENGINE_VOICE_PROVIDER = 'volcengine'
 
 let nativeCallbackSequence = 0
 let utteranceSequence = 0
@@ -112,8 +115,8 @@ export function normalizeReadAloudSpeechRate(value) {
 }
 
 export function resolveReadAloudVoiceProfile(provider, voiceId) {
-  const normalizedProvider = provider === PRESET_VOICE_PROVIDER
-    ? PRESET_VOICE_PROVIDER
+  const normalizedProvider = [PRESET_VOICE_PROVIDER, VOLCENGINE_VOICE_PROVIDER].includes(provider)
+    ? provider
     : SYSTEM_VOICE_PROVIDER
   const normalizedId = String(voiceId || '').trim()
   if (normalizedProvider === PRESET_VOICE_PROVIDER) {
@@ -127,6 +130,16 @@ export function resolveReadAloudVoiceProfile(provider, voiceId) {
         pitch: normalizeReadAloudPitch(preset.pitch),
         rateScale: normalizeReadAloudSpeechRate(preset.rateScale)
       }
+    }
+  }
+  if (normalizedProvider === VOLCENGINE_VOICE_PROVIDER && normalizedId) {
+    return {
+      provider: VOLCENGINE_VOICE_PROVIDER,
+      presetId: '',
+      name: '',
+      voiceId: normalizedId,
+      pitch: DEFAULT_PITCH,
+      rateScale: DEFAULT_RATE
     }
   }
   return {
@@ -701,6 +714,360 @@ function createWebSpeechDriver(hostWindow) {
   }
 }
 
+function resolveCloudAudioUrl(value, client) {
+  const url = String(value || '').trim()
+  if (!url) throw new Error('云端语音服务未返回音频地址')
+  if (/^(?:https?:|blob:|data:)/i.test(url)) return url
+  const baseUrl = client && typeof client.getBaseUrl === 'function'
+    ? String(client.getBaseUrl() || '').replace(/\/+$/, '')
+    : ''
+  if (!baseUrl) return url
+  return url.startsWith('/') ? `${baseUrl}${url}` : `${baseUrl}/${url}`
+}
+
+function cloudRequestKey(text, options = {}) {
+  return JSON.stringify([
+    String(options.voiceId || ''),
+    normalizeReadAloudSpeechRate(options.rate),
+    String(text || '')
+  ])
+}
+
+function createInnerAudioPlayer(uniApi, url, onEnded, onError) {
+  const audio = uniApi.createInnerAudioContext()
+  let settled = false
+  let destroyed = false
+  const finish = callback => value => {
+    if (settled) return
+    settled = true
+    callback(value)
+  }
+  const ended = finish(onEnded)
+  const failed = finish(onError)
+  if (typeof audio.onEnded === 'function') audio.onEnded(ended)
+  if (typeof audio.onError === 'function') audio.onError(failed)
+  audio.autoplay = false
+  audio.src = url
+  audio.play()
+  return {
+    stop() {
+      if (!settled) {
+        settled = true
+        try {
+          if (typeof audio.stop === 'function') audio.stop()
+        } catch (error) {}
+      }
+      if (!destroyed) {
+        destroyed = true
+        try {
+          if (typeof audio.destroy === 'function') audio.destroy()
+        } catch (error) {}
+      }
+    },
+    dispose() {
+      this.stop()
+    }
+  }
+}
+
+function createHtmlAudioPlayer(hostWindow, url, onEnded, onError) {
+  const AudioConstructor = hostWindow && hostWindow.Audio
+  if (typeof AudioConstructor !== 'function') {
+    throw new Error('当前环境不支持云端音频播放')
+  }
+  const audio = new AudioConstructor(url)
+  let settled = false
+  const ended = () => {
+    if (settled) return
+    settled = true
+    onEnded()
+  }
+  const failed = event => {
+    if (settled) return
+    settled = true
+    onError(event)
+  }
+  if (typeof audio.addEventListener === 'function') {
+    audio.addEventListener('ended', ended)
+    audio.addEventListener('error', failed)
+  } else {
+    audio.onended = ended
+    audio.onerror = failed
+  }
+  const maybePromise = audio.play()
+  if (maybePromise && typeof maybePromise.catch === 'function') {
+    maybePromise.catch(failed)
+  }
+  return {
+    stop() {
+      if (settled) return
+      settled = true
+      try {
+        audio.pause()
+        audio.currentTime = 0
+      } catch (error) {}
+    },
+    dispose() {
+      this.stop()
+      if (typeof audio.removeEventListener === 'function') {
+        audio.removeEventListener('ended', ended)
+        audio.removeEventListener('error', failed)
+      }
+      audio.onended = null
+      audio.onerror = null
+    }
+  }
+}
+
+/**
+ * Plays short-lived, signed audio URLs returned by the backend TTS API.
+ * The text is sent only to the authenticated backend; provider credentials
+ * never enter the client runtime.
+ */
+export function createCloudReadAloudDriver(options = {}) {
+  const client = options.apiClient || apiClient
+  const uniApi = Object.prototype.hasOwnProperty.call(options, 'uni')
+    ? options.uni
+    : (typeof uni !== 'undefined' ? uni : null)
+  const hostWindow = Object.prototype.hasOwnProperty.call(options, 'window')
+    ? options.window
+    : (typeof window !== 'undefined' ? window : null)
+  const audioFactory = options.audioFactory || ((url, onEnded, onError) => {
+    if (uniApi && typeof uniApi.createInnerAudioContext === 'function') {
+      return createInnerAudioPlayer(uniApi, url, onEnded, onError)
+    }
+    return createHtmlAudioPlayer(hostWindow, url, onEnded, onError)
+  })
+  const canPlayAudio = typeof options.audioFactory === 'function' ||
+    !!(uniApi && typeof uniApi.createInnerAudioContext === 'function') ||
+    !!(hostWindow && typeof hostWindow.Audio === 'function')
+  const prepared = new Map()
+  let active = null
+  let disposed = false
+  let operationToken = 0
+
+  function prepare(text, speakOptions = {}) {
+    if (disposed) return Promise.reject(new Error('听读控制器已释放'))
+    const key = cloudRequestKey(text, speakOptions)
+    const cached = prepared.get(key)
+    if (cached && Date.now() - cached.createdAt < 60000) return cached.promise
+    if (cached) prepared.delete(key)
+    const promise = Promise.resolve(client.synthesizeTts({
+      text: String(text || ''),
+      voiceId: String(speakOptions.voiceId || ''),
+      rate: normalizeReadAloudSpeechRate(speakOptions.rate)
+    })).then(result => ({
+      ...result,
+      audio_url: resolveCloudAudioUrl(result && result.audio_url, client)
+    })).catch(error => {
+      prepared.delete(key)
+      throw error
+    })
+    prepared.set(key, { promise, createdAt: Date.now() })
+    if (prepared.size > 4) {
+      const oldest = prepared.keys().next().value
+      if (oldest !== key) prepared.delete(oldest)
+    }
+    return promise
+  }
+
+  function stopActive() {
+    const entry = active
+    active = null
+    if (!entry) return
+    try {
+      if (entry.player && typeof entry.player.dispose === 'function') entry.player.dispose()
+      else if (entry.player && typeof entry.player.stop === 'function') entry.player.stop()
+    } catch (error) {}
+    entry.reject(cancellationError())
+  }
+
+  return {
+    kind: 'volcengine-cloud',
+    available: !!(
+      client &&
+      typeof client.listTtsVoices === 'function' &&
+      typeof client.synthesizeTts === 'function' &&
+      canPlayAudio
+    ),
+    async listVoices() {
+      if (disposed) return []
+      const result = await client.listTtsVoices()
+      if (result && !Array.isArray(result) && result.available === false) return []
+      const voices = Array.isArray(result) ? result : (result && result.voices)
+      const seen = new Set()
+      return (Array.isArray(voices) ? voices : [])
+        .map(voice => ({
+          ...voice,
+          id: String(voice.id || voice.voice_id || '').trim(),
+          name: String(voice.name || voice.display_name || voice.id || voice.voice_id || '').trim(),
+          lang: String(voice.lang || voice.language || 'zh-CN').replace(/_/g, '-'),
+          provider: VOLCENGINE_VOICE_PROVIDER,
+          networkRequired: true,
+          isDefault: voice.isDefault === true
+        }))
+        .filter(voice => voice.id && voice.available !== false && isChineseVoiceLanguage(voice.lang))
+        .filter(voice => {
+          if (seen.has(voice.id)) return false
+          seen.add(voice.id)
+          return true
+        })
+    },
+    prefetch(text, speakOptions = {}) {
+      return prepare(text, speakOptions).then(() => true)
+    },
+    async speak(text, speakOptions = {}) {
+      if (disposed) throw new Error('听读控制器已释放')
+      stopActive()
+      const token = ++operationToken
+      const result = await prepare(text, speakOptions)
+      if (token !== operationToken) throw cancellationError()
+      if (disposed) throw new Error('听读控制器已释放')
+      const utteranceId = String(speakOptions.utteranceId || `tts-${++utteranceSequence}`)
+      return new Promise((resolve, reject) => {
+        const entry = { utteranceId, player: null, reject }
+        const finish = payload => {
+          if (active !== entry) return
+          active = null
+          try {
+            if (entry.player && typeof entry.player.dispose === 'function') entry.player.dispose()
+          } catch (error) {}
+          resolve(payload)
+        }
+        const fail = error => {
+          if (active !== entry) return
+          active = null
+          try {
+            if (entry.player && typeof entry.player.dispose === 'function') entry.player.dispose()
+          } catch (ignored) {}
+          reject(asError(error, '云端语音播放失败'))
+        }
+        active = entry
+        try {
+          const player = audioFactory(
+            result.audio_url,
+            () => finish({
+              utteranceId,
+              status: 'done',
+              provider: VOLCENGINE_VOICE_PROVIDER,
+              cacheHit: result.cache_hit === true
+            }),
+            fail
+          )
+          entry.player = player
+          if (active !== entry && player && typeof player.dispose === 'function') {
+            player.dispose()
+          }
+        } catch (error) {
+          active = null
+          reject(asError(error, '云端语音播放失败'))
+        }
+      })
+    },
+    stop() {
+      operationToken += 1
+      stopActive()
+    },
+    dispose() {
+      disposed = true
+      operationToken += 1
+      stopActive()
+      prepared.clear()
+    }
+  }
+}
+
+/**
+ * Routes each utterance by voiceProvider and degrades cloud playback to the
+ * local system voice for the rest of the current listening session.
+ */
+export function createFallbackReadAloudDriver(cloudDriver, systemDriver, options = {}) {
+  let cloudDegraded = false
+  let fallbackHandler = typeof options.onFallback === 'function' ? options.onFallback : () => {}
+
+  function notifyFallback(error, speakOptions) {
+    const event = {
+      provider: VOLCENGINE_VOICE_PROVIDER,
+      fallbackProvider: SYSTEM_VOICE_PROVIDER,
+      message: '云端音色不可用，已切换系统声音',
+      error: asError(error).message,
+      utteranceId: speakOptions.utteranceId
+    }
+    try {
+      fallbackHandler(event)
+    } catch (ignored) {}
+  }
+
+  return {
+    kind: 'cloud-with-system-fallback',
+    available: !!((cloudDriver && cloudDriver.available) || (systemDriver && systemDriver.available)),
+    async listVoices(listOptions = {}) {
+      if (listOptions.provider === VOLCENGINE_VOICE_PROVIDER) {
+        return cloudDriver && typeof cloudDriver.listVoices === 'function'
+          ? cloudDriver.listVoices(listOptions)
+          : []
+      }
+      return systemDriver && typeof systemDriver.listVoices === 'function'
+        ? systemDriver.listVoices(listOptions)
+        : []
+    },
+    async prefetch(text, speakOptions = {}) {
+      if (
+        speakOptions.voiceProvider !== VOLCENGINE_VOICE_PROVIDER ||
+        cloudDegraded ||
+        !cloudDriver ||
+        !cloudDriver.available ||
+        typeof cloudDriver.prefetch !== 'function'
+      ) return false
+      return cloudDriver.prefetch(text, speakOptions)
+    },
+    async speak(text, speakOptions = {}) {
+      if (speakOptions.voiceProvider === VOLCENGINE_VOICE_PROVIDER && !cloudDegraded) {
+        try {
+          if (!cloudDriver || !cloudDriver.available) throw new Error('云端语音服务未配置')
+          return await cloudDriver.speak(text, speakOptions)
+        } catch (error) {
+          if (isCancellation(error)) throw error
+          cloudDegraded = true
+          notifyFallback(error, speakOptions)
+        }
+      }
+      if (!systemDriver || !systemDriver.available) {
+        throw new Error(cloudDegraded
+          ? '云端音色不可用，且当前设备未启用中文系统语音'
+          : '当前设备未安装或未启用中文语音服务')
+      }
+      return systemDriver.speak(text, {
+        ...speakOptions,
+        voiceProvider: SYSTEM_VOICE_PROVIDER,
+        voiceId: '',
+        presetId: '',
+        pitch: DEFAULT_PITCH
+      })
+    },
+    setFallbackHandler(handler) {
+      fallbackHandler = typeof handler === 'function' ? handler : () => {}
+    },
+    resetFallback() {
+      cloudDegraded = false
+    },
+    stop() {
+      try {
+        if (cloudDriver && typeof cloudDriver.stop === 'function') cloudDriver.stop()
+      } finally {
+        if (systemDriver && typeof systemDriver.stop === 'function') systemDriver.stop()
+      }
+    },
+    dispose() {
+      try {
+        if (cloudDriver && typeof cloudDriver.dispose === 'function') cloudDriver.dispose()
+      } finally {
+        if (systemDriver && typeof systemDriver.dispose === 'function') systemDriver.dispose()
+      }
+    }
+  }
+}
+
 /**
  * Pick the highest fidelity driver available in the current runtime.
  * Explicit env values make selection deterministic in unit tests.
@@ -741,10 +1108,18 @@ function cloneSegment(segment) {
 }
 
 export function createReadAloudController(options = {}) {
-  const driver = options.driver || createReadAloudDriver(options.env)
+  const systemDriver = options.systemDriver || createReadAloudDriver(options.env)
+  const driver = options.driver || createFallbackReadAloudDriver(
+    options.cloudDriver || createCloudReadAloudDriver({
+      apiClient: options.apiClient,
+      ...(options.env || {})
+    }),
+    systemDriver
+  )
   const onStateChange = typeof options.onStateChange === 'function' ? options.onStateChange : () => {}
   const onSegmentChange = typeof options.onSegmentChange === 'function' ? options.onSegmentChange : () => {}
   const onChapterComplete = typeof options.onChapterComplete === 'function' ? options.onChapterComplete : null
+  const onFallback = typeof options.onFallback === 'function' ? options.onFallback : () => {}
   let segments = []
   let cursor = -1
   let sessionToken = 0
@@ -762,7 +1137,10 @@ export function createReadAloudController(options = {}) {
     segmentIndex: -1,
     segment: null,
     chapterKey: null,
-    error: ''
+    error: '',
+    fallbackActive: false,
+    fallbackError: '',
+    notice: ''
   }
 
   function snapshot() {
@@ -786,6 +1164,19 @@ export function createReadAloudController(options = {}) {
         onSegmentChange(cloneSegment(segment), index, snapshot())
       } catch (error) {}
     }
+  }
+
+  if (typeof driver.setFallbackHandler === 'function') {
+    driver.setFallbackHandler(event => {
+      emitState({
+        fallbackActive: true,
+        fallbackError: event.error || '',
+        notice: event.message || '云端音色不可用，已切换系统声音'
+      })
+      try {
+        onFallback({ ...event }, snapshot())
+      } catch (error) {}
+    })
   }
 
   function initialIndex(startPageIndex, startParagraphIndex) {
@@ -843,15 +1234,24 @@ export function createReadAloudController(options = {}) {
       emitState({ status: 'speaking', error: '' })
       const utteranceId = `${token}:${state.chapterKey ?? 'chapter'}:${segment.id}:${++utteranceSequence}`
       const voiceProfile = resolveReadAloudVoiceProfile(state.voiceProvider, state.voiceId)
+      const speakOptions = {
+        rate: normalizeReadAloudSpeechRate(state.rate * voiceProfile.rateScale),
+        pitch: voiceProfile.pitch,
+        voiceProvider: voiceProfile.provider,
+        presetId: voiceProfile.presetId,
+        voiceId: voiceProfile.voiceId,
+        utteranceId
+      }
       try {
-        await driver.speak(segment.text, {
-          rate: normalizeReadAloudSpeechRate(state.rate * voiceProfile.rateScale),
-          pitch: voiceProfile.pitch,
-          voiceProvider: voiceProfile.provider,
-          presetId: voiceProfile.presetId,
-          voiceId: voiceProfile.voiceId,
-          utteranceId
-        })
+        const speaking = driver.speak(segment.text, speakOptions)
+        const nextSegment = segments[cursor + 1]
+        if (nextSegment && typeof driver.prefetch === 'function') {
+          void Promise.resolve(driver.prefetch(nextSegment.text, {
+            ...speakOptions,
+            utteranceId: `${utteranceId}:prefetch`
+          })).catch(() => {})
+        }
+        await speaking
       } catch (error) {
         if (token !== sessionToken || disposed || isCancellation(error)) return
         emitState({ status: 'error', error: asError(error).message })
@@ -909,12 +1309,16 @@ export function createReadAloudController(options = {}) {
     start(input = {}) {
       if (disposed) return false
       sessionToken += 1
+      if (typeof driver.resetFallback === 'function') driver.resetFallback()
       try {
         driver.stop()
       } catch (error) {}
       segments = splitReadAloudSegments(input.pages, input)
       state.chapterKey = input.chapterKey ?? null
       state.error = ''
+      state.fallbackActive = false
+      state.fallbackError = ''
+      state.notice = ''
 
       if (!driver.available) {
         showSegment(-1)
@@ -1005,6 +1409,10 @@ export function createReadAloudController(options = {}) {
       const shouldRestart = ['speaking', 'initializing'].includes(state.status)
       state.voiceProvider = profile.provider
       state.voiceId = normalized
+      state.fallbackActive = false
+      state.fallbackError = ''
+      state.notice = ''
+      if (typeof driver.resetFallback === 'function') driver.resetFallback()
       if (shouldRestart) {
         restartCurrent()
       } else {

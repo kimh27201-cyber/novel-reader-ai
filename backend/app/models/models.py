@@ -34,6 +34,7 @@ class User(Base):
     ai_summaries: Mapped[list["AiSummary"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     chat_records: Mapped[list["ChatRecord"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     ai_call_logs: Mapped[list["AiCallLog"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    tts_call_logs: Mapped[list["TtsCallLog"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     refresh_tokens: Mapped[list["RefreshToken"]] = relationship(back_populates="user", cascade="all, delete-orphan")
 
 
@@ -217,6 +218,24 @@ class AiCallLog(Base):
     user: Mapped[User] = relationship(back_populates="ai_call_logs")
     book: Mapped[Book | None] = relationship(back_populates="ai_call_logs")
     chapter: Mapped[Chapter | None] = relationship(back_populates="ai_call_logs")
+
+
+class TtsCallLog(Base):
+    __tablename__ = "tts_call_logs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    voice_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    provider: Mapped[str] = mapped_column(String(50), default="volcengine", nullable=False)
+    model: Mapped[str] = mapped_column(String(100), nullable=False)
+    character_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    cache_hit: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    error_code: Mapped[str] = mapped_column(String(50), default="", nullable=False)
+    duration_ms: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False, index=True)
+
+    user: Mapped[User] = relationship(back_populates="tts_call_logs")
 
 
 class RefreshToken(Base):

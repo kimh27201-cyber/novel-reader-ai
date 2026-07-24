@@ -529,10 +529,18 @@ export default {
       return `${this.chapter.title || `第 ${this.chapterIndex + 1} 章`} · 第 ${page} 页 · 第 ${paragraph} 段`
     },
     readAloudProviderLabel() {
+      if (this.readAloudState.fallbackActive) {
+        return '系统语音 · 云端降级'
+      }
+      if (this.readAloudState.voiceProvider === 'volcengine') {
+        return `${this.prefs.ttsVoiceName || 'AI 拟真音色'} · AI`
+      }
       if (this.readAloudState.voiceProvider === 'preset' || this.prefs.ttsVoiceProvider === 'preset') {
         return this.prefs.ttsVoiceName || '本地角色音'
       }
       const labels = {
+        'cloud-audio': 'AI 拟真语音',
+        'volcengine': 'AI 拟真语音',
         'novel-reader-tts': '系统语音',
         'app-plus': '系统语音',
         'web-speech': '浏览器语音',
@@ -1026,7 +1034,11 @@ export default {
     },
     handleReadAloudState(state) {
       const previousStatus = this.readAloudState.status
+      const previousNotice = this.readAloudState.notice
       this.readAloudState = { ...state }
+      if (state.notice && state.notice !== previousNotice) {
+        uni.showToast({ title: state.notice, icon: 'none', duration: 2600 })
+      }
       if (state.status === 'error' && previousStatus !== 'error') {
         uni.showToast({ title: state.error || '听读失败', icon: 'none' })
       }

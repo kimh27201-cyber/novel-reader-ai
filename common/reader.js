@@ -20,6 +20,7 @@ const defaultPrefs = {
   ttsVoiceProvider: 'system',
   ttsVoiceId: '',
   ttsVoiceName: '系统默认',
+  ttsCloudConsent: false,
   readingMode: 'page'
 }
 
@@ -62,14 +63,23 @@ function normalizePrefs(raw) {
   const ttsRate = Number(prefs.ttsRate)
   prefs.ttsRate = TTS_RATES.includes(ttsRate) ? ttsRate : defaultPrefs.ttsRate
   prefs.ttsAutoNextChapter = prefs.ttsAutoNextChapter !== false
-  prefs.ttsVoiceProvider = prefs.ttsVoiceProvider === 'preset' ? 'preset' : defaultPrefs.ttsVoiceProvider
+  prefs.ttsVoiceProvider = ['system', 'preset', 'volcengine'].includes(prefs.ttsVoiceProvider)
+    ? prefs.ttsVoiceProvider
+    : defaultPrefs.ttsVoiceProvider
   prefs.ttsVoiceId = String(prefs.ttsVoiceId || '').trim().slice(0, 256)
   prefs.ttsVoiceName = String(prefs.ttsVoiceName || '').trim().slice(0, 80) || defaultPrefs.ttsVoiceName
+  prefs.ttsCloudConsent = prefs.ttsCloudConsent === true
   if (prefs.ttsVoiceProvider === 'preset') {
     const roleName = TTS_ROLE_NAMES[prefs.ttsVoiceId]
     if (roleName) {
       prefs.ttsVoiceName = `${roleName} · 本地角色`
     } else {
+      prefs.ttsVoiceProvider = defaultPrefs.ttsVoiceProvider
+      prefs.ttsVoiceId = defaultPrefs.ttsVoiceId
+      prefs.ttsVoiceName = defaultPrefs.ttsVoiceName
+    }
+  } else if (prefs.ttsVoiceProvider === 'volcengine') {
+    if (!prefs.ttsVoiceId || !prefs.ttsCloudConsent) {
       prefs.ttsVoiceProvider = defaultPrefs.ttsVoiceProvider
       prefs.ttsVoiceId = defaultPrefs.ttsVoiceId
       prefs.ttsVoiceName = defaultPrefs.ttsVoiceName

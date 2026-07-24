@@ -513,6 +513,19 @@ export function createApiClient(deps = {}) {
         data: { chapter_url: chapterUrl }
       })
     },
+    listTtsVoices() {
+      return request('/api/tts/voices')
+    },
+    synthesizeTts({ text, voiceId, voice_id, rate = 1 }) {
+      return request('/api/tts/synthesize', {
+        method: 'POST',
+        data: {
+          text: String(text || ''),
+          voice_id: String(voiceId || voice_id || ''),
+          rate: Number(rate)
+        }
+      })
+    },
     summarizeChapter({ chapterText, bookId = null, chapterId = null }) {
       return request('/api/ai/summary', {
         method: 'POST',

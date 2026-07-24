@@ -33,3 +33,16 @@ def test_production_accepts_explicit_safe_settings():
     assert settings.is_production is True
     assert settings.allow_query_token_auth is False
     assert settings.source_max_concurrency == 5
+
+
+def test_production_requires_credentials_when_cloud_tts_is_enabled():
+    with pytest.raises(ValidationError, match="TTS_APP_ID"):
+        Settings(**{**VALID_PRODUCTION, "tts_enabled": True})
+
+
+def test_cloud_tts_is_disabled_by_default():
+    settings = Settings(app_env="test")
+
+    assert settings.tts_enabled is False
+    assert settings.tts_max_concurrency == 2
+    assert settings.tts_daily_uncached_characters == 50_000

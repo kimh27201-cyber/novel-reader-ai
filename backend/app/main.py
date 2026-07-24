@@ -18,6 +18,7 @@ from app.api.proxy import close_proxy_http_client
 from app.api.search import router as search_router
 from app.api.sources import router as sources_router
 from app.api.sync import router as sync_router
+from app.api.tts import router as tts_router
 from app.core.config import get_settings
 from app.core.observability import (
     http_exception_handler,
@@ -28,6 +29,7 @@ from app.models import models  # noqa: F401
 from app.db.session import engine
 from app.services.source_parser import close_source_http_client
 from app.services.session_crypto import encrypt_legacy_source_sessions
+from app.services.tts_service import close_tts_http_client
 
 
 settings = get_settings()
@@ -39,6 +41,7 @@ async def lifespan(_: FastAPI):
     yield
     await close_proxy_http_client()
     await close_source_http_client()
+    await close_tts_http_client()
 
 app = FastAPI(
     title=settings.app_name,
@@ -110,3 +113,4 @@ app.include_router(ai_router)
 app.include_router(proxy_router)
 app.include_router(sync_router)
 app.include_router(search_router)
+app.include_router(tts_router)
