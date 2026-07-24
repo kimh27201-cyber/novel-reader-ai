@@ -770,6 +770,20 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public boolean setPitch(float pitch) {
+            float safePitch = pitch;
+            if (Float.isNaN(safePitch) || Float.isInfinite(safePitch)) {
+                safePitch = 1.0f;
+            }
+            safePitch = Math.max(0.5f, Math.min(2.0f, safePitch));
+            synchronized (ttsLock) {
+                return ttsReady
+                    && textToSpeech != null
+                    && textToSpeech.setPitch(safePitch) == TextToSpeech.SUCCESS;
+            }
+        }
+
+        @JavascriptInterface
         public boolean speak(
                 String text,
                 float rate,

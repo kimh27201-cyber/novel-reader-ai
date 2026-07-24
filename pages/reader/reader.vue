@@ -383,6 +383,7 @@ export default {
       readAloudState: {
         status: 'idle',
         rate: 1,
+        voiceProvider: 'system',
         voiceId: '',
         driverKind: 'unknown',
         segmentIndex: -1,
@@ -528,6 +529,9 @@ export default {
       return `${this.chapter.title || `第 ${this.chapterIndex + 1} 章`} · 第 ${page} 页 · 第 ${paragraph} 段`
     },
     readAloudProviderLabel() {
+      if (this.readAloudState.voiceProvider === 'preset' || this.prefs.ttsVoiceProvider === 'preset') {
+        return this.prefs.ttsVoiceName || '本地角色音'
+      }
       const labels = {
         'novel-reader-tts': '系统语音',
         'app-plus': '系统语音',
@@ -556,10 +560,13 @@ export default {
     this.appThemeId = getAppThemeId()
     this.motionReduced = isMotionReduced()
     const latestPrefs = getPrefs()
-    const voiceChanged = latestPrefs.ttsVoiceId !== this.prefs.ttsVoiceId
+    const voiceChanged = (
+      latestPrefs.ttsVoiceProvider !== this.prefs.ttsVoiceProvider ||
+      latestPrefs.ttsVoiceId !== this.prefs.ttsVoiceId
+    )
     this.prefs = latestPrefs
     if (voiceChanged && this.readAloudController) {
-      this.readAloudController.setVoice(this.prefs.ttsVoiceId)
+      this.readAloudController.setVoice(this.prefs.ttsVoiceId, this.prefs.ttsVoiceProvider)
     }
     this.loadBookmarks()
   },
@@ -1008,6 +1015,7 @@ export default {
       if (this.readAloudController) return this.readAloudController
       this.readAloudController = createReadAloudController({
         rate: this.prefs.ttsRate,
+        voiceProvider: this.prefs.ttsVoiceProvider,
         voiceId: this.prefs.ttsVoiceId,
         onStateChange: this.handleReadAloudState,
         onSegmentChange: this.handleReadAloudSegment,
@@ -1088,7 +1096,7 @@ export default {
       }
       const controller = this.ensureReadAloudController()
       controller.setRate(this.prefs.ttsRate)
-      controller.setVoice(this.prefs.ttsVoiceId)
+      controller.setVoice(this.prefs.ttsVoiceId, this.prefs.ttsVoiceProvider)
       const started = controller.start({
         pages: this.pages,
         startPageIndex: this.pageIndex,
@@ -1138,6 +1146,7 @@ export default {
       this.readAloudState = {
         status: 'idle',
         rate: this.prefs.ttsRate,
+        voiceProvider: this.prefs.ttsVoiceProvider,
         voiceId: this.prefs.ttsVoiceId,
         driverKind: 'unknown',
         segmentIndex: -1,

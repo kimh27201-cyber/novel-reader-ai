@@ -67,6 +67,12 @@ const normalizedTtsPrefs = getPrefs()
 assert.equal(normalizedTtsPrefs.ttsRate, 1)
 assert.equal(normalizedTtsPrefs.ttsAutoNextChapter, true)
 
+savePrefs({ ttsVoiceProvider: 'preset', ttsVoiceId: 'recital' })
+const roleTtsPrefs = getPrefs()
+assert.equal(roleTtsPrefs.ttsVoiceProvider, 'preset')
+assert.equal(roleTtsPrefs.ttsVoiceId, 'recital')
+assert.equal(roleTtsPrefs.ttsVoiceName, '朗诵 · 本地角色')
+
 const created = toggleBookmark('book-1', {
   chapterIndex: 2,
   pageIndex: 1,

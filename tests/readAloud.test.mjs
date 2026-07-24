@@ -1,11 +1,15 @@
 import assert from 'node:assert/strict'
 
 const {
+  READ_ALOUD_ROLE_PRESETS,
   READ_ALOUD_RATES,
   createReadAloudController,
   createReadAloudDriver,
+  normalizeReadAloudPitch,
   normalizeReadAloudRate,
+  normalizeReadAloudSpeechRate,
   normalizeReadAloudVoices,
+  resolveReadAloudVoiceProfile,
   splitReadAloudSegments
 } = await import('../common/readAloud.js')
 
@@ -15,6 +19,24 @@ assert.deepEqual(READ_ALOUD_RATES, [0.8, 1, 1.2, 1.5, 2])
 assert.equal(normalizeReadAloudRate(-5), 0.8)
 assert.equal(normalizeReadAloudRate(8), 2)
 assert.equal(normalizeReadAloudRate('bad'), 1)
+assert.equal(normalizeReadAloudPitch(9), 2)
+assert.equal(normalizeReadAloudPitch(0.2), 0.5)
+assert.equal(normalizeReadAloudPitch('bad'), 1)
+assert.equal(normalizeReadAloudSpeechRate(1.08), 1.08)
+assert.equal(normalizeReadAloudSpeechRate(9), 2)
+assert.deepEqual(
+  READ_ALOUD_ROLE_PRESETS.map(item => item.id),
+  ['loli', 'uncle', 'youth', 'shota', 'recital']
+)
+assert.deepEqual(resolveReadAloudVoiceProfile('preset', 'uncle'), {
+  provider: 'preset',
+  presetId: 'uncle',
+  name: '大叔',
+  voiceId: '',
+  pitch: 0.78,
+  rateScale: 0.92
+})
+assert.equal(resolveReadAloudVoiceProfile('preset', 'missing').provider, 'system')
 assert.deepEqual(splitReadAloudSegments([]), [])
 assert.deepEqual(splitReadAloudSegments([' \n ']), [])
 
@@ -84,6 +106,7 @@ assert.equal(bridgeCalls[0].rate, 1.2)
 assert.deepEqual((await bridgeDriver.listVoices()).map(item => item.id), [''])
 
 const selectedBridgeVoices = []
+const selectedBridgePitches = []
 const richBridgeWindow = {}
 richBridgeWindow.NovelReaderTts = {
   getState() {
@@ -101,6 +124,10 @@ richBridgeWindow.NovelReaderTts = {
     selectedBridgeVoices.push(voiceId)
     return voiceId !== 'missing'
   },
+  setPitch(pitch) {
+    selectedBridgePitches.push(pitch)
+    return true
+  },
   speak(text, rate, utteranceId, callbackName) {
     queueMicrotask(() => richBridgeWindow[callbackName]({ utteranceId, status: 'done' }))
     return true
@@ -111,8 +138,13 @@ richBridgeWindow.NovelReaderTts = {
 }
 const richBridgeDriver = createReadAloudDriver({ window: richBridgeWindow, plus: null })
 assert.deepEqual((await richBridgeDriver.listVoices()).map(item => item.id), ['', 'local-zh'])
-await richBridgeDriver.speak('选择音色', { voiceId: 'local-zh', utteranceId: 'bridge-voice' })
+await richBridgeDriver.speak('选择音色', {
+  voiceId: 'local-zh',
+  pitch: 1.35,
+  utteranceId: 'bridge-voice'
+})
 assert.deepEqual(selectedBridgeVoices, ['local-zh'])
+assert.deepEqual(selectedBridgePitches, [1.35])
 
 assert.equal(createReadAloudDriver({ window: null, plus: fakePlus }).kind, 'app-plus')
 assert.equal(createReadAloudDriver({
@@ -141,8 +173,13 @@ const webDriver = createReadAloudDriver({
   plus: null
 })
 assert.deepEqual((await webDriver.listVoices()).map(item => item.id), ['', 'web-zh'])
-await webDriver.speak('浏览器选声', { voiceId: 'web-zh', utteranceId: 'web-voice' })
+await webDriver.speak('浏览器选声', {
+  voiceId: 'web-zh',
+  pitch: 0.78,
+  utteranceId: 'web-voice'
+})
 assert.equal(webUtterances[0].voice, webVoices[0])
+assert.equal(webUtterances[0].pitch, 0.78)
 
 let delayedVoices = []
 let voicesChanged = null
@@ -308,6 +345,31 @@ assert.equal(voiceDriver.calls.length, 2)
 voiceController.pause()
 voiceController.setVoice('voice-3')
 assert.equal(voiceController.getState().voiceId, 'voice-3')
+
+const roleDriver = createDeferredDriver()
+const roleController = createReadAloudController({
+  driver: roleDriver,
+  rate: 1,
+  voiceProvider: 'preset',
+  voiceId: 'uncle'
+})
+roleController.start({ pages: ['大叔角色效果。'] })
+await flush()
+assert.equal(roleController.getState().voiceProvider, 'preset')
+assert.equal(roleController.getState().voiceId, 'uncle')
+assert.equal(roleDriver.calls[0].options.voiceId, '')
+assert.equal(roleDriver.calls[0].options.presetId, 'uncle')
+assert.equal(roleDriver.calls[0].options.pitch, 0.78)
+assert.equal(roleDriver.calls[0].options.rate, 0.92)
+assert.equal(roleController.setVoice('loli', 'preset'), 'loli')
+await flush()
+assert.equal(roleDriver.calls[1].options.presetId, 'loli')
+assert.equal(roleDriver.calls[1].options.pitch, 1.35)
+assert.equal(roleDriver.calls[1].options.rate, 1.08)
+assert.equal(roleController.setVoice('missing', 'preset'), '')
+await flush()
+assert.equal(roleController.getState().voiceProvider, 'system')
+assert.equal(roleDriver.calls[2].options.pitch, 1)
 
 const unavailable = createReadAloudController({
   driver: createReadAloudDriver({ window: null, plus: null })

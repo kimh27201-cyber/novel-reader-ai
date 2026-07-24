@@ -26,6 +26,10 @@ assert.match(
 )
 assert.match(
   mainActivity,
+  /@JavascriptInterface\s+public boolean setPitch\(float pitch\)/
+)
+assert.match(
+  mainActivity,
   /@JavascriptInterface\s+public boolean speak\(\s*String text,\s*float rate,\s*String utteranceId,\s*String callbackName\)/
 )
 assert.match(mainActivity, /@JavascriptInterface\s+public boolean stop\(\)/)
@@ -35,6 +39,8 @@ assert.match(mainActivity, /payload\.put\("status", status\)/)
 assert.match(mainActivity, /payload\.put\("message", message/)
 assert.match(mainActivity, /textToSpeech\.getVoices\(\)/)
 assert.match(mainActivity, /textToSpeech\.setVoice\(/)
+assert.match(mainActivity, /textToSpeech\.setPitch\(safePitch\)/)
+assert.match(mainActivity, /Math\.max\(0\.5f, Math\.min\(2\.0f, safePitch\)\)/)
 assert.match(mainActivity, /voice\.isNetworkConnectionRequired\(\)/)
 assert.match(mainActivity, /"zh"\.equalsIgnoreCase\(language\)/)
 assert.match(mainActivity, /item\.put\("provider", "system"\)/)

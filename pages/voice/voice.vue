@@ -15,31 +15,51 @@
           <text v-for="height in heroWave" :key="height" :style="{ height: height + 'rpx' }"></text>
         </view>
         <view class="hero-title">先听一句，再决定谁陪你读完这一章。</view>
-        <text class="hero-desc">本期使用设备系统声音。正文不会发送到本项目的云端服务。</text>
+        <text class="hero-desc">角色效果由设备系统声音在本地调整音调与节奏生成，正文不会上传。</text>
       </view>
 
       <view class="section-head">
         <view>
           <text class="section-kicker">角色音色</text>
-          <view class="section-title">更多声音正在路上</view>
+          <view class="section-title">选择一种本地角色效果</view>
         </view>
-        <text class="section-count">COMING SOON</text>
+        <text class="section-count">{{ roleVoices.length }} PRESETS</text>
       </view>
 
       <scroll-view class="role-strip" scroll-x :show-scrollbar="false">
         <view class="role-row">
-          <button
+          <view
             class="role-card"
             v-for="role in roleVoices"
             :key="role.id"
-            :aria-label="`${role.name}声音即将支持`"
-            @tap="showRoleComing(role)"
+            :class="{
+              selected: selectedProvider === 'preset' && selectedId === role.id,
+              previewing: previewVoiceKey === roleKey(role)
+            }"
           >
             <view class="role-glyph">{{ role.glyph }}</view>
-            <view class="role-name">{{ role.name }}</view>
+            <view class="role-name-row">
+              <view class="role-name">{{ role.name }}</view>
+              <text
+                class="selected-badge"
+                v-if="selectedProvider === 'preset' && selectedId === role.id"
+              >当前</text>
+            </view>
             <text class="role-desc">{{ role.desc }}</text>
-            <text class="coming-badge">即将支持</text>
-          </button>
+            <text class="role-params">音调 {{ role.pitch }} · 节奏 {{ role.rateScale }}x</text>
+            <view class="role-actions">
+              <button class="role-action preview" @tap.stop="previewRole(role)">
+                {{ previewVoiceKey === roleKey(role) ? '停止' : '试听' }}
+              </button>
+              <button
+                class="role-action select"
+                :disabled="selectedProvider === 'preset' && selectedId === role.id"
+                @tap.stop="selectRole(role)"
+              >
+                {{ selectedProvider === 'preset' && selectedId === role.id ? '已选择' : '选择' }}
+              </button>
+            </view>
+          </view>
         </view>
       </scroll-view>
 
@@ -72,7 +92,10 @@
           class="voice-card"
           v-for="(voice, index) in voices"
           :key="voice.provider + ':' + voice.id"
-          :class="{ selected: selectedId === voice.id, previewing: previewVoiceKey === voiceKey(voice) }"
+          :class="{
+            selected: selectedProvider === 'system' && selectedId === voice.id,
+            previewing: previewVoiceKey === voiceKey(voice)
+          }"
         >
           <view class="voice-card-main">
             <view class="voice-signature" aria-hidden="true">
@@ -85,7 +108,7 @@
             <view class="voice-copy">
               <view class="voice-name-row">
                 <view class="voice-name">{{ voice.name }}</view>
-                <text class="selected-badge" v-if="selectedId === voice.id">当前</text>
+                <text class="selected-badge" v-if="selectedProvider === 'system' && selectedId === voice.id">当前</text>
               </view>
               <text class="voice-id" v-if="voice.id">{{ voice.id }}</text>
               <view class="voice-meta">
@@ -106,11 +129,11 @@
             </button>
             <button
               class="voice-action select"
-              :disabled="selectedId === voice.id"
+              :disabled="selectedProvider === 'system' && selectedId === voice.id"
               :aria-label="`选择${voice.name}`"
               @tap="selectVoice(voice)"
             >
-              {{ selectedId === voice.id ? '已选择' : '选择' }}
+              {{ selectedProvider === 'system' && selectedId === voice.id ? '已选择' : '选择' }}
             </button>
           </view>
         </view>
@@ -130,6 +153,8 @@
 <script>
 import {
   createReadAloudDriver,
+  READ_ALOUD_ROLE_PRESETS,
+  resolveReadAloudVoiceProfile,
   SYSTEM_DEFAULT_VOICE
 } from '../../common/readAloud.js'
 import { getPrefs, savePrefs } from '../../common/reader.js'
@@ -146,6 +171,7 @@ export default {
       themeId: getAppThemeId(),
       motionReduced: isMotionReduced(),
       voices: [{ ...SYSTEM_DEFAULT_VOICE }],
+      selectedProvider: prefs.ttsVoiceProvider,
       selectedId: prefs.ttsVoiceId,
       loading: false,
       errorMessage: '',
@@ -154,13 +180,7 @@ export default {
       driver: null,
       loadToken: 0,
       heroWave: [22, 42, 64, 34, 78, 52, 28, 66, 38, 54],
-      roleVoices: [
-        { id: 'loli', glyph: '萝', name: '萝莉', desc: '轻快甜亮' },
-        { id: 'uncle', glyph: '叔', name: '大叔', desc: '沉稳厚重' },
-        { id: 'youth', glyph: '青', name: '青年', desc: '自然清晰' },
-        { id: 'shota', glyph: '少', name: '正太', desc: '少年元气' },
-        { id: 'recital', glyph: '诵', name: '朗诵', desc: '抑扬有致' }
-      ]
+      roleVoices: READ_ALOUD_ROLE_PRESETS.map(role => ({ ...role }))
     }
   },
   computed: {
@@ -217,8 +237,17 @@ export default {
     },
     reconcileSavedVoice() {
       this.prefs = getPrefs()
+      if (this.prefs.ttsVoiceProvider === 'preset') {
+        const matchedRole = this.roleVoices.some(role => role.id === this.prefs.ttsVoiceId)
+        if (matchedRole) {
+          this.selectedProvider = 'preset'
+          this.selectedId = this.prefs.ttsVoiceId
+          return
+        }
+      }
       const matched = this.voices.some(voice => voice.id === this.prefs.ttsVoiceId)
       if (matched) {
+        this.selectedProvider = 'system'
         this.selectedId = this.prefs.ttsVoiceId
         return
       }
@@ -229,6 +258,7 @@ export default {
         ttsVoiceId: '',
         ttsVoiceName: SYSTEM_DEFAULT_VOICE.name
       })
+      this.selectedProvider = 'system'
       this.selectedId = ''
       if (hadSavedVoice) {
         uni.showToast({ title: '原声音不可用，已恢复系统默认', icon: 'none' })
@@ -241,11 +271,37 @@ export default {
         ttsVoiceId: voice.id,
         ttsVoiceName: voice.name
       })
+      this.selectedProvider = 'system'
       this.selectedId = voice.id
       uni.showToast({ title: `已选择${voice.name}`, icon: 'none' })
     },
+    selectRole(role) {
+      this.prefs = savePrefs({
+        ...getPrefs(),
+        ttsVoiceProvider: 'preset',
+        ttsVoiceId: role.id,
+        ttsVoiceName: role.name
+      })
+      this.selectedProvider = 'preset'
+      this.selectedId = role.id
+      uni.showToast({ title: `已选择${role.name}角色效果`, icon: 'none' })
+    },
+    previewRole(role) {
+      return this.previewSelection({
+        provider: 'preset',
+        id: role.id,
+        key: this.roleKey(role)
+      })
+    },
     async previewVoice(voice) {
-      const key = this.voiceKey(voice)
+      return this.previewSelection({
+        provider: 'system',
+        id: voice.id,
+        key: this.voiceKey(voice)
+      })
+    },
+    async previewSelection(selection) {
+      const key = selection.key
       if (this.previewVoiceKey === key) {
         this.stopPreview()
         return
@@ -253,10 +309,14 @@ export default {
       this.stopPreview()
       const token = ++this.previewToken
       this.previewVoiceKey = key
+      const profile = resolveReadAloudVoiceProfile(selection.provider, selection.id)
       try {
         await this.ensureDriver().speak(PREVIEW_TEXT, {
-          rate: this.prefs.ttsRate,
-          voiceId: voice.id,
+          rate: this.prefs.ttsRate * profile.rateScale,
+          pitch: profile.pitch,
+          voiceId: profile.voiceId,
+          voiceProvider: profile.provider,
+          presetId: profile.presetId,
           utteranceId: `voice-preview-${Date.now()}-${token}`
         })
       } catch (error) {
@@ -294,6 +354,9 @@ export default {
     voiceKey(voice) {
       return `${voice.provider || 'system'}:${voice.id || '__default__'}`
     },
+    roleKey(role) {
+      return `preset:${role.id}`
+    },
     formatLanguage(lang) {
       const value = String(lang || 'zh-CN').replace(/_/g, '-')
       if (value.toLowerCase().startsWith('zh')) return value.toUpperCase()
@@ -309,9 +372,6 @@ export default {
     sourceLabel(voice) {
       if (voice.networkRequired === null) return '浏览器提供'
       return voice.networkRequired ? '需要联网' : '设备本地'
-    },
-    showRoleComing(role) {
-      uni.showToast({ title: `${role.name}角色音将在云端音色阶段开放`, icon: 'none' })
     },
     goBack() {
       this.stopPreview()
@@ -500,15 +560,30 @@ button::after {
 
 .role-card {
   position: relative;
-  width: 190rpx;
-  min-height: 236rpx;
+  box-sizing: border-box;
+  width: 224rpx;
+  min-height: 286rpx;
   padding: 20rpx;
   overflow: hidden;
-  border: 1rpx dashed var(--app-border);
+  border: 1rpx solid var(--app-border);
   border-radius: var(--app-card-radius, 18rpx);
   color: var(--app-text);
   text-align: left;
   background: var(--app-panel);
+  transition:
+    transform var(--voice-motion) ease,
+    border-color var(--voice-motion) ease,
+    background var(--voice-motion) ease;
+}
+
+.role-card.selected,
+.role-card.previewing {
+  border-color: var(--app-accent);
+  background: var(--app-input);
+}
+
+.role-card.previewing {
+  transform: translateY(-4rpx);
 }
 
 .role-glyph {
@@ -525,8 +600,15 @@ button::after {
   font-weight: 900;
 }
 
-.role-name {
+.role-name-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8rpx;
   margin-top: 18rpx;
+}
+
+.role-name {
   font-size: 28rpx;
   font-weight: 900;
 }
@@ -538,14 +620,42 @@ button::after {
   font-size: 20rpx;
 }
 
-.coming-badge {
-  display: inline-flex;
+.role-params {
+  display: block;
+  margin-top: 9rpx;
+  color: var(--app-muted);
+  font-size: 16rpx;
+}
+
+.role-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8rpx;
   margin-top: 18rpx;
-  padding: 5rpx 10rpx;
-  border-radius: 999rpx;
-  color: var(--app-accent-3);
+}
+
+.role-action {
+  min-width: 0;
+  height: 52rpx;
+  padding: 0;
+  border: 1rpx solid var(--app-border);
+  border-radius: var(--app-control-radius, 12rpx);
+  color: var(--app-text);
+  background: var(--app-panel-strong);
+  font-size: 18rpx;
+  line-height: 50rpx;
+}
+
+.role-action.select {
+  border-color: transparent;
+  color: var(--app-on-accent);
+  background: var(--app-accent);
+}
+
+.role-action[disabled] {
+  color: var(--app-muted);
   background: var(--app-input);
-  font-size: 17rpx;
+  opacity: 1;
 }
 
 .device-head {

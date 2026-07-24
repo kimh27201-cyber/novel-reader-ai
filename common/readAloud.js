@@ -1,9 +1,11 @@
 export const READ_ALOUD_RATES = Object.freeze([0.8, 1, 1.2, 1.5, 2])
 
 const DEFAULT_RATE = 1
+const DEFAULT_PITCH = 1
 const DEFAULT_MAX_CHARS = 300
 const CANCELLED_CODE = 'READ_ALOUD_CANCELLED'
 const SYSTEM_VOICE_PROVIDER = 'system'
+const PRESET_VOICE_PROVIDER = 'preset'
 
 let nativeCallbackSequence = 0
 let utteranceSequence = 0
@@ -18,6 +20,54 @@ export const SYSTEM_DEFAULT_VOICE = Object.freeze({
   networkRequired: false,
   isDefault: true
 })
+
+export const READ_ALOUD_ROLE_PRESETS = Object.freeze([
+  Object.freeze({
+    id: 'loli',
+    provider: PRESET_VOICE_PROVIDER,
+    glyph: '萝',
+    name: '萝莉',
+    desc: '轻快甜亮',
+    pitch: 1.35,
+    rateScale: 1.08
+  }),
+  Object.freeze({
+    id: 'uncle',
+    provider: PRESET_VOICE_PROVIDER,
+    glyph: '叔',
+    name: '大叔',
+    desc: '沉稳厚重',
+    pitch: 0.78,
+    rateScale: 0.92
+  }),
+  Object.freeze({
+    id: 'youth',
+    provider: PRESET_VOICE_PROVIDER,
+    glyph: '青',
+    name: '青年',
+    desc: '自然清晰',
+    pitch: 1,
+    rateScale: 1
+  }),
+  Object.freeze({
+    id: 'shota',
+    provider: PRESET_VOICE_PROVIDER,
+    glyph: '少',
+    name: '正太',
+    desc: '少年元气',
+    pitch: 1.22,
+    rateScale: 1.12
+  }),
+  Object.freeze({
+    id: 'recital',
+    provider: PRESET_VOICE_PROVIDER,
+    glyph: '诵',
+    name: '朗诵',
+    desc: '舒缓有致',
+    pitch: 0.96,
+    rateScale: 0.88
+  })
+])
 
 function asError(error, fallback = '听读失败') {
   if (error instanceof Error) return error
@@ -47,6 +97,46 @@ export function normalizeReadAloudRate(value) {
   return READ_ALOUD_RATES.reduce((closest, candidate) => (
     Math.abs(candidate - number) < Math.abs(closest - number) ? candidate : closest
   ), DEFAULT_RATE)
+}
+
+export function normalizeReadAloudPitch(value) {
+  const number = Number(value)
+  if (!Number.isFinite(number)) return DEFAULT_PITCH
+  return Number(Math.max(0.5, Math.min(2, number)).toFixed(2))
+}
+
+export function normalizeReadAloudSpeechRate(value) {
+  const number = Number(value)
+  if (!Number.isFinite(number)) return DEFAULT_RATE
+  return Number(Math.max(0.5, Math.min(2, number)).toFixed(2))
+}
+
+export function resolveReadAloudVoiceProfile(provider, voiceId) {
+  const normalizedProvider = provider === PRESET_VOICE_PROVIDER
+    ? PRESET_VOICE_PROVIDER
+    : SYSTEM_VOICE_PROVIDER
+  const normalizedId = String(voiceId || '').trim()
+  if (normalizedProvider === PRESET_VOICE_PROVIDER) {
+    const preset = READ_ALOUD_ROLE_PRESETS.find(item => item.id === normalizedId)
+    if (preset) {
+      return {
+        provider: PRESET_VOICE_PROVIDER,
+        presetId: preset.id,
+        name: preset.name,
+        voiceId: '',
+        pitch: normalizeReadAloudPitch(preset.pitch),
+        rateScale: normalizeReadAloudSpeechRate(preset.rateScale)
+      }
+    }
+  }
+  return {
+    provider: SYSTEM_VOICE_PROVIDER,
+    presetId: '',
+    name: '',
+    voiceId: normalizedProvider === SYSTEM_VOICE_PROVIDER ? normalizedId : '',
+    pitch: DEFAULT_PITCH,
+    rateScale: DEFAULT_RATE
+  }
 }
 
 function isChineseVoiceLanguage(value) {
@@ -263,9 +353,12 @@ function createBridgeDriver(bridge, hostWindow) {
             const selected = bridge.setVoice(voiceId)
             if (selected === false && voiceId) bridge.setVoice('')
           }
+          if (typeof bridge.setPitch === 'function') {
+            bridge.setPitch(normalizeReadAloudPitch(options.pitch))
+          }
           const accepted = bridge.speak(
             String(text || ''),
-            normalizeReadAloudRate(options.rate),
+            normalizeReadAloudSpeechRate(options.rate),
             utteranceId,
             callbackName
           )
@@ -443,7 +536,8 @@ function createAppPlusDriver(plusApi) {
           } catch (ignored) {}
         }
       }
-      tts.setSpeechRate(normalizeReadAloudRate(options.rate))
+      tts.setPitch(normalizeReadAloudPitch(options.pitch))
+      tts.setSpeechRate(normalizeReadAloudSpeechRate(options.rate))
       return new Promise((resolve, reject) => {
         pending.set(utteranceId, { resolve, reject })
         try {
@@ -561,7 +655,8 @@ function createWebSpeechDriver(hostWindow) {
         try {
           const utterance = new hostWindow.SpeechSynthesisUtterance(String(text || ''))
           utterance.lang = 'zh-CN'
-          utterance.rate = normalizeReadAloudRate(options.rate)
+          utterance.rate = normalizeReadAloudSpeechRate(options.rate)
+          utterance.pitch = normalizeReadAloudPitch(options.pitch)
           const voiceId = String(options.voiceId || '').trim()
           if (voiceId) {
             const selected = readWebVoices().find(voice => webVoiceId(voice) === voiceId)
@@ -654,11 +749,15 @@ export function createReadAloudController(options = {}) {
   let cursor = -1
   let sessionToken = 0
   let disposed = false
+  const initialVoiceProfile = resolveReadAloudVoiceProfile(options.voiceProvider, options.voiceId)
 
   const state = {
     status: 'idle',
     rate: normalizeReadAloudRate(options.rate),
-    voiceId: String(options.voiceId || '').trim(),
+    voiceProvider: initialVoiceProfile.provider,
+    voiceId: initialVoiceProfile.provider === PRESET_VOICE_PROVIDER
+      ? initialVoiceProfile.presetId
+      : initialVoiceProfile.voiceId,
     driverKind: driver.kind || 'unknown',
     segmentIndex: -1,
     segment: null,
@@ -714,6 +813,7 @@ export function createReadAloudController(options = {}) {
             chapterKey: state.chapterKey,
             lastSegment: cloneSegment(segments[segments.length - 1]),
             rate: state.rate,
+            voiceProvider: state.voiceProvider,
             voiceId: state.voiceId
           })
         } catch (error) {
@@ -742,10 +842,14 @@ export function createReadAloudController(options = {}) {
       if (state.segmentIndex !== cursor || !state.segment) showSegment(cursor)
       emitState({ status: 'speaking', error: '' })
       const utteranceId = `${token}:${state.chapterKey ?? 'chapter'}:${segment.id}:${++utteranceSequence}`
+      const voiceProfile = resolveReadAloudVoiceProfile(state.voiceProvider, state.voiceId)
       try {
         await driver.speak(segment.text, {
-          rate: state.rate,
-          voiceId: state.voiceId,
+          rate: normalizeReadAloudSpeechRate(state.rate * voiceProfile.rateScale),
+          pitch: voiceProfile.pitch,
+          voiceProvider: voiceProfile.provider,
+          presetId: voiceProfile.presetId,
+          voiceId: voiceProfile.voiceId,
           utteranceId
         })
       } catch (error) {
@@ -892,15 +996,19 @@ export function createReadAloudController(options = {}) {
       return normalized
     },
 
-    setVoice(voiceId) {
+    setVoice(voiceId, provider = SYSTEM_VOICE_PROVIDER) {
       if (disposed) return state.voiceId
-      const normalized = String(voiceId || '').trim()
+      const profile = resolveReadAloudVoiceProfile(provider, voiceId)
+      const normalized = profile.provider === PRESET_VOICE_PROVIDER
+        ? profile.presetId
+        : profile.voiceId
       const shouldRestart = ['speaking', 'initializing'].includes(state.status)
+      state.voiceProvider = profile.provider
       state.voiceId = normalized
       if (shouldRestart) {
         restartCurrent()
       } else {
-        emitState({ voiceId: normalized })
+        emitState({ voiceProvider: profile.provider, voiceId: normalized })
       }
       return normalized
     },

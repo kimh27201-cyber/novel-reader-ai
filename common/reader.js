@@ -24,6 +24,13 @@ const defaultPrefs = {
 }
 
 const TTS_RATES = [0.8, 1, 1.2, 1.5, 2]
+const TTS_ROLE_NAMES = Object.freeze({
+  loli: '萝莉',
+  uncle: '大叔',
+  youth: '青年',
+  shota: '正太',
+  recital: '朗诵'
+})
 
 export const themes = [
   { id: 'eye', name: '护眼夜', background: '#10181a', text: '#dfe8e4', muted: '#8fb1aa' },
@@ -55,10 +62,21 @@ function normalizePrefs(raw) {
   const ttsRate = Number(prefs.ttsRate)
   prefs.ttsRate = TTS_RATES.includes(ttsRate) ? ttsRate : defaultPrefs.ttsRate
   prefs.ttsAutoNextChapter = prefs.ttsAutoNextChapter !== false
-  prefs.ttsVoiceProvider = prefs.ttsVoiceProvider === 'system' ? 'system' : defaultPrefs.ttsVoiceProvider
+  prefs.ttsVoiceProvider = prefs.ttsVoiceProvider === 'preset' ? 'preset' : defaultPrefs.ttsVoiceProvider
   prefs.ttsVoiceId = String(prefs.ttsVoiceId || '').trim().slice(0, 256)
   prefs.ttsVoiceName = String(prefs.ttsVoiceName || '').trim().slice(0, 80) || defaultPrefs.ttsVoiceName
-  if (!prefs.ttsVoiceId) prefs.ttsVoiceName = defaultPrefs.ttsVoiceName
+  if (prefs.ttsVoiceProvider === 'preset') {
+    const roleName = TTS_ROLE_NAMES[prefs.ttsVoiceId]
+    if (roleName) {
+      prefs.ttsVoiceName = `${roleName} · 本地角色`
+    } else {
+      prefs.ttsVoiceProvider = defaultPrefs.ttsVoiceProvider
+      prefs.ttsVoiceId = defaultPrefs.ttsVoiceId
+      prefs.ttsVoiceName = defaultPrefs.ttsVoiceName
+    }
+  } else if (!prefs.ttsVoiceId) {
+    prefs.ttsVoiceName = defaultPrefs.ttsVoiceName
+  }
   if (!themes.some(theme => theme.id === prefs.theme)) {
     prefs.theme = defaultPrefs.theme
   }
