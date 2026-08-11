@@ -286,7 +286,7 @@
         :disabled="sourceImportPreviewing || sourceImporting"
         maxlength="-1"
         placeholder="粘贴书源 JSON、sources 包装结构、yuedu:// 或 legado:// 一键导入链接"
-        @input="invalidateSourceImportPreview"
+        @input="onSourceImportTextInput"
       ></textarea>
       <input
         v-else
@@ -984,6 +984,15 @@ export default {
       this.sourceImportPreview = null
       this.sourceImportPreviewRaw = ''
       this.sourceImportFeedback = null
+    },
+    onSourceImportTextInput(event) {
+      const detailValue = event && event.detail ? event.detail.value : undefined
+      const targetValue = event && event.target ? event.target.value : undefined
+      const nextValue = detailValue !== undefined ? detailValue : targetValue
+      if (nextValue !== undefined) {
+        this.sourceImportText = String(nextValue)
+      }
+      this.invalidateSourceImportPreview()
     },
     openSourceDetail(source) {
       this.selectedSource = source

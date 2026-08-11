@@ -12,7 +12,7 @@
     <view class="backend-card">
       <view class="backend-head" @tap="backendExpanded = !backendExpanded">
         <view>
-          <view class="backend-title">阅读服务</view>
+          <view class="backend-title">云服务与同步（可选）</view>
           <text class="backend-desc">{{ backendStatusDesc }}</text>
         </view>
         <view class="backend-head-right">
@@ -22,6 +22,7 @@
       </view>
 
       <view class="backend-detail" v-if="backendExpanded">
+        <text class="backend-desc">Android 书源阅读只需要手机联网；这里仅用于账号同步、云书架、云 TTS 和 H5 跨域代理。</text>
         <input class="backend-input" v-model="backend.baseUrl" placeholder="后端地址" />
         <view class="backend-tip" :class="{ warning: !backendAddressTip.mobileReady }">
           <text>{{ backendAddressTip.message }}</text>

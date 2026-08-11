@@ -95,7 +95,23 @@
         </view>
         <view class="preview-row">
           <text class="preview-label">兼容性</text>
-          <text class="preview-value">{{ previewSource.compatibility || 'v1 兼容' }}</text>
+          <text class="preview-value">{{ sourceStatusLabel(previewSource.status) }}</text>
+        </view>
+        <view class="preview-row">
+          <text class="preview-label">运行平台</text>
+          <text class="preview-value">APK {{ previewSource.android_supported ? '可运行' : '受限' }} · H5 {{ previewSource.h5_supported ? '可运行' : '需代理/受限' }}</text>
+        </view>
+        <view class="preview-row">
+          <text class="preview-label">阅读能力</text>
+          <text class="preview-value">搜 {{ capabilityMark(previewSource.searchable) }} / 详情 {{ capabilityMark(previewSource.detailReadable) }} / 目录 {{ capabilityMark(previewSource.tocReadable) }} / 正文 {{ capabilityMark(previewSource.contentReadable) }}</text>
+        </view>
+        <view class="preview-row" v-if="previewSource.requiresCookie || previewSource.requiresLogin || previewSource.requiresWebView">
+          <text class="preview-label">附加条件</text>
+          <text class="preview-value">{{ sourceRequirements(previewSource) }}</text>
+        </view>
+        <view class="preview-row" v-if="previewSource.reasons && previewSource.reasons.length">
+          <text class="preview-label">限制原因</text>
+          <text class="preview-value">{{ previewSource.reasons.join('；') }}</text>
         </view>
         <view class="preview-row">
           <text class="preview-label">安装状态</text>
@@ -286,6 +302,25 @@ export default {
     isSourceInstalled(source) {
       if (!source || !source.id) return false
       return getSourceConfigs().some(item => item.id === source.id)
+    },
+    capabilityMark(value) {
+      return value ? '✓' : '—'
+    },
+    sourceStatusLabel(status) {
+      return ({
+        ready: '可用',
+        partial: '部分可用（导入后默认停用）',
+        needs_login: '需要登录（导入后默认停用）',
+        blocked: '规则受限（导入后默认停用）',
+        invalid: '配置无效'
+      })[status] || '待测试'
+    },
+    sourceRequirements(source) {
+      const labels = []
+      if (source.requiresCookie) labels.push('Cookie')
+      if (source.requiresLogin) labels.push('登录')
+      if (source.requiresWebView) labels.push('WebView')
+      return labels.join('、')
     }
   }
 }

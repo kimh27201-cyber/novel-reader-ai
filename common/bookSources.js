@@ -2,6 +2,7 @@ import {
   applyListRule,
   applyRule,
   cleanText,
+  createSourceKey,
   detectSourceCompatibilityLevel,
   detectSourceFeatures,
   detectSourceFormat,
@@ -27,6 +28,8 @@ import {
 } from './sourceImportLog.js'
 
 const USER_SOURCES_KEY = 'sources:user'
+const SOURCE_SCHEMA_VERSION_KEY = 'sources:schema-version'
+const SOURCE_SCHEMA_VERSION = 3
 const SOURCE_SETTINGS_KEY = 'sources:settings'
 const IMPORT_HISTORY_KEY = 'sources:import-history'
 const ONLINE_SEARCH_SETTINGS_KEY = 'sources:online-search-settings'
@@ -136,7 +139,19 @@ function pickUrl(input, rule, names, context, baseUrl) {
 }
 
 function getUserSources() {
-  return readStorage(USER_SOURCES_KEY, [])
+  const stored = readStorage(USER_SOURCES_KEY, [])
+  const sources = Array.isArray(stored) ? stored : []
+  let changed = Number(readStorage(SOURCE_SCHEMA_VERSION_KEY, 0)) < SOURCE_SCHEMA_VERSION
+  const migrated = sources.map(source => {
+    if (source && source.sourceKey) return source
+    changed = true
+    return { ...source, sourceKey: createSourceKey(source && (source.raw || source) || {}) }
+  })
+  if (changed) {
+    writeStorage(USER_SOURCES_KEY, migrated)
+    writeStorage(SOURCE_SCHEMA_VERSION_KEY, SOURCE_SCHEMA_VERSION)
+  }
+  return migrated
 }
 
 function writeUserSources(sources) {
@@ -1223,22 +1238,51 @@ export function analyzeBookSourceCompatibility(source) {
   const tocReadable = hasTocRule && !stageUnsupported.toc
   const contentReadable = hasContentRule && !stageUnsupported.content
   const diagnosticExploreOnly = hasExploreUrl && !stageUnsupported.explore
-  const importable = !!(name && baseUrl && (searchable || discoverable || diagnosticExploreOnly))
+  const identityValid = !!(name && baseUrl)
+  const importable = identityValid
 
   let level = 'compatible'
-  if (!importable) level = 'importUnsupported'
+  if (!identityValid) level = 'importUnsupported'
   else if (stageUnsupported.search || stageUnsupported.explore || stageUnsupported.detail || stageUnsupported.toc) level = 'h5Unsupported'
   else if (stageUnsupported.content || features.cookie || features.login || features.webView) level = 'partialCompatible'
 
   const compatible = level === 'compatible'
   const reasons = uniqueStrings(unsupportedReasons.map(item => item.reason))
-  if (!importable && !reasons.length) {
-    reasons.push('Missing required fields or no currently usable search/explore/detail/toc/content rule')
+  if (!identityValid && !reasons.length) {
+    reasons.push('Missing required fields：缺少书源名称或基础地址')
     unsupportedReasons.push({
       stage: 'import',
-      reason: 'Missing required fields or no currently usable search/explore/detail/toc/content rule'
+      reason: 'Missing required fields：缺少书源名称或基础地址'
     })
   }
+
+  let status = 'ready'
+  let errorCode = ''
+  if (!identityValid) {
+    status = 'invalid'
+    errorCode = 'INVALID_IDENTITY'
+  } else if (source && source.compatibilityLevel === 'unsupported' || hasUnsupportedRule(raw)) {
+    status = 'blocked'
+    errorCode = 'SCRIPT_UNSUPPORTED'
+    if (!reasons.length) reasons.push('包含未映射的高风险脚本或宿主能力')
+  } else if (features.login) {
+    status = 'needs_login'
+    errorCode = 'LOGIN_REQUIRED'
+  } else if (
+    stageUnsupported.content
+    || (stageUnsupported.search && !discoverable)
+    || (stageUnsupported.explore && !searchable)
+  ) {
+    status = 'blocked'
+    errorCode = 'SCRIPT_UNSUPPORTED'
+  } else if (!searchable && !discoverable || !tocReadable || !contentReadable || unsupportedReasons.length) {
+    status = 'partial'
+    errorCode = 'PARTIAL_CAPABILITY'
+  }
+
+  const androidSupported = status === 'ready' || status === 'partial' || status === 'needs_login'
+  const h5Supported = status === 'ready' && !features.cookie && !features.webView && !features.login
+  const backendSupported = status === 'ready' && !features.webView && !unsupportedReasons.length
 
   return {
     importable,
@@ -1262,7 +1306,12 @@ export function analyzeBookSourceCompatibility(source) {
       bookInfo: !!Object.keys(ruleBookInfo).length,
       toc: !!Object.keys(ruleToc).length,
       content: !!Object.keys(ruleContent).length
-    }
+    },
+    status,
+    errorCode,
+    android_supported: androidSupported,
+    h5_supported: h5Supported,
+    backend_supported: backendSupported
   }
 }
 
@@ -1271,13 +1320,13 @@ function hasStageUnsupportedRule(value) {
   const text = typeof value === 'string' ? value : JSON.stringify(value)
   if (!text || text === '{}') return ''
   const checks = [
-    { pattern: /@js:/i, reason: 'rule uses @js, current safe H5 parser will not execute third-party JS' },
-    { pattern: /java\.ajax/i, reason: 'JS rule calls java.ajax, H5 engine cannot execute Android/Legado runtime APIs' },
-    { pattern: /org\.jsoup/i, reason: 'JS rule depends on org.jsoup, H5 engine cannot execute Android/Legado runtime APIs' },
-    { pattern: /\bjava\./i, reason: 'JS rule depends on java.*, H5 engine cannot execute Android/Legado runtime APIs' },
-    { pattern: /webview/i, reason: 'rule requires WebView-rendered execution' },
-    { pattern: /\beval\s*\(|\bFunction\s*\(/i, reason: 'rule uses dynamic JavaScript execution' },
-    { pattern: /CryptoJS|base64 dynamic decode/i, reason: 'rule appears to require dynamic decode or crypto logic' }
+    { pattern: /java\.ajax/i, reason: '规则调用 java.ajax，当前版本未映射该异步宿主 API' },
+    { pattern: /org\.jsoup/i, reason: '规则依赖 org.jsoup，当前版本仅支持 CSS/XPath/JSONPath 解析' },
+    { pattern: /\bjava\./i, reason: '规则依赖未列入白名单的 java.* 能力' },
+    { pattern: /webview/i, reason: '规则需要 WebView 渲染通道' },
+    { pattern: /\beval\s*\(|\bFunction\s*\(/i, reason: '规则使用动态 JavaScript 执行' },
+    { pattern: /@js:[\s\S]*\.(?:map|filter|reduce)\s*\(/i, reason: 'JS 规则使用当前白名单未开放的数组回调' },
+    { pattern: /CryptoJS|base64 dynamic decode/i, reason: '规则需要当前未支持的动态解码或加密逻辑' }
   ]
   const found = checks.find(item => item.pattern.test(text))
   return found ? found.reason : ''
@@ -1285,24 +1334,31 @@ function hasStageUnsupportedRule(value) {
 
 export function buildImportPreview(sources = [], existingSources = getUserSources(), options = {}) {
   const existing = Array.isArray(existingSources) ? existingSources : []
-  const existingIds = new Set(existing.map(source => source.id))
-  const seenIds = new Set()
+  const existingByKey = new Map(existing.map(source => [source.sourceKey || createSourceKey(source.raw || source), source]))
+  const seenKeys = new Set()
   const duplicateStrategy = options.duplicateStrategy === 'skip' ? 'skip' : 'overwrite'
   const rows = (Array.isArray(sources) ? sources : []).map(source => {
     const compatibility = analyzeBookSourceCompatibility(source)
-    const duplicate = existingIds.has(source.id) || seenIds.has(source.id)
-    seenIds.add(source.id)
-    const unsupported = !compatibility.importable
+    const sourceKey = source.sourceKey || createSourceKey(source.raw || source)
+    const existingSource = existingByKey.get(sourceKey)
+    const duplicate = !!existingSource || seenKeys.has(sourceKey)
+    seenKeys.add(sourceKey)
+    const invalid = compatibility.status === 'invalid'
+    const unsupported = compatibility.status !== 'ready'
     const compatible = compatibility.compatible
-    const action = unsupported
-      ? 'incompatible'
+    const action = invalid
+      ? 'invalid'
       : duplicate
         ? (duplicateStrategy === 'skip' ? 'skip' : 'overwrite')
         : 'import'
     return {
       ...source,
+      id: existingSource ? existingSource.id : source.id,
+      sourceKey,
+      enabled: compatibility.status === 'ready' || compatibility.status === 'partial' ? source.enabled !== false : false,
       action,
       duplicate,
+      invalid,
       unsupported,
       compatible,
       compatibilityStatus: compatibility.level,
@@ -1320,6 +1376,11 @@ export function buildImportPreview(sources = [], existingSources = getUserSource
       requiresCookie: compatibility.requiresCookie,
       requiresLogin: compatibility.requiresLogin,
       requiresWebView: compatibility.requiresWebView,
+      status: compatibility.status,
+      errorCode: compatibility.errorCode,
+      android_supported: compatibility.android_supported,
+      h5_supported: compatibility.h5_supported,
+      backend_supported: compatibility.backend_supported,
       format: source.formatVersion || detectSourceFormat(source.raw || source),
       source: source.sourceMeta && source.sourceMeta.source || '',
       sourceUrl: source.sourceMeta && source.sourceMeta.sourceUrl || '',
@@ -1339,7 +1400,8 @@ function summarizeImportPreviewRows(rows = []) {
     updated: rows.filter(source => source.action === 'overwrite').length,
     skipped: rows.filter(source => source.action === 'skip').length,
     failed: 0,
-    incompatible: rows.filter(source => source.action === 'incompatible' || source.compatibleLevel === 'h5Unsupported' || source.compatibleLevel === 'importUnsupported').length,
+    incompatible: rows.filter(source => source.status === 'blocked' || source.status === 'invalid').length,
+    unsupported: rows.filter(source => source.status !== 'ready' && source.status !== 'invalid').length,
     partialCompatible: rows.filter(source => source.compatibleLevel === 'partialCompatible').length,
     groups: Array.from(new Set(groups)),
     sources: rows
@@ -1360,7 +1422,7 @@ export function applyImportPreview(preview, options = {}) {
 
   rows.forEach(row => {
     const exists = nextById.has(row.id)
-    if (row.unsupported === true || row.action === 'incompatible') {
+    if (row.action === 'invalid' || row.status === 'invalid') {
       skipped += 1
       skippedIds.add(row.id)
       historyRows.push(buildImportHistoryItem(row, 'unsupported', options))
@@ -1400,7 +1462,8 @@ export function applyImportPreview(preview, options = {}) {
     updated,
     skipped,
     failed: 0,
-    incompatible: rows.filter(source => source.action === 'incompatible' || source.compatibleLevel === 'h5Unsupported' || source.compatibleLevel === 'importUnsupported').length,
+    incompatible: rows.filter(source => source.status === 'blocked' || source.status === 'invalid').length,
+    unsupported: rows.filter(source => source.status !== 'ready' && source.status !== 'invalid').length,
     partialCompatible: rows.filter(source => source.compatibleLevel === 'partialCompatible').length,
     actualWritten: imported + updated,
     visible: visibleCheck.visible,
@@ -1527,7 +1590,7 @@ function buildImportLogItem(row = {}, result = {}) {
   const h5Unsupported = row.compatibleLevel === 'h5Unsupported' || row.compatibleLevel === 'partialCompatible'
   let status = 'success'
   let itemReason = saved ? '导入成功，已保存到本地书源列表' : ''
-  if (row.action === 'incompatible' || row.unsupported === true) {
+  if (row.action === 'invalid' || row.status === 'invalid') {
     status = 'blocked'
     itemReason = reason || '书源缺少必要字段或需要当前版本不支持的特殊能力'
   } else if (row.action === 'skip' && row.duplicate) {
@@ -1596,6 +1659,7 @@ function stripImportPreviewFields(source) {
     action,
     duplicate,
     unsupported,
+    invalid,
     compatible,
     compatibilityStatus,
     importable,
@@ -1623,16 +1687,6 @@ export function importSourcesFromJson(text) {
 
 export function previewSourcesImport(text) {
   return buildImportPreview(normalizeBookSources(text, { source: 'text' }), getUserSources())
-  const sources = parseSourceJson(text)
-  const currentIds = new Set(getUserSources().map(source => source.id))
-  const groups = sources.map(source => source.group || source.raw.bookSourceGroup || '用户导入')
-  return {
-    imported: sources.filter(source => !currentIds.has(source.id)).length,
-    updated: sources.filter(source => currentIds.has(source.id)).length,
-    incompatible: sources.filter(source => hasUnsupportedRule(source.raw)).length,
-    groups: Array.from(new Set(groups)),
-    sources
-  }
 }
 
 export async function previewSourcesFromAny(input) {
@@ -1644,12 +1698,6 @@ export async function previewSourcesFromAny(input) {
     ...buildImportPreview(normalizeBookSources(resolved.rawSources, resolved.sourceMeta), getUserSources()),
     sourceUrl: resolved.sourceUrl
   }
-  const payload = detectSourceImportPayload(input)
-  if (payload.type === 'json') return previewSourcesImport(payload.value)
-  if (payload.type === 'import-link' || payload.type === 'json-url' || payload.type === 'repository-page' || payload.type === 'url') {
-    return previewSourcesFromUrl(payload.value)
-  }
-  throw new Error('没有识别到可预览的书源 JSON 或 URL')
 }
 
 export async function previewSourcesFromUrl(url) {
@@ -1666,20 +1714,6 @@ export async function previewSourcesFromUrl(url) {
 export function importSourcesWithStats(text, options = {}) {
   const preview = buildImportPreview(normalizeBookSources(text, { source: options.source || 'text' }), getUserSources(), options)
   return applyImportPreview(preview, options)
-  const sources = parseSourceJson(text)
-  const current = getUserSources()
-  const currentIds = new Set(current.map(source => source.id))
-  const next = [
-    ...sources,
-    ...current.filter(source => !sources.some(item => item.id === source.id))
-  ]
-  writeUserSources(next)
-  return {
-    imported: sources.filter(source => !currentIds.has(source.id)).length,
-    updated: sources.filter(source => currentIds.has(source.id)).length,
-    incompatible: sources.filter(source => hasUnsupportedRule(source.raw)).length,
-    sources
-  }
 }
 
 export async function importSourcesFromUrl(url) {
@@ -1746,12 +1780,23 @@ export async function importSourcesFromAny(input) {
   }
   const preview = buildImportPreview(normalizeBookSources(resolved.rawSources, resolved.sourceMeta), getUserSources())
   return applyImportPreview(preview)
-  const payload = detectSourceImportPayload(input)
-  if (payload.type === 'json') return importSourcesWithStats(payload.value)
-  if (payload.type === 'import-link' || payload.type === 'json-url' || payload.type === 'repository-page' || payload.type === 'url') {
-    return importSourcesFromUrlWithStats(payload.value)
+}
+
+export const resolveSourceImport = resolveImportInput
+
+export function previewSourceImport(resolution, options = {}) {
+  if (!resolution || resolution.action === 'navigate') {
+    throw new Error('书源仓库列表页需要先选择单个书源')
   }
-  throw new Error('没有识别到可导入的书源 JSON 或 URL')
+  return buildImportPreview(
+    normalizeBookSources(resolution.rawSources, resolution.sourceMeta || {}),
+    getUserSources(),
+    options
+  )
+}
+
+export function applySourceImport(preview, options = {}) {
+  return applyImportPreview(preview, options)
 }
 
 export function saveOnlineBookDraft(book) {
@@ -1804,10 +1849,6 @@ export function getSourceExploreEntries(sourceOrId) {
   if (!source) {
     return createUnavailableExploreResult('', '', '未找到该书源', 'source_missing')
   }
-  if (!source.enabled) {
-    return createUnavailableExploreResult(source.id, source.name, '请先启用该书源', 'source_disabled', source)
-  }
-
   const raw = source.raw || source
   if (!raw.exploreUrl && !raw.ruleExploreUrl && !raw.explore) {
     return createUnavailableExploreResult(source.id, source.name, '该书源没有发现页配置，仅支持书名搜索', 'no_explore_url', source)
@@ -1821,6 +1862,10 @@ export function getSourceExploreEntries(sourceOrId) {
   const capability = hasExploreCapability(source)
   if (!capability.available) {
     return createUnavailableExploreResult(source.id, source.name, capability.reason, capability.reasonCode, source)
+  }
+
+  if (!source.enabled) {
+    return createUnavailableExploreResult(source.id, source.name, '请先启用该书源', 'source_disabled', source)
   }
 
   const groups = []
@@ -2165,8 +2210,8 @@ function getExploreRuleCompatibility(source) {
   const raw = source && (source.raw || source) || {}
   const exploreUrl = raw.exploreUrl || raw.ruleExploreUrl || raw.explore || ''
   const ruleExplore = raw.ruleExplore || {}
-  if (/@js:/i.test(String(exploreUrl || '')) || /@js:/i.test(JSON.stringify(ruleExplore || {}))) {
-    return { compatible: false, reason: '该书源发现页依赖 @js，当前 H5 引擎暂不支持执行第三方 JS', reasonCode: 'complex_explore_rule' }
+  if (/@js:[\s\S]*\.(?:map|filter|reduce)\s*\(/i.test(String(exploreUrl || ''))) {
+    return { compatible: false, reason: '该书源发现页的 JS 超出当前安全白名单', reasonCode: 'complex_explore_rule' }
   }
   if (hasUnsupportedRule({ exploreUrl, ruleExplore }) || /webview/i.test(JSON.stringify({ exploreUrl, ruleExplore }))) {
     return { compatible: false, reason: '该书源的发现入口包含复杂 JS 或 WebView 规则', reasonCode: 'complex_explore_rule' }
@@ -2195,7 +2240,7 @@ export function hasExploreCapability(sourceOrId) {
 function hasSourceSearchFallback(source) {
   const raw = source && (source.raw || source) || {}
   const ruleSearch = normalizeRuleObject(raw.ruleSearch)
-  return !!(source.enabled && raw.searchUrl && Object.keys(ruleSearch).length && !hasUnsupportedRule({
+  return !!(raw.searchUrl && Object.keys(ruleSearch).length && !hasUnsupportedRule({
     searchUrl: raw.searchUrl,
     ruleSearch
   }))
@@ -2451,6 +2496,10 @@ export async function searchSourceBooks(sourceId, keyword, options = {}) {
 
 export async function runSourceReadingFlow(sourceId, keyword, options = {}) {
   const stages = []
+  const keywords = (Array.isArray(keyword) ? keyword : [keyword])
+    .map(item => String(item || '').trim())
+    .filter(Boolean)
+  if (!keywords.length) throw new Error('请输入至少一个验收关键词')
   const runStage = async (id, title, action) => {
     const startedAt = Date.now()
     try {
@@ -2466,11 +2515,21 @@ export async function runSourceReadingFlow(sourceId, keyword, options = {}) {
     }
   }
 
-  const search = await runStage('search', '搜索', () => testSourceSearch(sourceId, keyword, {
-    timeoutMs: options.timeoutMs,
-    limit: options.limit || 5,
-    failOnEmpty: true
-  }))
+  const search = await runStage('search', '搜索', async () => {
+    let lastError
+    for (const candidate of keywords) {
+      try {
+        return await testSourceSearch(sourceId, candidate, {
+          timeoutMs: options.timeoutMs,
+          limit: options.limit || 5,
+          failOnEmpty: true
+        })
+      } catch (error) {
+        lastError = error
+      }
+    }
+    throw lastError || new Error('无搜索结果')
+  })
   const first = search.results.find(item => item && item.type === 'online' && item.book)
   if (!first) {
     const error = new Error('搜索结果里没有可阅读书籍')
@@ -2792,23 +2851,38 @@ export async function loadOnlineToc(book, options = {}) {
   const cached = readOnlineDataCache('toc', cacheKey, options)
   if (cached) return cached
 
-  const html = await requestText(createSourceRequestSpec(source, tocUrl, book, source.baseUrl))
-  const payload = parseResponsePayload(html)
   const listRule = getFieldRule(rule, ['chapterList', 'list', 'toc'])
-  const list = applyListRule(payload, listRule, { ...book, $: payload })
-  const chapters = list.map((item, index) => {
-    const context = { ...book, index, $: item }
-    const title = pickText(item, rule, ['chapterName', 'name', 'title'], context) || `第 ${index + 1} 章`
-    const url = pickUrl(item, rule, ['chapterUrl', 'url', 'link'], context, tocUrl)
-    return {
-      title,
-      url,
-      index,
-      isCached: !!readStorage(chapterCacheKey(book.id, index), ''),
-      loadStatus: readStorage(chapterCacheKey(book.id, index), '') ? 'cached' : 'idle',
-      errorMessage: ''
-    }
-  }).filter(chapter => chapter.title && chapter.url)
+  const chapters = []
+  const seenPages = new Set()
+  const seenChapters = new Set()
+  const maxPages = clampNumber(options.maxPages, 1, 10, 5)
+  let currentUrl = tocUrl
+
+  for (let page = 1; currentUrl && page <= maxPages && !seenPages.has(currentUrl); page += 1) {
+    seenPages.add(currentUrl)
+    const html = await requestText(createSourceRequestSpec(source, currentUrl, { ...book, page }, source.baseUrl))
+    const payload = parseResponsePayload(html)
+    const list = applyListRule(payload, listRule, { ...book, page, $: payload })
+    list.forEach(item => {
+      const index = chapters.length
+      const context = { ...book, index, page, $: item }
+      const title = pickText(item, rule, ['chapterName', 'name', 'title'], context) || `第 ${index + 1} 章`
+      const url = pickUrl(item, rule, ['chapterUrl', 'url', 'link'], context, currentUrl)
+      const key = `${title}\n${url}`
+      if (!title || !url || seenChapters.has(key)) return
+      seenChapters.add(key)
+      const cachedChapter = !!readStorage(chapterCacheKey(book.id, index), '')
+      chapters.push({
+        title,
+        url,
+        index,
+        isCached: cachedChapter,
+        loadStatus: cachedChapter ? 'cached' : 'idle',
+        errorMessage: ''
+      })
+    })
+    currentUrl = pickUrl(payload, rule, ['nextTocUrl', 'nextUrl'], { ...book, page, $: payload }, currentUrl)
+  }
 
   if (!chapters.length) throw new Error('目录解析为空，请换一个书源')
   writeOnlineDataCache('toc', cacheKey, chapters)
@@ -2829,9 +2903,19 @@ export async function loadOnlineChapter(book, chapter, options = {}) {
   const rule = normalizeRuleObject(source.raw.ruleContent)
   if (!Object.keys(rule).length) throw new Error('这个书源没有正文规则')
 
-  const html = await requestText(createSourceRequestSpec(source, chapter.url, { ...book, ...chapter }, source.baseUrl))
-  const payload = parseResponsePayload(html)
-  const content = pickText(payload, rule, ['content', 'text'], { ...book, ...chapter, $: payload })
+  const contents = []
+  const seenPages = new Set()
+  const maxPages = clampNumber(options.maxPages, 1, 10, 5)
+  let currentUrl = chapter.url
+  for (let page = 1; currentUrl && page <= maxPages && !seenPages.has(currentUrl); page += 1) {
+    seenPages.add(currentUrl)
+    const html = await requestText(createSourceRequestSpec(source, currentUrl, { ...book, ...chapter, page }, source.baseUrl))
+    const payload = parseResponsePayload(html)
+    const pageContent = pickText(payload, rule, ['content', 'text'], { ...book, ...chapter, page, $: payload })
+    if (pageContent) contents.push(pageContent)
+    currentUrl = pickUrl(payload, rule, ['nextContentUrl', 'nextUrl'], { ...book, ...chapter, page, $: payload }, currentUrl)
+  }
+  const content = uniqueStrings(contents).join('\n\n')
   if (!content) throw new Error('正文解析为空，请换一个书源')
 
   const protectedKeys = Array.isArray(options.protectedCacheKeys) ? options.protectedCacheKeys : []

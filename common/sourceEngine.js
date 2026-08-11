@@ -1,7 +1,7 @@
-import apiClient from './apiClient.js'
 import { normalizeHeaders } from './headerUtils.js'
 import { executeJsRule } from './jsRuleSandbox.js'
 import { renderedFetch } from './webViewBridge.js'
+import { requestSourceText as transportRequestSourceText } from './sourceTransport.js'
 
 export const unsupportedRulePattern = /(?:java\.|eval\(|\bFunction\s*\(|\bfetch\s*\(|XMLHttpRequest|WebSocket|\bwindow\.|\bdocument\.|localStorage|sessionStorage|\brequire\s*\(|\bprocess\.|\bwhile\s*\(|\bfor\s*\()/i
 
@@ -38,6 +38,20 @@ export function createSourceId(source) {
   return `source-${Math.abs(hash).toString(36)}`
 }
 
+export function createSourceKey(source) {
+  const name = String(source.bookSourceName || source.name || source.sourceName || '').trim().toLowerCase()
+  const url = trimTrailingSlash(String(source.bookSourceUrl || source.sourceUrl || source.baseUrl || ''))
+    .trim()
+    .toLowerCase()
+  const identity = `${name}\n${url}`
+  let hash = 2166136261
+  for (let index = 0; index < identity.length; index += 1) {
+    hash ^= identity.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return `source-key-${(hash >>> 0).toString(36)}`
+}
+
 export function normalizeSourceConfig(input, defaults = {}) {
   const raw = input.raw || input
   const name = raw.bookSourceName || raw.name || raw.sourceName || defaults.name || '未命名书源'
@@ -57,6 +71,7 @@ export function normalizeSourceConfig(input, defaults = {}) {
 
   return {
     id,
+    sourceKey: input.sourceKey || defaults.sourceKey || createSourceKey(raw),
     name,
     baseUrl: trimTrailingSlash(baseUrl),
     group: raw.bookSourceGroup || raw.group || defaults.group || '用户导入',
@@ -373,7 +388,7 @@ export async function requestText(spec) {
   throw lastError || new Error('网络请求失败')
 }
 
-function requestTextOnce(requestUrl, spec, allowDirectFallback) {
+function requestTextOnce(requestUrl, spec) {
   if (spec.rendered) {
     return renderedFetch(spec.url, {
       headers: normalizeHeaders(spec.header || {}, { channel: 'proxy' }),
@@ -384,60 +399,23 @@ function requestTextOnce(requestUrl, spec, allowDirectFallback) {
       timeoutMs: spec.timeoutMs || 10000
     }).then(result => result.html)
   }
-  if (shouldUseBackendProxy(spec.url)) {
-    return apiClient.proxyFetch(spec.url, {
-      method: spec.method || 'GET',
-      headers: normalizeHeaders(spec.header || {}, { channel: 'proxy' }),
-      body: spec.data || '',
-      charset: spec.charset || '',
-      throttleMs: 0
-    }).then(data => {
-      if (data && typeof data.text === 'string') return data.text
-      return typeof data === 'string' ? data : JSON.stringify(data || '')
-    }).catch(error => {
-      if (allowDirectFallback) return directRequestText(requestUrl, spec)
-      throw error
-    })
-  }
-
-  return directRequestText(requestUrl, spec)
-}
-
-function directRequestText(requestUrl, spec) {
-  const directHeaders = normalizeHeaders(spec.header || {}, {
-    channel: typeof window !== 'undefined' ? 'direct' : 'proxy'
-  })
-  if (typeof uni !== 'undefined' && uni.request) {
-    return new Promise((resolve, reject) => {
-      uni.request({
-        url: requestUrl,
-        method: spec.method || 'GET',
-        header: directHeaders,
-        data: spec.data || undefined,
-        timeout: 12000,
-        responseType: 'text',
-        success: response => {
-          const data = response.data
-          resolve(typeof data === 'string' ? data : JSON.stringify(data || ''))
-        },
-        fail: () => reject(new Error('网络请求失败'))
-      })
-    })
-  }
-
-  if (typeof fetch !== 'undefined') {
-    return fetch(requestUrl, {
-      method: spec.method || 'GET',
-      headers: directHeaders,
-      body: spec.method === 'POST' ? spec.data : undefined
-    }).then(response => response.text())
-  }
-
-  return Promise.reject(new Error('当前环境不支持网络请求'))
-}
-
-function shouldUseBackendProxy(url) {
-  return /^https?:\/\//i.test(String(url || ''))
+  return transportRequestSourceText({
+    url: /^https?:\/\//i.test(String(spec.url || '')) ? spec.url : requestUrl,
+    method: spec.method || 'GET',
+    headers: spec.header || {},
+    body: spec.data || '',
+    charset: spec.charset || '',
+    cookie: spec.cookie || '',
+    userAgent: spec.userAgent || '',
+    referer: spec.referer || '',
+    timeoutMs: spec.timeoutMs || 12000,
+    maxBytes: spec.maxBytes,
+    sourceKey: spec.sourceKey
+  }, {
+    sourceKey: spec.sourceKey,
+    useBackend: spec.useBackend !== false,
+    backendOnly: !!spec.backendOnly
+  }).then(response => response.text)
 }
 
 export function getRuntimeRequestUrl(url) {
@@ -496,6 +474,18 @@ export function applyListRule(input, rule, context = {}) {
 }
 
 function applyRulePart(input, rule, context) {
+  const concatRules = String(rule || '').split('&&').map(item => item.trim()).filter(Boolean)
+  if (concatRules.length > 1) {
+    const values = concatRules.map(item => applyRulePart(input, item, context))
+    if (values.some(Array.isArray)) {
+      const size = Math.max(...values.map(value => asArray(value).length))
+      return Array.from({ length: size }, (_, index) => values.map(value => {
+        const items = asArray(value)
+        return items[index] == null ? items[0] || '' : items[index]
+      }).join(''))
+    }
+    return values.join('')
+  }
   const parts = String(rule || '').split('##')
   let value = applySelectorPipeline(input, renderTemplate(parts[0], context))
 
@@ -513,6 +503,8 @@ function applySelectorPipeline(input, rule) {
   if (!text) return input
   if (text === '@text' || text === 'text') return extractText(input)
   if (text === '@html' || text === 'html') return asArray(input).join('')
+  if (/^(?:@?json:)/i.test(text)) return readJsonPath(input, text.replace(/^(?:@?json:)/i, ''))
+  if (/^(?:@?xpath:|\/\/)/i.test(text)) return selectXPath(input, text.replace(/^(?:@?xpath:)/i, ''))
   if (text.startsWith('$.')) return readJsonPath(input, text)
 
   const tokens = text.split('@').map(item => item.trim()).filter(Boolean)
@@ -533,10 +525,22 @@ function selectValues(input, selector) {
     if (Array.isArray(byPath) ? byPath.length : byPath) return byPath
   }
 
+  if (/^(?:xpath:|\/\/)/i.test(selector)) {
+    return selectXPath(input, String(selector).replace(/^xpath:/i, ''))
+  }
   return asArray(input).flatMap(fragment => selectHtml(String(fragment || ''), selector))
 }
 
 function selectHtml(html, selector) {
+  if (typeof DOMParser !== 'undefined') {
+    try {
+      const document = new DOMParser().parseFromString(String(html || ''), 'text/html')
+      const nodes = Array.from(document.querySelectorAll(String(selector || '')))
+      if (nodes.length) return nodes.map(node => node.outerHTML || node.textContent || '')
+    } catch (error) {
+      // Continue with the deterministic parser used by Node tests and older WebViews.
+    }
+  }
   const steps = String(selector || '').split(/\s+|>/).map(item => item.trim()).filter(Boolean)
   if (!steps.length) return [html]
   let current = [html]
@@ -665,9 +669,15 @@ function matchesAttributeSelector(attrs, attr) {
 
 function applyAccessor(input, accessor) {
   const token = String(accessor || '').replace(/^@/, '')
-  if (token === 'text' || token === 'textNodes' || token === 'ownText') return extractText(input)
+  if (token === 'text' || token === 'textNodes') return extractText(input)
+  if (token === 'ownText') return extractOwnText(input)
   if (token === 'html') return asArray(input).join('')
   if (/^\d+$/.test(token)) return asArray(input)[Number(token)] || ''
+  if (/^-\d+$/.test(token)) {
+    const values = asArray(input)
+    return values[values.length + Number(token)] || ''
+  }
+  if (/^!\d+$/.test(token)) return asArray(input).slice().reverse()[Number(token.slice(1))] || ''
   if (token.startsWith('$.')) return readJsonPath(input, token)
 
   const values = asArray(input).map(item => extractAttr(item, token)).filter(Boolean)
@@ -680,6 +690,37 @@ function extractText(input) {
     return cleanText(item)
   }).filter(Boolean)
   return values.length > 1 ? values : values[0] || ''
+}
+
+function extractOwnText(input) {
+  const values = asArray(input).map(item => cleanText(String(item || '')
+    .replace(/<([a-zA-Z][\w:-]*)\b[^>]*>[\s\S]*?<\/\1>/g, ' ')))
+    .filter(Boolean)
+  return values.length > 1 ? values : values[0] || ''
+}
+
+function selectXPath(input, expression) {
+  if (typeof DOMParser === 'undefined' || typeof document === 'undefined' || !document.evaluate) return []
+  const output = []
+  asArray(input).forEach(fragment => {
+    try {
+      const parsed = new DOMParser().parseFromString(String(fragment || ''), 'text/html')
+      const snapshot = parsed.evaluate(
+        String(expression || ''),
+        parsed,
+        null,
+        XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+        null
+      )
+      for (let index = 0; index < snapshot.snapshotLength; index += 1) {
+        const node = snapshot.snapshotItem(index)
+        output.push(node && (node.outerHTML || node.nodeValue || node.textContent) || '')
+      }
+    } catch (error) {
+      // Invalid XPath returns an empty result and can fall back through ||.
+    }
+  })
+  return output
 }
 
 function extractAttr(input, attr) {
@@ -725,11 +766,11 @@ function splitFallbacks(rule) {
 }
 
 function isAccessor(token) {
-  return /^(text|textNodes|ownText|html|href|src|content|value|\d+|\$\.)/.test(token)
+  return /^(text|textNodes|ownText|html|href|src|content|value|-?\d+|!\d+|\$\.)/.test(token)
 }
 
 function isSelectorToken(token) {
-  return /^(class\.|id\.|tag\.|#|\.)/.test(String(token || ''))
+  return /^(class\.|id\.|tag\.|css:|xpath:|json:|\/\/|#|\.)/i.test(String(token || ''))
 }
 
 function normalizeSelectorToken(token) {

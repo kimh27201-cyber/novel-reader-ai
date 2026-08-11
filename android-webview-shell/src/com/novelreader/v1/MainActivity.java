@@ -65,6 +65,7 @@ public class MainActivity extends Activity {
     private static final int FILE_CHOOSER_REQUEST = 1002;
     private static final int SCAN_QR_REQUEST = 1003;
     private WebView webView;
+    private SourceHttpBridge sourceHttpBridge;
     private FrameLayout launchRoot;
     private TextView launchLabel;
     private final Handler launchHandler = new Handler(Looper.getMainLooper());
@@ -165,6 +166,8 @@ public class MainActivity extends Activity {
         view.addJavascriptInterface(new ScanBridge(), "NovelReaderScan");
         view.addJavascriptInterface(new DeepLinkBridge(), "NovelReaderDeepLinkBridge");
         view.addJavascriptInterface(new RenderedHtmlBridge(), "NovelReaderWebViewParser");
+        sourceHttpBridge = new SourceHttpBridge(view);
+        view.addJavascriptInterface(sourceHttpBridge, "NovelReaderHttp");
         view.addJavascriptInterface(new TextToSpeechBridge(), "NovelReaderTts");
         view.addJavascriptInterface(new LaunchBridge(), "NovelReaderLaunch");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
@@ -260,8 +263,7 @@ public class MainActivity extends Activity {
                 if (response != null) {
                     return response;
                 }
-                response = interceptExternalRequest(request);
-                return response != null ? response : super.shouldInterceptRequest(view, request);
+                return super.shouldInterceptRequest(view, request);
             }
 
             @Override
@@ -1293,6 +1295,10 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         launchHandler.removeCallbacksAndMessages(null);
+        if (sourceHttpBridge != null) {
+            sourceHttpBridge.shutdown();
+            sourceHttpBridge = null;
+        }
         launchLabel = null;
         launchRoot = null;
         synchronized (ttsLock) {

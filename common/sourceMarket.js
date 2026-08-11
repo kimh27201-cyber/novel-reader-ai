@@ -9,6 +9,7 @@ import {
   requestText,
   resolveUrl
 } from './sourceEngine.js'
+import { analyzeBookSourceCompatibility } from './bookSources.js'
 
 export const DEFAULT_SOURCE_MARKET_MANIFEST = [
   {
@@ -74,6 +75,8 @@ export function createSourceMarketUrl(options = {}) {
   const params = []
   const keyword = String(options.keyword || '').trim()
   if (keyword) params.push(`key=${encodeURIComponent(keyword)}`)
+  const page = Math.max(1, Number(options.page || 1))
+  if (page > 1) params.push(`page=${page}`)
   return params.length ? `${provider.baseUrl}?${params.join('&')}` : provider.baseUrl
 }
 
@@ -115,6 +118,21 @@ export async function fetchSourceMarketItems(options = {}) {
   const url = options.url || createSourceMarketUrl(options)
   const text = await requestText(parseRequestSpec(url, {}, url))
   return parseSourceMarketItems(text, url)
+}
+
+export async function fetchSourceMarketPages(options = {}) {
+  const startPage = Math.max(1, Number(options.page || 1))
+  const pageCount = Math.max(1, Math.min(10, Number(options.pageCount || 1)))
+  const pages = await Promise.all(Array.from({ length: pageCount }, (_, index) => {
+    const page = startPage + index
+    return fetchSourceMarketItems({ ...options, page, url: '' })
+  }))
+  const seen = new Set()
+  return pages.flat().filter(item => {
+    if (seen.has(item.detailUrl)) return false
+    seen.add(item.detailUrl)
+    return true
+  })
 }
 
 export async function fetchSourceMarketItemsWithFallback(options = {}) {
@@ -182,9 +200,10 @@ export async function fetchMarketSourcePreview(url) {
   const jsonText = await requestText(parseRequestSpec(sourceUrl, {}, sourceUrl))
   const sources = parseSourceJson(jsonText)
   const source = sources[0] || normalizeSourceConfig({})
+  const analysis = analyzeBookSourceCompatibility(source)
   return {
     jsonUrl: sourceUrl,
-    source,
+    source: { ...source, ...analysis },
     sources,
     imported: sources.length,
     incompatible: sources.filter(item => item.compatibility && item.compatibility.includes('不兼容')).length

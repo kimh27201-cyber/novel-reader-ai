@@ -59,6 +59,9 @@ function parseLiteral(text, context) {
   if (value === 'true') return true
   if (value === 'false') return false
   if (value === 'null') return null
+  if ((value[0] === '[' && value[value.length - 1] === ']') || (value[0] === '{' && value[value.length - 1] === '}')) {
+    try { return JSON.parse(value) } catch (error) { failUnsupported('JSON 字面量无效') }
+  }
   if ((value[0] === '"' && value[value.length - 1] === '"') || (value[0] === "'" && value[value.length - 1] === "'")) {
     if (value[0] === '"') return JSON.parse(value)
     return value.slice(1, -1).replace(/\\'/g, "'").replace(/\\n/g, '\n').replace(/\\\\/g, '\\')
@@ -74,6 +77,16 @@ function applyMethod(value, method, args, context) {
     const numbers = args.map(arg => Number(parseLiteral(arg, context)))
     return String(value)[method](...numbers)
   }
+  if (method === 'split' && args.length <= 1) return String(value).split(args.length ? String(parseLiteral(args[0], context)) : '')
+  if (method === 'join' && Array.isArray(value) && args.length <= 1) return value.join(args.length ? String(parseLiteral(args[0], context)) : ',')
+  if (method === 'reverse' && Array.isArray(value) && !args.length) return value.slice().reverse()
+  if (method === 'concat') {
+    const additions = args.map(arg => parseLiteral(arg, context))
+    return Array.isArray(value) ? value.concat(...additions) : String(value).concat(...additions.map(String))
+  }
+  if (method === 'charAt' && args.length === 1) return String(value).charAt(Number(parseLiteral(args[0], context)))
+  if (method === 'indexOf' && args.length >= 1) return value.indexOf(parseLiteral(args[0], context))
+  if (method === 'includes' && args.length === 1) return value.includes(parseLiteral(args[0], context))
   if (method === 'replace' && args.length === 2) {
     const regexMatch = args[0].match(/^\/([\s\S]*)\/([gimsuy]*)$/)
     const pattern = regexMatch ? new RegExp(regexMatch[1], regexMatch[2]) : String(parseLiteral(args[0], context))
@@ -86,13 +99,16 @@ function emptyIfNullish(value) {
   return value == null ? '' : value
 }
 
-function evaluateExpression(expression, context) {
+function evaluateExpression(expression, context, budget, depth = 0) {
+  if (depth > budget.maxDepth) throw new JsRuleSandboxError('JS_RULE_BUDGET_EXCEEDED', 'JS 规则递归深度超限')
+  budget.operations += 1
+  if (budget.operations > budget.maxOperations) throw new JsRuleSandboxError('JS_RULE_BUDGET_EXCEEDED', 'JS 规则语句预算超限')
   const text = String(expression || '').trim().replace(/^return\s+/, '').replace(/;$/, '').trim()
   const functionMatch = text.match(/^(encodeURIComponent|decodeURIComponent|base64Encode|base64Decode|jsonParse|jsonStringify|resolveUrl)\(([\s\S]*)\)([\s\S]*)$/)
   let value
   let rest = ''
   if (functionMatch) {
-    const args = splitArgs(functionMatch[2]).map(arg => evaluateExpression(arg, context))
+    const args = splitArgs(functionMatch[2]).map(arg => evaluateExpression(arg, context, budget, depth + 1))
     const name = functionMatch[1]
     if (name === 'encodeURIComponent') value = encodeURIComponent(String(emptyIfNullish(args[0])))
     else if (name === 'decodeURIComponent') value = decodeURIComponent(String(emptyIfNullish(args[0])))
@@ -134,7 +150,15 @@ export function executeJsRule(rule, context = {}, options = {}) {
   let source = String(rule || '').trim().replace(/^<js>/i, '').replace(/<\/js>$/i, '').replace(/^@js:/i, '').trim()
   if (!source || source.length > 10000 || FORBIDDEN_PATTERN.test(source)) failUnsupported()
   const startedAt = Date.now()
-  const result = evaluateExpression(source, { ...context })
+  const budget = {
+    operations: 0,
+    maxOperations: Math.max(1, Math.min(256, Number(options.maxOperations || 64))),
+    maxDepth: Math.max(1, Math.min(16, Number(options.maxDepth || 8)))
+  }
+  const result = evaluateExpression(source, { ...context }, budget)
   if (Date.now() - startedAt > timeoutMs) throw new JsRuleSandboxError('JS_RULE_TIMEOUT', 'JS 规则执行超时')
+  const resultSize = typeof result === 'string' ? result.length : JSON.stringify(result == null ? '' : result).length
+  const maxResultSize = Math.max(1024, Math.min(1024 * 1024, Number(options.maxResultSize || 256 * 1024)))
+  if (resultSize > maxResultSize) throw new JsRuleSandboxError('JS_RULE_RESULT_TOO_LARGE', 'JS 规则结果超过大小限制')
   return result
 }
