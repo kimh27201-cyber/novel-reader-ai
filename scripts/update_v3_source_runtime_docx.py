@@ -9,8 +9,10 @@ from docx.shared import Pt, RGBColor
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCX_PATH = ROOT / "docs" / "解码阅读-V3阶段开发记录-2026-08-11.docx"
+DOCX_FALLBACK_PATH = ROOT / "docs" / "DEVELOPMENT_RECORD_2026-08-11-stage3.docx"
 SECTION_TITLE = "10. 书源本地优先运行时（2026-08-11 追加）"
 STAGE2_SECTION_TITLE = "11. 书源运行时第二轮完善（2026-08-11）"
+STAGE3_SECTION_TITLE = "12. YCK 全目录导入与 Android 大容量存储（2026-08-11）"
 
 
 def set_east_asia_font(run, name="微软雅黑"):
@@ -74,6 +76,15 @@ def style_table(table):
                         run.bold = True
 
 
+def save_document(document):
+    try:
+        document.save(DOCX_PATH)
+        return DOCX_PATH
+    except PermissionError:
+        document.save(DOCX_FALLBACK_PATH)
+        return DOCX_FALLBACK_PATH
+
+
 def append_stage2_section(document):
     if any(paragraph.text.strip() == STAGE2_SECTION_TITLE for paragraph in document.paragraphs):
         return False
@@ -129,6 +140,62 @@ def append_stage2_section(document):
     return True
 
 
+def append_stage3_section(document):
+    if any(paragraph.text.strip() == STAGE3_SECTION_TITLE for paragraph in document.paragraphs):
+        return False
+
+    document.add_page_break()
+    heading = document.add_heading(STAGE3_SECTION_TITLE, level=1)
+    for run in heading.runs:
+        set_east_asia_font(run)
+
+    document.add_heading("12.1 全目录入口与批量下载", level=2)
+    add_bullet(document, "书源市场适配 YCK 当前 keys 搜索参数和全部筛选条件，同时解析总数、页码、每页数量和总页数。")
+    add_bullet(document, "每页优先调用批量 JSON 地址 /yuedu/shuyuan/jsons；漏项时自动以 4 路并发回退到单源 JSON，不因一个失效 ID 丢弃整页。")
+    add_bullet(document, "全量导入显示页码、下载、缺失、新增和覆盖进度，可保存进度后停止，并按筛选条件断点续传。")
+    add_bullet(document, "合法来源全部保存；仅 ready 自动启用，登录、验证码、WebView、非文字类型等受限来源默认禁用且显示原因。")
+
+    document.add_heading("12.2 唯一身份与 Android 分块存储", level=2)
+    add_bullet(document, "新书源 ID 与 sourceKey 均使用规范化名称 + 基础 URL；同站点不同名称不再互相覆盖，旧数据 ID 保持不变。")
+    add_bullet(document, "同批重复 sourceKey 复用同一 ID，后一条按覆盖策略更新，最终落盘按 ID 唯一化。")
+    add_bullet(document, "新增 NovelReaderSourceStorage 原生桥，将书源按 25 条分片写入应用私有文件，通过新分片 → 新清单 → 清理旧分片完成事务式切换。")
+    add_bullet(document, "本地存储架构版本提升至 4；H5 默认阻止超过 500 条的一键落盘，避免 localStorage 配额造成半写入。")
+
+    document.add_heading("12.3 YCK 5621 条全量导入基准", level=2)
+    rows = [
+        ("目录条目 / 下载", "5621 / 5621", "缺失 0，无效 JSON 0"),
+        ("唯一安装书源", "5327", "sourceKey 重复残留 0"),
+        ("新增 / 覆盖", "5327 / 294", "合计 5621"),
+        ("静态状态", "ready 2537 / partial 700", "blocked 1870 / needs_login 220"),
+        ("启用 / 禁用", "2356 / 2971", "仅合格且原配置允许的来源启用"),
+        ("原生存储", "214 分片", "39,669,743 字节"),
+    ]
+    table = document.add_table(rows=1, cols=3)
+    for index, value in enumerate(["指标", "结果", "说明"]):
+        table.rows[0].cells[index].text = value
+    for values in rows:
+        cells = table.add_row().cells
+        for index, value in enumerate(values):
+            cells[index].text = value
+    style_table(table)
+    add_body(document, "脱敏报告：docs/source-acceptance/yck-full-import-stage3-2026-08-11.json；不保存正文、Cookie、Token 或完整书源 JSON。")
+    warning = document.add_paragraph()
+    warning_run = warning.add_run("口径说明：100% 是合法 JSON 进入导入流水线的比例，不代表全部来源可稳定阅读；完整阅读率仍未达到 ≥80% 发布门槛。")
+    warning_run.bold = True
+    warning_run.font.color.rgb = RGBColor(0xC6, 0x28, 0x28)
+    warning_run.font.highlight_color = WD_COLOR_INDEX.YELLOW
+    set_east_asia_font(warning_run)
+
+    document.add_heading("12.4 自动验证、构建与下一步", level=2)
+    add_bullet(document, "前端 Node 测试 96 passed；后端 SQLite 125 passed；H5 生产构建成功。")
+    add_bullet(document, "APK release/android-v2/V2.apk 为 1,516,622 字节，SHA-256 为 B11EBB3669C8D4346639F31712F07A2D2882E19390D58904255CDB10FA7DD586，v1/v2/v3 签名通过。")
+    add_bullet(document, "REA-AN00 已覆盖安装并成功启动 1.0.0 (10000)；本轮未直接在用户手机触发约 39.7 MB 的全量导入压力操作。")
+    add_number(document, "继续处理 PARSE_EMPTY、SEARCH_EMPTY 和受控 WebView/请求脚本差异，提高真实阅读通过率。")
+    add_number(document, "在关闭 8765 的 Android 真机完成全量导入耗时、磁盘占用、重启加载和随机阅读压力测试。")
+    add_number(document, "漫画、音频、任意 Java 类、复杂动态加密、验证码绕过和付费内容继续保持明确边界。")
+    return True
+
+
 def main():
     document = Document(DOCX_PATH)
     if any(paragraph.text.strip() == SECTION_TITLE for paragraph in document.paragraphs):
@@ -145,9 +212,10 @@ def main():
                     set_east_asia_font(run)
                 changed = True
         stage2_added = append_stage2_section(document)
-        if changed or stage2_added:
-            document.save(DOCX_PATH)
-            print(f"Updated: {DOCX_PATH}")
+        stage3_added = append_stage3_section(document)
+        if changed or stage2_added or stage3_added:
+            saved_path = save_document(document)
+            print(f"Updated: {saved_path}")
         else:
             print(f"Sections already present: {DOCX_PATH}")
         return
@@ -217,8 +285,9 @@ def main():
     add_number(document, "在无电脑后端的 Android 真机完成 URL、文件、二维码、深链同源去重和完整阅读闭环，并保存录屏与 APK 哈希。")
 
     append_stage2_section(document)
-    document.save(DOCX_PATH)
-    print(f"Updated: {DOCX_PATH}")
+    append_stage3_section(document)
+    saved_path = save_document(document)
+    print(f"Updated: {saved_path}")
 
 
 if __name__ == "__main__":

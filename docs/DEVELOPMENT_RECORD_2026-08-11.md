@@ -263,3 +263,61 @@ node scripts/source_failure_audit.mjs
 node scripts/source_import_benchmark.mjs --limit=200 --pages=1,28,56 --concurrency=8 --flowLimit=200 --timeoutMs=10000 --output=docs/source-acceptance/yck-text-source-benchmark-stage2-2026-08-11.json
 node scripts/source_flow_probe.mjs 7655 7628
 ```
+
+## 12. YCK 全目录导入与 Android 大容量存储（2026-08-11）
+
+### 12.1 全目录入口与批量下载
+
+- 书源市场按 YCK 当前实际契约使用 `keys` 搜索参数，支持 `uid`、排序、版本、发现、搜索、图片和声音筛选；页面解析同时返回总数、当前页、每页数量和总页数。
+- 新增 YCK 批量 JSON 地址 `/yuedu/shuyuan/jsons?id={id-id-...}`，每页优先一次批量下载；服务端漏项时自动以 4 路并发回退到单源 JSON，不因一个失效 ID 丢弃整页。
+- “导入当前筛选全部”按 57 页顺序执行，提供页码、下载数、缺失数、新增数、覆盖数和进度条；可以保存进度后停止，并按筛选条件隔离断点后继续。
+- 合法来源全部保存；仅 `ready` 自动启用。`partial`、`needs_login`、`blocked`、非文字类型及需要人工登录/验证码的来源默认禁用，并展示限制原因，不绕过访问控制。
+
+### 12.2 唯一身份、事务提交与存储容量
+
+- 新书源 ID 与 `sourceKey` 都按“规范化名称 + 规范化基础 URL”生成；同一站点发布的不同名称书源不再互相覆盖。已有本地 ID 保持不变，避免书架和阅读记录引用断裂。
+- 同一批 JSON 内的重复 `sourceKey` 复用首条 ID，后一条按覆盖策略更新；最终落盘按 ID 唯一化，新增回归用例确保重复配置只保存一份。
+- Android 新增 `NovelReaderSourceStorage` 原生桥别名，复用应用私有文件存储，将书源按 25 条分片并通过版本清单原子切换；写完新一代分片和清单后再清理旧分片。
+- 本地存储架构版本提升至 4。原生清单未变化时复用内存缓存；H5/普通键值存储每次读取实际数据，避免外部清理或迁移后读取过期缓存。
+- H5 默认阻止超过 500 条的一键全量落盘，明确提示使用 Android APK 或缩小筛选范围，避免浏览器 localStorage 配额导致半写入。
+
+### 12.3 YCK 5621 条全量导入基准
+
+抓取时间：2026-08-11；仓库声明 5621 条、57 页。脱敏明细见 `docs/source-acceptance/yck-full-import-stage3-2026-08-11.json`。
+
+| 指标 | 结果 | 说明 |
+|---|---:|---|
+| 目录条目 / 下载成功 | 5621 / 5621 | 缺失 0、无效 JSON 0 |
+| 唯一安装书源 | 5327 | `sourceKey` 去重后重复残留 0 |
+| 新增 / 覆盖 | 5327 / 294 | 新增与覆盖合计等于目录条目数 |
+| 静态状态 | ready 2537 / partial 700 | blocked 1870 / needs_login 220 |
+| 自动启用 / 默认禁用 | 2356 / 2971 | 只自动启用静态检查通过且原配置允许启用的来源 |
+| 文字 / 非文字 / 未声明类型 | 5072 / 250 / 5 | 非文字类型保留但当前阶段禁用 |
+| Android 原生存储 | 214 分片 / 39,669,743 字节 | 不保存正文、Cookie 或 Token |
+
+导入率按“成功下载且 JSON 合法”的目录条目计算为 **100%**。该数字证明 5621 条均可被解析和纳入导入流水线，**不等于 5621 条都能稳定阅读**；真实搜索→详情→目录→正文通过率仍沿用第 11 节的独立运行时基准，尚未达到 ≥80% 发布门槛。
+
+### 12.4 自动验证、构建与真机状态
+
+- 前端 Node 测试：`96 passed`；后端 SQLite：`125 passed`；新增全量分页、批量回退、取消/续传、大容量拦截、同网址多源 ID 和同批重复去重测试。
+- H5 生产构建成功；保留既有 `caniuse-lite` 过期和大体积 vendor 警告，无新增构建错误。
+- APK：`release/android-v2/V2.apk`，1,516,622 字节，SHA-256 为 `B11EBB3669C8D4346639F31712F07A2D2882E19390D58904255CDB10FA7DD586`；v1、v2、v3 签名验证通过。
+- REA-AN00 真机已完成覆盖安装并成功启动 `com.novelreader.v1/.MainActivity`，安装包版本 `1.0.0 (10000)`；本轮未在用户手机上直接触发 39.7 MB 的全量导入压力操作。
+
+### 12.5 验收命令与后续边界
+
+```powershell
+# 项目根目录：自动测试
+$tests = Get-ChildItem tests -Filter *.test.mjs | ForEach-Object { $_.FullName }
+node --test $tests
+backend\.venv\Scripts\python.exe -m pytest backend\tests -q
+
+# 需要访问 YCK：全目录脱敏验收
+node scripts\yck_full_import_acceptance.mjs
+
+# 生产构建与 APK
+& .\scripts\build_android_webview_apk.ps1 -H5RootOverride 'D:\Codex\novel-reader-uniapp\.v3-build\h5'
+adb install -r .\release\android-v2\V2.apk
+```
+
+下一阶段继续提高“已导入书源可阅读”的比例：优先处理第 11 节 `PARSE_EMPTY`、`SEARCH_EMPTY` 和受控 WebView/请求脚本差异；在 Android 真机关闭 8765 后完成全量导入耗时、磁盘占用、重启加载和随机抽样阅读压力测试。漫画、音频、任意 Java 类、复杂动态加密、验证码绕过和付费内容仍不在第一阶段支持范围内。
