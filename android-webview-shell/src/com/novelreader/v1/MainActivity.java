@@ -162,7 +162,9 @@ public class MainActivity extends Activity {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             settings.setMixedContentMode(WebSettings.MIXED_CONTENT_ALWAYS_ALLOW);
         }
-        view.addJavascriptInterface(new LocalChapterBridge(), "NovelReaderLocalStorage");
+        LocalChapterBridge localStorageBridge = new LocalChapterBridge();
+        view.addJavascriptInterface(localStorageBridge, "NovelReaderLocalStorage");
+        view.addJavascriptInterface(localStorageBridge, "NovelReaderSourceStorage");
         view.addJavascriptInterface(new ScanBridge(), "NovelReaderScan");
         view.addJavascriptInterface(new DeepLinkBridge(), "NovelReaderDeepLinkBridge");
         view.addJavascriptInterface(new RenderedHtmlBridge(), "NovelReaderWebViewParser");

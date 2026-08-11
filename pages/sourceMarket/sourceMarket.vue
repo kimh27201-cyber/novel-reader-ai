@@ -52,6 +52,37 @@
         </view>
       </view>
 
+      <view class="bulk-card">
+        <view class="source-head">
+          <view>
+            <view class="section-title">批量导入</view>
+            <text class="status-desc">{{ bulkScopeLabel }}</text>
+          </view>
+          <text class="bulk-count">{{ marketMeta.total || items.length }}</text>
+        </view>
+        <view class="bulk-progress" v-if="bulkImporting || bulkProgress.page">
+          <view class="bulk-progress-bar" :style="{ width: `${bulkPercent}%` }"></view>
+        </view>
+        <text class="status-desc" v-if="bulkProgress.page">
+          第 {{ bulkProgress.page }}/{{ bulkProgress.totalPages || marketMeta.totalPages || 1 }} 页 ·
+          已处理 {{ bulkProgress.stats ? bulkProgress.stats.downloaded : 0 }} ·
+          缺失 {{ bulkProgress.stats ? bulkProgress.stats.missing : 0 }} ·
+          新增 {{ bulkProgress.stats ? bulkProgress.stats.imported : 0 }} ·
+          更新 {{ bulkProgress.stats ? bulkProgress.stats.updated : 0 }}
+        </text>
+        <text class="status-desc bulk-warning">
+          仅静态检查为可用的来源自动启用；登录、验证码、WebView 或规则受限来源仍会保存，但默认停用。
+        </text>
+        <text class="status-desc" v-if="bulkCheckpoint && bulkCheckpoint.status !== 'completed'">
+          检测到断点：可从第 {{ bulkCheckpoint.nextPage }} 页继续。
+        </text>
+        <text class="status-desc error-text" v-if="bulkError">{{ bulkError }}</text>
+        <button class="submit-button bulk-action" v-if="!bulkImporting" @tap="startBulkImport">
+          {{ bulkCheckpoint && bulkCheckpoint.status !== 'completed' ? '继续批量导入' : '导入当前筛选全部' }}
+        </button>
+        <button class="submit-button bulk-action cancel" v-else @tap="cancelBulkImport">保存进度并停止</button>
+      </view>
+
       <view class="status-card" v-if="loading || error || !visibleItems.length">
         <view class="status-title">{{ loading ? '正在加载源仓库' : error ? '无法访问源仓库' : '暂无匹配书源' }}</view>
         <text class="status-desc">{{ loading ? '正在读取第三方源仓库页面。' : error || '换一个关键词，或点击右上角扫码导入。' }}</text>
@@ -132,11 +163,12 @@
 
 <script>
 import { getSourceConfigs, importSourcesFromAny } from '../../common/bookSources.js'
+import { getYckBulkImportCheckpoint, runYckBulkImport } from '../../common/sourceBulkImport.js'
 import { getAppThemeId, getAppThemeStyle } from '../../common/appTheme.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 import {
   fetchMarketSourcePreview,
-  fetchSourceMarketItemsWithFallback,
+  fetchSourceMarketPageWithFallback,
   RECOMMENDED_SOURCE_CANDIDATES,
   resolveMarketScanTarget,
   SOURCE_MARKET_PROVIDERS
@@ -153,6 +185,12 @@ export default {
       loading: false,
       error: '',
       marketNotice: '',
+      marketMeta: { total: 0, totalPages: 1, page: 1 },
+      bulkImporting: false,
+      bulkProgress: { page: 0, totalPages: 0, stats: null },
+      bulkCheckpoint: null,
+      bulkSignal: null,
+      bulkError: '',
       recommendedSources: RECOMMENDED_SOURCE_CANDIDATES,
       previewVisible: false,
       previewLoading: false,
@@ -182,6 +220,15 @@ export default {
         item.baseUrl,
         item.tags.join(' ')
       ].join(' ').toLowerCase().includes(word))
+    },
+    bulkPercent() {
+      const total = Number(this.bulkProgress.totalPages || this.marketMeta.totalPages || 1)
+      return Math.max(0, Math.min(100, Math.round(Number(this.bulkProgress.page || 0) / total * 100)))
+    },
+    bulkScopeLabel() {
+      return this.keyword.trim()
+        ? `导入关键词“${this.keyword.trim()}”的全部匹配结果`
+        : '导入 YCK 仓库全部书源配置'
     }
   },
   onLoad(query = {}) {
@@ -197,6 +244,9 @@ export default {
     } else {
       this.loadMarket()
     }
+  },
+  onUnload() {
+    if (this.bulkSignal) this.bulkSignal.cancelled = true
   },
   methods: {
     goBack() {
@@ -223,24 +273,78 @@ export default {
       this.error = ''
       this.marketNotice = ''
       try {
-        const result = await fetchSourceMarketItemsWithFallback({
+        const result = await fetchSourceMarketPageWithFallback({
           provider: this.provider,
           keyword: this.keyword,
           url
         })
         this.items = result.items
+        this.marketMeta = {
+          total: Number(result.total || result.items.length),
+          totalPages: Number(result.totalPages || 1),
+          page: Number(result.page || 1)
+        }
         if (result.provider && SOURCE_MARKET_PROVIDERS[result.provider]) {
           this.provider = result.provider
         }
         if (result.fallback) {
           this.marketNotice = `主仓库暂不可用，已切换备用仓库：${SOURCE_MARKET_PROVIDERS[result.provider].label}`
         }
+        this.bulkCheckpoint = getYckBulkImportCheckpoint({ provider: this.provider, keyword: this.keyword })
       } catch (error) {
         this.items = []
         this.error = friendlyErrorMessage(error, '无法访问源仓库')
       } finally {
         this.loading = false
       }
+    },
+    confirmBulkImport() {
+      const total = Number(this.marketMeta.total || this.items.length)
+      return new Promise(resolve => {
+        uni.showModal({
+          title: '批量导入书源',
+          content: `将分批下载并保存约 ${total} 个配置。受限来源默认停用，可随时停止并从断点继续。`,
+          confirmText: '开始导入',
+          cancelText: '暂不导入',
+          success: result => resolve(!!result.confirm),
+          fail: () => resolve(false)
+        })
+      })
+    },
+    async startBulkImport() {
+      if (this.bulkImporting || !await this.confirmBulkImport()) return
+      this.bulkImporting = true
+      this.bulkError = ''
+      this.bulkSignal = { cancelled: false }
+      try {
+        const result = await runYckBulkImport({
+          provider: this.provider,
+          keyword: this.keyword,
+          signal: this.bulkSignal,
+          resume: true,
+          duplicateStrategy: 'overwrite',
+          onProgress: progress => {
+            this.bulkProgress = { ...this.bulkProgress, ...progress }
+          }
+        })
+        this.bulkCheckpoint = result.checkpoint
+        const label = result.status === 'cancelled' ? '已保存断点' : '批量导入完成'
+        uni.showToast({
+          title: `${label}：新增 ${result.stats.imported} / 更新 ${result.stats.updated}`,
+          icon: 'none',
+          duration: 3000
+        })
+      } catch (error) {
+        this.bulkCheckpoint = error && error.bulkImport && error.bulkImport.checkpoint
+          || getYckBulkImportCheckpoint({ provider: this.provider, keyword: this.keyword })
+        this.bulkError = friendlyErrorMessage(error, '批量导入失败，已保存最近断点')
+      } finally {
+        this.bulkImporting = false
+        this.bulkSignal = null
+      }
+    },
+    cancelBulkImport() {
+      if (this.bulkSignal) this.bulkSignal.cancelled = true
     },
     async scanQr() {
       try {
@@ -399,6 +503,7 @@ input {
 
 .provider-card,
 .section-card,
+.bulk-card,
 .status-card,
 .source-card,
 .preview-card {
@@ -409,6 +514,7 @@ input {
 
 .provider-card,
 .section-card,
+.bulk-card,
 .status-card,
 .source-card {
   margin-bottom: 18rpx;
@@ -430,6 +536,7 @@ input {
 }
 
 .section-card,
+.bulk-card,
 .status-card,
 .source-card {
   padding: 22rpx;
@@ -493,6 +600,40 @@ input {
 
 .market-notice {
   color: var(--app-accent-3);
+}
+
+.bulk-count {
+  color: var(--app-accent-3);
+  font-size: 34rpx;
+  font-weight: 900;
+}
+
+.bulk-progress {
+  height: 12rpx;
+  margin-top: 18rpx;
+  overflow: hidden;
+  border-radius: 999rpx;
+  background: var(--app-input);
+}
+
+.bulk-progress-bar {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--app-accent-3);
+  transition: width 180ms ease;
+}
+
+.bulk-warning {
+  color: var(--app-muted);
+}
+
+.error-text {
+  color: var(--app-danger, #c62828);
+}
+
+.bulk-action.cancel {
+  color: var(--app-text);
+  background: var(--app-input);
 }
 
 .recommended-block {

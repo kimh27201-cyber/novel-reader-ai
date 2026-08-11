@@ -30,7 +30,10 @@ import {
 
 const USER_SOURCES_KEY = 'sources:user'
 const SOURCE_SCHEMA_VERSION_KEY = 'sources:schema-version'
-const SOURCE_SCHEMA_VERSION = 3
+const SOURCE_SCHEMA_VERSION = 4
+const NATIVE_SOURCE_MANIFEST_KEY = 'sources:user:native-manifest:v1'
+const NATIVE_SOURCE_CHUNK_PREFIX = 'sources:user:native-chunk:v1'
+const NATIVE_SOURCE_CHUNK_SIZE = 25
 const SOURCE_SETTINGS_KEY = 'sources:settings'
 const IMPORT_HISTORY_KEY = 'sources:import-history'
 const ONLINE_SEARCH_SETTINGS_KEY = 'sources:online-search-settings'
@@ -71,6 +74,8 @@ export const ONLINE_DATA_CACHE_DEFAULTS = {
 const chapterCacheKey = (bookId, chapterIndex) => `sources:chapter:${bookId}:${chapterIndex}`
 
 const memoryStore = {}
+let userSourcesCache = null
+let userSourcesCacheManifest = ''
 
 function readStorage(key, fallback) {
   try {
@@ -112,6 +117,77 @@ function removeStorage(key) {
   delete memoryStore[key]
 }
 
+function nativeSourceStorage() {
+  const bridge = typeof globalThis !== 'undefined' && globalThis.NovelReaderSourceStorage
+  return bridge
+    && typeof bridge.writeChapter === 'function'
+    && typeof bridge.readChapter === 'function'
+    && typeof bridge.removeChapter === 'function'
+    ? bridge
+    : null
+}
+
+function nativeChunkKey(generation, index) {
+  return `${NATIVE_SOURCE_CHUNK_PREFIX}:${generation}:${index}`
+}
+
+function readNativeUserSources() {
+  const bridge = nativeSourceStorage()
+  if (!bridge) return null
+  const manifestText = String(bridge.readChapter(NATIVE_SOURCE_MANIFEST_KEY) || '')
+  if (!manifestText) return null
+  if (Array.isArray(userSourcesCache) && userSourcesCacheManifest === manifestText) return userSourcesCache
+  try {
+    const manifest = JSON.parse(manifestText)
+    const chunkCount = Number(manifest.chunkCount || 0)
+    if (!manifest.generation || chunkCount < 0 || chunkCount > 10000) throw new Error('invalid source manifest')
+    const sources = []
+    for (let index = 0; index < chunkCount; index += 1) {
+      const chunkText = String(bridge.readChapter(nativeChunkKey(manifest.generation, index)) || '')
+      if (!chunkText) throw new Error(`missing source chunk ${index}`)
+      const chunk = JSON.parse(chunkText)
+      if (!Array.isArray(chunk)) throw new Error(`invalid source chunk ${index}`)
+      sources.push(...chunk)
+    }
+    if (Number(manifest.total || 0) !== sources.length) throw new Error('source manifest count mismatch')
+    userSourcesCache = sources
+    userSourcesCacheManifest = manifestText
+    return sources
+  } catch (error) {
+    return null
+  }
+}
+
+function writeNativeUserSources(sources) {
+  const bridge = nativeSourceStorage()
+  if (!bridge) return false
+  let previous = null
+  try {
+    previous = JSON.parse(String(bridge.readChapter(NATIVE_SOURCE_MANIFEST_KEY) || 'null'))
+  } catch (error) {}
+  const generation = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+  const chunks = []
+  for (let index = 0; index < sources.length; index += NATIVE_SOURCE_CHUNK_SIZE) {
+    chunks.push(sources.slice(index, index + NATIVE_SOURCE_CHUNK_SIZE))
+  }
+  chunks.forEach((chunk, index) => {
+    if (!bridge.writeChapter(nativeChunkKey(generation, index), JSON.stringify(chunk))) {
+      throw new Error(`本机书源分片写入失败：${index + 1}/${chunks.length}`)
+    }
+  })
+  const manifest = { version: 1, generation, chunkCount: chunks.length, total: sources.length, updatedAt: Date.now() }
+  if (!bridge.writeChapter(NATIVE_SOURCE_MANIFEST_KEY, JSON.stringify(manifest))) {
+    throw new Error('本机书源索引写入失败')
+  }
+  if (previous && previous.generation && previous.generation !== generation) {
+    const oldCount = Math.max(0, Math.min(10000, Number(previous.chunkCount || 0)))
+    for (let index = 0; index < oldCount; index += 1) bridge.removeChapter(nativeChunkKey(previous.generation, index))
+  }
+  userSourcesCache = sources
+  userSourcesCacheManifest = JSON.stringify(manifest)
+  return true
+}
+
 function normalizeRuleObject(rule) {
   if (!rule) return {}
   if (typeof rule === 'object') return rule
@@ -140,7 +216,8 @@ function pickUrl(input, rule, names, context, baseUrl) {
 }
 
 function getUserSources() {
-  const stored = readStorage(USER_SOURCES_KEY, [])
+  const nativeSources = readNativeUserSources()
+  const stored = nativeSources == null ? readStorage(USER_SOURCES_KEY, []) : nativeSources
   const sources = Array.isArray(stored) ? stored : []
   let changed = Number(readStorage(SOURCE_SCHEMA_VERSION_KEY, 0)) < SOURCE_SCHEMA_VERSION
   const migrated = sources.map(source => {
@@ -149,14 +226,38 @@ function getUserSources() {
     return { ...source, sourceKey: createSourceKey(source && (source.raw || source) || {}) }
   })
   if (changed) {
-    writeStorage(USER_SOURCES_KEY, migrated)
+    writeUserSources(migrated)
     writeStorage(SOURCE_SCHEMA_VERSION_KEY, SOURCE_SCHEMA_VERSION)
   }
   return migrated
 }
 
 function writeUserSources(sources) {
-  writeStorage(USER_SOURCES_KEY, sources)
+  const list = Array.isArray(sources) ? sources : []
+  if (writeNativeUserSources(list)) removeStorage(USER_SOURCES_KEY)
+  else {
+    writeStorage(USER_SOURCES_KEY, list)
+    userSourcesCache = null
+    userSourcesCacheManifest = ''
+  }
+  writeStorage(SOURCE_SCHEMA_VERSION_KEY, SOURCE_SCHEMA_VERSION)
+}
+
+export function getSourceStorageCapabilities() {
+  return {
+    native: !!nativeSourceStorage(),
+    mode: nativeSourceStorage() ? 'native-chunks' : 'web-storage',
+    recommendedBulkLimit: nativeSourceStorage() ? 10000 : 500
+  }
+}
+
+export function persistSourceConfigs(sources) {
+  writeUserSources(sources)
+  return getUserSources()
+}
+
+export function getStoredSourceConfigs() {
+  return getUserSources().slice()
 }
 
 function uniqueStrings(values = []) {
@@ -1220,6 +1321,8 @@ export function analyzeBookSourceCompatibility(source) {
   const ruleExplore = normalizeRuleObject(raw.ruleExplore)
   const name = String(raw.bookSourceName || raw.name || source && source.name || '').trim()
   const baseUrl = String(raw.bookSourceUrl || raw.sourceUrl || source && source.baseUrl || '').trim()
+  const sourceType = Number(raw.bookSourceType || 0)
+  const supportedSourceType = sourceType === 0
   const unsupportedReasons = []
   const stageUnsupported = {
     search: hasStageUnsupportedRule({ searchUrl: raw.searchUrl, ruleSearch: raw.ruleSearch }),
@@ -1236,6 +1339,12 @@ export function analyzeBookSourceCompatibility(source) {
       reason: stageUnsupported[stage]
     })
   })
+  if (!supportedSourceType) {
+    unsupportedReasons.push({
+      stage: 'import',
+      reason: `书源类型 ${sourceType} 已保存，但当前阶段仅运行文字小说（bookSourceType=0）`
+    })
+  }
 
   const hasSearchRule = !!(raw.searchUrl && Object.keys(ruleSearch).length)
   const hasExploreUrl = !!(raw.exploreUrl || raw.ruleExploreUrl || raw.explore)
@@ -1272,6 +1381,9 @@ export function analyzeBookSourceCompatibility(source) {
   if (!identityValid) {
     status = 'invalid'
     errorCode = 'INVALID_IDENTITY'
+  } else if (!supportedSourceType) {
+    status = 'blocked'
+    errorCode = 'SOURCE_TYPE_UNSUPPORTED'
   } else if (source && source.compatibilityLevel === 'unsupported' || hasUnsupportedRule(raw)) {
     status = 'blocked'
     errorCode = 'SCRIPT_UNSUPPORTED'
@@ -1291,7 +1403,7 @@ export function analyzeBookSourceCompatibility(source) {
     errorCode = 'PARTIAL_CAPABILITY'
   }
 
-  const androidSupported = status === 'ready' || status === 'partial' || status === 'needs_login'
+  const androidSupported = supportedSourceType && (status === 'ready' || status === 'partial' || status === 'needs_login')
   const h5Supported = status === 'ready' && !features.cookie && !features.webView && !features.login
   const backendSupported = status === 'ready' && !features.webView && !unsupportedReasons.length
 
@@ -1318,6 +1430,8 @@ export function analyzeBookSourceCompatibility(source) {
       toc: !!Object.keys(ruleToc).length,
       content: !!Object.keys(ruleContent).length
     },
+    sourceType,
+    supportedSourceType,
     status,
     errorCode,
     android_supported: androidSupported,
@@ -1346,14 +1460,13 @@ function hasStageUnsupportedRule(value) {
 export function buildImportPreview(sources = [], existingSources = getUserSources(), options = {}) {
   const existing = Array.isArray(existingSources) ? existingSources : []
   const existingByKey = new Map(existing.map(source => [source.sourceKey || createSourceKey(source.raw || source), source]))
-  const seenKeys = new Set()
+  const resolvedByKey = new Map(existingByKey)
   const duplicateStrategy = options.duplicateStrategy === 'skip' ? 'skip' : 'overwrite'
   const rows = (Array.isArray(sources) ? sources : []).map(source => {
     const compatibility = analyzeBookSourceCompatibility(source)
     const sourceKey = source.sourceKey || createSourceKey(source.raw || source)
-    const existingSource = existingByKey.get(sourceKey)
-    const duplicate = !!existingSource || seenKeys.has(sourceKey)
-    seenKeys.add(sourceKey)
+    const existingSource = resolvedByKey.get(sourceKey)
+    const duplicate = !!existingSource
     const invalid = compatibility.status === 'invalid'
     const unsupported = compatibility.status !== 'ready'
     const compatible = compatibility.compatible
@@ -1362,11 +1475,13 @@ export function buildImportPreview(sources = [], existingSources = getUserSource
       : duplicate
         ? (duplicateStrategy === 'skip' ? 'skip' : 'overwrite')
         : 'import'
-    return {
+    const row = {
       ...source,
       id: existingSource ? existingSource.id : source.id,
       sourceKey,
-      enabled: compatibility.status === 'ready' || compatibility.status === 'partial' ? source.enabled !== false : false,
+      enabled: compatibility.status === 'ready' || (!options.enableReadyOnly && compatibility.status === 'partial')
+        ? source.enabled !== false
+        : false,
       action,
       duplicate,
       invalid,
@@ -1392,6 +1507,8 @@ export function buildImportPreview(sources = [], existingSources = getUserSource
       android_supported: compatibility.android_supported,
       h5_supported: compatibility.h5_supported,
       backend_supported: compatibility.backend_supported,
+      sourceType: compatibility.sourceType,
+      supportedSourceType: compatibility.supportedSourceType,
       format: source.formatVersion || detectSourceFormat(source.raw || source),
       source: source.sourceMeta && source.sourceMeta.source || '',
       sourceUrl: source.sourceMeta && source.sourceMeta.sourceUrl || '',
@@ -1399,6 +1516,8 @@ export function buildImportPreview(sources = [], existingSources = getUserSource
       comment: source.comment || (source.raw && (source.raw.bookSourceComment || source.raw.sourceComment)) || '',
       weight: Number(source.weight || source.raw && (source.raw.weight || source.raw.customOrder) || 0)
     }
+    resolvedByKey.set(sourceKey, row)
+    return row
   })
   return summarizeImportPreviewRows(rows)
 }
@@ -1422,7 +1541,8 @@ function summarizeImportPreviewRows(rows = []) {
 export function applyImportPreview(preview, options = {}) {
   const rows = Array.isArray(preview && preview.sources) ? preview.sources : []
   const duplicateStrategy = options.duplicateStrategy === 'skip' ? 'skip' : 'overwrite'
-  const current = getUserSources()
+  const deferred = options.deferPersistence === true
+  const current = Array.isArray(options.currentSources) ? options.currentSources : getUserSources()
   const nextById = new Map(current.map(source => [source.id, source]))
   const skippedIds = new Set()
   const appliedIds = new Set()
@@ -1456,16 +1576,28 @@ export function applyImportPreview(preview, options = {}) {
     }
   })
 
-  const appliedRows = rows
-    .filter(row => appliedIds.has(row.id) && !skippedIds.has(row.id))
-    .map(row => nextById.get(row.id))
+  const appliedRows = Array.from(appliedIds)
+    .filter(id => !skippedIds.has(id))
+    .map(id => nextById.get(id))
+    .filter(Boolean)
   const untouchedRows = current.filter(source => !appliedIds.has(source.id))
-  writeUserSources([...appliedRows, ...untouchedRows])
-  const visibleCheck = verifyImportedSourcesVisible(appliedRows)
-  recordImportHistory(historyRows.map(item => ({
-    ...item,
-    visible: visibleCheck.items.some(visibleItem => visibleItem.id === item.id && visibleItem.visible)
-  })))
+  const nextSources = [...appliedRows, ...untouchedRows]
+  if (!deferred) writeUserSources(nextSources)
+  const visibleCheck = deferred
+    ? {
+        total: appliedRows.length,
+        visible: 0,
+        hidden: appliedRows.length,
+        deferred: true,
+        items: appliedRows.map(source => ({ id: source.id, name: source.name, visible: false, enabled: !!source.enabled, reason: '等待批量提交' }))
+      }
+    : verifyImportedSourcesVisible(appliedRows)
+  if (!deferred) {
+    recordImportHistory(historyRows.map(item => ({
+      ...item,
+      visible: visibleCheck.items.some(visibleItem => visibleItem.id === item.id && visibleItem.visible)
+    })))
+  }
 
   const result = {
     total: rows.length,
@@ -1480,9 +1612,10 @@ export function applyImportPreview(preview, options = {}) {
     visible: visibleCheck.visible,
     visibleCheck,
     importedSources: appliedRows,
-    sources: rows
+    sources: rows,
+    nextSources
   }
-  result.importLog = recordImportLog(buildImportLog(preview, rows, result, options))
+  if (!deferred) result.importLog = recordImportLog(buildImportLog(preview, rows, result, options))
   return result
 }
 

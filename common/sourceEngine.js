@@ -30,7 +30,13 @@ export function hasUnsupportedRule(value) {
 }
 
 export function createSourceId(source) {
-  const base = String(source.bookSourceUrl || source.sourceUrl || source.name || source.bookSourceName || Date.now())
+  const name = String(source.bookSourceName || source.name || source.sourceName || '').trim().toLowerCase()
+  const url = trimTrailingSlash(String(source.bookSourceUrl || source.sourceUrl || source.baseUrl || ''))
+    .trim()
+    .toLowerCase()
+  // A site can publish multiple independently named sources on the same base URL.
+  // Keep legacy stored ids unchanged, but make newly generated ids match sourceKey identity.
+  const base = `${name}\n${url}` || String(Date.now())
   let hash = 0
   for (let index = 0; index < base.length; index += 1) {
     hash = ((hash << 5) - hash) + base.charCodeAt(index)
