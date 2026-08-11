@@ -2,7 +2,7 @@
 
 记录日期：2026-08-11  
 目标平台：H5、Android WebView APK  
-代码分支：`main`
+代码分支：`feat/source-runtime-v3`
 
 ## 1. 阶段结论
 
@@ -124,4 +124,91 @@ Android 调试端口映射：
 
 ```powershell
 adb reverse tcp:8765 tcp:8765
+```
+
+## 10. 书源本地优先运行时（2026-08-11 追加）
+
+### 10.1 架构决策
+
+- Android APK 的书源主链路改为本地优先：URL、文件、二维码、深链和 3.x JSON 在手机本地识别、预览、去重、保存与运行。
+- Android 外部书源请求不再默认访问 `localhost:8765`。新增 `NovelReaderHttp` 原生桥，前端 `requestSourceText()` 在 APK 中固定走“原生 HTTP → 必要时 WebView 渲染”。
+- 后端调整为可选云服务，只负责账号同步、云书架、云 TTS、H5 跨域代理和基础来源兼容。Android 联网阅读不要求用户连接电脑后端。
+- H5 仍受浏览器 CORS 约束：登录且已配置后端时优先使用鉴权代理，否则尝试站点直连，并明确承认失败可能是平台限制。
+
+### 10.2 导入流水线与数据迁移
+
+- 对外统一接口：`resolveSourceImport`、`previewSourceImport`、`applySourceImport`、`requestSourceText`、`runSourceReadingFlow`。
+- 支持对象、数组、`sources` 包装、BOM、JSON/TXT 文件、剪贴板、二维码、`yuedu://`、`legado://`、`booksource://`、JSON URL、YCK 详情页和仓库列表入口。
+- YCK `/content/id/{id}.html` 会直接规范化到 `/json/id/{id}.json`；市场支持关键词查询和分页 URL。
+- 新增稳定 `sourceKey`（规范化名称 + 基础 URL），本地存储版本升级到 3；旧数据补键时保留原 `id`，避免书架引用断裂。
+- 合法但受限的 3.x 配置会保存为禁用状态；仅缺少名称/基础 URL 或 JSON 无效时拒绝。导入状态统一为 `ready`、`partial`、`needs_login`、`blocked`、`invalid`。
+- 删除旧导入函数返回语句后的不可达代码；导入日志保留新增、覆盖、跳过、受限和拒绝原因。
+
+### 10.3 Android 原生传输能力
+
+`NovelReaderHttp` 当前支持：
+
+- GET、POST、请求头、字符串 body、User-Agent、Referer。
+- UTF-8、GBK、GB2312 和响应头 charset 自动识别。
+- 书源 + 域名粒度 Cookie 隔离、最多 5 次重定向、跨域重定向清除 Cookie/Authorization。
+- 1–60 秒超时、每来源请求间隔、4 路并发、默认 4 MiB/绝对 8 MiB 响应限制。
+- 禁止 `file:`、`content:`、私网、回环、链路本地和组播地址。
+- 回调只返回状态、最终 URL、脱敏响应头、文本、编码、耗时和错误码；日志不记录 Cookie、Token 或正文。
+
+现有隐藏 WebView 渲染桥继续承担动态页面，已具备超时销毁、最终 URL 和 Cookie 回写。旧的 GET-only WebView 外部请求拦截已退出书源主链路。
+
+### 10.4 3.x 规则能力矩阵
+
+| 能力 | Android APK | H5 无后端 | 后端基础解析 | 当前说明 |
+|---|---|---|---|---|
+| CSS / 属性 / 正倒序索引 | 支持 | 支持 | 基础支持 | 支持 `@text/@html/@href/@src/@textNodes/@ownText` |
+| XPath | 支持 | 取决于浏览器 DOM | 暂不支持 | WebView 使用 DOM XPath |
+| JSONPath | 支持 | 支持 | 基础支持 | 支持数组索引和 `*` |
+| 正则替换、`||`、`&&` | 支持 | 支持 | 基础支持 | 支持回退与拼接 |
+| GET/POST/headers/body/charset | 支持 | 受 CORS 限制 | 支持 | APK 走原生桥 |
+| `nextTocUrl` / `nextContentUrl` | 支持，默认最多 5 页 | 支持 | 暂未扩展 | 去重并限制最多 10 页 |
+| 安全 JS 字符串/数组/JSON/URL/Base64 | 支持 | 支持 | 不执行 | 有时间、操作数、深度和结果大小预算 |
+| 任意 `java.*` / `eval` / 动态模块 | 阻止并保存为禁用 | 阻止 | 阻止 | 第一阶段明确边界 |
+| 登录/验证码/付费 | 仅提示并要求人工操作 | 受限 | 不绕过 | 不规避站点访问控制 |
+
+### 10.5 后端契约
+
+- 新增鉴权接口 `POST /api/sources/import/preview`，只解析和静态分类，不写数据库。
+- `POST /api/sources/import` 新增 `source_url`、`import_method`、`duplicate_strategy`；响应新增 `updated_count`、`skipped_count`、`unsupported_count` 和逐项状态/平台能力/原因。
+- 沿用 `raw_json`、`compatibility`、`health_status` 和既有加密会话字段，没有新增数据库表。
+- 覆盖、跳过、恢复软删除和用户隔离继续由同一事务服务处理；`/api/proxy/fetch` 仍是登录用户专用代理。
+
+### 10.6 真实 YCK 基准
+
+基准仓库：`https://www.yckceo.com/yuedu/shuyuan/index.html`。抓取页为 1、28、56，按近期/中段/较早分层选取 200 个合法文字源；详细逐项结果见 `docs/source-acceptance/yck-text-source-benchmark-2026-08-11.md` 和同名 JSON。
+
+- 有效文字 JSON：200；可导入：200；导入率 **100%**，达到 ≥95% 门槛。
+- 静态状态：`ready 86`、`partial 32`、`needs_login 10`、`blocked 72`。
+- 严格合格候选：38；桌面真实完整流程：`0/38`，错误为 `SEARCH_FAILED 30`、`SEARCH_EMPTY 6`、`TIMEOUT 2`。
+- 额外代表源探测：YCK `7163`（速读谷）和 `7298`（速读谷 SUDUGU）均完成搜索、详情、目录和正文，目录分别为 1663、999 章。
+
+结论：导入门槛已通过，但随机分层样本的 ≥80% 完整阅读目标**未通过**。本阶段不能宣称“绝大书源可读”。当前主要差距是更多 3.x 请求脚本/宿主 API 映射、站点失效识别和真机网络环境复核。
+
+报告不保存第三方正文、Cookie、Token 或完整书源 JSON；只保存 ID、抓取时间、SHA-256、阶段状态、耗时和错误码。
+
+### 10.7 本轮验证证据
+
+- 前端：92 个 `*.test.mjs` 文件全量执行；新增本地传输、sourceKey、受限源保存和原生桥静态契约测试。
+- 后端：SQLite 全量 `125 passed`；PostgreSQL 16 继续由 GitHub Actions 执行。
+- H5：生产构建成功；粘贴 JSON → 导入预览 → 本地写入 → 页面重载后仍可见的验收脚本通过，截图保存于本机验收目录；仅有现有 `caniuse-lite` 过期与 vendor 大文件警告。
+- APK：`release/android-v2/V2.apk`，大小 1,496,142 字节，SHA-256 为 `11D11EC281FBCF93D43B3B9A34C9900365238CAB93A523E92ABECBF8CBF39BCD`；v1、v2、v3 签名验证通过。
+- 本轮没有可用 Android 真机/ADB 设备，因此“关闭 8765 后扫码导入、覆盖安装、重启续读、断网缓存、内置摄像头扫码”仍列为发布阻断项，不能沿用旧轮次结果替代。
+
+### 10.8 剩余发布阻断项与下一步
+
+1. 以 `SEARCH_FAILED` 的 30 个样本为第一批夹具，补齐常见 `java.ajax`、请求变量、Cookie 和站点响应解码映射；每次只增加白名单宿主能力。
+2. 将随机基准拆成“站点已失效”“规则不支持”“网络超时”“无关键词结果”，重新计算真正合格分母；完整阅读率达到 ≥80% 前不合并为正式发布。
+3. 在无电脑后端的 Android 真机完成 URL、文件、二维码、3.x 深链同源去重和阅读闭环，并保存录屏、日志摘要与 APK SHA-256。
+4. GitHub Actions 通过 SQLite、PostgreSQL 16、前端全量测试后，再决定是否合并 `feat/source-runtime-v3`。
+
+新增基准命令（项目根目录）：
+
+```powershell
+node scripts/source_import_benchmark.mjs --limit=200 --pages=1,28,56 --concurrency=8 --flowLimit=200 --timeoutMs=10000
+node scripts/source_flow_probe.mjs 7163 7298
 ```
