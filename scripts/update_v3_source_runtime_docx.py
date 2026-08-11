@@ -10,6 +10,7 @@ from docx.shared import Pt, RGBColor
 ROOT = Path(__file__).resolve().parents[1]
 DOCX_PATH = ROOT / "docs" / "解码阅读-V3阶段开发记录-2026-08-11.docx"
 SECTION_TITLE = "10. 书源本地优先运行时（2026-08-11 追加）"
+STAGE2_SECTION_TITLE = "11. 书源运行时第二轮完善（2026-08-11）"
 
 
 def set_east_asia_font(run, name="微软雅黑"):
@@ -73,34 +74,90 @@ def style_table(table):
                         run.bold = True
 
 
+def append_stage2_section(document):
+    if any(paragraph.text.strip() == STAGE2_SECTION_TITLE for paragraph in document.paragraphs):
+        return False
+
+    document.add_page_break()
+    heading = document.add_heading(STAGE2_SECTION_TITLE, level=1)
+    for run in heading.runs:
+        set_east_asia_font(run)
+
+    document.add_heading("11.1 稳定失败分类与脱敏诊断", level=2)
+    add_bullet(document, "新增统一 SourceRuntimeError 与 classifySourceFailure；搜索、详情、目录、正文和传输层使用稳定错误码，不再只返回笼统的请求失败。")
+    add_bullet(document, "区分网络、超时、HTTP 拦截、站点失效、登录/Cookie/WebView/验证码需求、规则或解析为空、安全脚本拒绝和预算超限。")
+    add_bullet(document, "健康记录增加失败阶段、HTTP 状态、可重试标记和脱敏诊断；不保存正文、Cookie、Token 或完整响应。")
+
+    document.add_heading("11.2 高频 3.x 兼容补齐", level=2)
+    add_bullet(document, "安全脚本解释器支持受控变量声明、字符串拼接、对象/数组字面量、JSON.parse/stringify 和 String()，可执行常见动态 URL + POST 请求规则。")
+    add_bullet(document, "请求层仅允许 GET/POST，支持 header/body/charset；增加可取消超时、响应头 charset 识别和 GBK/GB2312 解码。")
+    add_bullet(document, "规则引擎增加 JSONPath 过滤、@children 和标签链式属性，并修复嵌套同名 HTML 标签提前截断。")
+    add_bullet(document, "YCK 7655 已完成动态 POST 搜索、详情、1914 章目录和正文；7628 曾完整通过，但固定复测触发验证码，按 CAPTCHA_REQUIRED 记录。")
+
+    document.add_heading("11.3 第二轮 200 源基准", level=2)
+    rows = [
+        ("有效文字 JSON / 可导入", "200 / 200", "导入率 100%"),
+        ("静态状态", "ready 82 / partial 30", "needs_login 10 / blocked 78"),
+        ("静态完整候选", "36", "运行时外部排除 32"),
+        ("运行时合格分母", "4", "完整通过 1，阅读率 25%"),
+        ("引擎侧未通过", "PARSE_EMPTY 1", "SEARCH_EMPTY 2"),
+    ]
+    table = document.add_table(rows=1, cols=3)
+    for index, value in enumerate(["指标", "结果", "说明"]):
+        table.rows[0].cells[index].text = value
+    for values in rows:
+        cells = table.add_row().cells
+        for index, value in enumerate(values):
+            cells[index].text = value
+    style_table(table)
+    add_body(document, "外部排除：NETWORK_ERROR 12、HTTP_BLOCKED 6、SITE_UNREACHABLE 4、TIMEOUT 4、HTTP_NOT_FOUND 3、HTTP_SERVER_ERROR 2、CAPTCHA_REQUIRED 1。")
+    add_body(document, "38 个失败配置审计：POST 19、请求 options 21、Cookie 16、自定义 headers 9、JS 1；公开配置下载失败 0。")
+    warning = document.add_paragraph()
+    warning_run = warning.add_run("验收结论：25% 仍低于 ≥80% 发布目标，PR 保持草稿，不能宣称 YCK 绝大书源已可稳定阅读。")
+    warning_run.bold = True
+    warning_run.font.color.rgb = RGBColor(0xC6, 0x28, 0x28)
+    warning_run.font.highlight_color = WD_COLOR_INDEX.YELLOW
+    set_east_asia_font(warning_run)
+
+    document.add_heading("11.4 自动验证、产物与下一步", level=2)
+    add_bullet(document, "前端全量 95 passed；后端 SQLite 125 passed；语法检查与 git diff --check 通过。")
+    add_bullet(document, "H5 生产构建成功；APK release/android-v2/V2.apk 为 1,504,334 字节，SHA-256 为 B7C810ACA13F12FA8978B79B4AA06E2862723F41A47B0FA2E0AB4CE80601050E，v1/v2/v3 签名通过。")
+    add_bullet(document, "本轮仍无 Android 真机；关闭电脑后端后的五入口同源导入、覆盖安装、重启续读和断网缓存仍是发布阻断项。")
+    add_number(document, "继续为 PARSE_EMPTY 和 SEARCH_EMPTY 样本补齐安全规则夹具，不扩大任意脚本权限。")
+    add_number(document, "在仅手机联网且关闭 8765 的 Android 真机完成完整阅读闭环并保存脱敏证据。")
+    add_number(document, "扩大运行时有效分母并跨两个时间窗口复测；达到 ≥80% 且 CI 全绿后再申请合并。")
+    return True
+
+
 def main():
     document = Document(DOCX_PATH)
     if any(paragraph.text.strip() == SECTION_TITLE for paragraph in document.paragraphs):
         changed = False
         for paragraph in document.paragraphs:
-            if "H5 生产构建成功；APK release/android-v2/V2.apk 为 5,009,514 字节" in paragraph.text:
+            if "APK release/android-v2/V2.apk" in paragraph.text and "SHA-256" in paragraph.text:
                 paragraph.text = (
                     "H5 生产构建及本地导入持久化验收通过；APK release/android-v2/V2.apk "
-                    "为 1,496,142 字节，SHA-256 为 "
-                    "11D11EC281FBCF93D43B3B9A34C9900365238CAB93A523E92ABECBF8CBF39BCD，"
+                    "为 1,504,334 字节，SHA-256 为 "
+                    "B7C810ACA13F12FA8978B79B4AA06E2862723F41A47B0FA2E0AB4CE80601050E，"
                     "v1/v2/v3 签名通过。"
                 )
                 for run in paragraph.runs:
                     set_east_asia_font(run)
                 changed = True
-        if changed:
+        stage2_added = append_stage2_section(document)
+        if changed or stage2_added:
             document.save(DOCX_PATH)
-            print(f"Refreshed: {DOCX_PATH}")
+            print(f"Updated: {DOCX_PATH}")
         else:
-            print(f"Section already present: {DOCX_PATH}")
+            print(f"Sections already present: {DOCX_PATH}")
         return
+    else:
+        document.add_page_break()
+        heading = document.add_heading(SECTION_TITLE, level=1)
+        for run in heading.runs:
+            set_east_asia_font(run)
 
-    document.add_page_break()
-    heading = document.add_heading(SECTION_TITLE, level=1)
-    for run in heading.runs:
-        set_east_asia_font(run)
-
-    document.add_heading("10.1 架构决策", level=2)
+        document.add_heading("10.1 架构决策", level=2)
     add_bullet(document, "Android APK 采用本地优先：URL、文件、二维码、深链和 3.x JSON 在手机本地识别、预览、去重、保存与运行。")
     add_bullet(document, "新增 NovelReaderHttp 原生桥；APK 的外部书源请求固定为“原生 HTTP → 必要时 WebView 渲染”，不再默认访问 localhost:8765。")
     add_bullet(document, "后端改为可选云服务，仅承担账号同步、云书架、云 TTS、H5 跨域代理和基础来源兼容。Android 联网阅读不要求连接电脑后端。")
@@ -159,6 +216,7 @@ def main():
     add_number(document, "进一步区分站点失效、规则不支持、网络超时与无关键词结果；完整阅读率达到 ≥80% 前不合并正式发布。")
     add_number(document, "在无电脑后端的 Android 真机完成 URL、文件、二维码、深链同源去重和完整阅读闭环，并保存录屏与 APK 哈希。")
 
+    append_stage2_section(document)
     document.save(DOCX_PATH)
     print(f"Updated: {DOCX_PATH}")
 

@@ -212,3 +212,54 @@ adb reverse tcp:8765 tcp:8765
 node scripts/source_import_benchmark.mjs --limit=200 --pages=1,28,56 --concurrency=8 --flowLimit=200 --timeoutMs=10000
 node scripts/source_flow_probe.mjs 7163 7298
 ```
+
+## 11. 书源运行时第二轮完善（2026-08-11）
+
+### 11.1 稳定失败分类与脱敏诊断
+
+- 新增统一 `SourceRuntimeError` 与 `classifySourceFailure()`，搜索、详情、目录、正文和传输层不再只返回笼统的“请求失败”。
+- 稳定错误码覆盖网络失败、超时、HTTP 拦截、站点失效、登录/Cookie/WebView/验证码需求、规则为空、解析为空、安全脚本拒绝和执行预算超限。
+- 书源健康记录增加失败阶段、HTTP 状态、是否可重试和脱敏诊断；诊断只保存响应长度、指纹、顶层字段、类名摘要和命中特征，不保存正文、Cookie、Token 或完整响应。
+- 识别域名停放页、空 JSON 结果与验证码页，避免把站点失效或无搜索结果误判为引擎不兼容。
+
+### 11.2 高频 3.x 兼容补齐
+
+- 安全脚本解释器新增受控变量声明、字符串拼接、对象/数组字面量、`JSON.parse/stringify` 和 `String()`；可执行常见“动态 URL + POST 请求描述”规则，同时继续拒绝 `eval`、任意 Java 类、循环和外部模块。
+- 请求解析器对非法请求模板返回 `REQUEST_TEMPLATE_UNSUPPORTED`，只允许 GET/POST；POST 默认使用表单编码，并完整传递 header、body 和 charset。
+- 传输层增加可取消超时、响应头 charset 识别和 GBK/GB2312 解码；HTTP 状态与网络错误进入统一分类。
+- 规则引擎新增 JSONPath 过滤、`@children`、裸标签链式属性；修复嵌套同名 HTML 标签被首个闭合标签截断的问题。
+- 代表性证据：YCK `7655` 的动态 POST 搜索规则已完成搜索→详情→1914 章目录→正文；YCK `7628` 曾完成搜索→详情→100 章目录→正文，但第二轮固定基准时触发验证码，因此按 `CAPTCHA_REQUIRED` 计入外部限制而非稳定通过。
+
+### 11.3 第二轮 200 源基准
+
+详细结果见 `docs/source-acceptance/yck-text-source-benchmark-stage2-2026-08-11.md`、同名 JSON 和 `yck-source-failure-audit-2026-08-11.json`。
+
+- 有效文字 JSON：200；可导入：200；导入率仍为 **100%**。
+- 静态状态：`ready 82`、`partial 30`、`needs_login 10`、`blocked 78`；静态完整候选 36。
+- 运行时外部排除 32：`NETWORK_ERROR 12`、`HTTP_BLOCKED 6`、`SITE_UNREACHABLE 4`、`TIMEOUT 4`、`HTTP_NOT_FOUND 3`、`HTTP_SERVER_ERROR 2`、`CAPTCHA_REQUIRED 1`。
+- 排除外部限制后运行时合格分母为 4，完整通过 1，完整阅读率为 **25%**；其余为 `PARSE_EMPTY 1`、`SEARCH_EMPTY 2`。
+- 失败样本审计覆盖 38 个配置：POST 19、请求 options 21、Cookie 16、自定义 headers 9、JS 1；公开书源配置下载失败 0。未发现需要新增任意 Java 类权限的高频宿主 API。
+
+验收结论：失败分类和 3.x 高频 POST 链路已有实质进展，但 **25% 仍低于 ≥80% 发布目标**。当前 PR 继续保持草稿，不能宣称 YCK 绝大书源已可稳定阅读。
+
+### 11.4 自动验证与产物
+
+- 前端全量：`95 passed`；后端 SQLite：`125 passed`；语法检查与 `git diff --check` 通过。
+- H5 生产构建成功；保留既有 `caniuse-lite` 过期和 vendor 包体积警告。
+- APK：`release/android-v2/V2.apk`，大小 1,504,334 字节，SHA-256 为 `B7C810ACA13F12FA8978B79B4AA06E2862723F41A47B0FA2E0AB4CE80601050E`；v1、v2、v3 签名验证通过。
+- 本轮仍无可用 Android 真机，因此关闭电脑后端后的 URL/文件/二维码/深链去重、覆盖安装、重启续读和断网缓存仍为发布阻断项。
+
+### 11.5 下一阶段优先级
+
+1. 为 `PARSE_EMPTY` 和 `SEARCH_EMPTY` 样本补齐规则差异夹具，继续扩展安全声明式规则，不扩大任意脚本权限。
+2. 在 Android 真机、仅手机联网且关闭 8765 的条件下执行五入口同源导入和完整阅读闭环，记录 APK 哈希、设备/系统版本与脱敏日志。
+3. 扩充运行时有效分母，避免 4 个样本导致统计波动；同一固定样本至少在两个时间窗口复测后再判定稳定可用。
+4. 保持 PR 为草稿，待真实完整阅读率达到 ≥80%、真机阻断项清零且 GitHub Actions 全绿后再申请合并。
+
+第二轮命令（项目根目录）：
+
+```powershell
+node scripts/source_failure_audit.mjs
+node scripts/source_import_benchmark.mjs --limit=200 --pages=1,28,56 --concurrency=8 --flowLimit=200 --timeoutMs=10000 --output=docs/source-acceptance/yck-text-source-benchmark-stage2-2026-08-11.json
+node scripts/source_flow_probe.mjs 7655 7628
+```
