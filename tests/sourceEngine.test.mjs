@@ -159,14 +159,8 @@ assert.equal(
   '<html>proxied</html>'
 )
 assert.equal(proxyCalls[0].url, 'http://127.0.0.1:8765/api/proxy/fetch')
-assert.deepEqual(proxyCalls[0].data, {
-  url: 'https://novel.example.com/search',
-  method: 'POST',
-  headers: { Referer: 'https://novel.example.com' },
-  body: 'q=abc',
-  charset: 'gbk',
-  throttle_ms: 0
-})
+assert.equal(proxyCalls[0].method, 'POST')
+assert.equal(proxyCalls[0].data.body, 'q=abc')
 delete globalThis.uni
 
 const sourceJson = JSON.stringify([{

@@ -112,6 +112,36 @@ def test_import_and_list_sources():
     assert listed.json()[0]["name"] == "测试小说源"
 
 
+def test_import_preview_and_duplicate_skip_contract():
+    headers = auth_headers()
+    preview = client.post(
+        "/api/sources/import/preview",
+        headers=headers,
+        json={"content": sample_source_json(), "import_method": "url"},
+    )
+    assert preview.status_code == 200
+    assert preview.json()["ready_count"] == 1
+    assert preview.json()["items"][0]["status"] == "ready"
+    assert preview.json()["items"][0]["android_supported"] is True
+
+    first = client.post(
+        "/api/sources/import",
+        headers=headers,
+        json={"content": sample_source_json(), "duplicate_strategy": "overwrite"},
+    )
+    skipped = client.post(
+        "/api/sources/import",
+        headers=headers,
+        json={"content": sample_source_json(), "duplicate_strategy": "skip"},
+    )
+    assert first.status_code == 201
+    assert skipped.status_code == 201
+    assert skipped.json()["imported_count"] == 0
+    assert skipped.json()["updated_count"] == 0
+    assert skipped.json()["skipped_count"] == 1
+    assert skipped.json()["items"][0]["action"] == "skipped"
+
+
 def test_delete_source_removes_owned_source_and_hides_from_list():
     headers = auth_headers()
     source = import_sample_source(headers)

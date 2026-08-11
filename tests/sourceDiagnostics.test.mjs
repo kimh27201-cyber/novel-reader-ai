@@ -84,7 +84,8 @@ const sources = pickOnlineSearchSources(Object.values(store['sources:user']))
 assert.equal(sources.length, 0)
 
 const unsupported = Object.values(store['sources:user']).find(source => source.name === 'Diagnostic Unsupported')
-assert.equal(unsupported, undefined)
+assert.equal(unsupported.enabled, false)
+assert.equal(unsupported.status, 'blocked')
 const unsupportedCandidate = {
   id: 'diagnostic-unsupported',
   name: 'Diagnostic Unsupported',

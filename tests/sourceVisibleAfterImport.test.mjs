@@ -64,11 +64,12 @@ const unsupported = normalizeBookSources({
   exploreUrl: '@js:java.ajax(source.bookSourceUrl)'
 }, { source: 'scan' })[0]
 const unsupportedResult = applyImportPreview(buildImportPreview([unsupported], getSourceConfigs()), { importMethod: 'scan' })
-assert.equal(unsupportedResult.actualWritten, 0)
-assert.equal(unsupportedResult.visible, 0)
-assert.equal(unsupportedResult.imported, 0)
-assert.equal(unsupportedResult.skipped, 1)
-assert.equal(getRecentImportHistory()[0].action, 'unsupported')
-assert.equal(getRecentImportHistory()[0].visible, false)
+assert.equal(unsupportedResult.actualWritten, 1)
+assert.equal(unsupportedResult.visible, 1)
+assert.equal(unsupportedResult.imported, 1)
+assert.equal(unsupportedResult.skipped, 0)
+assert.equal(getRecentImportHistory()[0].action, 'added')
+assert.equal(getRecentImportHistory()[0].visible, true)
+assert.equal(getSourceConfigs().find(item => item.name === '动态发现源').enabled, false)
 
 console.log('sourceVisibleAfterImport tests passed')

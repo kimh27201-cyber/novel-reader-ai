@@ -358,9 +358,8 @@ globalThis.uni.request = options => {
 
 const partialSource = getSourceConfigs().find(item => item.name === 'Explore With Login Elsewhere')
 const partialExplore = getSourceExploreEntries(partialSource.id)
-assert.equal(partialExplore.available, true)
-const partialLoaded = await loadSourceExploreBooks(partialSource.id, partialExplore.entries[0], { page: 1, timeoutMs: 1000 })
-assert.equal(partialLoaded.books.length, 1)
+assert.equal(partialExplore.available, false)
+assert.equal(partialExplore.reasonCode, 'source_disabled')
 
 const searchPage = readFileSync(new URL('../pages/search/search.vue', import.meta.url), 'utf8')
 assert.match(searchPage, /getOnlineExploreEntries/)
