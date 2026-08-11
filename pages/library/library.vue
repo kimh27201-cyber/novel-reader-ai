@@ -72,11 +72,16 @@
         </view>
       </view>
 
-      <view class="source-empty-state" v-if="!v2SourceRows.length">
-        <view class="source-empty-mark">源</view>
-        <view class="source-empty-title">书源列表还是空的</view>
-        <text class="source-hint">可粘贴 URL 或 JSON、扫描二维码，或选择本地 JSON 文件。</text>
-      </view>
+      <DEmptyState
+        class="source-empty-state"
+        v-if="!v2SourceRows.length"
+        scene="source"
+        :theme-id="themeId"
+        title="书源列表还是空的"
+        description="可粘贴 URL 或 JSON、扫描二维码，或选择本地 JSON 文件。"
+        action-text="导入书源"
+        @action="openImportDrawer('repo')"
+      />
 
       <view class="recent-import-panel recent-import source-meta-section" v-if="recentImportHistory.length">
         <view class="recent-import-head">
@@ -293,6 +298,8 @@
       />
       <text class="source-hint">{{ sourceImportHint }}</text>
 
+      <DSkeleton v-if="sourceImportPreviewing" scene="source" :rows="3" />
+
       <view class="preview-card" v-if="sourceImportPreview">
         <view class="test-title">导入前预览</view>
         <text class="source-hint">新增 {{ sourceImportPreview.imported }} / 覆盖 {{ sourceImportPreview.updated }} / 不兼容 {{ sourceImportPreview.incompatible }}</text>
@@ -303,18 +310,19 @@
         <view class="source-import-feedback-title">{{ sourceImportFeedback.title }}</view>
         <text>{{ sourceImportFeedback.detail }}</text>
       </view>
-      <button
+      <DButton
         class="outline-action wide"
+        variant="secondary"
         :disabled="sourceImportPreviewing || sourceImporting || !sourceImportRaw"
         :loading="sourceImportPreviewing"
         @tap="previewSourceImport"
-      >导入前预览</button>
-      <button
+      >导入前预览</DButton>
+      <DButton
         class="submit-button"
         :disabled="sourceImportPreviewing || sourceImporting || !sourceImportRaw"
         :loading="sourceImporting"
         @tap="submitSourceImport"
-      >{{ sourceImportPreview ? '确认导入' : '导入书源' }}</button>
+      >{{ sourceImportPreview ? '确认导入' : '导入书源' }}</DButton>
 
       <view class="quick-actions">
         <button class="outline-action" @tap="importFromClipboard">剪贴板</button>
@@ -575,6 +583,9 @@ import {
 } from '../../common/bookSources.js'
 import { getAppThemeId, getAppThemeStyle } from '../../common/appTheme.js'
 import GlassTabBar from '../../custom-tab-bar/index.vue'
+import DEmptyState from '../../components/composite/DEmptyState.vue'
+import DButton from '../../components/base/DButton.vue'
+import DSkeleton from '../../components/feedback/DSkeleton.vue'
 import {
   chooseSingleFile,
   getClipboardText,
@@ -615,7 +626,7 @@ import {
 } from '../../common/backendLibrary.js'
 
 export default {
-  components: { GlassTabBar },
+  components: { GlassTabBar, DEmptyState, DButton, DSkeleton },
   data() {
     return {
       sources: [],

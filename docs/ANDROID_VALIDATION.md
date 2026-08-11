@@ -13,8 +13,8 @@
 
 - 使用 HBuilderX 打开 `D:\Codex\novel-reader-uniapp`。
 - 后端使用局域网可访问地址启动，不要在真机里使用 `127.0.0.1`。
-- 推荐启动命令：`.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000`。
-- 在电脑上确认局域网 IP，例如 `192.168.x.x`，手机端后端地址填写 `http://192.168.x.x:8000`。
+- 推荐启动命令：`.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8765`。
+- 在电脑上确认局域网 IP，例如 `192.168.x.x`，手机端后端地址填写 `http://192.168.x.x:8765`。
 - 在“我的”页确认后端地址和登录状态正常。
 - 在“我的 > 关于”连续点击版本号 7 次开启调试模式。
 - 在“开发与验收”中确认“APK 展示准备”前 3 项显示“已就绪”。

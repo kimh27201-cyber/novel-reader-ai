@@ -163,8 +163,12 @@ function nullableNumber(value) {
   return Number.isFinite(number) ? number : null
 }
 
+function firstDefined(...values) {
+  return values.find(value => value !== null && value !== undefined)
+}
+
 function normalizeVoiceDescriptor(raw = {}, provider = SYSTEM_VOICE_PROVIDER) {
-  const id = String(raw.id ?? raw.voiceURI ?? raw.name ?? '').trim()
+  const id = String(firstDefined(raw.id, raw.voiceURI, raw.name, '')).trim()
   const name = String(raw.name || id || SYSTEM_DEFAULT_VOICE.name).trim()
   const lang = String(raw.lang || raw.language || 'zh-CN').replace(/_/g, '-')
   return {
@@ -728,12 +732,11 @@ function resolveCloudAudioUrl(value, client) {
 function cloudRequestKey(text, options = {}) {
   return JSON.stringify([
     String(options.voiceId || ''),
-    normalizeReadAloudSpeechRate(options.rate),
     String(text || '')
   ])
 }
 
-function createInnerAudioPlayer(uniApi, url, onEnded, onError) {
+function createInnerAudioPlayer(uniApi, url, onEnded, onError, options = {}) {
   const audio = uniApi.createInnerAudioContext()
   let settled = false
   let destroyed = false
@@ -747,6 +750,7 @@ function createInnerAudioPlayer(uniApi, url, onEnded, onError) {
   if (typeof audio.onEnded === 'function') audio.onEnded(ended)
   if (typeof audio.onError === 'function') audio.onError(failed)
   audio.autoplay = false
+  audio.playbackRate = normalizeReadAloudSpeechRate(options.rate)
   audio.src = url
   audio.play()
   return {
@@ -770,12 +774,13 @@ function createInnerAudioPlayer(uniApi, url, onEnded, onError) {
   }
 }
 
-function createHtmlAudioPlayer(hostWindow, url, onEnded, onError) {
+function createHtmlAudioPlayer(hostWindow, url, onEnded, onError, options = {}) {
   const AudioConstructor = hostWindow && hostWindow.Audio
   if (typeof AudioConstructor !== 'function') {
     throw new Error('当前环境不支持云端音频播放')
   }
   const audio = new AudioConstructor(url)
+  audio.playbackRate = normalizeReadAloudSpeechRate(options.rate)
   let settled = false
   const ended = () => {
     if (settled) return
@@ -832,11 +837,11 @@ export function createCloudReadAloudDriver(options = {}) {
   const hostWindow = Object.prototype.hasOwnProperty.call(options, 'window')
     ? options.window
     : (typeof window !== 'undefined' ? window : null)
-  const audioFactory = options.audioFactory || ((url, onEnded, onError) => {
+  const audioFactory = options.audioFactory || ((url, onEnded, onError, playerOptions) => {
     if (uniApi && typeof uniApi.createInnerAudioContext === 'function') {
-      return createInnerAudioPlayer(uniApi, url, onEnded, onError)
+      return createInnerAudioPlayer(uniApi, url, onEnded, onError, playerOptions)
     }
-    return createHtmlAudioPlayer(hostWindow, url, onEnded, onError)
+    return createHtmlAudioPlayer(hostWindow, url, onEnded, onError, playerOptions)
   })
   const canPlayAudio = typeof options.audioFactory === 'function' ||
     !!(uniApi && typeof uniApi.createInnerAudioContext === 'function') ||
@@ -855,7 +860,9 @@ export function createCloudReadAloudDriver(options = {}) {
     const promise = Promise.resolve(client.synthesizeTts({
       text: String(text || ''),
       voiceId: String(speakOptions.voiceId || ''),
-      rate: normalizeReadAloudSpeechRate(speakOptions.rate)
+      // Some neural voices accept but ignore speed_ratio. Generate one natural-
+      // speed file and apply the reader's rate in the local audio player.
+      rate: DEFAULT_RATE
     })).then(result => ({
       ...result,
       audio_url: resolveCloudAudioUrl(result && result.audio_url, client)
@@ -952,7 +959,8 @@ export function createCloudReadAloudDriver(options = {}) {
               provider: VOLCENGINE_VOICE_PROVIDER,
               cacheHit: result.cache_hit === true
             }),
-            fail
+            fail,
+            { rate: normalizeReadAloudSpeechRate(speakOptions.rate) }
           )
           entry.player = player
           if (active !== entry && player && typeof player.dispose === 'function') {
@@ -1223,7 +1231,7 @@ export function createReadAloudController(options = {}) {
           emitState({ status: 'error', error: '下一章没有可朗读正文' })
           return
         }
-        state.chapterKey = nextChapter.chapterKey ?? state.chapterKey
+        state.chapterKey = firstDefined(nextChapter.chapterKey, state.chapterKey)
         showSegment(initialIndex(nextChapter.startPageIndex, nextChapter.startParagraphIndex))
         emitState({ status: 'speaking', error: '' })
         continue
@@ -1232,7 +1240,7 @@ export function createReadAloudController(options = {}) {
       const segment = segments[cursor]
       if (state.segmentIndex !== cursor || !state.segment) showSegment(cursor)
       emitState({ status: 'speaking', error: '' })
-      const utteranceId = `${token}:${state.chapterKey ?? 'chapter'}:${segment.id}:${++utteranceSequence}`
+      const utteranceId = `${token}:${firstDefined(state.chapterKey, 'chapter')}:${segment.id}:${++utteranceSequence}`
       const voiceProfile = resolveReadAloudVoiceProfile(state.voiceProvider, state.voiceId)
       const speakOptions = {
         rate: normalizeReadAloudSpeechRate(state.rate * voiceProfile.rateScale),
@@ -1314,7 +1322,7 @@ export function createReadAloudController(options = {}) {
         driver.stop()
       } catch (error) {}
       segments = splitReadAloudSegments(input.pages, input)
-      state.chapterKey = input.chapterKey ?? null
+      state.chapterKey = firstDefined(input.chapterKey, null)
       state.error = ''
       state.fallbackActive = false
       state.fallbackError = ''

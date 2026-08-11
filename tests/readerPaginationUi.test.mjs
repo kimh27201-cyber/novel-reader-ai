@@ -1,0 +1,30 @@
+import assert from 'node:assert/strict'
+import { readFileSync } from 'node:fs'
+
+const reader = readFileSync(new URL('../pages/reader/reader.vue', import.meta.url), 'utf8')
+const readerStore = readFileSync(new URL('../common/reader.js', import.meta.url), 'utf8')
+
+assert.match(reader, /readerPagination\.js/)
+assert.match(reader, /paginateContentByMeasurement/)
+assert.match(reader, /reader-measure-content/)
+assert.match(reader, /measurePaginationCandidate/)
+assert.match(reader, /findPageIndexForOffset/)
+assert.match(reader, /paginationCacheKey/)
+assert.match(reader, /reader-layout-v3/)
+assert.match(reader, /commitPagination/)
+assert.doesNotMatch(reader, /this\.pages\s*=\s*fallbackPages/)
+assert.match(reader, /paginationPending/)
+assert.match(reader, /\.pagination-card\s*\{[\s\S]*?position:\s*absolute/)
+assert.match(reader, /charOffset: this\.currentCharacterOffset\(\)/)
+assert.match(reader, /changeParagraphSpacing[\s\S]*?saveReaderPrefs\(true\)/)
+assert.match(reader, /changeTextIndent[\s\S]*?saveReaderPrefs\(true\)/)
+assert.match(reader, /\.reader-content\s*\{[\s\S]*?min-height:\s*0;[\s\S]*?overflow:\s*hidden;/)
+assert.match(reader, /text-align-last:\s*left/)
+assert.match(reader, /hanging-punctuation:\s*first last/)
+assert.match(reader, /line-break:\s*strict/)
+assert.match(reader, /orphans:\s*2/)
+assert.match(reader, /widows:\s*2/)
+assert.doesNotMatch(reader, /min-height:\s*760rpx/)
+assert.match(readerStore, /charOffset:/)
+
+console.log('reader pagination UI tests passed')

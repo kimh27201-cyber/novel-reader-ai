@@ -7,6 +7,8 @@ import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
+import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -17,7 +19,12 @@ import android.speech.tts.UtteranceProgressListener;
 import android.speech.tts.Voice;
 import android.util.Base64;
 import android.util.Log;
+import android.view.Gravity;
+import android.view.View;
 import android.view.ViewGroup;
+import android.view.Window;
+import android.widget.FrameLayout;
+import android.widget.TextView;
 import android.webkit.ValueCallback;
 import android.webkit.ConsoleMessage;
 import android.webkit.CookieManager;
@@ -50,10 +57,19 @@ import org.json.JSONObject;
 public class MainActivity extends Activity {
     private static final String TAG = "NovelReaderWebView";
     private static final String APP_URL = "file:///android_asset/www/index.html";
+    private static final String LAUNCH_PREFS = "novel_reader_launch";
+    private static final String LAUNCH_THEME_KEY = "app_theme";
+    private static final String DEFAULT_LAUNCH_THEME = "xuanye";
+    private static final long LAUNCH_REVEAL_TIMEOUT_MS = 5000L;
     private static final int CAMERA_PERMISSION_REQUEST = 1001;
     private static final int FILE_CHOOSER_REQUEST = 1002;
     private static final int SCAN_QR_REQUEST = 1003;
     private WebView webView;
+    private FrameLayout launchRoot;
+    private TextView launchLabel;
+    private final Handler launchHandler = new Handler(Looper.getMainLooper());
+    private long launchStartedAt;
+    private boolean launchContentRevealed;
     private PermissionRequest pendingPermissionRequest;
     private ValueCallback<Uri[]> filePathCallback;
     private String scanCallbackName;
@@ -70,9 +86,31 @@ public class MainActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        launchStartedAt = System.currentTimeMillis();
+        final String launchTheme = getSavedLaunchTheme();
+        applySystemTheme(launchTheme);
+        Log.i(TAG, "launch shell theme=" + launchTheme);
+
+        launchRoot = new FrameLayout(this);
         webView = new WebView(this);
-        setContentView(
+        webView.setAlpha(0f);
+        launchRoot.addView(
             webView,
+            new ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT
+            )
+        );
+        launchLabel = createLaunchLabel();
+        FrameLayout.LayoutParams launchLabelParams = new FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            Gravity.CENTER
+        );
+        launchRoot.addView(launchLabel, launchLabelParams);
+        applyLaunchTheme(launchTheme);
+        setContentView(
+            launchRoot,
             new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT
@@ -81,6 +119,12 @@ public class MainActivity extends Activity {
         pendingDeepLinkStore = new PendingDeepLinkStore();
         initializeTextToSpeech();
         configureWebView(webView);
+        launchHandler.postDelayed(new Runnable() {
+            @Override
+            public void run() {
+                revealLaunchContent("timeout");
+            }
+        }, LAUNCH_REVEAL_TIMEOUT_MS);
         String initialDeepLink = extractIncomingDeepLink(getIntent());
         if (initialDeepLink != null) {
             pendingDeepLinkStore.save(initialDeepLink, "onCreate");
@@ -108,8 +152,7 @@ public class MainActivity extends Activity {
         settings.setLoadWithOverviewMode(true);
         settings.setUseWideViewPort(true);
         settings.setMediaPlaybackRequiresUserGesture(false);
-        settings.setCacheMode(WebSettings.LOAD_NO_CACHE);
-        view.clearCache(true);
+        settings.setCacheMode(WebSettings.LOAD_DEFAULT);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN) {
             settings.setAllowFileAccessFromFileURLs(true);
@@ -123,6 +166,7 @@ public class MainActivity extends Activity {
         view.addJavascriptInterface(new DeepLinkBridge(), "NovelReaderDeepLinkBridge");
         view.addJavascriptInterface(new RenderedHtmlBridge(), "NovelReaderWebViewParser");
         view.addJavascriptInterface(new TextToSpeechBridge(), "NovelReaderTts");
+        view.addJavascriptInterface(new LaunchBridge(), "NovelReaderLaunch");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT) {
             WebView.setWebContentsDebuggingEnabled(false);
         }
@@ -195,6 +239,12 @@ public class MainActivity extends Activity {
             public void onPageFinished(WebView view, String url) {
                 Log.d(TAG, "page finished: " + url);
                 pageLoaded = true;
+                launchHandler.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        revealLaunchContent("page-finished-fallback");
+                    }
+                }, 300L);
             }
 
             @Override
@@ -225,6 +275,135 @@ public class MainActivity extends Activity {
                 return false;
             }
         });
+    }
+
+    private TextView createLaunchLabel() {
+        TextView label = new TextView(this);
+        label.setGravity(Gravity.CENTER);
+        label.setText("解码阅读\nDECODING READER");
+        label.setTextSize(22f);
+        label.setLineSpacing(10f, 1f);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            label.setLetterSpacing(0.08f);
+        }
+        label.setContentDescription("解码阅读正在启动");
+        return label;
+    }
+
+    private String normalizeLaunchTheme(String themeId) {
+        if ("candy".equals(themeId) || "sakura".equals(themeId) || "cyber".equals(themeId)
+                || "noirGold".equals(themeId) || "xuanye".equals(themeId)) {
+            return themeId;
+        }
+        return DEFAULT_LAUNCH_THEME;
+    }
+
+    private String getSavedLaunchTheme() {
+        SharedPreferences preferences = getSharedPreferences(LAUNCH_PREFS, MODE_PRIVATE);
+        return normalizeLaunchTheme(preferences.getString(LAUNCH_THEME_KEY, DEFAULT_LAUNCH_THEME));
+    }
+
+    private int getLaunchBackgroundColor(String themeId) {
+        switch (normalizeLaunchTheme(themeId)) {
+            case "candy": return Color.rgb(255, 247, 214);
+            case "sakura": return Color.rgb(248, 239, 246);
+            case "cyber": return Color.rgb(3, 8, 23);
+            case "noirGold": return Color.rgb(8, 7, 5);
+            default: return Color.rgb(7, 10, 15);
+        }
+    }
+
+    private int getLaunchTextColor(String themeId) {
+        switch (normalizeLaunchTheme(themeId)) {
+            case "candy": return Color.rgb(52, 42, 50);
+            case "sakura": return Color.rgb(73, 56, 71);
+            case "cyber": return Color.rgb(232, 247, 255);
+            case "noirGold": return Color.rgb(244, 235, 216);
+            default: return Color.rgb(244, 241, 232);
+        }
+    }
+
+    private boolean isLightLaunchTheme(String themeId) {
+        String normalized = normalizeLaunchTheme(themeId);
+        return "candy".equals(normalized) || "sakura".equals(normalized);
+    }
+
+    private void applySystemTheme(String themeId) {
+        int backgroundColor = getLaunchBackgroundColor(themeId);
+        Window window = getWindow();
+        window.setBackgroundDrawable(new ColorDrawable(backgroundColor));
+        window.setStatusBarColor(backgroundColor);
+        window.setNavigationBarColor(backgroundColor);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.setNavigationBarDividerColor(backgroundColor);
+        }
+
+        View decor = window.getDecorView();
+        int flags = decor.getSystemUiVisibility();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            flags = isLightLaunchTheme(themeId)
+                ? flags | View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+                : flags & ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            flags = isLightLaunchTheme(themeId)
+                ? flags | View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+                : flags & ~View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+        }
+        decor.setSystemUiVisibility(flags);
+    }
+
+    private void applyLaunchTheme(String themeId) {
+        final int backgroundColor = getLaunchBackgroundColor(themeId);
+        applySystemTheme(themeId);
+        if (launchRoot != null) launchRoot.setBackgroundColor(backgroundColor);
+        if (webView != null) webView.setBackgroundColor(backgroundColor);
+        if (launchLabel != null) launchLabel.setTextColor(getLaunchTextColor(themeId));
+    }
+
+    private void saveLaunchTheme(String themeId) {
+        final String normalized = normalizeLaunchTheme(themeId);
+        getSharedPreferences(LAUNCH_PREFS, MODE_PRIVATE)
+            .edit()
+            .putString(LAUNCH_THEME_KEY, normalized)
+            .apply();
+        runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                applyLaunchTheme(normalized);
+            }
+        });
+    }
+
+    private void revealLaunchContent(String source) {
+        if (launchContentRevealed || webView == null) return;
+        launchContentRevealed = true;
+        launchHandler.removeCallbacksAndMessages(null);
+        webView.setAlpha(1f);
+        if (launchLabel != null && launchRoot != null) {
+            launchRoot.removeView(launchLabel);
+            launchLabel = null;
+        }
+        Log.i(TAG, "first content visible source=" + source + " elapsedMs="
+            + (System.currentTimeMillis() - launchStartedAt));
+    }
+
+    public class LaunchBridge {
+        @JavascriptInterface
+        public void saveTheme(String themeId) {
+            saveLaunchTheme(themeId);
+        }
+
+        @JavascriptInterface
+        public void ready(String themeId) {
+            saveLaunchTheme(themeId);
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    revealLaunchContent("vue-ready");
+                }
+            });
+        }
     }
 
     public class ScanBridge {
@@ -1113,6 +1292,9 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        launchHandler.removeCallbacksAndMessages(null);
+        launchLabel = null;
+        launchRoot = null;
         synchronized (ttsLock) {
             ttsCallbacks.clear();
             if (textToSpeech != null) {

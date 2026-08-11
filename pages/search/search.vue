@@ -133,16 +133,7 @@
           </view>
         </view>
 
-        <view class="search-skeleton-list" v-if="loading" aria-label="正在加载搜索结果">
-          <view class="search-skeleton-row" v-for="index in 3" :key="index">
-            <view class="search-skeleton-cover"></view>
-            <view class="search-skeleton-copy">
-              <view class="search-skeleton-line strong"></view>
-              <view class="search-skeleton-line"></view>
-              <view class="search-skeleton-line short"></view>
-            </view>
-          </view>
-        </view>
+        <DSkeleton class="search-skeleton-list" v-if="loading" variant="search" :rows="3" aria-label="正在加载搜索结果" />
 
         <view class="search-error-state" v-if="searchError && !loading">
           <view class="state-mark error">!</view>
@@ -246,12 +237,16 @@
           <button class="starter primary" @tap="goLibrary">去书源页批量检测</button>
         </view>
 
-        <view class="empty-state no-result-state" v-else-if="hasSearched && !loading && !searchError">
-          <view class="state-mark">⌕</view>
-          <view class="empty-title">没有找到“{{ lastSearchKeyword }}”</view>
-          <text class="empty-desc">{{ mode === 'cloud' ? '换一个更短的书名，或切换书源后再试。' : '本地书架中没有匹配项，可以先导入 TXT 或加入一本书。' }}</text>
-          <button class="state-action" @tap="focusSearchInput">换个关键词</button>
-        </view>
+        <DEmptyState
+          class="empty-state no-result-state"
+          v-else-if="hasSearched && !loading && !searchError"
+          scene="search"
+          :theme-id="themeId"
+          :title="`没有找到“${lastSearchKeyword}”`"
+          :description="mode === 'cloud' ? '换一个更短的书名，或切换书源后再试。' : '本地书架中没有匹配项，可以先导入 TXT 或加入一本书。'"
+          action-text="换个关键词"
+          @action="focusSearchInput"
+        />
 
         <view class="empty-state" v-else-if="!loading && !searchError">
           <view class="state-mark">书</view>
@@ -278,6 +273,8 @@ import { searchBackendBooks } from '../../common/backendLibrary.js'
 import { buildSearchResultKey, buildSourceToggleState, demoSearchKeywords, sanitizeSearchKeyword } from '../../common/searchHelpers.js'
 import { getAppThemeId, getAppThemeStyle } from '../../common/appTheme.js'
 import GlassTabBar from '../../custom-tab-bar/index.vue'
+import DEmptyState from '../../components/composite/DEmptyState.vue'
+import DSkeleton from '../../components/feedback/DSkeleton.vue'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 import { markTabDirty, markTabFresh, shouldRefreshTab } from '../../common/tabFreshness.js'
 import { getNavigationMotion } from '../../common/motion.js'
@@ -296,7 +293,7 @@ function getStoredSearchHistory() {
 }
 
 export default {
-  components: { GlassTabBar },
+  components: { GlassTabBar, DEmptyState, DSkeleton },
   data() {
     return {
       mode: 'cloud',

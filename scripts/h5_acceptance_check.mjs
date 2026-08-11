@@ -50,7 +50,7 @@ async function waitForHealth(timeoutMs = 15000) {
   const start = Date.now()
   while (Date.now() - start < timeoutMs) {
     try {
-      const response = await fetch('http://127.0.0.1:8000/api/health')
+      const response = await fetch('http://127.0.0.1:8765/api/health')
       if (response.ok) return await response.json()
     } catch {}
     await sleep(500)
@@ -75,7 +75,7 @@ async function clickCardByText(page, text) {
 
 async function main() {
   await mkdir(artifactDir, { recursive: true })
-  const backend = spawn(python, ['-m', 'uvicorn', 'app.main:app', '--host', '0.0.0.0', '--port', '8000'], {
+  const backend = spawn(python, ['-m', 'uvicorn', 'app.main:app', '--host', '0.0.0.0', '--port', '8765'], {
     cwd: backendDir,
     windowsHide: true,
     stdio: 'ignore'

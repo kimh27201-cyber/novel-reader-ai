@@ -128,8 +128,10 @@ jobs:
           assert db.execute("SELECT count(*) FROM reading_history").fetchone()[0] == 1
           assert db.execute("SELECT count(*) FROM source_sessions").fetchone()[0] == 1
           assert db.execute("PRAGMA foreign_key_check").fetchall() == []
-          assert db.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0006_tts_call_logs"
+          assert db.execute("SELECT version_num FROM alembic_version").fetchone()[0] == "0007_tts_provider_metadata"
           assert db.execute("SELECT count(*) FROM tts_call_logs").fetchone()[0] == 0
+          tts_columns = {row[1] for row in db.execute("PRAGMA table_info(tts_call_logs)").fetchall()}
+          assert {"provider_request_id", "upstream_status", "audio_bytes"} <= tts_columns
           db.close()
           PY
 

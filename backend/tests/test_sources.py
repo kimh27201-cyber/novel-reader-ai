@@ -21,6 +21,7 @@ from app.db.session import Base, SessionLocal, engine
 from app.main import app
 from app.models.models import BookSource, SourceSession
 from app.services.source_secrets import reveal_source_secrets
+from app.services.source_parser import apply_rule
 
 
 client = TestClient(app)
@@ -211,6 +212,20 @@ def test_search_source_parses_html_results(monkeypatch):
     assert books[0]["title"] == "星轨图书馆"
     assert books[0]["author"] == "示例作者"
     assert books[0]["book_url"] == "https://example.com/book/1"
+
+
+def test_legado_numeric_selector_and_text_link_are_supported():
+    html = """
+    <section class="item">
+      <a href="/first">第一项</a><a href="/second">第二项</a>
+      <p><span>玄幻</span><span>古典</span></p>
+      <a href="/catalog">全文目录</a>
+    </section>
+    """
+
+    assert apply_rule(html, ".item a.0@href") == "/first"
+    assert apply_rule(html, ".item p span.1@text") == "古典"
+    assert apply_rule(html, "text.全文目录@href") == "/catalog"
 
 
 def test_book_info_parser_endpoint_enriches_search_result(monkeypatch):

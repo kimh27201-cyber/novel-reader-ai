@@ -12,12 +12,36 @@ class VoiceDescriptor(BaseModel):
     networkRequired: bool = True
     isDefault: bool = False
     available: bool = False
+    verified: bool = False
+    unavailable_reason: str = ""
 
 
 class TtsVoicesResponse(BaseModel):
     provider: str = "volcengine"
     available: bool
     voices: list[VoiceDescriptor]
+
+
+class TtsQuotaStatus(BaseModel):
+    user_daily_limit: int
+    user_daily_used: int
+    user_daily_remaining: int
+    global_daily_limit: int
+    global_daily_used: int
+    global_daily_remaining: int
+    global_monthly_limit: int
+    global_monthly_used: int
+    global_monthly_remaining: int
+
+
+class TtsStatusResponse(BaseModel):
+    provider: str = "volcengine"
+    enabled: bool
+    configured: bool
+    last_verified_at: str | None = None
+    verified_voice_count: int
+    total_voice_count: int
+    quota: TtsQuotaStatus
 
 
 class TtsSynthesizeRequest(BaseModel):

@@ -8,9 +8,9 @@ const webviewManifest = readFileSync(new URL('../android-webview-shell/AndroidMa
 
 assert.match(reader, /class="[^"]*reader-embed[^"]*"/)
 assert.match(reader, /\.reader-embed\s*\{[\s\S]*position:\s*relative;/)
-assert.match(reader, /\.top-chrome\s*\{[\s\S]*position:\s*absolute;/)
+assert.match(reader, /\.top-chrome\s*\{[^}]*position:\s*absolute;/)
 assert.match(reader, /\.bottom-chrome,[\s\S]*\.settings-panel[\s\S]*\{[\s\S]*position:\s*absolute;/)
-assert.doesNotMatch(reader, /\.top-chrome\s*\{[\s\S]*position:\s*fixed;/)
+assert.doesNotMatch(reader, /\.top-chrome\s*\{[^}]*position:\s*fixed;/)
 
 assert.match(profile, /openSwagger/)
 assert.match(profile, /FastAPI 未启动/)
@@ -29,7 +29,7 @@ assert.match(mainActivity, /interceptExternalRequest/)
 assert.match(mainActivity, /HttpURLConnection/)
 assert.match(mainActivity, /Access-Control-Allow-Origin/)
 assert.match(mainActivity, /isLocalHost/)
-assert.match(mainActivity, /setCacheMode\(WebSettings\.LOAD_NO_CACHE\)/)
-assert.match(mainActivity, /clearCache\(true\)/)
+assert.match(mainActivity, /setCacheMode\(WebSettings\.LOAD_DEFAULT\)/)
+assert.doesNotMatch(mainActivity, /clearCache\(true\)/)
 
 console.log('h5Shell tests passed')

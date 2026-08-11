@@ -64,10 +64,20 @@ DEFAULT_VOICES = [
 
 
 class TtsServiceError(Exception):
-    def __init__(self, message: str, *, status_code: int, error_code: str) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        status_code: int,
+        error_code: str,
+        provider_request_id: str = "",
+        upstream_status: int | None = None,
+    ) -> None:
         super().__init__(message)
         self.status_code = status_code
         self.error_code = error_code
+        self.provider_request_id = provider_request_id[:100]
+        self.upstream_status = upstream_status
 
 
 @dataclass(frozen=True)
@@ -84,6 +94,20 @@ class SynthesisResult:
     duration_ms: int
     request_id: str
     voice: VoiceDescriptor
+
+
+@dataclass(frozen=True)
+class ProviderAudio:
+    audio: bytes
+    provider_request_id: str = ""
+    upstream_status: int = 200
+
+
+@dataclass(frozen=True)
+class QuotaUsage:
+    user_daily_used: int
+    global_daily_used: int
+    global_monthly_used: int
 
 
 _http_client: httpx.AsyncClient | None = None
@@ -141,7 +165,9 @@ def configured_voices(settings: Settings) -> list[VoiceConfig]:
                     latency=str(item.get("latency") or "云端").strip(),
                     networkRequired=True,
                     isDefault=bool(item.get("is_default", item.get("isDefault", index == 0))),
-                    available=service_available,
+                    available=False,
+                    verified=False,
+                    unavailable_reason="" if service_available else "not_configured",
                 ),
                 speaker_id=speaker_id,
                 resource_id=str(
@@ -349,9 +375,74 @@ def _decode_streamed_audio(content: bytes, content_type: str) -> bytes:
     if audio_parts:
         return b"".join(audio_parts)
     raise TtsServiceError(
-        provider_error or "TTS provider returned no audio",
+        "TTS provider returned an invalid response",
         status_code=502,
         error_code="invalid_provider_response",
+    )
+
+
+def _provider_error_hint(content: bytes) -> tuple[str, str]:
+    for payload in _streamed_json_payloads(content):
+        code = payload.get("code")
+        if code not in (None, 0, 20000000):
+            return str(code), str(payload.get("message") or "")
+    return "", ""
+
+
+def classify_provider_error(
+    *,
+    http_status: int,
+    provider_code: str = "",
+    provider_message: str = "",
+    provider_request_id: str = "",
+) -> TtsServiceError:
+    hint = f"{provider_code} {provider_message}".lower()
+    if any(word in hint for word in ("speaker", "voice", "resource", "permission", "音色", "授权")):
+        return TtsServiceError(
+            "TTS voice is not authorized or unavailable",
+            status_code=400,
+            error_code="voice_unavailable",
+            provider_request_id=provider_request_id,
+            upstream_status=http_status,
+        )
+    if http_status in {401, 403} or any(word in hint for word in ("token", "auth", "credential", "signature")):
+        return TtsServiceError(
+            "TTS provider authentication failed",
+            status_code=502,
+            error_code="provider_auth_failed",
+            provider_request_id=provider_request_id,
+            upstream_status=http_status,
+        )
+    if http_status == 402 or any(word in hint for word in ("balance", "arrears", "欠费")):
+        return TtsServiceError(
+            "TTS provider account balance is insufficient",
+            status_code=429,
+            error_code="provider_billing_limit",
+            provider_request_id=provider_request_id,
+            upstream_status=http_status,
+        )
+    if http_status == 429 or any(word in hint for word in ("quota", "limit", "qps", "频控", "额度")):
+        return TtsServiceError(
+            "TTS provider quota or rate limit exceeded",
+            status_code=429,
+            error_code="provider_limit",
+            provider_request_id=provider_request_id,
+            upstream_status=http_status,
+        )
+    if http_status >= 500:
+        return TtsServiceError(
+            "TTS provider is unavailable",
+            status_code=502,
+            error_code="provider_unavailable",
+            provider_request_id=provider_request_id,
+            upstream_status=http_status,
+        )
+    return TtsServiceError(
+        "TTS provider rejected the request",
+        status_code=502,
+        error_code="provider_error",
+        provider_request_id=provider_request_id,
+        upstream_status=http_status,
     )
 
 
@@ -362,7 +453,7 @@ async def request_volcengine_audio(
     voice: VoiceConfig,
     rate: float,
     request_id: str,
-) -> bytes:
+) -> ProviderAudio:
     client = await get_http_client(settings)
     headers = {
         "Content-Type": "application/json",
@@ -388,13 +479,44 @@ async def request_volcengine_audio(
         try:
             async with client.stream("POST", settings.tts_base_url, headers=headers, json=payload) as response:
                 content = await response.aread()
-                if response.status_code == 429:
-                    raise TtsServiceError("TTS provider rate limit exceeded", status_code=429, error_code="provider_limit")
+                provider_request_id = (
+                    response.headers.get("X-Tt-Logid")
+                    or response.headers.get("X-Tt-LogId")
+                    or response.headers.get("X-Request-Id")
+                    or ""
+                )
+                provider_code, provider_message = _provider_error_hint(content)
                 if response.status_code >= 500 and attempt + 1 < attempts:
                     continue
                 if response.status_code >= 400:
-                    raise TtsServiceError("TTS provider rejected the request", status_code=502, error_code="provider_error")
-                return _decode_streamed_audio(content, response.headers.get("content-type", ""))
+                    raise classify_provider_error(
+                        http_status=response.status_code,
+                        provider_code=provider_code,
+                        provider_message=provider_message,
+                        provider_request_id=provider_request_id,
+                    )
+                try:
+                    audio = _decode_streamed_audio(content, response.headers.get("content-type", ""))
+                except TtsServiceError:
+                    if provider_code:
+                        raise classify_provider_error(
+                            http_status=response.status_code,
+                            provider_code=provider_code,
+                            provider_message=provider_message,
+                            provider_request_id=provider_request_id,
+                        )
+                    raise TtsServiceError(
+                        "TTS provider returned an invalid response",
+                        status_code=502,
+                        error_code="invalid_provider_response",
+                        provider_request_id=provider_request_id,
+                        upstream_status=response.status_code,
+                    )
+                return ProviderAudio(
+                    audio=audio,
+                    provider_request_id=provider_request_id,
+                    upstream_status=response.status_code,
+                )
         except (httpx.TimeoutException, httpx.NetworkError) as exc:
             if attempt + 1 < attempts:
                 continue
@@ -433,23 +555,68 @@ def _today_start() -> datetime:
     return now.replace(hour=0, minute=0, second=0, microsecond=0)
 
 
+def _month_start() -> datetime:
+    now = datetime.now(UTC)
+    return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+
+def quota_usage(db: Session, *, user_id: int) -> QuotaUsage:
+    base = db.query(func.coalesce(func.sum(TtsCallLog.character_count), 0)).filter(
+        TtsCallLog.cache_hit.is_(False),
+        TtsCallLog.status == "success",
+    )
+    return QuotaUsage(
+        user_daily_used=int(
+            base.filter(TtsCallLog.user_id == user_id, TtsCallLog.created_at >= _today_start()).scalar() or 0
+        ),
+        global_daily_used=int(base.filter(TtsCallLog.created_at >= _today_start()).scalar() or 0),
+        global_monthly_used=int(base.filter(TtsCallLog.created_at >= _month_start()).scalar() or 0),
+    )
+
+
+def verified_voice_times(db: Session, voice_ids: set[str]) -> dict[str, datetime]:
+    if not voice_ids:
+        return {}
+    rows = (
+        db.query(TtsCallLog.voice_id, func.max(TtsCallLog.created_at))
+        .filter(
+            TtsCallLog.voice_id.in_(voice_ids),
+            TtsCallLog.cache_hit.is_(False),
+            TtsCallLog.status == "success",
+        )
+        .group_by(TtsCallLog.voice_id)
+        .all()
+    )
+    return {voice_id: verified_at for voice_id, verified_at in rows if verified_at is not None}
+
+
 def reserve_quota(db: Session, settings: Settings, *, user_id: int, character_count: int) -> None:
     with _quota_lock:
-        used = (
-            db.query(func.coalesce(func.sum(TtsCallLog.character_count), 0))
-            .filter(
-                TtsCallLog.user_id == user_id,
-                TtsCallLog.cache_hit.is_(False),
-                TtsCallLog.status == "success",
-                TtsCallLog.created_at >= _today_start(),
+        usage = quota_usage(db, user_id=user_id)
+        user_reserved = _quota_reservations.get(user_id, 0)
+        global_reserved = sum(_quota_reservations.values())
+        if usage.user_daily_used + user_reserved + character_count > settings.tts_daily_uncached_characters:
+            raise TtsServiceError(
+                "Daily user TTS character quota exceeded",
+                status_code=429,
+                error_code="user_daily_quota_exceeded",
             )
-            .scalar()
-            or 0
-        )
-        reserved = _quota_reservations.get(user_id, 0)
-        if used + reserved + character_count > settings.tts_daily_uncached_characters:
-            raise TtsServiceError("Daily TTS character quota exceeded", status_code=429, error_code="quota_exceeded")
-        _quota_reservations[user_id] = reserved + character_count
+        if usage.global_daily_used + global_reserved + character_count > settings.tts_global_daily_uncached_characters:
+            raise TtsServiceError(
+                "Global daily TTS character quota exceeded",
+                status_code=429,
+                error_code="global_daily_quota_exceeded",
+            )
+        if (
+            usage.global_monthly_used + global_reserved + character_count
+            > settings.tts_global_monthly_uncached_characters
+        ):
+            raise TtsServiceError(
+                "Global monthly TTS character quota exceeded",
+                status_code=429,
+                error_code="global_monthly_quota_exceeded",
+            )
+        _quota_reservations[user_id] = user_reserved + character_count
 
 
 def release_quota(*, user_id: int, character_count: int) -> None:
@@ -473,6 +640,9 @@ def add_call_log(
     status: str,
     duration_ms: int,
     error_code: str = "",
+    provider_request_id: str = "",
+    upstream_status: int | None = None,
+    audio_bytes: int = 0,
 ) -> None:
     db.add(
         TtsCallLog(
@@ -484,6 +654,9 @@ def add_call_log(
             cache_hit=cache_hit,
             status=status,
             error_code=error_code,
+            provider_request_id=provider_request_id[:100],
+            upstream_status=upstream_status,
+            audio_bytes=max(0, audio_bytes),
             duration_ms=duration_ms,
         )
     )
@@ -524,6 +697,9 @@ async def synthesize(
     reserved = False
     gate: threading.BoundedSemaphore | None = None
     acquired = False
+    provider_request_id = ""
+    upstream_status: int | None = None
+    audio_bytes = 0
     try:
         reserve_quota(db, settings, user_id=user_id, character_count=character_count)
         reserved = True
@@ -534,13 +710,20 @@ async def synthesize(
         )
         if not acquired:
             raise TtsServiceError("TTS service is busy", status_code=429, error_code="concurrency_limit")
-        audio = await request_volcengine_audio(
+        provider_result = await request_volcengine_audio(
             settings,
             text=text,
             voice=voice,
             rate=rate,
             request_id=request_id,
         )
+        if isinstance(provider_result, bytes):
+            audio = provider_result
+        else:
+            audio = provider_result.audio
+            provider_request_id = provider_result.provider_request_id
+            upstream_status = provider_result.upstream_status
+        audio_bytes = len(audio)
         write_cached_audio(settings, cache_key, audio)
         duration_ms = max(0, int((time.perf_counter() - started_at) * 1000))
         add_call_log(
@@ -553,9 +736,14 @@ async def synthesize(
             cache_hit=False,
             status="success",
             duration_ms=duration_ms,
+            provider_request_id=provider_request_id,
+            upstream_status=upstream_status,
+            audio_bytes=audio_bytes,
         )
-        return SynthesisResult(cache_key, False, duration_ms, request_id, voice.descriptor)
+        return SynthesisResult(cache_key, False, duration_ms, provider_request_id or request_id, voice.descriptor)
     except TtsServiceError as exc:
+        provider_request_id = exc.provider_request_id or provider_request_id
+        upstream_status = exc.upstream_status if exc.upstream_status is not None else upstream_status
         duration_ms = max(0, int((time.perf_counter() - started_at) * 1000))
         add_call_log(
             db,
@@ -568,6 +756,9 @@ async def synthesize(
             status="failed",
             duration_ms=duration_ms,
             error_code=exc.error_code,
+            provider_request_id=provider_request_id,
+            upstream_status=upstream_status,
+            audio_bytes=audio_bytes,
         )
         raise
     finally:

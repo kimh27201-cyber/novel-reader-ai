@@ -5,15 +5,23 @@ from app.api.auth import get_current_user
 from app.core.config import get_settings
 from app.db.session import get_db
 from app.models.models import User
-from app.schemas.tts import TtsSynthesizeRequest, TtsSynthesizeResponse, TtsVoicesResponse
+from app.schemas.tts import (
+    TtsQuotaStatus,
+    TtsStatusResponse,
+    TtsSynthesizeRequest,
+    TtsSynthesizeResponse,
+    TtsVoicesResponse,
+)
 from app.services.tts_service import (
     TtsServiceError,
     cached_audio_path,
     cloud_tts_available,
     configured_voices,
     make_audio_ticket,
+    quota_usage,
     synthesize,
     validate_audio_ticket,
+    verified_voice_times,
 )
 
 
@@ -25,17 +33,77 @@ def raise_http_error(exc: TtsServiceError) -> None:
 
 
 @router.get("/voices", response_model=TtsVoicesResponse)
-def list_tts_voices(current_user: User = Depends(get_current_user)) -> TtsVoicesResponse:
+def list_tts_voices(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> TtsVoicesResponse:
     del current_user
     settings = get_settings()
     try:
-        voices = [voice.descriptor for voice in configured_voices(settings)]
+        voice_configs = configured_voices(settings)
     except TtsServiceError as exc:
         raise_http_error(exc)
+    configured = cloud_tts_available(settings)
+    verified = verified_voice_times(db, {voice.descriptor.id for voice in voice_configs})
+    voices = [
+        voice.descriptor.model_copy(
+            update={
+                "available": configured and voice.descriptor.id in verified,
+                "verified": voice.descriptor.id in verified,
+                "unavailable_reason": (
+                    ""
+                    if configured and voice.descriptor.id in verified
+                    else "not_configured"
+                    if not configured
+                    else "not_verified"
+                ),
+            }
+        )
+        for voice in voice_configs
+    ]
     return TtsVoicesResponse(
         provider="volcengine",
-        available=cloud_tts_available(settings) and bool(voices),
+        available=any(voice.available for voice in voices),
         voices=voices,
+    )
+
+
+@router.get("/status", response_model=TtsStatusResponse)
+def get_tts_status(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> TtsStatusResponse:
+    settings = get_settings()
+    try:
+        voice_configs = configured_voices(settings)
+    except TtsServiceError as exc:
+        raise_http_error(exc)
+    verified = verified_voice_times(db, {voice.descriptor.id for voice in voice_configs})
+    usage = quota_usage(db, user_id=current_user.id)
+    last_verified_at = max(verified.values()).isoformat() if verified else None
+    return TtsStatusResponse(
+        enabled=settings.tts_enabled,
+        configured=cloud_tts_available(settings),
+        last_verified_at=last_verified_at,
+        verified_voice_count=len(verified),
+        total_voice_count=len(voice_configs),
+        quota=TtsQuotaStatus(
+            user_daily_limit=settings.tts_daily_uncached_characters,
+            user_daily_used=usage.user_daily_used,
+            user_daily_remaining=max(0, settings.tts_daily_uncached_characters - usage.user_daily_used),
+            global_daily_limit=settings.tts_global_daily_uncached_characters,
+            global_daily_used=usage.global_daily_used,
+            global_daily_remaining=max(
+                0,
+                settings.tts_global_daily_uncached_characters - usage.global_daily_used,
+            ),
+            global_monthly_limit=settings.tts_global_monthly_uncached_characters,
+            global_monthly_used=usage.global_monthly_used,
+            global_monthly_remaining=max(
+                0,
+                settings.tts_global_monthly_uncached_characters - usage.global_monthly_used,
+            ),
+        ),
     )
 
 

@@ -2,7 +2,9 @@ import assert from 'node:assert/strict'
 import { createApiClient } from '../common/apiClient.js'
 
 function createStorage() {
-  const values = new Map()
+  const values = new Map([
+    ['novelReaderBackendBaseUrl', 'http://127.0.0.1:8000']
+  ])
   return {
     getStorageSync(key) {
       return values.get(key) || ''
@@ -51,6 +53,66 @@ async function testLoginStoresToken() {
   assert.equal(calls[0].url, 'http://127.0.0.1:8000/api/auth/login')
   assert.equal(calls[0].method, 'POST')
   assert.deepEqual(calls[0].data, { username: 'student', password: 'secret123' })
+}
+
+async function testDefaultBaseUrlUsesConflictFreePort() {
+  const calls = []
+  const client = createApiClient({
+    getStorageSync() {
+      return ''
+    },
+    setStorageSync() {},
+    removeStorageSync() {},
+    request(options) {
+      calls.push(options)
+      options.success({ statusCode: 200, data: { status: 'ok', app: 'Novel Reader AI Backend' } })
+    }
+  })
+  await client.healthCheck()
+  assert.equal(calls[0].url, 'http://127.0.0.1:8765/api/health')
+}
+
+async function testHBuilderLegacyBaseUrlMigratesOnce() {
+  const values = new Map([
+    ['novelReaderBackendBaseUrl', 'http://127.0.0.1:8000']
+  ])
+  const client = createApiClient({
+    getStorageSync(key) {
+      return values.get(key) || ''
+    },
+    setStorageSync(key, value) {
+      values.set(key, value)
+    },
+    removeStorageSync(key) {
+      values.delete(key)
+    },
+    isHBuilderDebugRuntime() {
+      return true
+    },
+    request(options) {
+      options.success({
+        statusCode: 200,
+        data: { status: 'ok', app: 'Novel Reader AI Backend' }
+      })
+    }
+  })
+  assert.equal(client.getBaseUrl(), 'http://127.0.0.1:8765')
+  assert.equal(values.get('novelReaderBackendBaseUrl'), 'http://127.0.0.1:8765')
+  assert.equal(client.getDiagnostics().filter(entry => entry.event === 'base-url-migrate').length, 1)
+}
+
+async function testUnexpectedSuccessBodyIsRejected() {
+  const { client } = createClient(() => ({
+    statusCode: 200,
+    data: '404'
+  }))
+  await assert.rejects(
+    () => client.healthCheck(),
+    error => error.statusCode === 502 &&
+      error.data &&
+      error.data.error &&
+      error.data.error.code === 'unexpected_backend_response'
+  )
 }
 
 async function testLoginParsesStringJsonResponse() {
@@ -175,15 +237,20 @@ async function testAIHistoryRoutesUseFilters() {
 }
 
 async function testBaseUrlWhitespaceIsNormalized() {
-  const { client, calls } = createClient(() => ({
+  const { client, calls } = createClient(options => ({
     statusCode: 200,
-    data: { status: 'ok' }
+    data: options.url.endsWith('/ready')
+      ? { status: 'ok', database: 'ready', migration: '0007' }
+      : { status: 'ok', app: 'Novel Reader AI Backend' }
   }))
 
   assert.equal(client.setBaseUrl(' http://127.0.0.1: 8000/// '), 'http://127.0.0.1:8000')
   await client.healthCheck()
+  await client.readinessCheck()
 
   assert.equal(calls[0].url, 'http://127.0.0.1:8000/api/health')
+  assert.equal(calls[1].url, 'http://127.0.0.1:8000/api/health/ready')
+  assert.equal(calls[1].header.Authorization, undefined)
 }
 
 async function testLibraryAndReadingHistoryRoutes() {
@@ -268,6 +335,20 @@ async function testSourceRoutes() {
   })
   assert.equal(calls[8].method, 'DELETE')
   assert.equal(calls[8].url, 'http://127.0.0.1:8000/api/sources/5/session')
+}
+
+async function testSourceContentRejectsMissingChapterUrlBeforeRequest() {
+  const { client, calls } = createClient(() => ({
+    statusCode: 200,
+    data: {}
+  }))
+  client.setToken('token-abc')
+
+  assert.throws(
+    () => client.loadSourceContent(5, { chapterUrl: '' }),
+    /章节地址缺失/
+  )
+  assert.equal(calls.length, 0)
 }
 
 async function testProxyFetchUsesBackendProxyRoute() {
@@ -390,12 +471,27 @@ async function testBackendV2ContractRoutes() {
 }
 
 async function testTtsContractRoutes() {
-  const { client, calls } = createClient(() => ({
-    statusCode: 200,
-    data: { voices: [] }
-  }))
+  const { client, calls } = createClient(options => {
+    if (options.url.endsWith('/api/tts/status')) {
+      return {
+        statusCode: 200,
+        data: { enabled: true, configured: true, verified_voice_count: 5 }
+      }
+    }
+    if (options.url.endsWith('/api/tts/voices')) {
+      return {
+        statusCode: 200,
+        data: { provider: 'volcengine', available: true, voices: [] }
+      }
+    }
+    return {
+      statusCode: 200,
+      data: { audio_url: '/api/tts/audio/cache?ticket=signed' }
+    }
+  })
   client.setToken('token-abc')
 
+  await client.getTtsStatus()
   await client.listTtsVoices()
   await client.synthesizeTts({
     text: '云端试听文案',
@@ -404,15 +500,16 @@ async function testTtsContractRoutes() {
   })
 
   assert.deepEqual(calls.map(call => [call.method, call.url]), [
+    ['GET', 'http://127.0.0.1:8000/api/tts/status'],
     ['GET', 'http://127.0.0.1:8000/api/tts/voices'],
     ['POST', 'http://127.0.0.1:8000/api/tts/synthesize']
   ])
-  assert.deepEqual(calls[1].data, {
+  assert.deepEqual(calls[2].data, {
     text: '云端试听文案',
     voice_id: 'loli',
     rate: 1.2
   })
-  assert.equal(calls[1].header.Authorization, 'Bearer token-abc')
+  assert.equal(calls[2].header.Authorization, 'Bearer token-abc')
 }
 
 async function testUnauthorizedClearsToken() {
@@ -459,6 +556,9 @@ async function testPromiseRequestAdapterIsSupported() {
   assert.deepEqual(result, { username: 'student' })
 }
 
+await testDefaultBaseUrlUsesConflictFreePort()
+await testHBuilderLegacyBaseUrlMigratesOnce()
+await testUnexpectedSuccessBodyIsRejected()
 await testLoginStoresToken()
 await testLoginParsesStringJsonResponse()
 await testLoginCanReadTokenFromResponseHeader()
@@ -470,6 +570,7 @@ await testSummaryAndChatUseBackendRoutes()
 await testAIHistoryRoutesUseFilters()
 await testLibraryAndReadingHistoryRoutes()
 await testSourceRoutes()
+await testSourceContentRejectsMissingChapterUrlBeforeRequest()
 await testProxyFetchUsesBackendProxyRoute()
 await testUnauthorizedRefreshesAndRetriesOnce()
 await testLogoutRevokesAndClearsTokenPair()

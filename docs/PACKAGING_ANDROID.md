@@ -8,7 +8,7 @@
 
 ```powershell
 cd D:\Codex\novel-reader-uniapp\backend
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8765
 ```
 
 2. 手机和电脑连接同一局域网，在 App “我的”页填写 `http://电脑局域网IP:8000`。

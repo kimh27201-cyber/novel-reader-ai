@@ -88,8 +88,12 @@ def expected_migration_head() -> str:
 @app.get("/api/health/ready")
 def readiness_check() -> dict[str, str]:
     try:
-        with engine.connect() as connection:
+        with engine.begin() as connection:
             database_version = connection.execute(text("SELECT version_num FROM alembic_version")).scalar_one_or_none()
+            # The application is not ready when SQLite can only be read. A
+            # no-op update exercises the real write path without changing the
+            # migration value or business data.
+            connection.execute(text("UPDATE alembic_version SET version_num = version_num"))
         migration_head = expected_migration_head()
     except Exception as exc:
         raise HTTPException(status_code=503, detail="Database is not ready") from exc
@@ -102,7 +106,12 @@ def readiness_check() -> dict[str, str]:
                 "expected_version": migration_head,
             },
         )
-    return {"status": "ok", "database": "ready", "migration": migration_head}
+    return {
+        "status": "ok",
+        "app": settings.app_name,
+        "database": "ready",
+        "migration": migration_head,
+    }
 
 
 app.include_router(auth_router)

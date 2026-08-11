@@ -289,7 +289,21 @@ def select_values(input_value: Any, selector: str) -> list[str]:
     results: list[str] = []
     for fragment in as_list(input_value):
         soup = BeautifulSoup(str(fragment or ""), "html.parser")
-        results.extend(str(item) for item in soup.select(selector))
+        text_match = re.fullmatch(r"text\.(.+)", selector.strip(), flags=re.DOTALL)
+        if text_match:
+            expected = clean_text(text_match.group(1))
+            candidates = [
+                item for item in soup.find_all(True)
+                if clean_text(item.get_text(" ", strip=True)) == expected
+            ]
+            results.extend(str(item) for item in candidates)
+            continue
+        normalized_selector = re.sub(
+            r"(?<=[A-Za-z0-9_\-])\.(\d+)(?=\s|$|[>+~])",
+            lambda match: f":nth-of-type({int(match.group(1)) + 1})",
+            selector,
+        )
+        results.extend(str(item) for item in soup.select(normalized_selector))
     return results
 
 

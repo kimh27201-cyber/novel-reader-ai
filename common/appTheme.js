@@ -1,6 +1,11 @@
 const APP_THEME_KEY = 'app:theme'
 const DEFAULT_THEME_ID = 'xuanye'
 
+let themeMorphToken = 0
+let themeMorphCleanupTimer = null
+let themeMorphPulse = 0
+let activeThemeViewTransition = null
+
 const themeDefinitions = [
   {
     id: 'xuanye',
@@ -37,7 +42,15 @@ const themeDefinitions = [
       '--app-cover-radius': '10rpx',
       '--app-card-outline': 'inset 0 1rpx 0 rgba(103, 255, 242, 0.10)',
       '--app-motion-ease': 'cubic-bezier(0.18, 0.78, 0.24, 1)',
-      '--app-reader-texture': 'linear-gradient(90deg, rgba(103, 255, 242, 0.035) 1rpx, transparent 1rpx) 0 0 / 32rpx 32rpx'
+      '--app-reader-texture': 'linear-gradient(90deg, rgba(103, 255, 242, 0.035) 1rpx, transparent 1rpx) 0 0 / 32rpx 32rpx',
+      '--app-voice-stage-decoration': 'repeating-linear-gradient(0deg, transparent, transparent 3rpx, rgba(103, 255, 242, 0.04) 3rpx, rgba(103, 255, 242, 0.04) 4rpx)',
+      '--app-voice-stage-glow': 'rgba(103, 255, 242, 0.12)',
+      '--app-voice-card-shape': 'var(--app-card-radius)',
+      '--app-voice-card-outline': 'none',
+      '--app-voice-selected-style': 'cursor',
+      '--app-voice-label-font': 'var(--app-display-font)',
+      '--app-voice-preview-ease': 'cubic-bezier(0.2, 0.9, 0.3, 1.1)',
+      '--app-voice-card-stagger': '45ms'
     }
   },
   {
@@ -186,7 +199,15 @@ const themeDefinitions = [
       '--app-card-outline': '4rpx 5rpx 0 rgba(255, 122, 89, 0.18)',
       '--app-motion-ease': 'cubic-bezier(0.34, 1.56, 0.64, 1)',
       '--app-motif-opacity': '0.32',
-      '--app-reader-texture': 'radial-gradient(circle at 18rpx 18rpx, rgba(85, 199, 232, 0.12) 0 2rpx, transparent 3rpx) 0 0 / 44rpx 44rpx'
+      '--app-reader-texture': 'radial-gradient(circle at 18rpx 18rpx, rgba(85, 199, 232, 0.12) 0 2rpx, transparent 3rpx) 0 0 / 44rpx 44rpx',
+      '--app-voice-stage-decoration': 'radial-gradient(circle at 30% 30%, rgba(255, 211, 78, 0.18) 0 6rpx, transparent 7rpx), radial-gradient(circle at 80% 70%, rgba(85, 199, 232, 0.16) 0 5rpx, transparent 6rpx), radial-gradient(circle at 15% 85%, rgba(255, 122, 89, 0.14) 0 4rpx, transparent 5rpx)',
+      '--app-voice-stage-glow': 'rgba(255, 122, 89, 0.16)',
+      '--app-voice-card-shape': '32% 68% 56% 44% / 38% 42% 58% 62%',
+      '--app-voice-card-outline': '3rpx 4rpx 0 rgba(255, 122, 89, 0.22)',
+      '--app-voice-selected-style': 'sticker',
+      '--app-voice-label-font': 'var(--app-display-font)',
+      '--app-voice-preview-ease': 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+      '--app-voice-card-stagger': '65ms'
     }
   },
   {
@@ -228,7 +249,15 @@ const themeDefinitions = [
       '--app-card-outline': 'inset 0 1rpx 0 rgba(255, 255, 255, 0.78)',
       '--app-motion-ease': 'cubic-bezier(0.22, 0.76, 0.32, 1)',
       '--app-motif-opacity': '0.28',
-      '--app-reader-texture': 'linear-gradient(135deg, rgba(233, 122, 174, 0.04), transparent 36%), linear-gradient(45deg, transparent 0 49%, rgba(165, 139, 231, 0.05) 50% 51%, transparent 52%)'
+      '--app-reader-texture': 'linear-gradient(135deg, rgba(233, 122, 174, 0.04), transparent 36%), linear-gradient(45deg, transparent 0 49%, rgba(165, 139, 231, 0.05) 50% 51%, transparent 52%)',
+      '--app-voice-stage-decoration': 'radial-gradient(ellipse at 25% 30%, rgba(233, 122, 174, 0.14), transparent 50%), radial-gradient(ellipse at 80% 70%, rgba(165, 139, 231, 0.10), transparent 50%)',
+      '--app-voice-stage-glow': 'rgba(233, 122, 174, 0.18)',
+      '--app-voice-card-shape': '26rpx',
+      '--app-voice-card-outline': 'inset 0 1rpx 0 rgba(255, 255, 255, 0.72)',
+      '--app-voice-selected-style': 'petal',
+      '--app-voice-label-font': '"Noto Serif SC", "STSong", "SimSun", "PingFang SC", serif',
+      '--app-voice-preview-ease': 'cubic-bezier(0.4, 0, 0.2, 1)',
+      '--app-voice-card-stagger': '55ms'
     }
   },
   {
@@ -270,7 +299,15 @@ const themeDefinitions = [
       '--app-card-outline': '0 0 0 1rpx rgba(52, 214, 255, 0.10)',
       '--app-motion-ease': 'cubic-bezier(0.16, 0.84, 0.28, 1)',
       '--app-motif-opacity': '0.30',
-      '--app-reader-texture': 'linear-gradient(rgba(52, 214, 255, 0.035) 1rpx, transparent 1rpx) 0 0 / 32rpx 32rpx, linear-gradient(90deg, rgba(52, 214, 255, 0.035) 1rpx, transparent 1rpx) 0 0 / 32rpx 32rpx'
+      '--app-reader-texture': 'linear-gradient(rgba(52, 214, 255, 0.035) 1rpx, transparent 1rpx) 0 0 / 32rpx 32rpx, linear-gradient(90deg, rgba(52, 214, 255, 0.035) 1rpx, transparent 1rpx) 0 0 / 32rpx 32rpx',
+      '--app-voice-stage-decoration': 'linear-gradient(rgba(52, 214, 255, 0.06) 1rpx, transparent 1rpx) 0 0 / 28rpx 28rpx, linear-gradient(90deg, rgba(52, 214, 255, 0.06) 1rpx, transparent 1rpx) 0 0 / 28rpx 28rpx',
+      '--app-voice-stage-glow': 'rgba(52, 214, 255, 0.14)',
+      '--app-voice-card-shape': '4rpx',
+      '--app-voice-card-outline': 'none',
+      '--app-voice-selected-style': 'bracket',
+      '--app-voice-label-font': 'var(--app-utility-font)',
+      '--app-voice-preview-ease': 'linear',
+      '--app-voice-card-stagger': '30ms'
     }
   },
   {
@@ -312,7 +349,15 @@ const themeDefinitions = [
       '--app-card-outline': 'inset 0 0 0 1rpx rgba(242, 226, 181, 0.08)',
       '--app-motion-ease': 'cubic-bezier(0.26, 0.68, 0.34, 1)',
       '--app-motif-opacity': '0.24',
-      '--app-reader-texture': 'linear-gradient(90deg, rgba(213, 175, 98, 0.025) 1rpx, transparent 1rpx) 0 0 / 52rpx 52rpx'
+      '--app-reader-texture': 'linear-gradient(90deg, rgba(213, 175, 98, 0.025) 1rpx, transparent 1rpx) 0 0 / 52rpx 52rpx',
+      '--app-voice-stage-decoration': 'radial-gradient(circle at 50% 50%, rgba(213, 175, 98, 0.05) 0 1rpx, transparent 2rpx) 0 0 / 16rpx 16rpx',
+      '--app-voice-stage-glow': 'rgba(213, 175, 98, 0.12)',
+      '--app-voice-card-shape': '10rpx',
+      '--app-voice-card-outline': 'inset 0 0 0 1rpx rgba(242, 226, 181, 0.10)',
+      '--app-voice-selected-style': 'diamond',
+      '--app-voice-label-font': '"Noto Serif SC", "STSong", "SimSun", "PingFang SC", serif',
+      '--app-voice-preview-ease': 'cubic-bezier(0.6, 0, 0.4, 1)',
+      '--app-voice-card-stagger': '55ms'
     }
   }
 ]
@@ -453,9 +498,80 @@ export function getAppThemeStyle(themeId = getAppThemeId()) {
   return theme.vars
 }
 
+function resolveRuntimeRpx(value) {
+  if (typeof value !== 'string' || !value.includes('rpx')) return value
+
+  return value.replace(/(-?\d+(?:\.\d+)?)rpx/g, (_, amount) => {
+    const numericAmount = Number(amount)
+    let pixels = numericAmount / 2
+
+    try {
+      if (typeof uni !== 'undefined' && typeof uni.upx2px === 'function') {
+        pixels = uni.upx2px(numericAmount)
+      } else if (typeof window !== 'undefined' && Number(window.innerWidth) > 0) {
+        pixels = numericAmount * Number(window.innerWidth) / 750
+      }
+    } catch (error) {
+      pixels = numericAmount / 2
+    }
+
+    const rounded = Math.round(pixels * 1000) / 1000
+    return `${rounded}px`
+  })
+}
+
+export function getAppThemeRuntimeStyle(themeId = getAppThemeId()) {
+  const vars = getAppThemeStyle(themeId)
+  return Object.keys(vars).reduce((resolved, key) => {
+    resolved[key] = resolveRuntimeRpx(vars[key])
+    return resolved
+  }, {})
+}
+
 export function getAppThemeChrome(themeId = getAppThemeId()) {
   const theme = appThemes.find(item => item.id === themeId) || appThemes[0]
   return theme.chrome
+}
+
+function getNativeLaunchBridge() {
+  try {
+    return typeof globalThis !== 'undefined' && globalThis.NovelReaderLaunch
+      ? globalThis.NovelReaderLaunch
+      : null
+  } catch (error) {
+    return null
+  }
+}
+
+export function syncAppThemeToNative(themeId = getAppThemeId()) {
+  const next = appThemes.some(theme => theme.id === themeId) ? themeId : DEFAULT_THEME_ID
+  try {
+    const bridge = getNativeLaunchBridge()
+    if (!bridge || typeof bridge.saveTheme !== 'function') return false
+    bridge.saveTheme(next)
+    return true
+  } catch (error) {
+    return false
+  }
+}
+
+export function primeAppTheme(themeId = getAppThemeId()) {
+  const next = appThemes.some(theme => theme.id === themeId) ? themeId : DEFAULT_THEME_ID
+  applyAppThemeDocumentStyle(next)
+  syncAppThemeToNative(next)
+  return next
+}
+
+export function notifyAppFirstPaint(themeId = getAppThemeId()) {
+  const next = appThemes.some(theme => theme.id === themeId) ? themeId : DEFAULT_THEME_ID
+  try {
+    const bridge = getNativeLaunchBridge()
+    if (!bridge || typeof bridge.ready !== 'function') return false
+    bridge.ready(next)
+    return true
+  } catch (error) {
+    return false
+  }
 }
 
 export function applyAppThemeDocumentStyle(themeId = getAppThemeId()) {
@@ -472,6 +588,7 @@ export function applyAppThemeDocumentStyle(themeId = getAppThemeId()) {
 export function applyAppThemeChrome(themeId = getAppThemeId()) {
   const chrome = getAppThemeChrome(themeId)
   applyAppThemeDocumentStyle(themeId)
+  syncAppThemeToNative(themeId)
   try {
     if (typeof uni !== 'undefined' && typeof uni.$emit === 'function') {
       uni.$emit('app:theme-changed', themeId)
@@ -505,5 +622,179 @@ export function previewAppTheme(themeId) {
 export function saveAppTheme(themeId) {
   const next = appThemes.some(theme => theme.id === themeId) ? themeId : DEFAULT_THEME_ID
   uni.setStorageSync(APP_THEME_KEY, next)
+  syncAppThemeToNative(next)
+  return next
+}
+
+function isThemeMorphReduced() {
+  try {
+    if (typeof document !== 'undefined' && document.documentElement) {
+      return document.documentElement.getAttribute('data-app-motion') === 'reduced'
+    }
+    return typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+      ? window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      : false
+  } catch (error) {
+    return false
+  }
+}
+
+function isThemeMorphLite() {
+  try {
+    return typeof document !== 'undefined' && document.documentElement
+      ? document.documentElement.getAttribute('data-app-performance') === 'lite'
+      : false
+  } catch (error) {
+    return false
+  }
+}
+
+function clearThemeMorphTimer() {
+  if (themeMorphCleanupTimer) {
+    clearTimeout(themeMorphCleanupTimer)
+    themeMorphCleanupTimer = null
+  }
+}
+
+function clearThemeMorphDocumentState() {
+  try {
+    if (typeof document === 'undefined' || !document.documentElement) return
+    const root = document.documentElement
+    root.classList.remove('app-theme-morphing')
+    root.classList.remove('app-theme-morph-fallback-a')
+    root.classList.remove('app-theme-morph-fallback-b')
+    root.style.removeProperty('--app-theme-morph-duration')
+  } catch (error) {}
+}
+
+function emitThemeMorphEvent(name, payload) {
+  try {
+    if (typeof uni !== 'undefined' && typeof uni.$emit === 'function') {
+      uni.$emit(name, payload)
+    }
+  } catch (error) {}
+}
+
+function commitTheme(next, options, token) {
+  if (token !== themeMorphToken) return Promise.resolve()
+
+  let commitResult
+  try {
+    if (typeof options.commit === 'function') commitResult = options.commit(next)
+  } catch (error) {
+    commitResult = Promise.reject(error)
+  }
+
+  if (options.persist === true) {
+    applyAppThemeChrome(next)
+  } else {
+    applyAppThemeDocumentStyle(next)
+    emitThemeMorphEvent('app:theme-preview', next)
+  }
+
+  return Promise.resolve(commitResult).catch(() => undefined)
+}
+
+function finishThemeMorph(token, payload) {
+  if (token !== themeMorphToken) return
+  clearThemeMorphTimer()
+  activeThemeViewTransition = null
+  clearThemeMorphDocumentState()
+  emitThemeMorphEvent('app:theme-morph-complete', payload)
+}
+
+export function cancelAppThemeMorph() {
+  themeMorphToken += 1
+  clearThemeMorphTimer()
+  if (activeThemeViewTransition && typeof activeThemeViewTransition.skipTransition === 'function') {
+    try {
+      activeThemeViewTransition.skipTransition()
+    } catch (error) {}
+  }
+  activeThemeViewTransition = null
+  clearThemeMorphDocumentState()
+  return themeMorphToken
+}
+
+export function morphAppTheme(themeId, options = {}) {
+  const next = appThemes.some(theme => theme.id === themeId) ? themeId : DEFAULT_THEME_ID
+  const persist = options.persist === true
+  const preview = options.preview === true || (!persist && options.preview !== false)
+  const animate = options.animate !== false
+  const reduced = options.reduced === true || isThemeMorphReduced()
+  const lite = isThemeMorphLite()
+  const supportsViewTransition = !reduced && !lite && typeof document !== 'undefined' &&
+    typeof document.startViewTransition === 'function'
+  const engine = reduced || lite ? 'reduced' : (supportsViewTransition ? 'view-transition' : 'fallback')
+  const defaultDuration = engine === 'view-transition' ? 220 : (engine === 'fallback' ? 120 : 80)
+  const minDuration = engine === 'view-transition' ? 180 : (engine === 'fallback' ? 80 : 1)
+  const maxDuration = engine === 'view-transition' ? 240 : (engine === 'fallback' ? 120 : 80)
+  const duration = Math.max(minDuration, Math.min(maxDuration, Number(options.duration) || defaultDuration))
+  const token = cancelAppThemeMorph() + 1
+  themeMorphToken = token
+
+  if (persist) {
+    try {
+      uni.setStorageSync(APP_THEME_KEY, next)
+    } catch (error) {}
+  }
+
+  const payload = { themeId: next, duration: animate ? duration : 0, persist, preview, engine }
+
+  if (!animate) {
+    commitTheme(next, { ...options, persist }, token)
+    return next
+  }
+
+  try {
+    if (typeof document !== 'undefined' && document.documentElement) {
+      const root = document.documentElement
+      root.style.setProperty('--app-theme-morph-duration', `${duration}ms`)
+      root.classList.add('app-theme-morphing')
+    }
+  } catch (error) {}
+
+  if (supportsViewTransition) {
+    try {
+      const transition = document.startViewTransition(() => commitTheme(next, { ...options, persist }, token))
+      activeThemeViewTransition = transition
+      emitThemeMorphEvent('app:theme-morph-start', payload)
+      if (transition && transition.ready && typeof transition.ready.catch === 'function') {
+        transition.ready.catch(() => undefined)
+      }
+      const finished = transition && transition.finished
+        ? Promise.resolve(transition.finished).catch(() => undefined)
+        : Promise.resolve()
+      themeMorphCleanupTimer = setTimeout(() => finishThemeMorph(token, payload), duration + 160)
+      finished.then(() => finishThemeMorph(token, payload))
+      return next
+    } catch (error) {
+      activeThemeViewTransition = null
+      payload.engine = 'fallback'
+      payload.duration = Math.min(120, duration)
+    }
+  }
+
+  const fallbackClass = themeMorphPulse % 2 === 0
+    ? 'app-theme-morph-fallback-a'
+    : 'app-theme-morph-fallback-b'
+  const previousFallbackClass = fallbackClass === 'app-theme-morph-fallback-a'
+    ? 'app-theme-morph-fallback-b'
+    : 'app-theme-morph-fallback-a'
+  themeMorphPulse += 1
+  try {
+    document.documentElement.style.setProperty('--app-theme-morph-duration', `${payload.duration}ms`)
+  } catch (error) {}
+  emitThemeMorphEvent('app:theme-morph-start', payload)
+  commitTheme(next, { ...options, persist }, token).then(() => {
+    if (token !== themeMorphToken) return
+    try {
+      const root = document.documentElement
+      root.classList.remove(previousFallbackClass)
+      root.classList.add(fallbackClass)
+    } catch (error) {}
+    themeMorphCleanupTimer = setTimeout(() => finishThemeMorph(token, payload), payload.duration + 16)
+  })
+
   return next
 }

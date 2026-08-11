@@ -96,3 +96,20 @@ def test_resolve_target_pins_the_validated_address(monkeypatch):
     assert target.request_url == "https://93.184.216.34:8443/path?q=1"
     assert target.host_header == "example.com:8443"
     assert target.sni_hostname == "example.com"
+
+
+def test_http_client_ignores_environment_proxy(monkeypatch):
+    captured = {}
+
+    class FakeClient:
+        is_closed = False
+
+    def fake_async_client(**kwargs):
+        captured.update(kwargs)
+        return FakeClient()
+
+    monkeypatch.setattr(source_gateway, "_client", None)
+    monkeypatch.setattr(source_gateway.httpx, "AsyncClient", fake_async_client)
+
+    assert source_gateway.get_http_client().__class__ is FakeClient
+    assert captured["trust_env"] is False

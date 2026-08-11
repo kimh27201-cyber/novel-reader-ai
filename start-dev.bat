@@ -5,10 +5,11 @@ chcp 65001 >nul
 set "ROOT=%~dp0"
 set "BACKEND_DIR=%ROOT%backend"
 set "PYTHON=%BACKEND_DIR%\.venv\Scripts\python.exe"
+set "BACKEND_STARTER=%ROOT%scripts\start_backend_detached.py"
 set "DEFAULT_ADB=D:\program\Android\SDK\platform-tools\adb.exe"
 set "ADB="
-set "BACKEND_URL=http://127.0.0.1:8000"
-set "HEALTH_URL=%BACKEND_URL%/api/health"
+set "BACKEND_URL=http://127.0.0.1:8765"
+set "HEALTH_URL=%BACKEND_URL%/api/health/ready"
 
 echo.
 echo ========================================
@@ -36,6 +37,13 @@ if not exist "%PYTHON%" (
   goto :finish
 )
 
+if not exist "%BACKEND_STARTER%" (
+  echo.
+  echo [ERROR] Persistent backend starter not found: %BACKEND_STARTER%
+  echo.
+  goto :finish
+)
+
 if exist "%DEFAULT_ADB%" (
   set "ADB=%DEFAULT_ADB%"
 ) else (
@@ -54,8 +62,14 @@ if not defined ADB (
 echo [1/4] Checking FastAPI backend...
 call :healthcheck
 if errorlevel 1 (
-  echo Backend is not running. Starting FastAPI in a new window...
-  start "Novel Reader FastAPI" /D "%BACKEND_DIR%" "%PYTHON%" -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
+  echo Backend is not ready. Starting persistent FastAPI process...
+  "%PYTHON%" "%BACKEND_STARTER%" --port 8765
+  if errorlevel 1 (
+    echo.
+    echo [ERROR] Persistent backend starter failed. Check logs\uvicorn.err.log.
+    echo.
+    goto :finish
+  )
   call :wait_health
   if errorlevel 1 (
     echo.
@@ -121,19 +135,11 @@ if not defined DEVICE (
 echo Device ready: %DEVICE%
 
 echo.
-echo [4/4] Rebuilding adb reverse tcp:8000...
-"%ADB%" reverse --remove-all
+echo [4/4] Ensuring adb reverse tcp:8765...
+"%ADB%" reverse tcp:8765 tcp:8765
 if errorlevel 1 (
   echo.
-  echo [ERROR] adb reverse --remove-all failed.
-  echo.
-  goto :finish
-)
-
-"%ADB%" reverse tcp:8000 tcp:8000
-if errorlevel 1 (
-  echo.
-  echo [ERROR] adb reverse tcp:8000 tcp:8000 failed.
+  echo [ERROR] adb reverse tcp:8765 tcp:8765 failed.
   echo.
   goto :finish
 )
@@ -141,7 +147,7 @@ if errorlevel 1 (
 echo.
 echo Current adb reverse list:
 "%ADB%" reverse --list
-powershell -NoProfile -ExecutionPolicy Bypass -Command "$adb = '%ADB%'; for ($i = 1; $i -le 3; $i++) { $list = & $adb reverse --list; if ($list -match 'tcp:8000\s+tcp:8000') { Write-Host 'Reverse confirmed: tcp:8000 tcp:8000'; exit 0 }; Write-Host \"Reverse missing after adb restart, rebuilding... $i/3\"; & $adb reverse tcp:8000 tcp:8000 | Out-Host; Start-Sleep -Seconds 1 }; Write-Host '[WARN] Reverse was not confirmed. Check USB debugging and run start-dev.bat again.'; exit 1"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "$adb = '%ADB%'; for ($i = 1; $i -le 3; $i++) { $list = & $adb reverse --list; if ($list -match 'tcp:8765\s+tcp:8765') { Write-Host 'Reverse confirmed: tcp:8765 tcp:8765'; exit 0 }; Write-Host \"Reverse missing after adb restart, rebuilding... $i/3\"; & $adb reverse tcp:8765 tcp:8765 | Out-Host; Start-Sleep -Seconds 1 }; Write-Host '[WARN] Reverse was not confirmed. Check USB debugging and run start-dev.bat again.'; exit 1"
 echo.
 echo ========================================
 echo Ready.
@@ -151,7 +157,7 @@ echo ========================================
 goto :finish
 
 :healthcheck
-powershell -NoProfile -ExecutionPolicy Bypass -Command "try { $r = Invoke-RestMethod -Uri '%HEALTH_URL%' -TimeoutSec 2; if ($r.status -eq 'ok') { exit 0 }; exit 1 } catch { exit 1 }"
+powershell -NoProfile -ExecutionPolicy Bypass -Command "try { $r = Invoke-RestMethod -Uri '%HEALTH_URL%' -TimeoutSec 2; if ($r.status -eq 'ok' -and $r.app -like 'Novel Reader*' -and $r.database -eq 'ready' -and $r.migration) { exit 0 }; Write-Host '[ERROR] Backend is live but not ready.'; exit 1 } catch { exit 1 }"
 exit /b %ERRORLEVEL%
 
 :wait_health

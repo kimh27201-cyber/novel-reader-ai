@@ -11,6 +11,7 @@ from app.schemas.library import (
     ChapterContentUpdate,
     ChapterCreate,
     ChapterRead,
+    OfflineLibrarySnapshot,
     ReadingHistoryRead,
     ReadingHistoryUpsert,
 )
@@ -18,6 +19,23 @@ from app.services import library_service
 
 
 router = APIRouter(tags=["library"])
+
+
+@router.get("/api/library/offline-snapshot", response_model=OfflineLibrarySnapshot)
+def get_offline_snapshot(
+    book_offset: int = Query(default=0, ge=0),
+    book_limit: int = Query(default=20, ge=1, le=50),
+    include_cached_content: bool = Query(default=True),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    return library_service.build_offline_snapshot(
+        db,
+        user_id=current_user.id,
+        book_offset=book_offset,
+        book_limit=book_limit,
+        include_cached_content=include_cached_content,
+    )
 
 
 def get_owned_book(book_id: int, user_id: int, db: Session) -> Book:

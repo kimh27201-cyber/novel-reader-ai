@@ -29,8 +29,15 @@
           'is-swipe-preview': index === tabSwipePreviewIndex && index !== visualIndex
         }"
         :aria-label="item.label"
-        @tap="switchTab(index)"
+        @tap="switchTab(index, $event)"
       >
+        <view
+          class="tab-ripple"
+          v-if="rippleVisible && rippleIndex === index"
+          :key="rippleKey"
+          :style="rippleStyle"
+          aria-hidden="true"
+        ></view>
         <view class="glass-tabbar-icon-wrap">
           <image
             class="glass-tabbar-icon"
@@ -113,12 +120,18 @@ export default {
       tabSwipeVelocity: 0,
       tabSwipeOffset: 0,
       tabSwipeActive: false,
+      tabPressing: false,
       suppressTabTapUntil: 0,
       tabNavigating: false,
       tabNavigationTimer: null,
       themeId: getAppThemeId(),
       reduceMotion: false,
-      motionQuery: null
+      motionQuery: null,
+      rippleVisible: false,
+      rippleIndex: -1,
+      rippleX: 50,
+      rippleKey: 0,
+      rippleTimer: null
     }
   },
   computed: {
@@ -151,10 +164,11 @@ export default {
       return this.tabSwipeOffset > 0 ? 'right' : 'left'
     },
     lensScaleX() {
-      if (!this.tabSwipeActive) return 1
+      if (!this.tabSwipeActive) return this.tabPressing ? 0.94 : 1
       const windowWidth = this.getWindowWidth()
       const progress = windowWidth ? Math.abs(this.tabSwipeOffset) / windowWidth : 0
-      return (1 - Math.min(progress * 0.32, 0.08)).toFixed(4)
+      const velocity = Math.min(1, Math.abs(this.tabSwipeVelocity) / 1600)
+      return (1 + Math.min(progress * 0.22 + velocity * 0.07, 0.16)).toFixed(4)
     },
     lensPrismIntensity() {
       if (!this.tabSwipeActive) return 0
@@ -167,6 +181,11 @@ export default {
       const direction = this.tabSwipeOffset < 0 ? 1 : -1
       const targetIndex = this.visualIndex + direction
       return targetIndex >= 0 && targetIndex < this.tabs.length ? targetIndex : this.visualIndex
+    },
+    rippleStyle() {
+      return {
+        left: `${this.rippleX}%`
+      }
     }
   },
   created() {
@@ -198,6 +217,7 @@ export default {
     if (this.bounceTimer) clearTimeout(this.bounceTimer)
     if (this.tabCommitTimer) clearTimeout(this.tabCommitTimer)
     if (this.tabNavigationTimer) clearTimeout(this.tabNavigationTimer)
+    if (this.rippleTimer) clearTimeout(this.rippleTimer)
     if (this.unsubscribeTabNavigation) this.unsubscribeTabNavigation()
     if (this.motionQuery && typeof this.motionQuery.removeEventListener === 'function') {
       this.motionQuery.removeEventListener('change', this.handleMotionPreference)
@@ -244,9 +264,31 @@ export default {
       }
       this.applyTabNavigationState(markTabRouteShown(pagePath))
     },
-    switchTab(index) {
+    switchTab(index, event) {
+      this.triggerRipple(index, event)
       if (this.tabNavigating || Date.now() < this.suppressTabTapUntil) return
       this.navigateToTab(index)
+    },
+    triggerRipple(index, event) {
+      if (this.reduceMotion) return
+      const windowWidth = this.getWindowWidth()
+      const pageX = Number(event && event.detail && event.detail.x)
+      const segmentWidth = windowWidth / this.tabs.length
+      const localX = Number.isFinite(pageX)
+        ? ((pageX - index * segmentWidth) / segmentWidth) * 100
+        : 50
+      if (this.rippleTimer) clearTimeout(this.rippleTimer)
+      this.rippleVisible = false
+      this.rippleIndex = index
+      this.rippleX = Math.max(14, Math.min(86, localX))
+      this.rippleKey += 1
+      this.$nextTick(() => {
+        this.rippleVisible = true
+        this.rippleTimer = setTimeout(() => {
+          this.rippleVisible = false
+          this.rippleTimer = null
+        }, 420)
+      })
     },
     navigateToTab(index) {
       if (this.tabNavigating) return
@@ -349,6 +391,7 @@ export default {
       this.tabSwipeVelocity = 0
       this.tabSwipeOffset = 0
       this.tabSwipeActive = false
+      this.tabPressing = true
     },
     onTabSwipeMove(event) {
       if (!this.tabSwipeStartX && !this.tabSwipeStartY) return
@@ -410,6 +453,7 @@ export default {
       this.tabSwipeVelocity = 0
       this.tabSwipeOffset = 0
       this.tabSwipeActive = false
+      this.tabPressing = false
     },
     playPendingTabBounce() {
       if (pendingBounceIndex !== this.visualIndex) return
@@ -514,7 +558,7 @@ export default {
     inset 0 -1rpx 0 rgba(255, 255, 255, 0.12),
     0 8rpx 24rpx rgba(0, 0, 0, 0.12),
     0 0 0 1rpx rgba(255, 255, 255, 0.08);
-  transition: transform 160ms cubic-bezier(0.2, 0, 0, 1), opacity 120ms ease;
+  transition: transform 260ms cubic-bezier(0.34, 1.56, 0.64, 1), opacity 120ms ease;
   will-change: transform;
 }
 
@@ -591,6 +635,19 @@ export default {
   background: transparent;
 }
 
+.tab-ripple {
+  position: absolute;
+  z-index: 0;
+  top: 50%;
+  width: 24rpx;
+  height: 24rpx;
+  border-radius: 50%;
+  pointer-events: none;
+  background: radial-gradient(circle, color-mix(in srgb, var(--app-accent) 56%, transparent) 0%, color-mix(in srgb, var(--app-accent) 16%, transparent) 48%, transparent 72%);
+  transform: translate(-50%, -50%) scale(0.2);
+  animation: tab-ripple-expand 400ms cubic-bezier(0, 0, 0.2, 1) both;
+}
+
 .glass-tabbar-item::after {
   border: 0;
 }
@@ -613,6 +670,8 @@ export default {
 }
 
 .glass-tabbar-icon-wrap {
+  position: relative;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -621,6 +680,8 @@ export default {
 }
 
 .glass-tabbar-label {
+  position: relative;
+  z-index: 1;
   color: var(--app-muted);
   font-family: var(--app-utility-font);
   font-size: 20rpx;
@@ -724,10 +785,17 @@ export default {
   100% { transform: translateY(-2rpx) scale(1.08); }
 }
 
+@keyframes tab-ripple-expand {
+  0% { opacity: 0.58; transform: translate(-50%, -50%) scale(0.2); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(8); }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .glass-tabbar-indicator,
   .glass-tabbar-icon {
     transition-duration: 1ms;
   }
+
+  .tab-ripple { display: none; }
 }
 </style>

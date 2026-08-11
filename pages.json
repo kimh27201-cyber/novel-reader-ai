@@ -85,6 +85,13 @@
       }
     },
     {
+      "path": "pages/ttsAcceptance/ttsAcceptance",
+      "style": {
+        "navigationBarTitleText": "TTS 自动验收",
+        "navigationStyle": "custom"
+      }
+    },
+    {
       "path": "pages/aiHistory/aiHistory",
       "style": {
         "navigationBarTitleText": "AI 记录",

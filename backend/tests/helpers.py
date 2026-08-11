@@ -58,9 +58,10 @@ def _can_write_sqlite_database(database_path: Path) -> bool:
 
 
 def reset_database(base: Any, engine: Any) -> None:
-    """Reset test rows without rebuilding the complete schema for every test."""
+    """Build a fresh current-model schema once, then only clear rows."""
     engine_key = id(engine)
     if engine_key not in _INITIALIZED_ENGINES:
+        base.metadata.drop_all(bind=engine)
         base.metadata.create_all(bind=engine)
         _INITIALIZED_ENGINES.add(engine_key)
     with engine.begin() as connection:

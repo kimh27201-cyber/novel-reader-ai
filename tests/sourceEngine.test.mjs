@@ -158,7 +158,7 @@ assert.equal(
   }),
   '<html>proxied</html>'
 )
-assert.equal(proxyCalls[0].url, 'http://127.0.0.1:8000/api/proxy/fetch')
+assert.equal(proxyCalls[0].url, 'http://127.0.0.1:8765/api/proxy/fetch')
 assert.deepEqual(proxyCalls[0].data, {
   url: 'https://novel.example.com/search',
   method: 'POST',

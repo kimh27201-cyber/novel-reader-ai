@@ -114,7 +114,7 @@ async def request_observability_middleware(request: Request, call_next) -> Respo
         return response
     except Exception:
         status_code = 500
-        logger.error(
+        logger.exception(
             json.dumps(
                 {
                     "event": "request_failed",
@@ -163,6 +163,24 @@ async def http_exception_handler(request: Request, exc: HTTPException) -> JSONRe
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     fields = jsonable_encoder(exc.errors())
+    logger.warning(
+        json.dumps(
+            {
+                "event": "request_validation_failed",
+                "request_id": get_request_id(request),
+                "method": request.method,
+                "path": request.url.path,
+                "fields": [
+                    {
+                        "type": field.get("type"),
+                        "loc": field.get("loc"),
+                    }
+                    for field in fields
+                ],
+            },
+            ensure_ascii=False,
+        )
+    )
     return error_response(
         request=request,
         status_code=422,

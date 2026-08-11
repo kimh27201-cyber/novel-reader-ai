@@ -40,6 +40,11 @@ def get_http_client() -> httpx.AsyncClient:
     if _client is None or getattr(_client, "is_closed", False):
         _client = httpx.AsyncClient(
             follow_redirects=False,
+            # Requests are pinned to the IP address validated above. Routing
+            # them through an environment proxy both bypasses that guarantee
+            # and breaks fake-IP/TUN DNS setups because the proxy receives the
+            # pinned address instead of the original hostname.
+            trust_env=False,
             timeout=httpx.Timeout(
                 max(settings.source_timeout_seconds, settings.proxy_timeout_seconds),
                 connect=min(4.0, settings.source_timeout_seconds),

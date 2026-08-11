@@ -107,7 +107,7 @@ assert.equal(networkPreview.sources[0].name, 'Network Preview Source')
 assert.equal(networkPreview.sourceUrl, 'https://cdn.example.com/bookSources.json')
 assert.equal(getSourceConfigs().length, beforeNetworkPreviewCount)
 assert.ok(proxyRequests.length >= 2)
-assert.ok(proxyRequests.every(call => call.url === 'http://127.0.0.1:8000/api/proxy/fetch'))
+assert.ok(proxyRequests.every(call => call.url === 'http://127.0.0.1:8765/api/proxy/fetch'))
 delete globalThis.uni.request
 
 const imported = getSourceConfigs().find(item => item.name === 'Stats Test Source')

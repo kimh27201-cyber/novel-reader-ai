@@ -240,9 +240,10 @@ const cloudApi = {
 }
 const cloudDriver = createCloudReadAloudDriver({
   apiClient: cloudApi,
-  audioFactory(url, onEnded) {
+  audioFactory(url, onEnded, _onError, options) {
     const player = {
       url,
+      playbackRate: options.rate,
       stopped: false,
       dispose() {
         this.stopped = true
@@ -279,11 +280,58 @@ assert.equal(cloudSynthesisCalls.length, 1)
 assert.deepEqual(cloudSynthesisCalls[0], {
   text: '下一段正文',
   voiceId: 'loli',
-  rate: 1.2
+  rate: 1
 })
 assert.equal(cloudAudioCalls[0].url, 'https://reader.example/api/tts/audio/cache-key?ticket=signed')
+assert.equal(cloudAudioCalls[0].playbackRate, 1.2)
 assert.equal(cloudAudioCalls[0].stopped, true)
 assert.equal(cloudPlayResult.provider, VOLCENGINE_VOICE_PROVIDER)
+
+const innerAudioState = {
+  playbackRate: 1,
+  ended: null,
+  played: false,
+  destroyed: false
+}
+const innerAudioDriver = createCloudReadAloudDriver({
+  apiClient: cloudApi,
+  uni: {
+    createInnerAudioContext() {
+      return {
+        set playbackRate(value) {
+          innerAudioState.playbackRate = value
+        },
+        set src(value) {
+          innerAudioState.src = value
+        },
+        set autoplay(value) {
+          innerAudioState.autoplay = value
+        },
+        onEnded(callback) {
+          innerAudioState.ended = callback
+        },
+        onError() {},
+        play() {
+          innerAudioState.played = true
+          queueMicrotask(innerAudioState.ended)
+        },
+        stop() {},
+        destroy() {
+          innerAudioState.destroyed = true
+        }
+      }
+    }
+  },
+  window: null
+})
+await innerAudioDriver.speak('真实音色倍速', {
+  voiceId: 'loli',
+  rate: 2,
+  utteranceId: 'cloud-rate-2'
+})
+assert.equal(innerAudioState.playbackRate, 2)
+assert.equal(innerAudioState.played, true)
+assert.equal(innerAudioState.destroyed, true)
 
 let resolveSlowSynthesis
 const stoppedCloudDriver = createCloudReadAloudDriver({
