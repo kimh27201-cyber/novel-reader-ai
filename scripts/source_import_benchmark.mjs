@@ -13,6 +13,7 @@ import {
   runSourceReadingFlow
 } from '../common/bookSources.js'
 import { parseSourceMarketItems } from '../common/sourceMarket.js'
+import { classifySourceFailure, SourceRuntimeError } from '../common/sourceErrors.js'
 
 const args = Object.fromEntries(process.argv.slice(2).map(value => {
   const [key, ...rest] = value.replace(/^--/, '').split('=')
@@ -71,10 +72,8 @@ async function mapConcurrent(items, worker, maximum = concurrency) {
 }
 
 function errorCode(error) {
-  if (error && error.code) return String(error.code)
-  if (error && error.name === 'AbortError') return 'TIMEOUT'
   if (/JSON|书源|payload/i.test(String(error && error.message || ''))) return 'INVALID_JSON'
-  return 'NETWORK_ERROR'
+  return classifySourceFailure(error).errorCode
 }
 
 function detailId(url) {
@@ -92,7 +91,7 @@ function isEligible(raw, analysis, source) {
     && source.enabled !== false
     && !!raw.searchUrl
     && !!raw.ruleSearch
-    && !/(?:验证码|captcha|付费|VIP|loginUrl|登录后|18禁|成人|漫画|音频|听书)/i.test(text)
+    && !/(?:验证码|captcha|付费|VIP|loginUrl|登录后|18禁|成人|🔞|漫画|音频|听书)/i.test(text)
 }
 
 async function collectCandidates() {
@@ -172,26 +171,30 @@ async function runFlow(row) {
   const startedAt = Date.now()
   try {
     const flow = await runSourceReadingFlow(row._source.id, keywords, { timeoutMs, limit: 5 })
-    if (flow.chapters.length < 3) throw Object.assign(new Error('目录少于 3 章'), { code: 'TOC_TOO_SHORT' })
+    if (flow.chapters.length < 3) throw new SourceRuntimeError('TOC_TOO_SHORT', '目录少于 3 章', { stage: 'toc' })
     const sampleIndexes = [...new Set([0, Math.floor(flow.chapters.length / 2), flow.chapters.length - 1])]
     for (const index of sampleIndexes) {
       const chapter = index === flow.chapter.index ? flow.chapter : await loadOnlineChapter(flow.book, flow.chapters[index], { maxPages: 5 })
       if (String(chapter.content || '').replace(/\s+/g, '').length < 50) {
-        throw Object.assign(new Error('正文少于 50 字符'), { code: 'CONTENT_TOO_SHORT' })
+        throw new SourceRuntimeError('CONTENT_TOO_SHORT', '正文少于 50 字符', { stage: 'content' })
       }
     }
     return { status: 'passed', keyword: flow.keyword, elapsedMs: Date.now() - startedAt, errorCode: '' }
   } catch (error) {
-    const message = String(error && error.message || '')
     const failedStage = Array.isArray(error && error.flowStages)
       ? [...error.flowStages].reverse().find(stage => stage.status === 'failed')
       : null
-    let code = failedStage ? `${String(failedStage.id || 'flow').toUpperCase()}_FAILED` : errorCode(error)
-    if (/超时|timeout/i.test(message)) code = 'TIMEOUT'
-    else if (/验证码|captcha/i.test(message)) code = 'CAPTCHA_REQUIRED'
-    else if (/登录|login/i.test(message)) code = 'LOGIN_REQUIRED'
-    else if (/无搜索结果|解析为空|少于/i.test(message)) code = failedStage ? `${String(failedStage.id || 'flow').toUpperCase()}_EMPTY` : 'EMPTY_RESULT'
-    return { status: 'failed', keyword: '', elapsedMs: Date.now() - startedAt, errorCode: code }
+    const failure = classifySourceFailure(error, { stage: failedStage && failedStage.id })
+    return {
+      status: 'failed',
+      keyword: '',
+      elapsedMs: Date.now() - startedAt,
+      errorCode: failedStage && failedStage.errorCode || failure.errorCode,
+      failedStage: failedStage && failedStage.id || failure.stage,
+      httpStatus: failedStage && failedStage.httpStatus || failure.status,
+      retryable: failedStage ? failedStage.retryable === true : failure.retryable,
+      diagnostics: error && error.diagnostics || undefined
+    }
   }
 }
 
@@ -204,7 +207,9 @@ function buildMarkdown(report) {
     `- 目标样本：${report.metrics.target}；有效文字 JSON：${report.metrics.validTextJson}`,
     `- JSON 导入成功率：${report.metrics.importRatePercent}%（分母为有效文字 JSON）`,
     `- 静态状态：ready ${report.metrics.status.ready || 0} / partial ${report.metrics.status.partial || 0} / needs_login ${report.metrics.status.needs_login || 0} / blocked ${report.metrics.status.blocked || 0} / invalid ${report.metrics.status.invalid || 0}`,
-    `- 完整阅读实测：${report.metrics.flowPassed}/${report.metrics.flowTested}；完整阅读率 ${report.metrics.flowRatePercent}%`,
+    `- 静态候选：${report.metrics.staticEligible}；真实请求后合格分母：${report.metrics.runtimeEligible}；外部状态排除：${report.metrics.runtimeExcluded}`,
+    `- 完整阅读实测：${report.metrics.flowPassed}/${report.metrics.runtimeEligible}；完整阅读率 ${report.metrics.flowRatePercent}%（全部静态候选共测试 ${report.metrics.flowTested} 个）`,
+    `- 外部状态排除：${Object.entries(report.metrics.runtimeExclusions || {}).map(([code, count]) => `${code} ${count}`).join(' / ') || '无'}`,
     '',
     '> 报告不保存第三方正文、Cookie、Token 或完整书源 JSON；SHA-256 仅用于固定样本版本。未执行真机流程的行标记为 not_run，不能计为通过。',
     '',
@@ -254,8 +259,31 @@ const statusCounts = textRows.reduce((result, row) => {
 }, {})
 const importable = textRows.filter(row => row.status !== 'invalid').length
 const flowPassed = flowRows.filter(row => row.flow && row.flow.status === 'passed').length
+const runtimeExcludedCodes = new Set([
+  'SITE_UNREACHABLE',
+  'HTTP_BLOCKED',
+  'HTTP_NOT_FOUND',
+  'HTTP_SERVER_ERROR',
+  'NETWORK_ERROR',
+  'TIMEOUT',
+  'LOGIN_REQUIRED',
+  'CAPTCHA_REQUIRED',
+  'COOKIE_REQUIRED',
+  'WEBVIEW_REQUIRED'
+])
+const runtimeEligibleRows = flowRows.filter(row => row.flow && (row.flow.status === 'passed' || !runtimeExcludedCodes.has(row.flow.errorCode)))
+const flowErrorCounts = flowRows.reduce((result, row) => {
+  const code = row.flow && row.flow.errorCode || 'PASSED'
+  result[code] = (result[code] || 0) + 1
+  return result
+}, {})
+const exclusionCounts = flowRows.filter(row => row.flow && runtimeExcludedCodes.has(row.flow.errorCode)).reduce((result, row) => {
+  const code = row.flow.errorCode
+  result[code] = (result[code] || 0) + 1
+  return result
+}, {})
 const report = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   capturedAt,
   repository: 'https://www.yckceo.com/yuedu/shuyuan/index.html',
   pages,
@@ -266,10 +294,14 @@ const report = {
     importable,
     importRatePercent: textRows.length ? Number((importable * 100 / textRows.length).toFixed(2)) : 0,
     status: statusCounts,
-    eligible: textRows.filter(row => row.eligible).length,
+    staticEligible: textRows.filter(row => row.eligible).length,
+    runtimeEligible: runtimeEligibleRows.length,
+    runtimeExcluded: flowRows.length - runtimeEligibleRows.length,
+    runtimeExclusions: exclusionCounts,
+    flowErrors: flowErrorCounts,
     flowTested: flowRows.length,
     flowPassed,
-    flowRatePercent: flowRows.length ? Number((flowPassed * 100 / flowRows.length).toFixed(2)) : 0
+    flowRatePercent: runtimeEligibleRows.length ? Number((flowPassed * 100 / runtimeEligibleRows.length).toFixed(2)) : 0
   },
   samples: samples.map(({ _source, ...row }) => row)
 }

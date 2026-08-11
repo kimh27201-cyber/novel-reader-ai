@@ -1,0 +1,718 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-11T07:56:44.816Z",
+  "sourceReport": "docs/source-acceptance/yck-text-source-benchmark-2026-08-11.json",
+  "sampleCount": 38,
+  "counts": {
+    "previousErrors": {
+      "SEARCH_FAILED": 30,
+      "SEARCH_EMPTY": 6,
+      "TIMEOUT": 2
+    },
+    "hostApis": {
+      "cookie.removeCookie": 3
+    },
+    "requestShapes": {
+      "post": 19,
+      "js": 1,
+      "keyVariable": 37,
+      "options": 21,
+      "pageVariable": 2
+    },
+    "cookieSources": 16,
+    "headerSources": 9,
+    "fetchFailures": 0
+  },
+  "samples": [
+    {
+      "id": "7655",
+      "previousErrorCode": "SEARCH_FAILED",
+      "fetched": true,
+      "elapsedMs": 484,
+      "request": {
+        "post": true,
+        "options": false,
+        "js": true,
+        "pageVariable": false,
+        "keyVariable": false
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "7583",
+      "previousErrorCode": "SEARCH_FAILED",
+      "fetched": true,
+      "elapsedMs": 481,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "7562",
+      "previousErrorCode": "SEARCH_FAILED",
+      "fetched": true,
+      "elapsedMs": 470,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "247",
+      "previousErrorCode": "SEARCH_FAILED",
+      "fetched": true,
+      "elapsedMs": 513,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "263",
+      "previousErrorCode": "SEARCH_FAILED",
+      "fetched": true,
+      "elapsedMs": 485,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [
+        "cookie.removeCookie"
+      ],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "264",
+      "previousErrorCode": "SEARCH_FAILED",
+      "fetched": true,
+      "elapsedMs": 438,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [
+        "cookie.removeCookie"
+      ],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "265",
+      "previousErrorCode": "SEARCH_FAILED",
+      "fetched": true,
+      "elapsedMs": 480,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [
+        "cookie.removeCookie"
+      ],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "251",
+      "previousErrorCode": "SEARCH_FAILED",
+      "fetched": true,
+      "elapsedMs": 2303,
+      "request": {
+        "post": false,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "276",
+      "previousErrorCode": "SEARCH_FAILED",
+      "fetched": true,
+      "elapsedMs": 198,
+      "request": {
+        "post": false,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "229",
+      "previousErrorCode": "SEARCH_FAILED",
+      "fetched": true,
+      "elapsedMs": 238,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "235",
+      "previousErrorCode": "SEARCH_FAILED",
+      "fetched": true,
+      "elapsedMs": 252,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "194",
+      "previousErrorCode": "SEARCH_FAILED",
+      "fetched": true,
+      "elapsedMs": 251,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "204",
+      "previousErrorCode": "SEARCH_FAILED",
+      "fetched": true,
+      "elapsedMs": 208,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "227",
+      "previousErrorCode": "SEARCH_EMPTY",
+      "fetched": true,
+      "elapsedMs": 288,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "230",
+      "previousErrorCode": "SEARCH_FAILED",
+      "fetched": true,
+      "elapsedMs": 255,
+      "request": {
+        "post": true,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "198",
+      "previousErrorCode": "SEARCH_FAILED",
+      "fetched": true,
+      "elapsedMs": 295,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "200",
+      "previousErrorCode": "SEARCH_FAILED",
+      "fetched": true,
+      "elapsedMs": 264,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "2745",
+      "previousErrorCode": "SEARCH_FAILED",
+      "fetched": true,
+      "elapsedMs": 216,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "2066",
+      "previousErrorCode": "SEARCH_EMPTY",
+      "fetched": true,
+      "elapsedMs": 242,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "2641",
+      "previousErrorCode": "TIMEOUT",
+      "fetched": true,
+      "elapsedMs": 211,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "2150",
+      "previousErrorCode": "SEARCH_EMPTY",
+      "fetched": true,
+      "elapsedMs": 290,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "2811",
+      "previousErrorCode": "SEARCH_EMPTY",
+      "fetched": true,
+      "elapsedMs": 340,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "3087",
+      "previousErrorCode": "SEARCH_EMPTY",
+      "fetched": true,
+      "elapsedMs": 231,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "2625",
+      "previousErrorCode": "SEARCH_FAILED",
+      "fetched": true,
+      "elapsedMs": 267,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "3154",
+      "previousErrorCode": "SEARCH_FAILED",
+      "fetched": true,
+      "elapsedMs": 217,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "2686",
+      "previousErrorCode": "SEARCH_FAILED",
+      "fetched": true,
+      "elapsedMs": 289,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "2147",
+      "previousErrorCode": "SEARCH_FAILED",
+      "fetched": true,
+      "elapsedMs": 267,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "2223",
+      "previousErrorCode": "SEARCH_FAILED",
+      "fetched": true,
+      "elapsedMs": 276,
+      "request": {
+        "post": false,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "2251",
+      "previousErrorCode": "SEARCH_FAILED",
+      "fetched": true,
+      "elapsedMs": 260,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "3019",
+      "previousErrorCode": "SEARCH_FAILED",
+      "fetched": true,
+      "elapsedMs": 233,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": true,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "2901",
+      "previousErrorCode": "SEARCH_FAILED",
+      "fetched": true,
+      "elapsedMs": 210,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "2445",
+      "previousErrorCode": "TIMEOUT",
+      "fetched": true,
+      "elapsedMs": 1090,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "2877",
+      "previousErrorCode": "SEARCH_FAILED",
+      "fetched": true,
+      "elapsedMs": 467,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "2628",
+      "previousErrorCode": "SEARCH_FAILED",
+      "fetched": true,
+      "elapsedMs": 1312,
+      "request": {
+        "post": false,
+        "options": true,
+        "js": false,
+        "pageVariable": true,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "2148",
+      "previousErrorCode": "SEARCH_FAILED",
+      "fetched": true,
+      "elapsedMs": 970,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "206",
+      "previousErrorCode": "SEARCH_EMPTY",
+      "fetched": true,
+      "elapsedMs": 936,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "189",
+      "previousErrorCode": "SEARCH_FAILED",
+      "fetched": true,
+      "elapsedMs": 942,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "192",
+      "previousErrorCode": "SEARCH_FAILED",
+      "fetched": true,
+      "elapsedMs": 938,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    }
+  ]
+}

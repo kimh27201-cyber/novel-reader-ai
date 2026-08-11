@@ -31,6 +31,12 @@ assert.equal(items.length, 2)
 assert.equal(applyRule(items[0], 'h3 a@text'), '第一本书')
 assert.equal(applyRule(items[1], 'h3 a@href'), '/book/2')
 assert.equal(applyRule(items[0], '.missing@text||.author@text'), '作者甲')
+
+const nestedCard = '<div class="search-novel-card"><div class="cover"><a href="/cover">封面</a></div><div class="info"><h3 class="search-novel-title"><a href="/novel/2416">诡秘之主</a></h3></div></div>'
+const nestedItems = applyListRule(nestedCard, '.search-novel-card')
+assert.equal(nestedItems.length, 1)
+assert.equal(applyRule(nestedItems[0], '.search-novel-title@a@text'), '诡秘之主')
+assert.equal(applyRule(nestedItems[0], '.search-novel-title@a@href'), '/novel/2416')
 assert.equal(applyRule('作者：张三 / 类型：玄幻', '##.*作者[:： ]*([^\\s/]+).*##$1'), '张三')
 
 const cssPrefixedHtml = `
@@ -72,12 +78,21 @@ const legado3Html = `
   <div id="content"><p>第一段</p><p>第二段</p></div>
 `
 assert.equal(applyRule(legado3Html, 'class.book@tag.a@href'), '/book/3')
+assert.equal(applyRule(legado3Html, 'class.book@a@href'), '/book/3')
 assert.equal(applyRule(legado3Html, 'class.book@tag.span.0@text'), '第三本书')
 assert.equal(applyRule(legado3Html, 'id.content@textNodes'), '第一段\n第二段')
 
 const json = { data: { books: [{ name: '书源小说', url: '/novel/9' }] } }
 assert.deepEqual(applyListRule(json, '$.data.books[*]').map(item => item.name), ['书源小说'])
 assert.equal(applyRule(json, '$.data.books[0].name'), '书源小说')
+assert.deepEqual(
+  applyListRule({ a: { format: 3, name: 'A' }, b: { format: 2, name: 'B' }, c: { format: '3', name: 'C' } }, '@JSON:$.*[?(@.format==3)]').map(item => item.name),
+  ['A', 'C']
+)
+assert.deepEqual(
+  applyListRule('<ul class="list"><li><a>A</a></li><li><a>B</a></li></ul>', 'class.list@children').map(item => applyRule(item, 'a@text')),
+  ['A', 'B']
+)
 
 assert.equal(renderTemplate('/search/{{key}}/{{page}}', { key: '剑来', page: 2 }), '/search/%E5%89%91%E6%9D%A5/2')
 assert.equal(resolveUrl('/book/1', 'https://example.com/root/'), 'https://example.com/book/1')
@@ -89,6 +104,15 @@ const request = parseRequestSpec('https://example.com/search,{"method":"POST","b
 assert.equal(request.method, 'POST')
 assert.equal(request.data, 'key=abc')
 assert.equal(request.header['X-Test'], '3')
+assert.equal(request.header['Content-Type'], 'application/x-www-form-urlencoded')
+assert.throws(
+  () => parseRequestSpec('https://example.com/search,{method:"POST"}', { key: 'abc' }),
+  error => error && error.code === 'REQUEST_TEMPLATE_UNSUPPORTED'
+)
+
+const scriptedRequest = parseRequestSpec('<js>var url = "https://example.com/search"; var post = JSON.stringify({method: "POST", body: "q=" + encodeURIComponent(key)}); url + "," + post;</js>', { key: '剑来' })
+assert.equal(scriptedRequest.method, 'POST')
+assert.equal(scriptedRequest.data, `q=${encodeURIComponent('剑来')}`)
 
 const importLink = 'yuedu://bookSource/import?src=https%3A%2F%2Fwww.yck2026.top%2Fyuedu%2Fshuyuan%2Fjson%2F7274.json'
 assert.deepEqual(detectSourceImportPayload('[{"bookSourceName":"A"}]'), {

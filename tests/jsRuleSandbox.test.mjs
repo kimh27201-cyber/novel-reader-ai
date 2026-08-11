@@ -10,6 +10,10 @@ assert.equal(executeJsRule('base64Encode(result)', { result: '书' }), '5Lmm')
 assert.equal(executeJsRule('jsonParse(result).name', { result: '{"name":"book"}' }), 'book')
 assert.equal(executeJsRule('resolveUrl(result, baseUrl)', { result: '/a', baseUrl: 'https://example.com/root/' }), 'https://example.com/a')
 assert.equal(executeJsRule('result.replace(/book/g, "novel")', { result: 'book-book' }), 'novel-novel')
+assert.equal(
+  executeJsRule('<js>var url = "https://example.com/search"; var post = JSON.stringify({method: "POST", body: "q=" + encodeURIComponent(key), headers: {"Content-Type": "application/x-www-form-urlencoded"}}); url + "," + post;</js>', { key: '剑来' }),
+  `https://example.com/search,{"method":"POST","body":"q=${encodeURIComponent('剑来')}","headers":{"Content-Type":"application/x-www-form-urlencoded"}}`
+)
 
 for (const rule of ['fetch("https://x")', 'java.ajax()', 'window.location', 'document.cookie', 'eval("1")', 'while(true){}']) {
   assert.throws(() => executeJsRule(rule, {}), error => error instanceof JsRuleSandboxError && error.code === 'UNSUPPORTED_JS_CAPABILITY')
