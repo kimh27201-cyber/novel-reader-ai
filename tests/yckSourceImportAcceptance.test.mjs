@@ -216,6 +216,21 @@ assertVisibleSource('\u901f\u8bfb\u8c37\u5b50')
 assert.equal(batch.importLog.parsedCount, 3)
 assert.equal(batch.importLog.successCount, 3)
 assert.equal(batch.importLog.storageCount, 3)
+assert.notEqual(
+  getSourceConfigs().find(source => source.name === '\u901f\u8bfb\u8c37(SUDUGU)').id,
+  getSourceConfigs().find(source => source.name === '\u901f\u8bfb\u8c37\u5b50').id,
+  '同一基础网址的不同命名书源必须保留独立 id'
+)
+
+resetStore()
+const duplicateInSamePayload = importSourcesWithStats(JSON.stringify([
+  suduguSource(),
+  { ...suduguSource(), bookSourceComment: 'newer duplicate' }
+]))
+assert.equal(duplicateInSamePayload.imported, 1)
+assert.equal(duplicateInSamePayload.updated, 1)
+assert.equal(getSourceConfigs().length, 1)
+assert.equal(getSourceConfigs()[0].comment, 'newer duplicate')
 
 resetStore()
 let requestedUrl = ''
