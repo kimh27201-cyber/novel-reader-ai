@@ -1,5 +1,6 @@
 import apiClient from './apiClient.js'
 import { normalizeHeaders } from './headerUtils.js'
+import { asSourceRuntimeError, SourceRuntimeError } from './sourceErrors.js'
 
 const DEFAULT_TIMEOUT_MS = 12000
 let callbackSequence = 0
@@ -106,37 +107,84 @@ function directRequest(request) {
             finalUrl: request.url,
             headers: response.header || {},
             text: typeof value === 'string' ? value : JSON.stringify(value || ''),
-            charset: request.charset || 'utf-8',
+            charset: resolveResponseCharset(request.charset, response.header || {}),
             elapsedMs: Date.now() - startedAt,
-            errorCode: ok ? '' : 'HTTP_ERROR',
+            errorCode: ok ? '' : `HTTP_${status}`,
             message: ok ? '' : `HTTP ${status}`
           })
         },
-        fail: error => reject(new Error((error && error.errMsg) || '网络请求失败'))
+        fail: error => reject(asSourceRuntimeError(error && error.errMsg || '网络请求失败'))
       })
     })
   }
 
   if (typeof fetch === 'undefined') return Promise.reject(new Error('当前环境不支持网络请求'))
+  const controller = typeof AbortController !== 'undefined' ? new AbortController() : null
+  const timer = controller ? setTimeout(() => controller.abort(), request.timeoutMs || DEFAULT_TIMEOUT_MS) : 0
   return fetch(request.url, {
     method: request.method || 'GET',
     headers,
-    body: String(request.method || 'GET').toUpperCase() === 'POST' ? request.body : undefined
+    body: String(request.method || 'GET').toUpperCase() === 'POST' ? request.body : undefined,
+    signal: controller ? controller.signal : undefined,
+    redirect: 'follow'
   }).then(async response => {
     const status = Number(response.status || 200)
     const ok = response.ok == null ? status >= 200 && status < 400 : response.ok
+    const responseHeaders = responseHeadersToObject(response.headers)
+    const charset = resolveResponseCharset(request.charset, responseHeaders)
+    const text = await readResponseText(response, charset)
     return {
-    ok,
-    status,
-    finalUrl: response.url || request.url,
-    headers: {},
-    text: await response.text(),
-    charset: request.charset || 'utf-8',
-    elapsedMs: Date.now() - startedAt,
-    errorCode: ok ? '' : 'HTTP_ERROR',
-    message: ok ? '' : `HTTP ${status}`
-  }
+      ok,
+      status,
+      finalUrl: response.url || request.url,
+      headers: responseHeaders,
+      text,
+      charset,
+      elapsedMs: Date.now() - startedAt,
+      errorCode: ok ? '' : `HTTP_${status}`,
+      message: ok ? '' : `HTTP ${status}`
+    }
+  }).catch(error => {
+    if (error && error.name === 'AbortError') {
+      throw new SourceRuntimeError('TIMEOUT', '书源请求超时', { retryable: true, cause: error })
+    }
+    throw asSourceRuntimeError(error)
+  }).finally(() => {
+    if (timer) clearTimeout(timer)
   })
+}
+
+function responseHeadersToObject(headers) {
+  const output = {}
+  if (!headers) return output
+  if (typeof headers.forEach === 'function') {
+    headers.forEach((value, key) => { output[key] = value })
+    return output
+  }
+  return Object.keys(headers).reduce((result, key) => {
+    result[key] = headers[key]
+    return result
+  }, output)
+}
+
+function resolveResponseCharset(requested, headers = {}) {
+  const forced = String(requested || '').trim().toLowerCase()
+  if (forced && forced !== 'auto') return forced
+  const contentTypeKey = Object.keys(headers).find(key => key.toLowerCase() === 'content-type')
+  const match = String(contentTypeKey ? headers[contentTypeKey] : '').match(/charset\s*=\s*["']?([^;"'\s]+)/i)
+  return String(match && match[1] || 'utf-8').toLowerCase()
+}
+
+async function readResponseText(response, charset) {
+  if (/^utf-?8$/i.test(charset) || typeof response.arrayBuffer !== 'function' || typeof TextDecoder === 'undefined') {
+    return response.text()
+  }
+  try {
+    const bytes = await response.arrayBuffer()
+    return new TextDecoder(charset).decode(bytes)
+  } catch (error) {
+    throw new SourceRuntimeError('CHARSET_ERROR', `响应解码失败：${charset}`, { cause: error })
+  }
 }
 
 function isH5Runtime() {
@@ -197,10 +245,10 @@ export async function requestSourceText(request = {}, runtimeContext = {}) {
 
   const response = await directRequest(normalized)
   if (!response.ok) {
-    const error = new Error(response.message || '书源网络请求失败')
-    error.code = response.errorCode || 'NETWORK_ERROR'
-    error.status = response.status
-    throw error
+    throw new SourceRuntimeError(response.errorCode || 'NETWORK_ERROR', response.message || '书源网络请求失败', {
+      status: response.status,
+      retryable: Number(response.status) >= 500
+    })
   }
   return response
 }

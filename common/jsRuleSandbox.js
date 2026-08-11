@@ -26,6 +26,10 @@ function decodeBase64(value) {
 }
 
 function splitArgs(text) {
+  return splitTopLevel(text, ',')
+}
+
+function splitTopLevel(text, delimiter) {
   const args = []
   let quote = ''
   let regex = false
@@ -42,11 +46,36 @@ function splitArgs(text) {
     if (char === '/' && (index === 0 || /[,(=:\s]/.test(text[index - 1]))) { regex = true; continue }
     if (char === '(' || char === '[' || char === '{') depth += 1
     if (char === ')' || char === ']' || char === '}') depth -= 1
-    if (char === ',' && depth === 0) { args.push(text.slice(start, index).trim()); start = index + 1 }
+    if (char === delimiter && depth === 0) { args.push(text.slice(start, index).trim()); start = index + 1 }
   }
   const tail = text.slice(start).trim()
   if (tail) args.push(tail)
   return args
+}
+
+function findTopLevelBinary(text, operator) {
+  const parts = splitTopLevel(text, operator)
+  return parts.length > 1 ? parts : null
+}
+
+function evaluateObjectLiteral(text, context, budget, depth) {
+  const body = String(text || '').trim().slice(1, -1).trim()
+  if (!body) return {}
+  return splitArgs(body).reduce((result, entry) => {
+    const pair = splitTopLevel(entry, ':')
+    if (pair.length < 2) failUnsupported('对象字面量')
+    const rawKey = pair.shift().trim()
+    const quotedKey = /^['"]/.test(rawKey)
+    const key = quotedKey ? parseLiteral(rawKey, context) : rawKey
+    if (!quotedKey && !IDENTIFIER_PATTERN.test(String(key))) failUnsupported('对象键')
+    result[String(key)] = evaluateExpression(pair.join(':'), context, budget, depth + 1)
+    return result
+  }, {})
+}
+
+function evaluateArrayLiteral(text, context, budget, depth) {
+  const body = String(text || '').trim().slice(1, -1).trim()
+  return body ? splitArgs(body).map(item => evaluateExpression(item, context, budget, depth + 1)) : []
 }
 
 function parseLiteral(text, context) {
@@ -104,7 +133,16 @@ function evaluateExpression(expression, context, budget, depth = 0) {
   budget.operations += 1
   if (budget.operations > budget.maxOperations) throw new JsRuleSandboxError('JS_RULE_BUDGET_EXCEEDED', 'JS 规则语句预算超限')
   const text = String(expression || '').trim().replace(/^return\s+/, '').replace(/;$/, '').trim()
-  const functionMatch = text.match(/^(encodeURIComponent|decodeURIComponent|base64Encode|base64Decode|jsonParse|jsonStringify|resolveUrl)\(([\s\S]*)\)([\s\S]*)$/)
+  const additions = findTopLevelBinary(text, '+')
+  if (additions) {
+    const values = additions.map(item => evaluateExpression(item, context, budget, depth + 1))
+    return values.some(value => typeof value === 'string') ? values.map(emptyIfNullish).join('') : values.reduce((sum, value) => sum + Number(value || 0), 0)
+  }
+
+  if (text[0] === '{' && text[text.length - 1] === '}') return evaluateObjectLiteral(text, context, budget, depth)
+  if (text[0] === '[' && text[text.length - 1] === ']') return evaluateArrayLiteral(text, context, budget, depth)
+
+  const functionMatch = text.match(/^(encodeURIComponent|decodeURIComponent|base64Encode|base64Decode|jsonParse|jsonStringify|JSON\.parse|JSON\.stringify|String|resolveUrl)\(([\s\S]*)\)([\s\S]*)$/)
   let value
   let rest = ''
   if (functionMatch) {
@@ -114,8 +152,9 @@ function evaluateExpression(expression, context, budget, depth = 0) {
     else if (name === 'decodeURIComponent') value = decodeURIComponent(String(emptyIfNullish(args[0])))
     else if (name === 'base64Encode') value = encodeBase64(args[0])
     else if (name === 'base64Decode') value = decodeBase64(args[0])
-    else if (name === 'jsonParse') value = JSON.parse(String(emptyIfNullish(args[0])))
-    else if (name === 'jsonStringify') value = JSON.stringify(args[0])
+    else if (name === 'jsonParse' || name === 'JSON.parse') value = JSON.parse(String(emptyIfNullish(args[0])))
+    else if (name === 'jsonStringify' || name === 'JSON.stringify') value = JSON.stringify(args[0])
+    else if (name === 'String') value = String(emptyIfNullish(args[0]))
     else value = new URL(String(emptyIfNullish(args[0])), String(emptyIfNullish(args[1]))).toString()
     rest = functionMatch[3]
   } else {
@@ -155,7 +194,19 @@ export function executeJsRule(rule, context = {}, options = {}) {
     maxOperations: Math.max(1, Math.min(256, Number(options.maxOperations || 64))),
     maxDepth: Math.max(1, Math.min(16, Number(options.maxDepth || 8)))
   }
-  const result = evaluateExpression(source, { ...context }, budget)
+  const sandboxContext = { ...context }
+  const statements = splitTopLevel(source, ';').filter(Boolean)
+  let result = ''
+  statements.forEach((statement, index) => {
+    const declaration = statement.match(/^(?:var|let|const)\s+([A-Za-z_$][\w$]*)\s*=\s*([\s\S]+)$/)
+    if (declaration) {
+      sandboxContext[declaration[1]] = evaluateExpression(declaration[2], sandboxContext, budget)
+      result = sandboxContext[declaration[1]]
+      return
+    }
+    if (index < statements.length - 1 && /^[A-Za-z_$][\w$]*\s*=/.test(statement)) failUnsupported('变量重新赋值')
+    result = evaluateExpression(statement, sandboxContext, budget)
+  })
   if (Date.now() - startedAt > timeoutMs) throw new JsRuleSandboxError('JS_RULE_TIMEOUT', 'JS 规则执行超时')
   const resultSize = typeof result === 'string' ? result.length : JSON.stringify(result == null ? '' : result).length
   const maxResultSize = Math.max(1024, Math.min(1024 * 1024, Number(options.maxResultSize || 256 * 1024)))

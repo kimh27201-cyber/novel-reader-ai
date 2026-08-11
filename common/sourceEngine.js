@@ -2,6 +2,7 @@ import { normalizeHeaders } from './headerUtils.js'
 import { executeJsRule } from './jsRuleSandbox.js'
 import { renderedFetch } from './webViewBridge.js'
 import { requestSourceText as transportRequestSourceText } from './sourceTransport.js'
+import { SourceRuntimeError } from './sourceErrors.js'
 
 export const unsupportedRulePattern = /(?:java\.|eval\(|\bFunction\s*\(|\bfetch\s*\(|XMLHttpRequest|WebSocket|\bwindow\.|\bdocument\.|localStorage|sessionStorage|\brequire\s*\(|\bprocess\.|\bwhile\s*\(|\bfor\s*\()/i
 
@@ -320,14 +321,27 @@ export function parseRequestSpec(spec, context = {}, baseUrl = '') {
   try {
     options = JSON.parse(match[2])
   } catch (error) {
-    options = {}
+    throw new SourceRuntimeError('REQUEST_TEMPLATE_UNSUPPORTED', '书源请求模板中的 JSON 配置无效', {
+      stage: 'request',
+      cause: error
+    })
+  }
+
+  const method = String(options.method || (options.body != null || options.data != null ? 'POST' : 'GET')).toUpperCase()
+  if (!['GET', 'POST'].includes(method)) {
+    throw new SourceRuntimeError('REQUEST_TEMPLATE_UNSUPPORTED', `暂不支持请求方法：${method}`, { stage: 'request' })
+  }
+  const header = normalizeHeaders(options.headers || options.header || {}, { channel: 'proxy', context: requestContext })
+  const data = renderTemplate(options.body == null ? options.data || '' : options.body, requestContext)
+  if (method === 'POST' && data && !Object.keys(header).some(key => key.toLowerCase() === 'content-type')) {
+    header['Content-Type'] = 'application/x-www-form-urlencoded'
   }
 
   return {
     url: resolveUrl(match[1], baseUrl),
-    method: String(options.method || (options.body ? 'POST' : 'GET')).toUpperCase(),
-    header: normalizeHeaders(options.headers || options.header || {}, { channel: 'proxy', context }),
-    data: renderTemplate(options.body || options.data || '', context),
+    method,
+    header,
+    data,
     charset: options.charset || ''
   }
 }
@@ -565,7 +579,7 @@ function selectSimpleHtml(html, selector) {
   }
 
   const tagPattern = tag || '[a-zA-Z][\\w:-]*'
-  const pattern = new RegExp(`<(${tagPattern})([^>]*)>([\\s\\S]*?)<\\/\\1>`, 'gi')
+  const pattern = new RegExp(`<(${tagPattern})([^>]*)>`, 'gi')
   const matches = []
   let match
 
@@ -574,17 +588,7 @@ function selectSimpleHtml(html, selector) {
     if (id && !new RegExp(`\\bid=["']?${escapeRegExp(id)}["']?`, 'i').test(attrs)) continue
     if (!hasRequiredClasses(attrs, classNames)) continue
     if (attr && !matchesAttributeSelector(attrs, attr)) continue
-    matches.push(match[0])
-  }
-
-  const selfClosing = new RegExp(`<(${tagPattern})([^>]*)\\/?>`, 'gi')
-  while ((match = selfClosing.exec(html))) {
-    const attrs = match[2] || ''
-    if (!/^(img|input|meta|link|br)$/i.test(match[1])) continue
-    if (id && !new RegExp(`\\bid=["']?${escapeRegExp(id)}["']?`, 'i').test(attrs)) continue
-    if (!hasRequiredClasses(attrs, classNames)) continue
-    if (attr && !matchesAttributeSelector(attrs, attr)) continue
-    matches.push(match[0])
+    matches.push(sliceBalancedElement(html, match.index, pattern.lastIndex, match[1], match[0]))
   }
 
   if (requestedIndex === 'last') return matches.length ? [matches[matches.length - 1]] : []
@@ -605,18 +609,26 @@ function selectByAttribute(html, id, classNames = [], attr = null, tagName = '')
     if (!hasRequiredClasses(attrs, classNames)) continue
     if (attr && !matchesAttributeSelector(attrs, attr)) continue
 
-    if (/^(img|input|meta|link|br)$/i.test(tag)) {
-      matches.push(match[0])
-      continue
-    }
-
-    const close = new RegExp(`<\\/${escapeRegExp(tag)}>`, 'i')
-    const rest = html.slice(pattern.lastIndex)
-    const closeMatch = rest.match(close)
-    matches.push(closeMatch ? html.slice(match.index, pattern.lastIndex + closeMatch.index + closeMatch[0].length) : match[0])
+    matches.push(sliceBalancedElement(html, match.index, pattern.lastIndex, tag, match[0]))
   }
 
   return matches
+}
+
+function sliceBalancedElement(html, start, openEnd, tag, openingTag) {
+  if (/\/>$/.test(openingTag) || /^(?:area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)$/i.test(tag)) {
+    return html.slice(start, openEnd)
+  }
+  const pattern = new RegExp(`<\\/?${escapeRegExp(tag)}\\b[^>]*>`, 'gi')
+  pattern.lastIndex = openEnd
+  let depth = 1
+  let token
+  while ((token = pattern.exec(html))) {
+    if (/^<\//.test(token[0])) depth -= 1
+    else if (!/\/>$/.test(token[0])) depth += 1
+    if (depth === 0) return html.slice(start, pattern.lastIndex)
+  }
+  return html.slice(start, openEnd)
 }
 
 function parseSimpleSelector(selector) {
@@ -672,6 +684,7 @@ function applyAccessor(input, accessor) {
   if (token === 'text' || token === 'textNodes') return extractText(input)
   if (token === 'ownText') return extractOwnText(input)
   if (token === 'html') return asArray(input).join('')
+  if (token === 'children') return asArray(input).flatMap(extractDirectChildren)
   if (/^\d+$/.test(token)) return asArray(input)[Number(token)] || ''
   if (/^-\d+$/.test(token)) {
     const values = asArray(input)
@@ -731,6 +744,18 @@ function extractAttr(input, attr) {
 
 function readJsonPath(input, path) {
   if (typeof input !== 'object' || input === null) return ''
+  const filter = String(path || '').match(/^([\s\S]*?)\[\?\(@\.([A-Za-z_$][\w$]*)\s*(==|!=)\s*([^\]]+?)\)\]([\s\S]*)$/)
+  if (filter) {
+    const candidates = asArray(readJsonPath(input, filter[1] || '$.*')).flat()
+    const expected = parseJsonPathFilterValue(filter[4])
+    const filtered = candidates.filter(item => {
+      const actual = item && typeof item === 'object' ? item[filter[2]] : undefined
+      return filter[3] === '==' ? actual == expected : actual != expected // Legado JSONPath uses loose scalar comparison.
+    })
+    if (!filter[5]) return filtered
+    const mapped = filtered.flatMap(item => asArray(readJsonPath(item, `$${filter[5]}`)))
+    return mapped.length > 1 ? mapped : mapped[0] == null ? '' : mapped[0]
+  }
   const normalized = String(path || '').replace(/^\$\./, '').replace(/\[(\d+|\*)\]/g, '.$1')
   const parts = normalized.split('.').filter(Boolean)
   let values = [input]
@@ -746,6 +771,53 @@ function readJsonPath(input, path) {
 
   const flattened = values.flat()
   return flattened.length > 1 ? flattened : flattened[0] == null ? '' : flattened[0]
+}
+
+function parseJsonPathFilterValue(value) {
+  const text = String(value || '').trim()
+  if ((text[0] === '"' && text[text.length - 1] === '"') || (text[0] === "'" && text[text.length - 1] === "'")) return text.slice(1, -1)
+  if (/^-?\d+(?:\.\d+)?$/.test(text)) return Number(text)
+  if (text === 'true') return true
+  if (text === 'false') return false
+  if (text === 'null') return null
+  return text
+}
+
+function extractDirectChildren(fragment) {
+  const html = String(fragment || '').trim()
+  const opening = html.match(/^<([a-zA-Z][\w:-]*)\b[^>]*>/)
+  let inner = html
+  if (opening) {
+    const closing = new RegExp(`<\/${escapeRegExp(opening[1])}\\s*>\\s*$`, 'i')
+    inner = html.replace(opening[0], '').replace(closing, '')
+  }
+
+  const tokens = /<\/?([a-zA-Z][\w:-]*)\b[^>]*>/g
+  const voidTags = /^(?:area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)$/i
+  const children = []
+  let depth = 0
+  let start = -1
+  let token
+  while ((token = tokens.exec(inner))) {
+    const full = token[0]
+    const closing = /^<\//.test(full)
+    const selfClosing = /\/>$/.test(full) || voidTags.test(token[1])
+    if (!closing) {
+      if (depth === 0) start = token.index
+      if (!selfClosing) depth += 1
+      else if (depth === 0 && start >= 0) {
+        children.push(inner.slice(start, tokens.lastIndex))
+        start = -1
+      }
+      continue
+    }
+    if (depth > 0) depth -= 1
+    if (depth === 0 && start >= 0) {
+      children.push(inner.slice(start, tokens.lastIndex))
+      start = -1
+    }
+  }
+  return children
 }
 
 function replaceValue(input, pattern, replacement) {
@@ -766,11 +838,14 @@ function splitFallbacks(rule) {
 }
 
 function isAccessor(token) {
-  return /^(text|textNodes|ownText|html|href|src|content|value|-?\d+|!\d+|\$\.)/.test(token)
+  return /^(?:text|textNodes|ownText|html|children|href|src|content|value|-?\d+|!\d+|\$\..+)$/.test(String(token || ''))
 }
 
 function isSelectorToken(token) {
-  return /^(class\.|id\.|tag\.|css:|xpath:|json:|\/\/|#|\.)/i.test(String(token || ''))
+  const value = String(token || '').trim()
+  if (isAccessor(value)) return false
+  return /^(class\.|id\.|tag\.|css:|xpath:|json:|\/\/|#|\.)/i.test(value)
+    || /^[a-zA-Z][\w:-]*(?:\.-?\d+)?$/.test(value)
 }
 
 function normalizeSelectorToken(token) {

@@ -19,6 +19,7 @@ import {
 } from './sourceEngine.js'
 import { friendlyErrorMessage } from './uiFeedback.js'
 import { normalizeHeaders } from './headerUtils.js'
+import { asSourceRuntimeError, classifySourceFailure, SourceRuntimeError } from './sourceErrors.js'
 import { clearSourceCookies, getSourceCookie } from './sourceCookieJar.js'
 import { buildSourceSessionHeaders, getActiveSourceSession } from './sourceSession.js'
 import {
@@ -198,7 +199,12 @@ function writeSourceTestResult(sourceId, result) {
       testedAt: Date.now(),
       keyword: result.keyword || '',
       count: Number(result.count || 0),
-      message: result.message || ''
+      message: result.message || '',
+      errorCode: result.errorCode || '',
+      failedStage: result.failedStage || '',
+      httpStatus: Number(result.httpStatus || 0),
+      retryable: result.retryable === true,
+      diagnostics: result.diagnostics && typeof result.diagnostics === 'object' ? result.diagnostics : null
     },
     updatedAt: Date.now()
   }
@@ -958,6 +964,7 @@ function normalizeSourceHealth(value = {}) {
       checkedAt: 0,
       elapsedMs: 0,
       failedStage: '',
+      errorCode: '',
       message: '',
       stages: [],
       stageCount: 0,
@@ -970,6 +977,9 @@ function normalizeSourceHealth(value = {}) {
     title: String(stage.title || stage.id || ''),
     status: stage.status === 'failed' ? 'failed' : stage.status === 'skipped' ? 'skipped' : 'passed',
     message: String(stage.message || ''),
+    errorCode: String(stage.errorCode || ''),
+    httpStatus: Number(stage.httpStatus || 0),
+    retryable: stage.retryable === true,
     elapsedMs: Number(stage.elapsedMs || 0)
   })).filter(stage => stage.id) : []
   const passed = stages.filter(stage => stage.status === 'passed').length
@@ -987,6 +997,7 @@ function normalizeSourceHealth(value = {}) {
     passed,
     failed,
     failedStage: String(value.failedStage || ((stages.find(stage => stage.status === 'failed') || {}).id || '')),
+    errorCode: String(value.errorCode || ((stages.find(stage => stage.status === 'failed') || {}).errorCode || '')),
     message: String(value.message || ''),
     stages
   }
@@ -1898,7 +1909,9 @@ function withTimeout(promise, ms, sourceName) {
       if (timer) clearTimeout(timer)
     }),
     new Promise((_, reject) => {
-      timer = setTimeout(() => reject(new Error(`${sourceName || '书源'}响应超时`)), ms)
+      timer = setTimeout(() => reject(new SourceRuntimeError('TIMEOUT', `${sourceName || '书源'}响应超时`, {
+        retryable: true
+      })), ms)
     })
   ])
 }
@@ -2434,20 +2447,29 @@ export async function testSourceSearch(sourceId, keyword, options = {}) {
       respectSourceRespondTime: true
     }), source.name)
   } catch (error) {
+    const failure = classifySourceFailure(error, { stage: 'search' })
     writeSourceTestResult(source.id, {
       status: 'failed',
       keyword: word,
-      message: friendlyErrorMessage(error, '网络请求失败')
+      message: friendlyErrorMessage(error, '网络请求失败'),
+      errorCode: failure.errorCode,
+      failedStage: failure.stage,
+      httpStatus: failure.status,
+      retryable: failure.retryable
     })
-    throw error
+    throw asSourceRuntimeError(error, { stage: 'search' })
   }
   if (options.failOnEmpty && !results.length) {
-    const error = new Error('无搜索结果')
+    const searchDiagnostics = results && results.diagnostics || {}
+    const error = createEmptySearchError(searchDiagnostics)
     writeSourceTestResult(source.id, {
       status: 'failed',
       keyword: word,
       count: 0,
-      message: error.message
+      message: error.message,
+      errorCode: error.code,
+      failedStage: error.stage,
+      diagnostics: searchDiagnostics
     })
     throw error
   }
@@ -2507,9 +2529,16 @@ export async function runSourceReadingFlow(sourceId, keyword, options = {}) {
       stages.push({ id, title, status: 'passed', message: '通过', elapsedMs: Date.now() - startedAt })
       return result
     } catch (error) {
+      const failure = classifySourceFailure(error, { stage: id })
       const message = friendlyErrorMessage(error, `${title}失败`)
-      stages.push({ id, title, status: 'failed', message, elapsedMs: Date.now() - startedAt })
-      const wrapped = new Error(`${title}失败：${message}`)
+      stages.push({ id, title, status: 'failed', message, errorCode: failure.errorCode, httpStatus: failure.status, retryable: failure.retryable, elapsedMs: Date.now() - startedAt })
+      const wrapped = new SourceRuntimeError(failure.errorCode, `${title}失败：${message}`, {
+        stage: failure.stage || id,
+        status: failure.status,
+        retryable: failure.retryable,
+        diagnostics: error && error.diagnostics,
+        cause: error
+      })
       wrapped.flowStages = stages
       throw wrapped
     }
@@ -2532,7 +2561,7 @@ export async function runSourceReadingFlow(sourceId, keyword, options = {}) {
   })
   const first = search.results.find(item => item && item.type === 'online' && item.book)
   if (!first) {
-    const error = new Error('搜索结果里没有可阅读书籍')
+    const error = new SourceRuntimeError('SEARCH_EMPTY', '搜索结果里没有可阅读书籍', { stage: 'search' })
     error.flowStages = stages
     throw error
   }
@@ -2540,7 +2569,7 @@ export async function runSourceReadingFlow(sourceId, keyword, options = {}) {
   const info = await runStage('bookInfo', '详情', () => loadOnlineBookInfo(first.book))
   const chapters = await runStage('toc', '目录', () => loadOnlineToc(info))
   if (!chapters.length) {
-    const error = new Error('目录解析为空')
+    const error = new SourceRuntimeError('TOC_EMPTY', '目录解析为空', { stage: 'toc' })
     error.flowStages = stages
     throw error
   }
@@ -2582,9 +2611,16 @@ async function runSourceHealthFlow(sourceId, keyword, options = {}) {
       stages.push({ id, title, status: 'passed', message: '通过', elapsedMs: Date.now() - startedAt })
       return result
     } catch (error) {
+      const failure = classifySourceFailure(error, { stage: id })
       const message = friendlyErrorMessage(error, `${title}失败`)
-      stages.push({ id, title, status: 'failed', message, elapsedMs: Date.now() - startedAt })
-      const wrapped = new Error(`${title}失败：${message}`)
+      stages.push({ id, title, status: 'failed', message, errorCode: failure.errorCode, httpStatus: failure.status, retryable: failure.retryable, elapsedMs: Date.now() - startedAt })
+      const wrapped = new SourceRuntimeError(failure.errorCode, `${title}失败：${message}`, {
+        stage: failure.stage || id,
+        status: failure.status,
+        retryable: failure.retryable,
+        diagnostics: error && error.diagnostics,
+        cause: error
+      })
       wrapped.flowStages = stages
       throw wrapped
     }
@@ -2597,14 +2633,14 @@ async function runSourceHealthFlow(sourceId, keyword, options = {}) {
   }))
   const first = search.results.find(item => item && item.type === 'online' && item.book)
   if (!first) {
-    const error = new Error('搜索结果里没有可阅读书籍')
+    const error = new SourceRuntimeError('SEARCH_EMPTY', '搜索结果里没有可阅读书籍', { stage: 'search' })
     error.flowStages = stages
     throw error
   }
   const info = await runStage('bookInfo', '详情', () => loadOnlineBookInfo(first.book))
   const chapters = await runStage('toc', '目录', () => loadOnlineToc(info))
   if (!chapters.length) {
-    const error = new Error('目录解析为空')
+    const error = new SourceRuntimeError('TOC_EMPTY', '目录解析为空', { stage: 'toc' })
     error.flowStages = stages
     throw error
   }
@@ -2630,6 +2666,9 @@ export async function runSourceHealthCheck(sourceId, keyword, options = {}) {
       title: stage.title,
       status: stage.status,
       message: stage.message,
+      errorCode: stage.errorCode || '',
+      httpStatus: Number(stage.httpStatus || 0),
+      retryable: stage.retryable === true,
       elapsedMs: Number(stage.elapsedMs || 0)
     }))
     const health = writeSourceHealthResult(sourceId, {
@@ -2653,6 +2692,9 @@ export async function runSourceHealthCheck(sourceId, keyword, options = {}) {
       title: stage.title,
       status: stage.status,
       message: stage.message,
+      errorCode: stage.errorCode || '',
+      httpStatus: Number(stage.httpStatus || 0),
+      retryable: stage.retryable === true,
       elapsedMs: Number(stage.elapsedMs || 0)
     })) : []
     const health = writeSourceHealthResult(sourceId, {
@@ -2662,6 +2704,7 @@ export async function runSourceHealthCheck(sourceId, keyword, options = {}) {
       checkedAt: Date.now(),
       elapsedMs: Date.now() - startedAt,
       failedStage: (stages.find(stage => stage.status === 'failed') || {}).id || '',
+      errorCode: (stages.find(stage => stage.status === 'failed') || {}).errorCode || classifySourceFailure(error).errorCode,
       message: friendlyErrorMessage(error, '全链路健康检测失败'),
       stages
     })
@@ -2884,7 +2927,7 @@ export async function loadOnlineToc(book, options = {}) {
     currentUrl = pickUrl(payload, rule, ['nextTocUrl', 'nextUrl'], { ...book, page, $: payload }, currentUrl)
   }
 
-  if (!chapters.length) throw new Error('目录解析为空，请换一个书源')
+  if (!chapters.length) throw new SourceRuntimeError('TOC_EMPTY', '目录解析为空，请换一个书源', { stage: 'toc' })
   writeOnlineDataCache('toc', cacheKey, chapters)
   return chapters
 }
@@ -2916,7 +2959,7 @@ export async function loadOnlineChapter(book, chapter, options = {}) {
     currentUrl = pickUrl(payload, rule, ['nextContentUrl', 'nextUrl'], { ...book, ...chapter, page, $: payload }, currentUrl)
   }
   const content = uniqueStrings(contents).join('\n\n')
-  if (!content) throw new Error('正文解析为空，请换一个书源')
+  if (!content) throw new SourceRuntimeError('CONTENT_EMPTY', '正文解析为空，请换一个书源', { stage: 'content' })
 
   const protectedKeys = Array.isArray(options.protectedCacheKeys) ? options.protectedCacheKeys : []
   writeOnlineChapterCache(book, chapter, content, protectedKeys)
@@ -2941,7 +2984,7 @@ async function searchSource(source, keyword) {
   const listRule = getFieldRule(rule, ['bookList', 'list', 'books'])
   const list = applyListRule(payload, listRule, { key: keyword, keyword, page: 1, $: payload })
 
-  return list.map(item => {
+  const mappedResults = list.map(item => {
     const context = { key: keyword, keyword, $: item }
     const book = normalizeOnlineBookForShelf({
       sourceId: source.id,
@@ -2966,7 +3009,75 @@ async function searchSource(source, keyword) {
       sourceName: source.name,
       book
     }
-  }).filter(result => result.book.bookUrl && result.book.title)
+  })
+  const results = mappedResults.filter(result => result.book.bookUrl && result.book.title)
+  results.diagnostics = {
+    ...buildSearchResponseDiagnostics(html, payload, listRule, list.length, results.length),
+    missingTitleCount: mappedResults.filter(result => !result.book.title).length,
+    missingBookUrlCount: mappedResults.filter(result => !result.book.bookUrl).length
+  }
+  return results
+}
+
+function buildSearchResponseDiagnostics(html, payload, listRule, listCount, resultCount) {
+  const text = String(html || '')
+  const lower = text.toLowerCase()
+  const classCounts = {}
+  for (const match of text.matchAll(/\bclass=["']([^"']+)["']/gi)) {
+    String(match[1] || '').split(/\s+/).filter(Boolean).slice(0, 12).forEach(name => {
+      if (/^[\w-]{1,48}$/.test(name)) classCounts[name] = (classCounts[name] || 0) + 1
+    })
+  }
+  let hash = 2166136261
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return {
+    responseLength: text.length,
+    responseFingerprint: (hash >>> 0).toString(16).padStart(8, '0'),
+    payloadType: Array.isArray(payload) ? 'array' : payload && typeof payload === 'object' ? 'object' : 'text',
+    topLevelKeys: payload && typeof payload === 'object' && !Array.isArray(payload) ? Object.keys(payload).slice(0, 20) : [],
+    classNames: Object.entries(classCounts).sort((left, right) => right[1] - left[1]).slice(0, 20).map(entry => entry[0]),
+    ruleKind: String(listRule || '').trim().startsWith('$.') ? 'jsonpath' : /xpath:|^\/\//i.test(String(listRule || '').trim()) ? 'xpath' : 'css',
+    listCount: Number(listCount || 0),
+    resultCount: Number(resultCount || 0),
+    markers: {
+      captcha: /captcha|recaptcha|turnstile|验证码|人机验证/i.test(text),
+      login: /请先登录|必须登录|登录后(?:才能|可)|login\s*(?:required|form)/i.test(text),
+      blocked: /cloudflare|access denied|访问过于频繁|请求被拒绝|安全验证/i.test(lower),
+      parked: /domain\s+(?:is\s+)?for\s+sale|buy\s+this\s+domain|域名出售|购买此域名/i.test(text)
+        || ['domain-name', 'stencil-overall', 'EasyRegister', 'htmlprv_content_wrapper'].some(name => classCounts[name]),
+      noResult: /无搜索结果|没有找到|搜索不到|暂无相关|no results?|not found/i.test(text)
+        || !!(payload && typeof payload === 'object' && (Number(payload.totalNum) === 0 || Array.isArray(payload.data) && payload.data.length === 0))
+    }
+  }
+}
+
+function createEmptySearchError(diagnostics = {}) {
+  const markers = diagnostics.markers || {}
+  let code = 'PARSE_EMPTY'
+  let message = '搜索响应已返回，但规则没有解析出有效图书'
+  if (markers.captcha) {
+    code = 'CAPTCHA_REQUIRED'
+    message = '搜索页面要求验证码或人机验证'
+  } else if (markers.login) {
+    code = 'LOGIN_REQUIRED'
+    message = '搜索页面要求登录'
+  } else if (markers.blocked) {
+    code = 'HTTP_BLOCKED'
+    message = '搜索页面返回了访问限制内容'
+  } else if (markers.parked) {
+    code = 'SITE_UNREACHABLE'
+    message = '书源域名已停放或出售，原站点不可用'
+  } else if (markers.noResult) {
+    code = 'SEARCH_EMPTY'
+    message = '站点返回无搜索结果'
+  } else if (!diagnostics.responseLength) {
+    code = 'PARSE_EMPTY'
+    message = '搜索响应为空'
+  }
+  return new SourceRuntimeError(code, message, { stage: 'search', diagnostics })
 }
 
 function normalizeOnlineBookForShelf(book) {
