@@ -321,3 +321,65 @@ adb install -r .\release\android-v2\V2.apk
 ```
 
 下一阶段继续提高“已导入书源可阅读”的比例：优先处理第 11 节 `PARSE_EMPTY`、`SEARCH_EMPTY` 和受控 WebView/请求脚本差异；在 Android 真机关闭 8765 后完成全量导入耗时、磁盘占用、重启加载和随机抽样阅读压力测试。漫画、音频、任意 Java 类、复杂动态加密、验证码绕过和付费内容仍不在第一阶段支持范围内。
+
+## 13. 第四轮真实阅读与 Android 全量导入（2026-08-12）
+
+### 13.1 规则运行时兼容修复
+
+- 对“相对路径 POST 搜索 + 首页跳转到新域名”的 3.x 来源，先以无敏感信息 GET 探测最终站点，再向新源站重建只包含搜索参数的 POST；Cookie、Authorization 和 Proxy-Authorization 不会跨域透传。
+- `runSourceReadingFlow()` 按“斗破苍穹、剑来、诡秘之主”逐个执行完整流程。仅当搜索、解析、详情、目录或正文返回稳定空结果码时尝试下一个关键词；网络、登录、验证码和安全拒绝不会被掩盖。
+- 代表源 YCK `7596` 已由 `PARSE_EMPTY` 修复为完整通过：搜索《斗破苍穹》、1914 章目录、抽样正文 1284 个清洗后字符。`7655`、`7163` 也分别取得 1914 章和 1663 章目录并完成正文。
+
+### 13.2 书源市场本地网络可靠性
+
+- YCK 市场请求统一使用 APK 原生网络桥、浏览器兼容 User-Agent/Accept 和 30 秒超时，不再把第三方站点超时提示成 FastAPI 后端故障。
+- 批量 JSON 接口失败时自动回退为 4 路并发单源下载；页面快速入口不再误把点击事件对象当成 URL。
+- APK 导入提示明确为“手机直接联网，无需连接电脑后端”；H5 仍按 CORS 规则使用可选鉴权代理。
+
+### 13.3 固定 200 源阅读基准
+
+详细结果见 `docs/source-acceptance/yck-text-source-benchmark-stage4-2026-08-12.md` 和同名 JSON。
+
+| 指标 | 第四轮结果 | 验收结论 |
+|---|---:|---|
+| 有效文字 JSON / 可导入 | 200 / 200 | 导入率 100%，达到 ≥95% |
+| 静态状态 | ready 83 / partial 29 | needs_login 10 / blocked 78 |
+| 静态候选 / 外部排除 | 34 / 30 | 网络、站点、HTTP、登录等稳定分类 |
+| 严格运行时分母 | 4 | 排除无法公开访问的外部状态 |
+| 搜索→详情→目录→正文通过 | 2 / 4 | 完整阅读率 50% |
+| 引擎侧未通过 | SEARCH_EMPTY 2 | 站点对三个验收关键词均明确返回空结果 |
+
+第四轮从 25% 提升到 **50%**，但仍低于 ≥80% 发布目标。因此本分支可以交付“全目录可导入和稳定分类”，不能宣称 YCK 全部或绝大来源都已可稳定阅读。
+
+### 13.4 桌面全目录与 Android 真机
+
+- 桌面全目录基准：YCK 声明 5624 条、57 页；成功下载 5602，瞬时缺失 22；新增 5312、覆盖 290，最终 5312 个唯一来源，目录下载率 99.61%。详见 `yck-full-import-stage4-2026-08-12.md`。
+- Android 真机：REA-AN00、Android 15；电脑 8765 关闭且没有 8765 反向端口。APK 处理 57/57 页、5624/5624 条，缺失 0，新增 5330、覆盖 294。
+- 强制停止并重启 APK 后，书源页仍显示 5330 个来源，大容量原生分片写入和重启加载通过。真机结果与桌面结果的唯一项数量差异来自同日动态目录内容和桌面瞬时缺失，均保留抓取时间与各自口径。
+- 真机脱敏证据见 `docs/source-acceptance/yck-android-full-import-stage4-2026-08-12.md` 和同名 JSON；不保存正文、Cookie 或 Token。
+
+### 13.5 自动测试、构建和 APK 证据
+
+- 前端 Node 全量：`97 passed`；后端 SQLite：`125 passed`。
+- H5 生产构建成功；仅保留现有入口包体积提示。
+- APK：`release/android-v2/V2.apk`，1,520,718 字节，SHA-256 为 `3C8BA0EFD6BCFB781188CA28063612CB74A1EFEACAA64B7D23D0DE656B542967`；v1、v2、v3 签名验证通过。
+- Android 安装版本 `1.0.0 (10000)`，最终包安装更新时间 2026-08-12 22:33:11；再次强制停止并重启后仍显示 5330 源。
+
+第四轮关键命令（项目根目录）：
+
+```powershell
+$tests = Get-ChildItem tests -Filter *.test.mjs | ForEach-Object { $_.FullName }
+node --test $tests
+backend\.venv\Scripts\python.exe -m pytest backend\tests -q
+node scripts\source_import_benchmark.mjs --limit=200 --pages=1,28,56 --concurrency=8 --flowLimit=200 --timeoutMs=10000 --output=docs/source-acceptance/yck-text-source-benchmark-stage4-2026-08-12.json
+node scripts\yck_full_import_acceptance.mjs --output=docs/source-acceptance/yck-full-import-stage4-2026-08-12.json
+adb reverse --list
+adb install -r .\release\android-v2\V2.apk
+```
+
+### 13.6 下一阶段
+
+1. 为两个 `SEARCH_EMPTY` 固定样本增加站点级诊断，确认是关键词覆盖不足、搜索入口变化还是规则变更；只有可复现的引擎差异才扩展白名单能力。
+2. 扩大严格运行时有效分母，并在第二个时间窗口复测 200 源；达到 ≥80% 前继续保持兼容边界说明。
+3. 在真机继续抽样验证“导入→立即测试→加入书架→重启续读→断网缓存”，并补齐 URL、文件、二维码和 3.x 深链同源去重的现场证据。
+4. 后端继续作为账号同步、云书架、云 TTS 和 H5 代理；Android 书源阅读保持本地优先，不恢复 8765 强依赖。

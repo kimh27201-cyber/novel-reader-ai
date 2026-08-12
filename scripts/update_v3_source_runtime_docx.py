@@ -13,6 +13,7 @@ DOCX_FALLBACK_PATH = ROOT / "docs" / "DEVELOPMENT_RECORD_2026-08-11-stage3.docx"
 SECTION_TITLE = "10. 书源本地优先运行时（2026-08-11 追加）"
 STAGE2_SECTION_TITLE = "11. 书源运行时第二轮完善（2026-08-11）"
 STAGE3_SECTION_TITLE = "12. YCK 全目录导入与 Android 大容量存储（2026-08-11）"
+STAGE4_SECTION_TITLE = "13. 第四轮真实阅读与 Android 全量导入（2026-08-12）"
 
 
 def set_east_asia_font(run, name="微软雅黑"):
@@ -196,24 +197,95 @@ def append_stage3_section(document):
     return True
 
 
+def append_stage4_section(document):
+    if any(paragraph.text.strip() == STAGE4_SECTION_TITLE for paragraph in document.paragraphs):
+        return False
+
+    document.add_page_break()
+    heading = document.add_heading(STAGE4_SECTION_TITLE, level=1)
+    for run in heading.runs:
+        set_east_asia_font(run)
+
+    document.add_heading("13.1 规则运行时与书源市场修复", level=2)
+    add_bullet(document, "兼容相对路径 POST 搜索与首页跨域跳转：先以无敏感信息 GET 确认最终站点，再向新源站重建只包含搜索参数的 POST；不跨域透传 Cookie、Authorization 或 Proxy-Authorization。")
+    add_bullet(document, "完整阅读流程按斗破苍穹、剑来、诡秘之主依次尝试；只对稳定空结果码切换关键词，网络、登录、验证码和安全拒绝保持原错误。")
+    add_bullet(document, "YCK 市场请求改用 APK 原生网络桥、浏览器兼容请求头和 30 秒超时；批量接口失败时自动回退为 4 路单源下载。")
+    add_bullet(document, "代表源 7596 已由 PARSE_EMPTY 修复为完整通过：斗破苍穹、1914 章目录、抽样正文 1284 个清洗后字符。")
+
+    document.add_heading("13.2 第四轮固定 200 源基准", level=2)
+    rows = [
+        ("有效文字 JSON / 可导入", "200 / 200", "导入率 100%，达到 ≥95%"),
+        ("静态状态", "ready 83 / partial 29", "needs_login 10 / blocked 78"),
+        ("静态候选 / 外部排除", "34 / 30", "外部状态均有稳定错误码"),
+        ("严格运行时分母", "4", "排除无法公开访问的外部状态"),
+        ("完整阅读通过", "2 / 4", "50%，仍低于 ≥80%"),
+        ("引擎侧未通过", "SEARCH_EMPTY 2", "三个验收关键词均返回空结果"),
+    ]
+    table = document.add_table(rows=1, cols=3)
+    for index, value in enumerate(["指标", "结果", "说明"]):
+        table.rows[0].cells[index].text = value
+    for values in rows:
+        cells = table.add_row().cells
+        for index, value in enumerate(values):
+            cells[index].text = value
+    style_table(table)
+    warning = document.add_paragraph()
+    warning_run = warning.add_run("验收结论：本分支已达到全目录可导入和稳定分类目标，但真实完整阅读率为 50%，不能宣称 YCK 全部或绝大来源都可稳定阅读。")
+    warning_run.bold = True
+    warning_run.font.color.rgb = RGBColor(0xC6, 0x28, 0x28)
+    warning_run.font.highlight_color = WD_COLOR_INDEX.YELLOW
+    set_east_asia_font(warning_run)
+
+    document.add_heading("13.3 无 8765 后端的 Android 真机全量验收", level=2)
+    rows = [
+        ("设备 / 系统", "REA-AN00 / Android 15", "应用 1.0.0 (10000)"),
+        ("电脑后端", "8765 关闭", "无 tcp:8765 反向映射"),
+        ("目录处理", "57 / 57 页", "5624 / 5624 条，缺失 0"),
+        ("新增 / 覆盖", "5330 / 294", "重启后仍显示 5330 源"),
+        ("桌面独立基准", "5602 / 5624 下载", "瞬时缺失 22，下载率 99.61%"),
+    ]
+    table = document.add_table(rows=1, cols=3)
+    for index, value in enumerate(["指标", "结果", "说明"]):
+        table.rows[0].cells[index].text = value
+    for values in rows:
+        cells = table.add_row().cells
+        for index, value in enumerate(values):
+            cells[index].text = value
+    style_table(table)
+    add_body(document, "真机批量连接提前关闭时自动回退单源下载；DNS 瞬时失败时保存断点，恢复后续传。强制停止并重启后书源仍在，证明 APK 可在仅手机联网条件下完成全量导入和大容量持久化。")
+
+    document.add_heading("13.4 自动验证、产物与后续边界", level=2)
+    add_bullet(document, "前端 Node 全量 97 passed；后端 SQLite 125 passed；H5 生产构建成功。")
+    add_bullet(document, "APK release/android-v2/V2.apk 为 1,520,718 字节，SHA-256 为 3C8BA0EFD6BCFB781188CA28063612CB74A1EFEACAA64B7D23D0DE656B542967，v1/v2/v3 签名通过；最终包覆盖安装并重启后仍显示 5330 源。")
+    add_bullet(document, "脱敏报告保存样本 ID、哈希、状态、耗时与错误码；不保存正文、Cookie、Token 或完整响应。")
+    add_number(document, "继续诊断两个 SEARCH_EMPTY 固定样本，并扩大严格运行时有效分母，在第二时间窗口复测。")
+    add_number(document, "补齐 URL、文件、二维码和 3.x 深链同源去重，以及加入书架、重启续读、断网缓存的真机证据。")
+    add_number(document, "Android 书源保持本地优先；后端继续只承担账号同步、云书架、云 TTS 和 H5 鉴权代理。")
+    return True
+
+
 def main():
     document = Document(DOCX_PATH)
     if any(paragraph.text.strip() == SECTION_TITLE for paragraph in document.paragraphs):
-        changed = False
+        stage4_updated = False
         for paragraph in document.paragraphs:
-            if "APK release/android-v2/V2.apk" in paragraph.text and "SHA-256" in paragraph.text:
-                paragraph.text = (
-                    "H5 生产构建及本地导入持久化验收通过；APK release/android-v2/V2.apk "
-                    "为 1,504,334 字节，SHA-256 为 "
-                    "B7C810ACA13F12FA8978B79B4AA06E2862723F41A47B0FA2E0AB4CE80601050E，"
-                    "v1/v2/v3 签名通过。"
-                )
+            if "不自动透传 Cookie、Authorization 或原始请求体" in paragraph.text:
+                paragraph.text = "兼容相对路径 POST 搜索与首页跨域跳转：先以无敏感信息 GET 确认最终站点，再向新源站重建只包含搜索参数的 POST；不跨域透传 Cookie、Authorization 或 Proxy-Authorization。"
                 for run in paragraph.runs:
                     set_east_asia_font(run)
-                changed = True
+                stage4_updated = True
+            if "9AAE5CC3AEE128ABC9A5477EE79E768533C7A1CA1F6308A2F814028A58682C16" in paragraph.text:
+                paragraph.text = paragraph.text.replace(
+                    "9AAE5CC3AEE128ABC9A5477EE79E768533C7A1CA1F6308A2F814028A58682C16",
+                    "3C8BA0EFD6BCFB781188CA28063612CB74A1EFEACAA64B7D23D0DE656B542967"
+                ).replace("，v1/v2/v3 签名通过。", "，v1/v2/v3 签名通过；最终包覆盖安装并重启后仍显示 5330 源。")
+                for run in paragraph.runs:
+                    set_east_asia_font(run)
+                stage4_updated = True
         stage2_added = append_stage2_section(document)
         stage3_added = append_stage3_section(document)
-        if changed or stage2_added or stage3_added:
+        stage4_added = append_stage4_section(document)
+        if stage4_updated or stage2_added or stage3_added or stage4_added:
             saved_path = save_document(document)
             print(f"Updated: {saved_path}")
         else:
@@ -286,6 +358,7 @@ def main():
 
     append_stage2_section(document)
     append_stage3_section(document)
+    append_stage4_section(document)
     saved_path = save_document(document)
     print(f"Updated: {saved_path}")
 
