@@ -75,5 +75,65 @@ await assert.rejects(
   error => error && error.code === 'SEARCH_EMPTY'
 )
 
+const movedPostSource = importSourcesWithStats(JSON.stringify({
+  bookSourceName: 'Moved POST source',
+  bookSourceUrl: 'https://old-post.example',
+  header: { Authorization: 'Bearer old-origin', Cookie: 'session=old-origin' },
+  searchUrl: '/search,{"method":"POST","body":"searchkey={{key}}"}',
+  ruleSearch: { bookList: '.librarylist li', name: '.name@text', bookUrl: 'a@href' },
+  ruleToc: { chapterList: '.chapter', chapterName: 'a@text', chapterUrl: 'a@href' },
+  ruleContent: { content: '#content@text' }
+})).importedSources[0]
+const movedRequests = []
+globalThis.fetch = async (url, options = {}) => {
+  const request = {
+    url: String(url),
+    method: String(options.method || 'GET').toUpperCase(),
+    body: options.body || '',
+    headers: Object.fromEntries(new Headers(options.headers || {}).entries())
+  }
+  movedRequests.push(request)
+  if (request.method === 'GET') {
+    return {
+      ok: true,
+      status: 200,
+      url: 'https://new-post.example/',
+      headers: new Headers({ 'Content-Type': 'text/html; charset=utf-8' }),
+      text: async () => '<html><body>canonical home</body></html>'
+    }
+  }
+  if (request.url.startsWith('https://new-post.example/')) {
+    return {
+      ok: true,
+      status: 200,
+      url: 'https://new-post.example/search',
+      headers: new Headers({ 'Content-Type': 'text/html; charset=utf-8' }),
+      text: async () => '<ul class="librarylist"><li><a href="/book/1"><span class="name">Test Book</span></a></li></ul>'
+    }
+  }
+  return {
+    ok: true,
+    status: 200,
+    url: 'https://new-post.example/search',
+    headers: new Headers({ 'Content-Type': 'text/html; charset=utf-8' }),
+    text: async () => '<html><body>moved</body></html>'
+  }
+}
+const movedResult = await testSourceSearch(movedPostSource.id, 'keyword', { failOnEmpty: true })
+assert.equal(movedResult.count, 1)
+assert.equal(movedResult.results[0].book.bookUrl, 'https://new-post.example/book/1')
+assert.deepEqual(movedRequests.map(item => [item.method, item.url]), [
+  ['POST', 'https://old-post.example/search'],
+  ['GET', 'https://old-post.example'],
+  ['POST', 'https://new-post.example/search']
+])
+assert.equal(movedRequests[0].body, 'searchkey=keyword')
+assert.equal(movedRequests[2].body, 'searchkey=keyword')
+assert.equal(movedRequests[1].headers.authorization, undefined)
+assert.equal(movedRequests[1].headers.cookie, undefined)
+assert.equal(movedRequests[2].headers.authorization, undefined)
+assert.equal(movedRequests[2].headers.cookie, undefined)
+
+delete globalThis.fetch
 delete globalThis.uni
 console.log('sourceReadingFlowErrors tests passed')

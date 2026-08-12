@@ -22,11 +22,14 @@ import { normalizeHeaders } from './headerUtils.js'
 import { asSourceRuntimeError, classifySourceFailure, SourceRuntimeError } from './sourceErrors.js'
 import { clearSourceCookies, getSourceCookie } from './sourceCookieJar.js'
 import { buildSourceSessionHeaders, getActiveSourceSession } from './sourceSession.js'
+import { requestSourceText as requestSourceResponse } from './sourceTransport.js'
 import {
   clearImportLogs as clearStoredImportLogs,
   getImportLogs as getStoredImportLogs,
   saveImportLog
 } from './sourceImportLog.js'
+
+const canonicalSearchBaseCache = new Map()
 
 const USER_SOURCES_KEY = 'sources:user'
 const SOURCE_SCHEMA_VERSION_KEY = 'sources:schema-version'
@@ -2650,11 +2653,33 @@ export async function searchSourceBooks(sourceId, keyword, options = {}) {
 }
 
 export async function runSourceReadingFlow(sourceId, keyword, options = {}) {
-  const stages = []
   const keywords = (Array.isArray(keyword) ? keyword : [keyword])
     .map(item => String(item || '').trim())
     .filter(Boolean)
   if (!keywords.length) throw new Error('请输入至少一个验收关键词')
+  const keywordAttempts = []
+  let lastError
+  for (const candidate of keywords) {
+    try {
+      const flow = await runSingleSourceReadingFlow(sourceId, candidate, options)
+      return { ...flow, keywordAttempts: [...keywordAttempts, { keyword: candidate, status: 'passed', errorCode: '' }] }
+    } catch (error) {
+      lastError = error
+      const failure = classifySourceFailure(error)
+      keywordAttempts.push({ keyword: candidate, status: 'failed', errorCode: failure.errorCode })
+      if (!['SEARCH_EMPTY', 'PARSE_EMPTY', 'DETAIL_EMPTY', 'TOC_EMPTY', 'CONTENT_EMPTY'].includes(failure.errorCode)) break
+    }
+  }
+  if (lastError) {
+    lastError.keywordAttempts = keywordAttempts
+    throw lastError
+  }
+  throw new Error('无可用验收关键词')
+}
+
+async function runSingleSourceReadingFlow(sourceId, keyword, options = {}) {
+  const stages = []
+  const keywords = [String(keyword || '').trim()].filter(Boolean)
   const runStage = async (id, title, action) => {
     const startedAt = Date.now()
     try {
@@ -3112,7 +3137,27 @@ async function searchSource(source, keyword) {
   const rule = normalizeRuleObject(raw.ruleSearch)
   if (!raw.searchUrl || !Object.keys(rule).length) return []
 
-  const html = await requestText(createSourceRequestSpec(source, raw.searchUrl, { key: keyword, keyword, page: 1, rendered: false }, source.baseUrl))
+  const context = { key: keyword, keyword, page: 1, rendered: false }
+  let activeSource = source
+  const initialSpec = createSourceRequestSpec(activeSource, raw.searchUrl, context, activeSource.baseUrl)
+  let html = await requestText(initialSpec)
+  let parsed = parseSearchResponse(activeSource, rule, keyword, html)
+  if (!parsed.results.length && initialSpec.method === 'POST' && !/^https?:\/\//i.test(String(raw.searchUrl || '').trim())) {
+    const canonicalSource = await resolveCanonicalSearchSource(source)
+    if (canonicalSource) {
+      activeSource = canonicalSource
+      const canonicalSpec = stripCrossOriginSensitiveFields(
+        createSourceRequestSpec(activeSource, raw.searchUrl, context, activeSource.baseUrl)
+      )
+      html = await requestText(canonicalSpec)
+      parsed = parseSearchResponse(activeSource, rule, keyword, html)
+      parsed.results.diagnostics.canonicalBaseUrl = activeSource.baseUrl
+    }
+  }
+  return parsed.results
+}
+
+function parseSearchResponse(source, rule, keyword, html) {
   const payload = parseResponsePayload(html)
   const listRule = getFieldRule(rule, ['bookList', 'list', 'books'])
   const list = applyListRule(payload, listRule, { key: keyword, keyword, page: 1, $: payload })
@@ -3149,7 +3194,46 @@ async function searchSource(source, keyword) {
     missingTitleCount: mappedResults.filter(result => !result.book.title).length,
     missingBookUrlCount: mappedResults.filter(result => !result.book.bookUrl).length
   }
-  return results
+  return { results, payload, list }
+}
+
+async function resolveCanonicalSearchSource(source) {
+  const baseUrl = String(source && source.baseUrl || '').trim()
+  if (!/^https?:\/\//i.test(baseUrl)) return null
+  const cacheKey = String(source && (source.sourceKey || source.id) || baseUrl)
+  const cachedBaseUrl = canonicalSearchBaseCache.get(cacheKey)
+  if (cachedBaseUrl) return { ...source, baseUrl: cachedBaseUrl }
+  try {
+    const response = await requestSourceResponse({
+      url: baseUrl,
+      method: 'GET',
+      headers: { Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8' },
+      charset: '',
+      cookie: '',
+      userAgent: 'Mozilla/5.0 NovelReader/3.x',
+      referer: '',
+      timeoutMs: 8000,
+      maxBytes: 256 * 1024,
+      sourceKey: source.sourceKey || source.id
+    }, { sourceKey: source.sourceKey || source.id, useBackend: false })
+    const initial = new URL(baseUrl)
+    const final = new URL(response.finalUrl || baseUrl)
+    if (initial.origin === final.origin) return null
+    final.search = ''
+    final.hash = ''
+    const canonicalBaseUrl = final.toString()
+    canonicalSearchBaseCache.set(cacheKey, canonicalBaseUrl)
+    return { ...source, baseUrl: canonicalBaseUrl }
+  } catch (error) {
+    return null
+  }
+}
+
+function stripCrossOriginSensitiveFields(spec = {}) {
+  const header = Object.fromEntries(Object.entries(spec.header || {}).filter(([name]) => {
+    return !/^(?:cookie|authorization|proxy-authorization)$/i.test(String(name || '').trim())
+  }))
+  return { ...spec, header, cookie: '' }
 }
 
 function buildSearchResponseDiagnostics(html, payload, listRule, listCount, resultCount) {

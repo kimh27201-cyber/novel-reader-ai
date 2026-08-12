@@ -70,6 +70,18 @@ export function getSourceMarketProviders(manifest = DEFAULT_SOURCE_MARKET_MANIFE
 
 export const SOURCE_MARKET_PROVIDERS = getSourceMarketProviders()
 
+function createMarketRequestSpec(url, timeoutMs = 30000) {
+  const spec = parseRequestSpec(url, {}, url)
+  spec.header = {
+    ...(spec.header || {}),
+    Accept: 'text/html,application/json;q=0.9,*/*;q=0.8',
+    'User-Agent': 'Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 Mobile Safari/537.36 NovelReader/3.x'
+  }
+  spec.timeoutMs = timeoutMs
+  spec.sourceKey = `source-market:${new URL(url).origin}`
+  return spec
+}
+
 export function createSourceMarketUrl(options = {}) {
   const provider = SOURCE_MARKET_PROVIDERS[options.provider] || SOURCE_MARKET_PROVIDERS.yckceo
   const params = []
@@ -143,7 +155,7 @@ export async function fetchSourceMarketItems(options = {}) {
 
 export async function fetchSourceMarketPage(options = {}) {
   const url = options.url || createSourceMarketUrl(options)
-  const text = await requestText(parseRequestSpec(url, {}, url))
+  const text = await requestText(createMarketRequestSpec(url))
   return parseSourceMarketPage(text, url)
 }
 
@@ -199,12 +211,19 @@ export async function fetchSourceMarketBatch(items, options = {}) {
   const provider = options.provider || (items && items[0] && items[0].provider) || 'yckceo'
   const url = createSourceMarketBatchJsonUrl(items, provider)
   if (!url) return { url: '', text: '[]', sources: [], requested: 0, received: 0 }
-  const fetchText = options.fetchText || (target => requestText(parseRequestSpec(target, {}, target)))
-  const text = await fetchText(url)
-  let sources = parseSourceJson(text)
+  const fetchText = options.fetchText || (target => requestText(createMarketRequestSpec(target)))
+  let text = '[]'
+  let sources = []
+  let batchError = null
+  try {
+    text = await fetchText(url)
+    sources = parseSourceJson(text)
+  } catch (error) {
+    batchError = error
+  }
   const failedIds = []
   let individualFallback = false
-  if (options.ensureComplete !== false && sources.length < items.length) {
+  if (options.ensureComplete !== false && (batchError || sources.length < items.length)) {
     individualFallback = true
     const parsed = new URL(url)
     const recovered = []
@@ -230,6 +249,8 @@ export async function fetchSourceMarketBatch(items, options = {}) {
       return true
     })
   }
+  if (batchError && !individualFallback) throw batchError
+  if (batchError && !sources.length) throw batchError
   return {
     url,
     text,
@@ -238,7 +259,8 @@ export async function fetchSourceMarketBatch(items, options = {}) {
     received: sources.length,
     missing: Math.max(0, items.length - sources.length),
     failedIds,
-    individualFallback
+    individualFallback,
+    batchErrorCode: batchError ? String(batchError.code || 'BATCH_REQUEST_FAILED') : ''
   }
 }
 
@@ -329,7 +351,7 @@ export function resolveMarketScanTarget(payload) {
 export async function fetchMarketSourcePreview(url) {
   const target = resolveMarketScanTarget(url)
   const sourceUrl = target.type === 'json' ? target.url : await resolveDetailJsonUrl(target.url || url)
-  const jsonText = await requestText(parseRequestSpec(sourceUrl, {}, sourceUrl))
+  const jsonText = await requestText(createMarketRequestSpec(sourceUrl))
   const sources = parseSourceJson(jsonText)
   const source = sources[0] || normalizeSourceConfig({})
   const analysis = analyzeBookSourceCompatibility(source)
@@ -343,7 +365,7 @@ export async function fetchMarketSourcePreview(url) {
 }
 
 async function resolveDetailJsonUrl(url) {
-  const pageText = await requestText(parseRequestSpec(url, {}, url))
+  const pageText = await requestText(createMarketRequestSpec(url))
   const jsonUrl = extractRepositorySourceUrl(pageText, url)
   if (!jsonUrl) throw new Error('没有识别到书源 JSON 地址')
   return jsonUrl

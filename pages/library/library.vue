@@ -328,7 +328,7 @@
         <button class="outline-action" @tap="importFromClipboard">剪贴板</button>
         <button class="outline-action" @tap="chooseSourceJsonFile">本地 JSON</button>
         <button class="outline-action" @tap="scanSourceQr">扫码</button>
-        <button class="outline-action" @tap="goSourceMarket">源仓库页</button>
+        <button class="outline-action" @tap="goSourceMarket()">源仓库页</button>
       </view>
     </view>
 
@@ -723,8 +723,8 @@ export default {
     },
     sourceImportHint() {
       if (this.sourceImportMode === 'json') return '支持单个对象、数组、sources 包装结构和一键导入链接。'
-      if (this.sourceImportMode === 'repo') return '粘贴 yck2026/yckceo 详情页，系统会通过后端代理下载页面并优先读取 JSON 地址。'
-      return '支持直接 JSON 链接、yuedu://、legado:// 和包含 src= 的链接；网络内容会通过后端代理下载。'
+      if (this.sourceImportMode === 'repo') return '粘贴 yck2026/yckceo 详情页；Android APK 会在本机联网解析，H5 可使用已配置的代理。'
+      return '支持直接 JSON 链接、yuedu://、legado:// 和包含 src= 的链接；Android APK 无需连接电脑后端。'
     },
     sourceImportRaw() {
       return String(this.sourceImportMode === 'json' ? this.sourceImportText : this.sourceImportUrl).trim()
@@ -1567,7 +1567,8 @@ export default {
       uni.showToast({ title: `书源已删除${backendMessage}`, icon: 'none' })
     },
     goSourceMarket(url = '') {
-      const query = url ? `?url=${encodeURIComponent(url)}` : ''
+      const targetUrl = typeof url === 'string' ? url.trim() : ''
+      const query = targetUrl ? `?url=${encodeURIComponent(targetUrl)}` : ''
       uni.navigateTo({ url: `/pages/sourceMarket/sourceMarket${query}` })
     },
     scanSourceQr() {

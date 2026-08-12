@@ -114,6 +114,19 @@ assert.equal(fetchedBatch.requested, 2)
 assert.equal(fetchedBatch.received, 2)
 assert.equal(fetchedBatch.missing, 0)
 
+const fallbackItems = marketPage.items.slice(0, 2)
+const recoveredBatch = await fetchSourceMarketBatch(fallbackItems, {
+  fetchText: async target => {
+    if (String(target).includes('/jsons?')) throw Object.assign(new Error('unexpected end of stream'), { code: 'NETWORK_ERROR' })
+    const id = String(target).match(/\/id\/(\d+)\.json/)[1]
+    return JSON.stringify({ bookSourceName: `Recovered ${id}`, bookSourceUrl: `https://recovered-${id}.example` })
+  }
+})
+assert.equal(recoveredBatch.individualFallback, true)
+assert.equal(recoveredBatch.batchErrorCode, 'NETWORK_ERROR')
+assert.equal(recoveredBatch.received, 2)
+assert.equal(recoveredBatch.missing, 0)
+
 const fallbackRequests = []
 globalThis.fetch = async url => {
   fallbackRequests.push(String(url))
