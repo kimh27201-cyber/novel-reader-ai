@@ -7,6 +7,7 @@ import {
 } from '../common/sourceErrors.js'
 
 assert.equal(classifySourceFailure(Object.assign(new Error('getaddrinfo ENOTFOUND old.example'), { code: 'ENOTFOUND' })).errorCode, 'SITE_UNREACHABLE')
+assert.equal(classifySourceFailure({ code: 'NETWORK_ERROR', message: 'Unable to resolve host "m.yueshu.org": No address associated with hostname' }).errorCode, 'SITE_UNREACHABLE')
 assert.equal(classifySourceFailure(Object.assign(new Error('HTTP 403'), { status: 403 })).errorCode, 'HTTP_BLOCKED')
 assert.equal(classifySourceFailure(Object.assign(new Error('HTTP 404'), { status: 404 })).errorCode, 'HTTP_NOT_FOUND')
 assert.equal(classifySourceFailure(Object.assign(new Error('missing'), { code: 'HTTP_404' })).errorCode, 'HTTP_NOT_FOUND')

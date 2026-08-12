@@ -290,7 +290,27 @@ function normalizeSourceTest(value) {
     testedAt: Number(value.testedAt || 0),
     keyword: String(value.keyword || ''),
     count: Number(value.count || 0),
-    message: String(value.message || '')
+    message: String(value.message || ''),
+    errorCode: String(value.errorCode || ''),
+    failedStage: String(value.failedStage || ''),
+    httpStatus: Number(value.httpStatus || 0),
+    retryable: value.retryable === true,
+    diagnostics: value.diagnostics && typeof value.diagnostics === 'object' ? value.diagnostics : null
+  }
+}
+
+function normalizeSourceExploreTest(value) {
+  if (!value || typeof value !== 'object') return { status: 'untested' }
+  const status = value.status === 'passed' || value.status === 'failed' ? value.status : 'untested'
+  return {
+    status,
+    testedAt: Number(value.testedAt || 0),
+    entryTitle: String(value.entryTitle || ''),
+    count: Number(value.count || 0),
+    message: String(value.message || ''),
+    errorCode: String(value.errorCode || ''),
+    httpStatus: Number(value.httpStatus || 0),
+    retryable: value.retryable === true
   }
 }
 
@@ -309,6 +329,26 @@ function writeSourceTestResult(sourceId, result) {
       httpStatus: Number(result.httpStatus || 0),
       retryable: result.retryable === true,
       diagnostics: result.diagnostics && typeof result.diagnostics === 'object' ? result.diagnostics : null
+    },
+    updatedAt: Date.now()
+  }
+  writeSourceSettings(settings)
+}
+
+function writeSourceExploreTestResult(sourceId, result) {
+  if (!sourceId) return
+  const settings = getSourceSettings()
+  settings[sourceId] = {
+    ...(settings[sourceId] || {}),
+    exploreTest: {
+      status: result.status,
+      testedAt: Date.now(),
+      entryTitle: result.entryTitle || '',
+      count: Number(result.count || 0),
+      message: result.message || '',
+      errorCode: result.errorCode || '',
+      httpStatus: Number(result.httpStatus || 0),
+      retryable: result.retryable === true
     },
     updatedAt: Date.now()
   }
@@ -441,6 +481,7 @@ export function getSourceConfigs() {
       enabled: saved.enabled !== undefined ? saved.enabled : source.enabled,
       updatedAt: saved.updatedAt || source.updatedAt,
       lastTest: saved.lastTest || source.lastTest || '',
+      exploreTest: saved.exploreTest || source.exploreTest || null,
       health: saved.health || source.health || null,
       quality: saved.quality || source.quality || null,
       antiCrawler: normalizeSourceAntiCrawler(saved.antiCrawler || source.antiCrawler)
@@ -522,8 +563,10 @@ export function getSourceDiagnostics(source) {
   })
   const compatible = !hasUnsupportedRule(raw) && levelInfo.environmentSupported
   const lastTest = normalizeSourceTest(source && source.lastTest)
+  const exploreTest = normalizeSourceExploreTest(source && source.exploreTest)
   const health = normalizeSourceHealth(source && source.health)
   const networkStatus = compatible ? lastTest.status : 'incompatible'
+  const exploreStatus = compatible ? exploreTest.status : 'incompatible'
   const searchable = compatible && networkStatus === 'passed'
   const featureFlags = source && source.features || detectSourceFeatures(raw)
   const formatVersion = source && source.formatVersion || detectSourceFormat(raw)
@@ -566,6 +609,7 @@ export function getSourceDiagnostics(source) {
     compatible,
     searchable,
     networkStatus,
+    exploreStatus,
     compatibilityLevel: levelInfo.level,
     environmentSupported: levelInfo.environmentSupported,
     nextAction: levelInfo.nextAction,
@@ -573,6 +617,7 @@ export function getSourceDiagnostics(source) {
     statusTitle,
     statusDesc,
     lastTest,
+    exploreTest,
     health,
     reasons: compatible ? [] : (reasons.length ? reasons : ['包含 H5 暂不支持的复杂规则']),
     ruleSummary
@@ -1986,7 +2031,10 @@ export function getOnlineExploreEntries(options = {}) {
   const sources = options.sources || getSourceConfigs()
   const limit = Number(options.limit || 0)
   const entries = sources
-    .filter(source => source.enabled && getSourceDiagnostics(source).compatible)
+    .filter(source => {
+      const diagnostics = getSourceDiagnostics(source)
+      return source.enabled && diagnostics.compatible && diagnostics.exploreStatus !== 'failed'
+    })
     .flatMap(source => parseSourceExploreUrl(source))
   return limit > 0 ? entries.slice(0, limit) : entries
 }
@@ -2074,7 +2122,27 @@ export async function exploreOnlineBooks(entry, options = {}) {
   if (!entry || !entry.sourceId || !entry.url) return []
   const source = getSourceConfig(entry.sourceId)
   const timeoutMs = getSourceTimeoutBudget(source, options.timeoutMs || ONLINE_SOURCE_TIMEOUT_MS)
-  return withTimeout(exploreSourceEntry(entry, options), timeoutMs, entry.sourceName)
+  try {
+    const results = await withTimeout(exploreSourceEntry(entry, options), timeoutMs, entry.sourceName)
+    writeSourceExploreTestResult(entry.sourceId, {
+      status: 'passed',
+      entryTitle: entry.title,
+      count: results.length
+    })
+    return results
+  } catch (error) {
+    const runtimeError = asSourceRuntimeError(error, { stage: 'explore' })
+    const failure = classifySourceFailure(runtimeError, { stage: 'explore' })
+    writeSourceExploreTestResult(entry.sourceId, {
+      status: 'failed',
+      entryTitle: entry.title,
+      message: friendlyErrorMessage(runtimeError, '发现入口打开失败'),
+      errorCode: failure.errorCode,
+      httpStatus: failure.status,
+      retryable: failure.retryable
+    })
+    throw runtimeError
+  }
 }
 
 export async function loadSourceExploreBooks(sourceOrId, entry, options = {}) {

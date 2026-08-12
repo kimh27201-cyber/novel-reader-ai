@@ -744,7 +744,7 @@ export default {
           type: 'source',
           id: source.id,
           name: source.name,
-          meta: `${source.group || '未分组'} · ${source.enabled ? '已启用' : '已停用'} · ${this.sourceCompatibilityLabel(source)}`,
+          meta: `${source.group || '未分组'} · ${source.enabled ? '已启用' : '已停用'} · ${this.sourceCompatibilityLabel(source)} · ${this.sourceRuntimeLabel(source)}`,
           partialUnsupported: this.isPartialUnsupportedSource(source),
           icon: this.sourceListIcon(index),
           iconClass: this.sourceListIconClass(index),
@@ -898,8 +898,16 @@ export default {
       return source && (source.compatibleLevel === 'h5Unsupported' || source.compatibleLevel === 'partialCompatible' || source.h5Unsupported === true)
     },
     sourceCompatibilityLabel(source) {
-      if (this.isPartialUnsupportedSource(source)) return '部分不兼容'
-      return source && (source.compatibleLevel || source.compatibilityLevel) || 'unknown'
+      if (this.isPartialUnsupportedSource(source)) return '部分兼容'
+      const diagnostics = getSourceDiagnostics(source)
+      return diagnostics.compatible ? '规则兼容' : '规则不兼容'
+    },
+    sourceRuntimeLabel(source) {
+      const diagnostics = getSourceDiagnostics(source)
+      if (!diagnostics.compatible) return '不可运行'
+      if (diagnostics.networkStatus === 'failed' || diagnostics.exploreStatus === 'failed' || diagnostics.health.status === 'failed') return '站点不可用'
+      if (diagnostics.networkStatus === 'passed' || diagnostics.exploreStatus === 'passed' || diagnostics.health.status === 'passed') return '已验证'
+      return '待检测'
     },
     importHistoryActionLabel(action) {
       if (action === 'added') return '新增'

@@ -70,7 +70,8 @@ export function classifySourceFailure(error, context = {}) {
   if (!errorCode && (status === 403 || status === 429 || /HTTP\s*(403|429)|访问被拒绝|频率限制|风控/i.test(message))) errorCode = 'HTTP_BLOCKED'
   if (!errorCode && (status === 404 || status === 410 || /HTTP\s*(404|410)/i.test(message))) errorCode = 'HTTP_NOT_FOUND'
   if (!errorCode && (status >= 500 || /HTTP\s*5\d\d/i.test(message))) errorCode = 'HTTP_SERVER_ERROR'
-  if (!errorCode && (/ENOTFOUND|EAI_AGAIN|getaddrinfo|name not resolved|dns|无法解析主机|未知主机/i.test(`${originalCode} ${message}`))) errorCode = 'SITE_UNREACHABLE'
+  const isDnsFailure = /ENOTFOUND|EAI_AGAIN|getaddrinfo|name not resolved|unable to resolve host|no address associated with hostname|host.*not found|dns|无法解析主机|未知主机|域名无法访问/i.test(`${originalCode} ${message}`)
+  if (isDnsFailure) errorCode = 'SITE_UNREACHABLE'
   if (!errorCode && (/certificate|SSL|TLS|CERT_|handshake|安全通道/i.test(`${originalCode} ${message}`))) errorCode = 'SITE_UNREACHABLE'
   if (!errorCode && (/charset|encoding|编码|解码失败|TextDecoder/i.test(message))) errorCode = 'CHARSET_ERROR'
   if (!errorCode && (/请求模板|request template|URL 配置|JSON 配置/i.test(message))) errorCode = 'REQUEST_TEMPLATE_UNSUPPORTED'

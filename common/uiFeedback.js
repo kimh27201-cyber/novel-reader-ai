@@ -17,6 +17,22 @@ export function friendlyErrorMessage(error, fallback = '操作失败') {
   if (!message) return fallback
   const errorCode = String(error && error.code || '').toUpperCase()
 
+  if (errorCode === 'SITE_UNREACHABLE' || /unable to resolve host|no address associated with hostname|ENOTFOUND|EAI_AGAIN|getaddrinfo|name not resolved|无法解析主机|未知主机/i.test(message)) {
+    return '书源站点域名无法访问，已从发现页暂时隔离；请换源或稍后重新检测'
+  }
+
+  if (errorCode === 'HTTP_NOT_FOUND') {
+    return '书源入口已失效（HTTP 404），已从发现页暂时隔离；请换源或稍后重新检测'
+  }
+
+  if (errorCode === 'HTTP_BLOCKED') {
+    return '书源站点拒绝访问或请求过于频繁，已暂时隔离；请稍后重试或配置 Cookie/Header'
+  }
+
+  if (errorCode === 'HTTP_SERVER_ERROR') {
+    return '书源站点服务异常，已暂时隔离；请换源或稍后重新检测'
+  }
+
   if (errorCode === 'TIMEOUT' && /书源|源仓库|目标站点/i.test(message)) {
     return '目标站点响应超时，建议换源、稍后重试，或配置 Cookie/Header 后再测'
   }

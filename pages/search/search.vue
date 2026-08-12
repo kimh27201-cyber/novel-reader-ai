@@ -40,7 +40,7 @@
 
     <view class="tip-card" v-if="mode === 'cloud'">
       <view class="tip-title">书源发现</view>
-      <text class="tip-desc">导入带 exploreUrl 的书源后，分类、榜单和最新入库会直接请求对应书源页面。当前可搜索 {{ availableSourceCount }} 个，可发现 {{ availableExploreCount }} 个入口。</text>
+      <text class="tip-desc">导入带 exploreUrl 的书源后，分类、榜单和最新入库会直接请求对应书源页面。当前可搜索 {{ availableSourceCount }} 个书源，可发现 {{ availableExploreSourceCount }} 个书源、{{ availableExploreCount }} 个入口。</text>
       <text class="tip-desc" v-if="availableSourceNames">可用书源：{{ availableSourceNames }}</text>
       <view class="search-settings-toggle" @tap="searchSettingsExpanded = !searchSettingsExpanded">
         <text class="setting-label">高级搜索</text>
@@ -141,7 +141,7 @@
             <view class="empty-title">这条线索暂时中断</view>
             <text class="empty-desc">{{ searchError }}</text>
           </view>
-          <button class="state-action" @tap="retrySearch">重新搜索</button>
+          <button class="state-action" @tap="retrySearch">{{ retryActionLabel }}</button>
         </view>
 
         <view class="discover-source-list" v-if="mode === 'cloud' && exploreEntries.length && !results.length">
@@ -351,6 +351,9 @@ export default {
     availableExploreCount() {
       return this.exploreEntries.length
     },
+    availableExploreSourceCount() {
+      return new Set(this.exploreEntries.map(entry => entry.sourceId).filter(Boolean)).size
+    },
     availableSourceNames() {
       return this.availableSearchSources.map(source => source.name).join('、')
     },
@@ -401,7 +404,10 @@ export default {
     modeHint() {
       if (this.mode === 'source') return '管理外部书源'
       if (this.mode === 'local') return '只查本地书架'
-      return `可搜索 ${this.availableSourceCount} · 可发现 ${this.availableExploreCount}`
+      return `可搜索 ${this.availableSourceCount} · 发现源 ${this.availableExploreSourceCount}`
+    },
+    retryActionLabel() {
+      return this.activeExploreEntry ? '重试当前入口' : '查看其他可用入口'
     },
     modeLabel() {
       if (this.mode === 'source') return '书源'
@@ -519,6 +525,12 @@ export default {
         this.openExploreEntry(entry)
         return
       }
+      if (!sanitizeSearchKeyword(this.keyword)) {
+        this.results = []
+        this.hasSearched = false
+        this.refreshDiscoverShell()
+        return
+      }
       this.runSearch()
     },
     toggleSource(source) {
@@ -551,6 +563,11 @@ export default {
         if (this.searchToken === token) {
           this.results = []
           this.searchError = friendlyErrorMessage(error, '发现入口打开失败')
+          this.sources = getSourceConfigs()
+          this.refreshExploreEntries()
+          if (!this.exploreEntries.some(item => item.sourceId === entry.sourceId)) {
+            this.activeExploreEntry = null
+          }
           uni.showToast({ title: this.searchError, icon: 'none' })
         }
       } finally {

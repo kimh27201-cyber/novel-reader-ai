@@ -292,6 +292,7 @@ assert.equal(books[0].title, 'Explore Book')
 assert.equal(books[0].sourceName, 'Explore Source')
 assert.equal(books[0].book.bookUrl, 'https://explore.example.com/book/explore')
 assert.equal(books[0].book.kind, 'Fantasy')
+assert.equal(getSourceConfigs().find(item => item.id === source.id).exploreTest.status, 'passed')
 
 const loaded = await loadSourceExploreBooks(source.id, parsedEntries[2], { page: 1, timeoutMs: 1000 })
 assert.equal(loaded.sourceId, source.id)
@@ -300,6 +301,34 @@ assert.equal(loaded.page, 1)
 assert.equal(loaded.hasMore, false)
 assert.equal(loaded.books.length, 1)
 assert.equal(loaded.books[0].origin, 'explore')
+
+globalThis.uni.request = options => {
+  options.fail({ errMsg: 'Unable to resolve host "explore.example.com": No address associated with hostname' })
+}
+await assert.rejects(
+  exploreOnlineBooks(entries[2], { timeoutMs: 1000 }),
+  error => error && error.code === 'SITE_UNREACHABLE'
+)
+const failedExploreSource = getSourceConfigs().find(item => item.id === source.id)
+assert.equal(failedExploreSource.exploreTest.status, 'failed')
+assert.equal(failedExploreSource.exploreTest.errorCode, 'SITE_UNREACHABLE')
+assert.equal(getOnlineExploreEntries({ sources: [failedExploreSource] }).length, 0)
+
+globalThis.uni.request = options => {
+  requestedUrl = String(options.data && options.data.url || '')
+  options.success({
+    statusCode: 200,
+    data: {
+      text: JSON.stringify({ items: [{ name: 'Explore Book', url: '/book/explore' }] }),
+      status_code: 200,
+      final_url: requestedUrl
+    }
+  })
+}
+await exploreOnlineBooks(entries[2], { timeoutMs: 1000 })
+const recoveredExploreSource = getSourceConfigs().find(item => item.id === source.id)
+assert.equal(recoveredExploreSource.exploreTest.status, 'passed')
+assert.equal(getOnlineExploreEntries({ sources: [recoveredExploreSource] }).length, 3)
 
 const paginationSourceJson = JSON.stringify([{
   bookSourceName: 'Pagination Live Source',
