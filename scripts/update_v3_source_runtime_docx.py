@@ -14,6 +14,7 @@ SECTION_TITLE = "10. 书源本地优先运行时（2026-08-11 追加）"
 STAGE2_SECTION_TITLE = "11. 书源运行时第二轮完善（2026-08-11）"
 STAGE3_SECTION_TITLE = "12. YCK 全目录导入与 Android 大容量存储（2026-08-11）"
 STAGE4_SECTION_TITLE = "13. 第四轮真实阅读与 Android 全量导入（2026-08-12）"
+STAGE5_SECTION_TITLE = "14. 第五轮发现页运行态隔离与视频问题修复（2026-08-12）"
 
 
 def set_east_asia_font(run, name="微软雅黑"):
@@ -264,6 +265,53 @@ def append_stage4_section(document):
     return True
 
 
+def append_stage5_section(document):
+    if any(paragraph.text.strip() == STAGE5_SECTION_TITLE for paragraph in document.paragraphs):
+        return False
+
+    document.add_page_break()
+    heading = document.add_heading(STAGE5_SECTION_TITLE, level=1)
+    for run in heading.runs:
+        set_east_asia_font(run)
+
+    document.add_heading("14.1 视频复现与根因", level=2)
+    add_bullet(document, "录屏确认 5330 条书源已导入并持久化；故障发生在发现入口请求阶段，不是导入失败。")
+    add_bullet(document, "阅书小说网请求 m.yueshu.org 时返回 Android DNS 异常，属于目标域名不可达，不代表手机断网或必须连接 FastAPI。")
+    add_bullet(document, "原发现聚合只检查启用和规则兼容，未使用发现阶段运行结果；21853 是入口条数，不等于 21853 个入口均已验证可用。")
+
+    document.add_heading("14.2 运行态隔离与中文错误", level=2)
+    add_bullet(document, "新增独立 exploreTest，记录发现阶段 passed/failed、入口名、结果数、稳定错误码、HTTP 状态和可重试标记；与搜索 lastTest 分离。")
+    add_bullet(document, "发现请求失败后保存稳定分类并暂时隔离整个来源；以后单源入口成功访问时自动恢复。")
+    add_bullet(document, "Android DNS 文本统一分类为 SITE_UNREACHABLE；HTTP 404/403/429/5xx 与 DNS 均显示中文说明，不再直出英文底层异常。")
+    add_bullet(document, "书源列表分别显示规则兼容性和站点运行状态，不再显示裸 compatible。")
+
+    document.add_heading("14.3 REA-AN00 真机证据", level=2)
+    rows = [
+        ("初始发现聚合", "1373 源 / 21853 入口", "覆盖安装保留 5330 条书源"),
+        ("DNS 失败后", "1372 源 / 21845 入口", "隔离 1 源 / 8 入口"),
+        ("HTTP 404 抽样后", "1371 源 / 21836 入口", "再隔离 1 源 / 9 入口"),
+        ("后端与 AI 语音", "8765 healthy", "保留 tcp:8765 ADB 映射"),
+    ]
+    table = document.add_table(rows=1, cols=3)
+    for index, value in enumerate(["验收项", "结果", "说明"]):
+        table.rows[0].cells[index].text = value
+    for values in rows:
+        cells = table.add_row().cells
+        for index, value in enumerate(values):
+            cells[index].text = value
+    style_table(table)
+    add_body(document, "发现页口径改为同时显示来源数量与入口数量；失败卡片提供“查看其他可用入口”，不继续无意义重试已隔离 URL。")
+
+    document.add_heading("14.4 自动验证、构建与边界", level=2)
+    add_bullet(document, "前端 Node 全量 97 passed；新增 DNS 覆盖、失败隔离、成功恢复、中文提示测试，最终定向回归与 git diff --check 通过。")
+    add_bullet(document, "H5 生产构建成功；最终 APK 为 1,520,718 字节，SHA-256 为 E882F28DA3ACFB134862081E129096FD8515A5C6A3719CCC41B865CFFE987C35，v1/v2/v3 签名及覆盖安装通过。")
+    add_bullet(document, "Android 书源继续走本地原生网络桥；8765 只承担账号、同步、云 TTS 和 H5 代理，可启用但不是阅读前置条件。")
+    add_number(document, "增加隔离冷却时间和批量重新检测，区分瞬时失败与长期失效。")
+    add_number(document, "分层抽样 1371 个发现源，统计 DNS、HTTP、解析为空与成功占比，优先修复高频可复现差异。")
+    add_number(document, "严格完整阅读率达到 ≥80% 前，不宣称 YCK 全部或绝大来源都可稳定阅读。")
+    return True
+
+
 def main():
     document = Document(DOCX_PATH)
     if any(paragraph.text.strip() == SECTION_TITLE for paragraph in document.paragraphs):
@@ -285,7 +333,8 @@ def main():
         stage2_added = append_stage2_section(document)
         stage3_added = append_stage3_section(document)
         stage4_added = append_stage4_section(document)
-        if stage4_updated or stage2_added or stage3_added or stage4_added:
+        stage5_added = append_stage5_section(document)
+        if stage4_updated or stage2_added or stage3_added or stage4_added or stage5_added:
             saved_path = save_document(document)
             print(f"Updated: {saved_path}")
         else:
@@ -359,6 +408,7 @@ def main():
     append_stage2_section(document)
     append_stage3_section(document)
     append_stage4_section(document)
+    append_stage5_section(document)
     saved_path = save_document(document)
     print(f"Updated: {saved_path}")
 
