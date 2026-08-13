@@ -18,6 +18,7 @@ STAGE5_SECTION_TITLE = "14. 第五轮发现页运行态隔离与视频问题修�
 STAGE6_SECTION_TITLE = "15. 第六轮自适应搜索、发现跨源回退与运行池（2026-08-13）"
 STAGE6_FINAL_TITLE = "15.6 最终 Android 真机复测与按钮热修（2026-08-13）"
 STAGE7_SECTION_TITLE = "16. 第七阶段真实书源质量、可读率与稳定交付（2026-08-13）"
+STAGE7_REPLAY_TITLE = "16.6 首窗口高频规则差异重放（2026-08-13）"
 
 
 def set_east_asia_font(run, name="微软雅黑"):
@@ -451,6 +452,20 @@ def append_stage7_section(document):
     return True
 
 
+def append_stage7_replay_section(document):
+    if any(paragraph.text.strip() == STAGE7_REPLAY_TITLE for paragraph in document.paragraphs):
+        return False
+    heading = document.add_heading(STAGE7_REPLAY_TITLE, level=2)
+    for run in heading.runs:
+        set_east_asia_font(run)
+    add_bullet(document, "对首窗口 PARSE_EMPTY 样本逐项复测，新增标题链接 URL 推导、book.kind/chapter 阶段上下文、详情页目录回退、相对 URL 规则结果和换行分隔的受控 JS 声明语句。")
+    add_bullet(document, "YCK 6808 修复为完整通过：搜索与详情成功，目录 1663 章，首章清洗后 3505 字符。")
+    add_bullet(document, "YCK 6305 修复为完整通过：book.kind 正确传递到详情、目录和正文请求，多行受控 JS 模板在既有预算内运行，目录 1663 章，首章清洗后 2852 字符。")
+    add_bullet(document, "连同此前修复的 6645、6931，首窗口已有 4 个 PARSE_EMPTY 样本完成搜索、详情、目录、正文闭环；前端全量回归为 108 / 108 passed。")
+    add_bullet(document, "eval、Function、Java 类、文件系统、全局 DOM、循环与动态模块仍被拒绝。本次重放不修改首窗口原始统计，也不替代间隔至少 24 小时的第二窗口。")
+    return True
+
+
 def main():
     document = Document(DOCX_PATH)
     if any(paragraph.text.strip() == SECTION_TITLE for paragraph in document.paragraphs):
@@ -492,7 +507,8 @@ def main():
         stage6_added = append_stage6_section(document)
         stage6_final_added = append_stage6_final_section(document)
         stage7_added = append_stage7_section(document)
-        if stage4_updated or stage6_updated or stage2_added or stage3_added or stage4_added or stage5_added or stage6_added or stage6_final_added or stage7_added:
+        stage7_replay_added = append_stage7_replay_section(document)
+        if stage4_updated or stage6_updated or stage2_added or stage3_added or stage4_added or stage5_added or stage6_added or stage6_final_added or stage7_added or stage7_replay_added:
             saved_path = save_document(document)
             print(f"Updated: {saved_path}")
         else:
@@ -570,6 +586,7 @@ def main():
     append_stage6_section(document)
     append_stage6_final_section(document)
     append_stage7_section(document)
+    append_stage7_replay_section(document)
     saved_path = save_document(document)
     print(f"Updated: {saved_path}")
 

@@ -542,3 +542,11 @@ node scripts/source_import_benchmark.mjs --cohort=current --limit=120 --pages=1-
 ```powershell
 node scripts/combine_source_acceptance_windows.mjs docs/source-acceptance/yck-current-cohort-stage7-window1-2026-08-13.json <第二窗口报告.json>
 ```
+
+### 16.6 首窗口高频规则差异重放（2026-08-13）
+
+- 在不提前执行第二时间窗口的前提下，对首窗口 `PARSE_EMPTY` 样本逐项复测。新增标题链接 URL 推导、`book.kind/chapter` 阶段上下文、详情页目录回退、相对 URL 规则结果以及换行分隔的受控 JS 声明语句。
+- YCK `6808` 由搜索解析为空修复为完整通过：搜索和详情成功，目录 1663 章，首章清洗后 3505 字符。
+- YCK `6305` 由搜索解析为空修复为完整通过：`book.kind` 正确传递到详情、目录与正文请求，多行受控 JS 模板在既有预算内运行，目录 1663 章，首章清洗后 2852 字符。
+- 连同本阶段此前修复的 `6645`、`6931`，首窗口已有 4 个 `PARSE_EMPTY` 样本完成搜索→详情→目录→正文闭环。详细脱敏记录见 `docs/source-acceptance/yck-stage7-rule-replay-2026-08-13.md`。
+- 前端全量回归提升为 `108 / 108 passed`；`eval`、`Function`、Java 类、文件系统、全局 DOM、循环与动态模块仍被拒绝。该重放不修改首窗口原始统计，也不替代间隔至少 24 小时的第二窗口。
