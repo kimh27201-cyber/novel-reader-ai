@@ -532,6 +532,42 @@ def append_stage8_section(document):
     return True
 
 
+def append_stage9_section(document):
+    title = "18. 第九阶段发现目录预生成与首次进入优化（2026-08-13）"
+    if any(paragraph.text.strip() == title for paragraph in document.paragraphs):
+        return False
+
+    document.add_heading(title, level=1)
+    document.add_heading("18.1 实现与生命周期", level=2)
+    add_bullet(document, "书源索引完成后在浏览器空闲回调中预生成发现候选、入口和分类目录；用户第一次进入发现页时优先读取轻量缓存。")
+    add_bullet(document, "配置导入、覆盖、启停或编辑后按书源修订号失效；应用退后台时取消未执行任务，回到前台后按有效快照重新安排。")
+    add_bullet(document, "预生成只整理本地元数据，不访问第三方站点，不保存正文、Cookie、Token 或完整响应，也不增加运行时依赖。")
+
+    document.add_heading("18.2 自动验证与 REA-AN00 真机结果", level=2)
+    rows = [
+        ("前端测试", "112 / 112 passed", "新增预生成、取消和失效回归"),
+        ("发现页暖切换", "500ms 首屏完整", "48 个发现源、12 个分类可见"),
+        ("GC 后稳态 PSS", "142,817KB", "覆盖安装后稳定采样"),
+        ("数据保留", "5330 源 / 3 本书架", "首次安装时间保持 2026-05-29"),
+        ("最终 APK", "1,356,254 字节", "v1/v2/v3 签名通过"),
+    ]
+    table = document.add_table(rows=1, cols=3)
+    for index, value in enumerate(["指标", "结果", "结论"]):
+        table.rows[0].cells[index].text = value
+    for values in rows:
+        cells = table.add_row().cells
+        for index, value in enumerate(values):
+            cells[index].text = value
+    style_table(table)
+    add_body(document, "阶段九 APK SHA-256：5DD2B5DE7D79D4498BBCF60B0B10A0072F14B7FA6DA54A72BE58AA7D08E33575。")
+
+    document.add_heading("18.3 发布边界与下一步", level=2)
+    add_bullet(document, "阶段七第二时间窗口最早为北京时间 2026-08-14 15:47；当前仍未执行，首窗口 9/33（27.27%）保持冻结，PR #1 继续保持 Draft。")
+    add_number(document, "按冻结清单执行第二窗口并生成双窗口报告；未达到 80% 时修复前三类通用规则差异。")
+    add_number(document, "达到门槛后完成关闭后端阅读、恢复后端同步和五种 AI 声音回归，再将 PR 转为可审阅。")
+    return True
+
+
 def main():
     document = Document(DOCX_PATH)
     if any(paragraph.text.strip() == SECTION_TITLE for paragraph in document.paragraphs):
@@ -591,7 +627,8 @@ def main():
         stage7_replay_added = append_stage7_replay_section(document)
         stage7_replay2_added = append_stage7_replay2_section(document)
         stage8_added = append_stage8_section(document)
-        if stage4_updated or stage6_updated or stage8_updated or stage2_added or stage3_added or stage4_added or stage5_added or stage6_added or stage6_final_added or stage7_added or stage7_replay_added or stage7_replay2_added or stage8_added:
+        stage9_added = append_stage9_section(document)
+        if stage4_updated or stage6_updated or stage8_updated or stage2_added or stage3_added or stage4_added or stage5_added or stage6_added or stage6_final_added or stage7_added or stage7_replay_added or stage7_replay2_added or stage8_added or stage9_added:
             saved_path = save_document(document)
             print(f"Updated: {saved_path}")
         else:
@@ -672,6 +709,7 @@ def main():
     append_stage7_replay_section(document)
     append_stage7_replay2_section(document)
     append_stage8_section(document)
+    append_stage9_section(document)
     saved_path = save_document(document)
     print(f"Updated: {saved_path}")
 
