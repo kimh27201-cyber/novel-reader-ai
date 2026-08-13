@@ -1,7 +1,9 @@
 # 第十一阶段可操作书源诊断验收报告
 
-日期：2026-08-13（Asia/Shanghai）  
-设备：REA-AN00，Android 15  
+日期：2026-08-13（Asia/Shanghai）
+
+设备：REA-AN00，Android 15
+
 分支：`feat/source-runtime-v3`
 
 ## 实现范围
