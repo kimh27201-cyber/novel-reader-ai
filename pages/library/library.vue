@@ -128,7 +128,24 @@
               <button class="runtime-diagnostic-item blocked" @tap="sourceFilter = 'blocked'">受限 {{ sourceRuntimeDiagnostics.counts.blocked }}</button>
             </view>
             <view class="runtime-error-list" v-if="sourceRuntimeDiagnostics.topErrors.length">
-              <text v-for="item in sourceRuntimeDiagnostics.topErrors" :key="`${item.code}-${item.httpStatus}`">{{ item.code }}{{ item.httpStatus ? ` · HTTP ${item.httpStatus}` : '' }} ×{{ item.count }}</text>
+              <button
+                class="runtime-error-chip"
+                v-for="item in sourceRuntimeDiagnostics.topErrors"
+                :key="`${item.code}-${item.httpStatus}`"
+                :class="{ active: sourceErrorCode === item.code }"
+                @tap="selectSourceErrorCode(item.code)"
+              >{{ item.code }}{{ item.httpStatus ? ` · HTTP ${item.httpStatus}` : '' }} ×{{ item.count }}{{ item.retryReady ? ` · 可重试 ${item.retryReady}` : '' }}</button>
+            </view>
+            <view class="runtime-active-filter" v-if="sourceErrorCode">
+              <text>正在筛选 {{ sourceErrorCode }} · {{ sourcePage.total }} 个来源</text>
+              <button @tap="sourceErrorCode = ''">清除</button>
+            </view>
+            <view class="runtime-retry-row">
+              <text class="source-hint">只重试冷却已结束且允许自动访问的来源，受限来源不会重复请求。</text>
+              <view class="runtime-retry-actions">
+                <button class="small-action primary" :loading="batchTesting" :disabled="!sourceRuntimeDiagnostics.counts.retryReady || batchTesting" @tap="runBatchSourceTest('retry')">重试到期 {{ sourceRuntimeDiagnostics.counts.retryReady }}</button>
+                <button class="small-action" v-if="batchTesting" @tap="cancelBatchSourceTest">取消</button>
+              </view>
             </view>
           </view>
           <scroll-view class="filter-strip" scroll-x :show-scrollbar="false">
@@ -189,9 +206,10 @@
                 <text class="source-hint">发现页只会使用可正常搜索的书源；若不可用，会保留原因方便处理。</text>
               </view>
               <view class="batch-actions">
-                <button class="small-action primary" :loading="batchTesting" @tap="runBatchSourceTest('all')">测试全部启用源</button>
+                <button class="small-action primary" :loading="batchTesting" @tap="runBatchSourceTest('all')">检测下一批（20）</button>
                 <button class="small-action" :disabled="sourceGroupFilter === allSourceGroup" :loading="batchTesting" @tap="runBatchSourceTest('group')">测试当前分组</button>
                 <button class="small-action" :loading="batchHealthTesting" @tap="runBatchSourceHealth('all')">健康检测</button>
+                <button class="small-action" v-if="batchTesting" @tap="cancelBatchSourceTest">取消</button>
               </view>
             </view>
             <input class="field compact" v-model="batchTestKeyword" placeholder="批量测试关键词，例如 星轨图书馆" />
@@ -590,6 +608,7 @@ import {
   getSourceConfig,
   getSourceConfigs,
   getSourceLibraryPage,
+  getSourceRetryCandidates,
   getSourceSnapshot,
   applyImportPreview,
   importSourcesFromAny,
@@ -646,7 +665,7 @@ export default {
   data() {
     return {
       sources: [],
-      sourcePage: { total: 0, rows: [], groups: [ALL_SOURCE_GROUP], groupStats: [], stats: { total: 0, enabled: 0, incompatible: 0, searchable: 0 }, diagnostics: { counts: { total: 0, verified: 0, untested: 0, probing: 0, cooldown: 0, blocked: 0, failed: 0, incompatible: 0 }, topErrors: [], lastCheckedAt: 0 } },
+      sourcePage: { total: 0, rows: [], groups: [ALL_SOURCE_GROUP], groupStats: [], stats: { total: 0, enabled: 0, incompatible: 0, searchable: 0 }, diagnostics: { counts: { total: 0, verified: 0, untested: 0, probing: 0, cooldown: 0, blocked: 0, retryReady: 0, failed: 0, incompatible: 0 }, topErrors: [], lastCheckedAt: 0 } },
       pageMotionKind: '',
       pageMotionDirection: 'forward',
       toolsExpanded: false,
@@ -688,6 +707,7 @@ export default {
       testSourceKeyword: '星轨图书馆',
       sourceTestResult: null,
       batchTesting: false,
+      batchTestCancelled: false,
       batchHealthTesting: false,
       batchTestKeyword: '星轨图书馆',
       batchProgress: { current: 0, total: 0 },
@@ -695,6 +715,7 @@ export default {
       batchTestItems: [],
       importReadiness: buildImportReadiness(),
       sourceFilter: 'all',
+      sourceErrorCode: '',
       sourceSort: 'manual',
       sourceKeyword: '',
       sourceGroupFilter: ALL_SOURCE_GROUP,
@@ -756,7 +777,7 @@ export default {
     },
     sourceRuntimeDiagnostics() {
       return this.sourcePage.diagnostics || {
-        counts: { total: 0, verified: 0, untested: 0, probing: 0, cooldown: 0, blocked: 0, failed: 0, incompatible: 0 },
+        counts: { total: 0, verified: 0, untested: 0, probing: 0, cooldown: 0, blocked: 0, retryReady: 0, failed: 0, incompatible: 0 },
         topErrors: [],
         lastCheckedAt: 0
       }
@@ -869,6 +890,7 @@ export default {
   watch: {
     sourceKeyword() { this.scheduleLibraryFilter() },
     sourceFilter() { this.scheduleLibraryFilter() },
+    sourceErrorCode() { this.scheduleLibraryFilter() },
     sourceGroupFilter() { this.scheduleLibraryFilter() }
   },
   onLoad() {
@@ -909,6 +931,10 @@ export default {
       if (state === 'probing') return '检测中'
       return '待检测'
     },
+    selectSourceErrorCode(errorCode) {
+      const next = String(errorCode || '').trim().toUpperCase()
+      this.sourceErrorCode = this.sourceErrorCode === next ? '' : next
+    },
     scheduleLibraryFilter() {
       if (this.libraryFilterTimer) clearTimeout(this.libraryFilterTimer)
       this.libraryFilterTimer = setTimeout(() => {
@@ -927,6 +953,7 @@ export default {
       this.sourcePage = getSourceLibraryPage({
         keyword: this.sourceKeyword,
         filter: this.sourceFilter,
+        errorCode: this.sourceErrorCode,
         group: this.sourceGroupFilter,
         sort: this.sourceSort,
         limit: 30
@@ -953,13 +980,6 @@ export default {
       if (this.isPartialUnsupportedSource(source)) return '部分兼容'
       const diagnostics = getSourceDiagnostics(source)
       return diagnostics.compatible ? '规则兼容' : '规则不兼容'
-    },
-    sourceRuntimeLabel(source) {
-      const diagnostics = getSourceDiagnostics(source)
-      if (!diagnostics.compatible) return '不可运行'
-      if (diagnostics.networkStatus === 'failed' || diagnostics.exploreStatus === 'failed' || diagnostics.health.status === 'failed') return '站点不可用'
-      if (diagnostics.networkStatus === 'passed' || diagnostics.exploreStatus === 'passed' || diagnostics.health.status === 'passed') return '已验证'
-      return '待检测'
     },
     importHistoryActionLabel(action) {
       if (action === 'added') return '新增'
@@ -1186,22 +1206,26 @@ export default {
       return '未测试'
     },
     getBatchSourceIds(scope) {
-      return getSourceSnapshot().sources
-        .filter(source => source.enabled)
-        .filter(source => {
-          if (scope !== 'group') return true
-          if (this.sourceGroupFilter === ALL_SOURCE_GROUP) return true
-          return source.group === this.sourceGroupFilter
-        })
-        .map(source => source.id)
+      if (scope === 'retry') {
+        return getSourceRetryCandidates({
+          errorCode: this.sourceErrorCode,
+          group: this.sourceGroupFilter,
+          limit: 20
+        }).map(source => source.id)
+      }
+      const group = scope === 'group' ? this.sourceGroupFilter : ALL_SOURCE_GROUP
+      let page = getSourceLibraryPage({ filter: 'untested', group, limit: 20 })
+      if (!page.rows.length) page = getSourceLibraryPage({ filter: 'enabled', group, limit: 20 })
+      return page.rows.filter(source => source.enabled && source.compatible && source.searchable).map(source => source.id)
     },
     async runBatchSourceTest(scope = 'all') {
       const sourceIds = this.getBatchSourceIds(scope)
       if (!sourceIds.length) {
-        uni.showToast({ title: scope === 'group' ? '当前分组没有启用书源' : '没有启用书源可检测', icon: 'none' })
+        uni.showToast({ title: scope === 'retry' ? '当前没有冷却到期的可重试来源' : scope === 'group' ? '当前分组没有可检测书源' : '没有可检测书源', icon: 'none' })
         return
       }
       this.batchTesting = true
+      this.batchTestCancelled = false
       this.batchTestResult = null
       this.batchTestItems = []
       this.batchProgress = { current: 0, total: sourceIds.length }
@@ -1209,6 +1233,8 @@ export default {
         const result = await batchTestSources({
           keyword: this.batchTestKeyword,
           sourceIds,
+          maxSources: 20,
+          shouldCancel: () => this.batchTestCancelled,
           onProgress: item => {
             this.batchProgress = { current: item.index, total: item.total }
             this.batchTestItems = [...this.batchTestItems.filter(row => row.sourceId !== item.sourceId), item]
@@ -1217,12 +1243,15 @@ export default {
         this.batchTestResult = result
         this.batchTestItems = result.results
         this.refreshInstalledSources({ readiness: false })
-        uni.showToast({ title: `检测完成：通过 ${result.passed} / 失败 ${result.failed}`, icon: 'none' })
+        uni.showToast({ title: result.cancelled ? `已取消：完成 ${result.tested}` : `检测完成：通过 ${result.passed} / 失败 ${result.failed}`, icon: 'none' })
       } catch (error) {
         uni.showToast({ title: friendlyErrorMessage(error, '批量检测失败'), icon: 'none' })
       } finally {
         this.batchTesting = false
       }
+    },
+    cancelBatchSourceTest() {
+      this.batchTestCancelled = true
     },
     async runBatchSourceHealth(scope = 'all') {
       const sourceIds = this.getBatchSourceIds(scope)
@@ -2146,6 +2175,57 @@ button,
   font-size: 20rpx;
 }
 
+.runtime-error-chip {
+  min-height: 44rpx;
+  padding: 4rpx 12rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: 999rpx;
+  color: var(--app-muted);
+  background: var(--app-input);
+  font-size: 20rpx;
+}
+
+.runtime-error-chip.active {
+  color: var(--app-on-accent);
+  background: var(--app-accent);
+}
+
+.runtime-retry-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  margin-top: 14rpx;
+}
+
+.runtime-retry-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 10rpx;
+}
+
+.runtime-active-filter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  margin-top: 12rpx;
+  padding: 10rpx 14rpx;
+  border-radius: 14rpx;
+  color: var(--app-text);
+  background: color-mix(in srgb, var(--app-accent) 12%, var(--app-input));
+  font-size: 21rpx;
+}
+
+.runtime-active-filter button {
+  min-width: 84rpx;
+  height: 44rpx;
+  border-radius: 999rpx;
+  color: var(--app-on-accent);
+  background: var(--app-accent);
+  font-size: 20rpx;
+}
+
 .filter-chip,
 .group-chip {
   display: inline-flex;
@@ -2238,6 +2318,8 @@ button,
 .batch-actions {
   display: flex;
   flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 12rpx;
 }
 

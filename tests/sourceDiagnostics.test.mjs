@@ -212,6 +212,24 @@ assert.equal(progress.length, 2)
 assert.equal(getSourceConfig(compatibleTwo.id).lastTest.status, 'failed')
 assert.equal(pickOnlineSearchSources(getSourceConfigs()).some(source => source.id === compatibleTwo.id), false)
 
+const limitedBatch = await batchTestSources({
+  keyword: '星轨图书馆',
+  sourceIds: [compatible.id, compatibleTwo.id],
+  maxSources: 1
+})
+assert.equal(limitedBatch.available, 2)
+assert.equal(limitedBatch.total, 1)
+assert.equal(limitedBatch.limited, true)
+
+const cancelledBatch = await batchTestSources({
+  keyword: '星轨图书馆',
+  sourceIds: [compatible.id, compatibleTwo.id],
+  shouldCancel: () => true
+})
+assert.equal(cancelledBatch.cancelled, true)
+assert.equal(cancelledBatch.tested, 0)
+assert.equal(cancelledBatch.results.length, 0)
+
 batchRequests = []
 const onlineResults = await searchOnlineBooks('星轨图书馆', { limit: 5, timeoutMs: 1000 })
 assert.equal(onlineResults.length, 1)
@@ -230,7 +248,10 @@ assert.match(library, /testSourceKeyword/)
 assert.match(library, /getSourceTestKeyword/)
 assert.match(library, /checkKeyWord/)
 assert.match(library, /批量检测/)
-assert.match(library, /测试全部启用源/)
+assert.match(library, /检测下一批（20）/)
+assert.match(library, /重试到期/)
+assert.match(library, /cancelBatchSourceTest/)
+assert.match(library, /正在筛选/)
 assert.match(library, /测试当前分组/)
 assert.match(library, /正在测试/)
 assert.match(library, /发现页只会使用可正常搜索的书源/)

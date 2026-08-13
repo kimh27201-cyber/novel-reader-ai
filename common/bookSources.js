@@ -857,6 +857,7 @@ export function buildSourceLibraryDiagnostics(summaries = []) {
     probing: 0,
     cooldown: 0,
     blocked: 0,
+    retryReady: 0,
     failed: 0,
     incompatible: 0
   }
@@ -868,7 +869,10 @@ export function buildSourceLibraryDiagnostics(summaries = []) {
     else if (state === 'probing') {
       counts.probing += 1
       counts.untested += 1
-    } else if (state === 'cooldown') counts.cooldown += 1
+    } else if (state === 'cooldown') {
+      counts.cooldown += 1
+      if (Number(item.cooldownUntil || 0) <= Date.now()) counts.retryReady += 1
+    }
     else if (state === 'blocked') counts.blocked += 1
     else counts.untested += 1
     if (!item.compatible) counts.incompatible += 1
@@ -876,8 +880,9 @@ export function buildSourceLibraryDiagnostics(summaries = []) {
     if (errorCode) {
       counts.failed += 1
       const key = `${errorCode}:${Number(item.httpStatus || 0)}`
-      const previous = errors.get(key) || { code: errorCode, httpStatus: Number(item.httpStatus || 0), count: 0 }
+      const previous = errors.get(key) || { code: errorCode, httpStatus: Number(item.httpStatus || 0), count: 0, retryReady: 0 }
       previous.count += 1
+      if (state === 'cooldown' && Number(item.cooldownUntil || 0) <= Date.now()) previous.retryReady += 1
       errors.set(key, previous)
     }
     lastCheckedAt = Math.max(lastCheckedAt, Number(item.checkedAt || 0))
@@ -911,6 +916,7 @@ function buildSourceIndexCache(summaries, revision, elapsedMs = 0, status = 'bui
     summaries,
     byId: new Map(summaries.map(item => [item.id, item])),
     groups,
+    cooldownSummaries: summaries.filter(item => item.runtimeState === 'cooldown'),
     stats: {
       total: summaries.length,
       enabled: summaries.filter(item => item.enabled).length,
@@ -926,6 +932,24 @@ function buildSourceIndexCache(summaries, revision, elapsedMs = 0, status = 'bui
       groupCount: groups.size,
       elapsedMs
     }
+  }
+}
+
+function getSourceLibraryDiagnosticsAt(index, now = Date.now()) {
+  const diagnostics = index && index.diagnostics || buildSourceLibraryDiagnostics([])
+  const topErrors = diagnostics.topErrors.map(item => ({ ...item, retryReady: 0 }))
+  const errors = new Map(topErrors.map(item => [`${item.code}:${Number(item.httpStatus || 0)}`, item]))
+  let retryReady = 0
+  ;(index && index.cooldownSummaries || []).forEach(item => {
+    if (Number(item.cooldownUntil || 0) > now) return
+    retryReady += 1
+    const key = `${String(item.errorCode || '').toUpperCase()}:${Number(item.httpStatus || 0)}`
+    if (errors.has(key)) errors.get(key).retryReady += 1
+  })
+  return {
+    ...diagnostics,
+    counts: { ...diagnostics.counts, retryReady },
+    topErrors
   }
 }
 
@@ -1055,6 +1079,8 @@ export function getSourceLibraryPage(query = {}) {
   const keyword = String(query.keyword || '').trim().toLowerCase()
   const group = String(query.group || query.sourceGroupFilter || '全部分组')
   const filter = String(query.filter || query.sourceFilter || 'all')
+  const errorCode = String(query.errorCode || '').trim().toUpperCase()
+  const now = Number(query.now || Date.now())
   const sort = String(query.sort || 'manual')
   const offset = Math.max(0, Number(query.offset || 0))
   const limit = Math.max(1, Math.min(100, Number(query.limit || 30)))
@@ -1067,6 +1093,8 @@ export function getSourceLibraryPage(query = {}) {
     if (filter === 'untested' && !['untested', 'probing'].includes(item.runtimeState || 'untested')) return false
     if (filter === 'cooldown' && item.runtimeState !== 'cooldown') return false
     if (filter === 'blocked' && item.runtimeState !== 'blocked') return false
+    if (filter === 'retryReady' && !(item.runtimeState === 'cooldown' && Number(item.cooldownUntil || 0) <= now)) return false
+    if (errorCode && String(item.errorCode || '').toUpperCase() !== errorCode) return false
     if (!keyword) return true
     return [item.name, item.group, item.baseUrl, item.compatibility, item.id].some(value => String(value || '').toLowerCase().includes(keyword))
   })
@@ -1083,10 +1111,30 @@ export function getSourceLibraryPage(query = {}) {
     groups: ['全部分组', ...Array.from(index.groups.keys()).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'))],
     groupStats: Array.from(index.groups.entries()).map(([group, count]) => ({ group, count })).sort((a, b) => a.group.localeCompare(b.group, 'zh-Hans-CN')),
     stats: index.stats,
-    diagnostics: index.diagnostics
+    diagnostics: getSourceLibraryDiagnosticsAt(index, now)
   }
   finishPerformanceSpan(span, { sourceCount: index.summaries.length, count: result.rows.length, status: 'ready' })
   return result
+}
+
+export function selectSourceRetryCandidates(summaries = [], options = {}) {
+  const now = Number(options.now || Date.now())
+  const errorCode = String(options.errorCode || '').trim().toUpperCase()
+  const group = String(options.group || '').trim()
+  const limit = Math.max(1, Math.min(30, Number(options.limit || 20)))
+  return (Array.isArray(summaries) ? summaries : [])
+    .filter(item => item.enabled && item.compatible && item.searchable)
+    .filter(item => item.runtimeState === 'cooldown' && Number(item.cooldownUntil || 0) <= now)
+    .filter(item => !errorCode || String(item.errorCode || '').toUpperCase() === errorCode)
+    .filter(item => !group || group === '全部分组' || item.group === group)
+    .sort((a, b) => Number(a.cooldownUntil || 0) - Number(b.cooldownUntil || 0) || Number(a.checkedAt || 0) - Number(b.checkedAt || 0) || a.id.localeCompare(b.id))
+    .slice(0, limit)
+}
+
+
+export function getSourceRetryCandidates(options = {}) {
+  const index = ensureSynchronousSourceIndex()
+  return selectSourceRetryCandidates(index.cooldownSummaries, options)
 }
 
 function mergeSourceWithSettings(source, saved = {}) {
@@ -4112,12 +4160,16 @@ export async function batchTestSources(options = {}) {
 
   const sourceIds = Array.isArray(options.sourceIds) ? new Set(options.sourceIds) : null
   const group = String(options.group || '').trim()
-  const selected = getSourceConfigs().filter(source => {
+  const eligible = getSourceConfigs().filter(source => {
     if (sourceIds && !sourceIds.has(source.id)) return false
     if (group && source.group !== group) return false
     return sourceIds ? true : source.enabled
   })
+  const maxSources = Math.max(1, Math.min(30, Number(options.maxSources || 20)))
+  const selected = eligible.slice(0, maxSources)
   const summary = {
+    available: eligible.length,
+    limited: eligible.length > selected.length,
     total: selected.length,
     tested: 0,
     passed: 0,
@@ -4127,6 +4179,10 @@ export async function batchTestSources(options = {}) {
   }
 
   for (let index = 0; index < selected.length; index += 1) {
+    if (typeof options.shouldCancel === 'function' && options.shouldCancel()) {
+      summary.cancelled = true
+      break
+    }
     const source = selected[index]
     const diagnostics = getSourceDiagnostics(source)
     let item
@@ -4166,12 +4222,14 @@ export async function batchTestSources(options = {}) {
           message: `返回 ${result.count} 条结果`
         }
       } catch (error) {
+        const failure = classifySourceFailure(error, { stage: 'search' })
         summary.failed += 1
         item = {
           sourceId: source.id,
           name: source.name,
           group: source.group,
           status: 'failed',
+          errorCode: failure.errorCode,
           count: 0,
           message: friendlyErrorMessage(error, '书源测试失败')
         }
