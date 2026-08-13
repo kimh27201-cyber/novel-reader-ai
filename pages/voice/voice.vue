@@ -6,7 +6,7 @@
         <text class="eyebrow">VOICE LIBRARY</text>
         <view class="page-title">谁来为你读</view>
       </view>
-      <button class="round-button refresh" :loading="refreshing" aria-label="刷新声音列表" @tap="refreshAllVoices">↻</button>
+      <button class="round-button refresh" :loading="refreshing" aria-label="刷新声音列表" @tap="refreshAllVoices(true)">↻</button>
     </view>
 
     <scroll-view class="voice-scroll" scroll-y :show-scrollbar="false">
@@ -273,6 +273,9 @@ import { getAppThemeId, getAppThemeStyle } from '../../common/appTheme.js'
 import { isMotionReduced, setNavigationMotion } from '../../common/motion.js'
 
 const PREVIEW_TEXT = '你好，我是解码阅读。接下来将用这个声音，为你朗读喜欢的故事。'
+const VOICE_CACHE_TTL_MS = 5 * 60 * 1000
+let deviceVoiceCache = null
+let cloudVoiceCache = null
 
 const VOICE_ROLE_VISUALS = Object.freeze({
   loli: {
@@ -427,7 +430,7 @@ export default {
     }
   },
   onLoad() {
-    this.refreshAllVoices()
+    this.refreshAllVoices(false)
   },
   onShow() {
     this.themeId = getAppThemeId()
@@ -525,9 +528,9 @@ export default {
       if (this.selectedProvider === 'preset') return this.previewRole(this.activeVoice)
       return this.previewVoice(this.activeVoice)
     },
-    refreshAllVoices() {
-      this.loadVoices()
-      this.loadCloudVoices()
+    refreshAllVoices(force = false) {
+      this.loadVoices({ force })
+      this.loadCloudVoices({ force })
     },
     ensureDriver() {
       if (!this.driver) this.driver = createReadAloudDriver()
@@ -537,8 +540,17 @@ export default {
       if (!this.cloudDriver) this.cloudDriver = createCloudReadAloudDriver({ apiClient })
       return this.cloudDriver
     },
-    async loadCloudVoices() {
+    async loadCloudVoices(options = {}) {
       const token = ++this.cloudLoadToken
+      if (!options.force && cloudVoiceCache && Date.now() - cloudVoiceCache.cachedAt < VOICE_CACHE_TTL_MS && cloudVoiceCache.loggedIn === this.hasLoginToken) {
+        this.cloudVoices = cloudVoiceCache.voices.slice()
+        this.cloudStatus = cloudVoiceCache.status
+        this.cloudAvailable = cloudVoiceCache.available
+        this.cloudState = cloudVoiceCache.state
+        this.cloudMessage = cloudVoiceCache.message
+        this.reconcileCloudVoice(true)
+        return
+      }
       this.cloudLoading = true
       this.cloudMessage = ''
       this.cloudState = ''
@@ -605,6 +617,10 @@ export default {
             : '后端当前没有配置任何拟真音色；离线声音仍可正常使用。'
         }
         this.reconcileCloudVoice(true)
+        cloudVoiceCache = {
+          cachedAt: Date.now(), loggedIn: true, voices: this.cloudVoices.slice(), status: this.cloudStatus,
+          available: this.cloudAvailable, state: this.cloudState, message: this.cloudMessage
+        }
       } catch (error) {
         if (token !== this.cloudLoadToken) return
         this.cloudVoices = []
@@ -648,8 +664,13 @@ export default {
         message: '后端暂时无法提供拟真语音，请查看连接诊断后重试；离线声音仍可使用。'
       }
     },
-    async loadVoices() {
+    async loadVoices(options = {}) {
       const token = ++this.loadToken
+      if (!options.force && deviceVoiceCache && Date.now() - deviceVoiceCache.cachedAt < VOICE_CACHE_TTL_MS) {
+        this.voices = deviceVoiceCache.voices.slice()
+        this.reconcileSavedVoice()
+        return
+      }
       this.stopPreview()
       this.loading = true
       this.errorMessage = ''
@@ -665,6 +686,7 @@ export default {
         this.voices = Array.isArray(listed) && listed.length
           ? listed
           : [{ ...SYSTEM_DEFAULT_VOICE }]
+        deviceVoiceCache = { cachedAt: Date.now(), voices: this.voices.slice() }
         this.reconcileSavedVoice()
       } catch (error) {
         if (token !== this.loadToken) return

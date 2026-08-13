@@ -391,6 +391,7 @@ import {
   paginateContentByMeasurement
 } from '../../common/readerPagination.js'
 import { getAppThemeId, getAppThemeRuntimeStyle } from '../../common/appTheme.js'
+import { finishPerformanceSpan, startPerformanceSpan } from '../../common/performanceMetrics.js'
 import { getReaderEntryClass, getThemeExperience, normalizeThemeExperienceId } from '../../common/v3Experience.js'
 import DBottomSheet from '../../components/feedback/DBottomSheet.vue'
 import apiClient from '../../common/apiClient.js'
@@ -451,6 +452,7 @@ export default {
       chapterLoadError: '',
       loadingText: '正在解码章节...',
       chapterLoadToken: 0,
+      chapterPreloadTimer: null,
       offlineDownloading: false,
       chromeTimer: null,
       touchStartX: 0,
@@ -927,6 +929,19 @@ export default {
       this.measurementContent = ''
       this.measurementContinuesFromPrevious = false
       this.paginationPending = false
+      if (this.chapterPreloadTimer) clearTimeout(this.chapterPreloadTimer)
+      this.chapterPreloadTimer = null
+    },
+    scheduleChapterPreload(kind, chapterIndex, token) {
+      if (this.chapterPreloadTimer) clearTimeout(this.chapterPreloadTimer)
+      this.chapterPreloadTimer = setTimeout(() => {
+        this.chapterPreloadTimer = null
+        if (this.chapterLoadToken !== token) return
+        const task = kind === 'backend'
+          ? preloadBackendChapters(this.book, chapterIndex)
+          : preloadOnlineChapters(this.book, chapterIndex)
+        Promise.resolve(task).catch(() => {})
+      }, 600)
     },
     handleMotionChange(state) {
       this.motionReduced = !!(state && state.reduced)
@@ -1036,6 +1051,7 @@ export default {
       await this.rebuildPages()
     },
     async rebuildPages(options = {}) {
+      const chapterSpan = startPerformanceSpan('reader.chapter.render', { mode: this.book.source || 'builtin' })
       this.clearPaginationWork()
       const token = this.chapterLoadToken + 1
       this.chapterLoadToken = token
@@ -1043,6 +1059,7 @@ export default {
       const restorePageIndex = this.pageIndex
       const anchorOffset = options.anchorOffset
       this.chapterLoadError = ''
+      try {
 
       if (this.book.source === 'online' && currentChapter && !currentChapter.content) {
         this.loadingChapter = true
@@ -1050,14 +1067,14 @@ export default {
         this.loadingText = currentChapter.isCached ? '正在读取缓存...' : '正在解码章节...'
         this.pages = ['请稍候，正在为你解析这一章。']
         try {
-          const loaded = await loadOnlineChapter(this.book, currentChapter, { autoPreload: true })
+          const loaded = await loadOnlineChapter(this.book, currentChapter, { autoPreload: false })
           if (this.chapterLoadToken !== token) return
           this.book.chapters.splice(this.chapterIndex, 1, loaded)
           addOnlineBookToShelf(this.book)
-          preloadOnlineChapters(this.book, this.chapterIndex).catch(() => {})
           this.loadingChapter = false
           await this.applyChapterPagination(loaded.content, { anchorOffset, restorePageIndex, chapterToken: token, showPending: true })
           if (this.chapterLoadToken !== token) return
+          this.scheduleChapterPreload('online', this.chapterIndex, token)
         } catch (error) {
           if (this.chapterLoadToken !== token) return
           this.loadingChapter = false
@@ -1089,10 +1106,10 @@ export default {
             content,
             isCached: !!content
           })
-          preloadBackendChapters(this.book, this.chapterIndex).catch(() => {})
           this.loadingChapter = false
           await this.applyChapterPagination(content, { anchorOffset, restorePageIndex, chapterToken: token, showPending: true })
           if (this.chapterLoadToken !== token) return
+          this.scheduleChapterPreload('backend', this.chapterIndex, token)
         } catch (error) {
           if (this.chapterLoadToken !== token) return
           this.loadingChapter = false
@@ -1139,6 +1156,12 @@ export default {
       if (this.chapterLoadToken !== token) return
       this.pageIndex = Math.max(0, Math.min(this.pageIndex, this.pages.length - 1))
       this.persist()
+      } finally {
+        finishPerformanceSpan(chapterSpan, {
+          status: this.chapterLoadToken === token ? (this.chapterLoadError ? 'failed' : 'rendered') : 'cancelled',
+          pageCount: this.pages.length
+        })
+      }
     },
     formatChapterLoadError(error, fallback) {
       const message = friendlyErrorMessage(error, fallback)
