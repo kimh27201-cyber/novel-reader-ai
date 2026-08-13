@@ -255,12 +255,12 @@ globalThis.uni.request = options => {
     }
   })
 }
-const beforeFallbackSettings = JSON.stringify(store['sources:settings'] || {})
 const fallbackSearch = await searchSourceBooks(fallbackSource.id, 'fallback', { timeoutMs: 1000 })
 assert.equal(requestedUrl, 'https://fallback.example.com/search?keyword=fallback')
 assert.equal(fallbackSearch.count, 1)
 assert.equal(fallbackSearch.results[0].book.title, 'Fallback Book')
-assert.equal(JSON.stringify(store['sources:settings'] || {}), beforeFallbackSettings)
+assert.equal(store['sources:settings'][fallbackSource.id].runtimeV2.search.status, 'passed')
+assert.equal(store['sources:settings'][fallbackSource.id].runtimeV2.search.resultCount, 1)
 
 globalThis.uni.request = options => {
   requestedUrl = String(options.data && options.data.url || '')
@@ -392,7 +392,8 @@ assert.equal(partialExplore.reasonCode, 'source_disabled')
 
 const searchPage = readFileSync(new URL('../pages/search/search.vue', import.meta.url), 'utf8')
 assert.match(searchPage, /getOnlineExploreEntries/)
-assert.match(searchPage, /exploreOnlineBooks/)
+assert.match(searchPage, /openExploreCatalogEntry/)
+assert.match(searchPage, /buildExploreCatalog/)
 assert.match(searchPage, /exploreEntries/)
 assert.match(searchPage, /openExploreEntry/)
 assert.match(searchPage, /discover-source-list/)

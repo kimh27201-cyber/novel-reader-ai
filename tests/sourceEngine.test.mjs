@@ -242,6 +242,6 @@ const searchSources = pickOnlineSearchSources([
   { id: 'three', enabled: true, lastTest: { status: 'passed' }, raw: { searchUrl: '/three', ruleSearch: { bookList: '$.items[*]' } } },
   { id: 'four', enabled: true, lastTest: { status: 'untested' }, raw: { searchUrl: '/four', ruleSearch: { bookList: '$.items[*]' } } }
 ])
-assert.deepEqual(searchSources.map(source => source.id), ['one', 'two', 'three'])
+assert.deepEqual(searchSources.map(source => source.id), ['one', 'two', 'three', 'four'])
 
 console.log('sourceEngine tests passed')

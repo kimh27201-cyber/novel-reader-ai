@@ -25,7 +25,9 @@ assert.deepEqual(getOnlineSearchSettings(), {
   concurrency: 8,
   timeoutMs: 12000,
   resultLimit: 60,
-  sourceLimit: 10
+  sourceLimit: 20,
+  autoWarmup: true,
+  mergeBackend: true
 })
 
 saveOnlineSearchSettings({ concurrency: 99, timeoutMs: 100, resultLimit: 999, sourceLimit: 99 })
@@ -33,7 +35,9 @@ assert.deepEqual(getOnlineSearchSettings(), {
   concurrency: 10,
   timeoutMs: 3000,
   resultLimit: 120,
-  sourceLimit: 10
+  sourceLimit: 30,
+  autoWarmup: true,
+  mergeBackend: true
 })
 
 const sourceList = Array.from({ length: 4 }, (_, index) => ({
