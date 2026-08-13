@@ -107,8 +107,27 @@ let sourceSnapshotCache = null
 let sourceSnapshotVersion = 1
 let sourceIndexCache = null
 let sourceIndexJob = null
+let sourceDiscoveryPrecomputeHandle = null
+let sourceDiscoveryPrecomputeMode = ''
 let pendingSourceRuntimeWriteTimer = null
 let pendingSourceRuntimeDirty = false
+
+function cancelSourceDiscoveryPrecompute() {
+  if (sourceDiscoveryPrecomputeHandle == null) return
+  if (sourceDiscoveryPrecomputeMode === 'idle' && typeof globalThis.cancelIdleCallback === 'function') {
+    globalThis.cancelIdleCallback(sourceDiscoveryPrecomputeHandle)
+  } else {
+    clearTimeout(sourceDiscoveryPrecomputeHandle)
+  }
+  sourceDiscoveryPrecomputeHandle = null
+  sourceDiscoveryPrecomputeMode = ''
+}
+
+export function cancelPendingSourceDiscoveryCache() {
+  const pending = sourceDiscoveryPrecomputeHandle != null
+  cancelSourceDiscoveryPrecompute()
+  return pending
+}
 
 function clearSourceCaches(reason = 'changed') {
   sourceSnapshotVersion += 1
@@ -116,6 +135,7 @@ function clearSourceCaches(reason = 'changed') {
   sourceIndexCache = null
   if (sourceIndexJob) sourceIndexJob.cancelled = true
   sourceIndexJob = null
+  cancelSourceDiscoveryPrecompute()
   return { version: sourceSnapshotVersion, reason }
 }
 
@@ -872,10 +892,60 @@ function persistSourceIndex(index) {
   })
 }
 
+function hasCurrentSourceDiscoveryCache(revision = currentSourceRevision()) {
+  const cached = readStorage(SOURCE_DISCOVERY_CACHE_KEY, null)
+  return !!(cached && cached.revision === revision && cached.result && Array.isArray(cached.result.catalog))
+}
+
+export function prepareSourceDiscoveryCache(options = {}) {
+  const revision = currentSourceRevision()
+  if (hasCurrentSourceDiscoveryCache(revision)) {
+    return { cached: true, scheduled: false, revision }
+  }
+  const sources = Array.isArray(options.sources)
+    ? options.sources
+    : sourceSnapshotCache && sourceSnapshotCache.sources
+  if (!Array.isArray(sources) || !sources.length) {
+    return { cached: false, scheduled: false, revision, reason: 'snapshot-unavailable' }
+  }
+  if (options.immediate === true) {
+    cancelSourceDiscoveryPrecompute()
+    const result = getSourceDiscoverySnapshot({ sources })
+    return { cached: false, scheduled: false, revision, count: result.catalog.length, ready: true }
+  }
+  if (sourceDiscoveryPrecomputeHandle != null) {
+    return { cached: false, scheduled: true, revision }
+  }
+  const version = sourceSnapshotVersion
+  const run = () => {
+    sourceDiscoveryPrecomputeHandle = null
+    sourceDiscoveryPrecomputeMode = ''
+    if (version !== sourceSnapshotVersion || hasCurrentSourceDiscoveryCache(revision)) return
+    getSourceDiscoverySnapshot({ sources })
+  }
+  if (typeof globalThis.requestIdleCallback === 'function') {
+    sourceDiscoveryPrecomputeMode = 'idle'
+    sourceDiscoveryPrecomputeHandle = globalThis.requestIdleCallback(run, { timeout: 1200 })
+  } else {
+    sourceDiscoveryPrecomputeMode = 'timer'
+    sourceDiscoveryPrecomputeHandle = setTimeout(run, Math.max(32, Number(options.delayMs || 120)))
+    if (sourceDiscoveryPrecomputeHandle && typeof sourceDiscoveryPrecomputeHandle.unref === 'function') {
+      sourceDiscoveryPrecomputeHandle.unref()
+    }
+  }
+  return { cached: false, scheduled: true, revision }
+}
+
 export async function prepareSourceIndexes(options = {}) {
-  if (sourceIndexCache) return sourceIndexCache.report
+  if (sourceIndexCache) {
+    prepareSourceDiscoveryCache()
+    return sourceIndexCache.report
+  }
   const persisted = restorePersistedSourceIndex()
-  if (persisted) return persisted.report
+  if (persisted) {
+    prepareSourceDiscoveryCache()
+    return persisted.report
+  }
   const snapshot = getSourceSnapshot()
   if (sourceIndexCache && sourceIndexCache.version === snapshot.version) return sourceIndexCache.report
   if (sourceIndexJob && sourceIndexJob.version === snapshot.version) return sourceIndexJob.promise
@@ -899,6 +969,7 @@ export async function prepareSourceIndexes(options = {}) {
     sourceIndexCache.version = snapshot.version
     sourceIndexCache.report.version = snapshot.version
     persistSourceIndex(sourceIndexCache)
+    prepareSourceDiscoveryCache({ sources: snapshot.sources })
     finishPerformanceSpan(span, { sourceCount: summaries.length, count: groups.size, status: 'built' })
     return sourceIndexCache.report
   })().finally(() => {
@@ -918,6 +989,7 @@ function ensureSynchronousSourceIndex() {
   sourceIndexCache.version = snapshot.version
   sourceIndexCache.report.version = snapshot.version
   persistSourceIndex(sourceIndexCache)
+  prepareSourceDiscoveryCache({ sources: snapshot.sources })
   return sourceIndexCache
 }
 

@@ -7,7 +7,7 @@ import { applyPerformanceProfile, refreshPerformanceProfile } from './common/per
 import apiClient from './common/apiClient.js'
 import { syncOfflineLibrary } from './common/backendLibrary.js'
 import { pauseSourceWarmup, resetSourceWarmupSession, setSourceWarmupForeground, startSourceWarmup } from './common/sourceWarmup.js'
-import { flushPendingSourceRuntimeWrites, prepareSourceIndexes } from './common/bookSources.js'
+import { cancelPendingSourceDiscoveryCache, flushPendingSourceRuntimeWrites, prepareSourceIndexes } from './common/bookSources.js'
 import { finishPerformanceSpan, flushPerformanceMetrics, samplePerformanceMemory, startPerformanceSpan } from './common/performanceMetrics.js'
 
 let launchSpan = null
@@ -61,6 +61,7 @@ export default {
   },
   onHide() {
     clearAppShowTimers()
+    cancelPendingSourceDiscoveryCache()
     setSourceWarmupForeground(false)
     pauseSourceWarmup()
     flushPendingSourceRuntimeWrites()
