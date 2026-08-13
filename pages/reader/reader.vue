@@ -325,9 +325,11 @@
             scroll-y
             :scroll-into-view="activeChapterId"
             :show-scrollbar="false"
+            @scroll="handleCatalogScroll"
             @scrolltolower="loadMoreCatalogChapters"
             @scrolltoupper="loadPreviousCatalogChapters"
           >
+            <view class="catalog-window-spacer" :style="catalogTopSpacerStyle"></view>
             <view
               class="catalog-item"
               v-for="item in visibleCatalogChapters"
@@ -343,6 +345,7 @@
               </view>
               <text class="catalog-check" v-if="item.index === chapterIndex">✓</text>
             </view>
+            <view class="catalog-window-spacer" :style="catalogBottomSpacerStyle"></view>
           </scroll-view>
 
           <scroll-view v-else class="bookmark-list" scroll-y :show-scrollbar="false">
@@ -419,8 +422,17 @@ import {
   createReadAloudController,
   READ_ALOUD_RATES
 } from '../../common/readAloud.js'
+import {
+  buildCatalogMatchIndexes,
+  catalogWindowStartForScroll,
+  CATALOG_WINDOW_SIZE,
+  createCatalogWindow,
+  getCatalogWindowMetrics,
+  readCatalogWindow,
+  shiftCatalogWindow
+} from '../../common/catalogWindow.js'
 
-const CATALOG_BATCH_SIZE = 120
+const CATALOG_ITEM_HEIGHT_RPX = 98
 
 export default {
   components: { DBottomSheet },
@@ -473,7 +485,6 @@ export default {
       catalogTab: 'catalog',
       catalogKeyword: '',
       catalogStartIndex: 0,
-      catalogVisibleCount: CATALOG_BATCH_SIZE,
       settingsMode: 'interface',
       readAloudRates: READ_ALOUD_RATES,
       readAloudController: null,
@@ -531,7 +542,9 @@ export default {
       return getSharedBookFlightStyle(this.sharedBookTransition)
     },
     activeChapterId() {
-      return `chapter-${Math.max(0, this.chapterIndex - 2)}`
+      return this.visibleCatalogChapters.some(item => item.index === this.chapterIndex)
+        ? `chapter-${this.chapterIndex}`
+        : ''
     },
     pageContent() {
       return this.pages[this.pageIndex] || ''
@@ -621,14 +634,20 @@ export default {
       }
       return `亮度 ${this.prefs.brightness}% · ${this.prefs.immersiveMode ? '沉浸' : '标准'} · ${this.prefs.pageTurnMode}`
     },
-    filteredChapters() {
-      const keyword = this.catalogKeyword.trim().toLowerCase()
-      return (this.book.chapters || [])
-        .map((item, index) => ({ ...item, index }))
-        .filter(item => !keyword || String(item.title || '').toLowerCase().includes(keyword))
+    catalogMatchIndexes() {
+      return buildCatalogMatchIndexes(this.book.chapters || [], this.catalogKeyword)
     },
     visibleCatalogChapters() {
-      return this.filteredChapters.slice(this.catalogStartIndex, this.catalogStartIndex + this.catalogVisibleCount)
+      return readCatalogWindow(this.book.chapters || [], this.catalogMatchIndexes, this.catalogStartIndex, CATALOG_WINDOW_SIZE)
+    },
+    catalogWindowMetrics() {
+      return getCatalogWindowMetrics(this.catalogMatchIndexes, this.catalogStartIndex, CATALOG_WINDOW_SIZE)
+    },
+    catalogTopSpacerStyle() {
+      return { height: `${this.catalogWindowMetrics.before * CATALOG_ITEM_HEIGHT_RPX}rpx` }
+    },
+    catalogBottomSpacerStyle() {
+      return { height: `${this.catalogWindowMetrics.after * CATALOG_ITEM_HEIGHT_RPX}rpx` }
     },
     currentBookmarkActive() {
       return this.bookmarks.some(item => item.chapterIndex === this.chapterIndex && item.pageIndex === this.pageIndex)
@@ -1326,22 +1345,35 @@ export default {
       this.clearChromeTimer()
     },
     resetCatalogWindow(centerCurrent = true) {
-      const list = this.filteredChapters
-      const currentIndex = list.findIndex(item => item.index === this.chapterIndex)
-      const shouldCenter = centerCurrent && !this.catalogKeyword.trim() && currentIndex >= 0
-      this.catalogStartIndex = shouldCenter ? Math.max(0, currentIndex - 20) : 0
-      this.catalogVisibleCount = Math.min(CATALOG_BATCH_SIZE, Math.max(list.length - this.catalogStartIndex, 0))
+      const window = createCatalogWindow(this.catalogMatchIndexes, this.chapterIndex, {
+        size: CATALOG_WINDOW_SIZE,
+        anchorOffset: 20,
+        centerCurrent: centerCurrent && !this.catalogKeyword.trim()
+      })
+      this.catalogStartIndex = window.start
     },
     loadMoreCatalogChapters() {
-      const remaining = this.filteredChapters.length - this.catalogStartIndex
-      if (this.catalogVisibleCount >= remaining) return
-      this.catalogVisibleCount = Math.min(remaining, this.catalogVisibleCount + CATALOG_BATCH_SIZE)
+      this.catalogStartIndex = shiftCatalogWindow(this.catalogMatchIndexes, this.catalogStartIndex, 'next', {
+        size: CATALOG_WINDOW_SIZE
+      })
     },
     loadPreviousCatalogChapters() {
-      if (this.catalogStartIndex <= 0) return
-      const step = Math.min(CATALOG_BATCH_SIZE, this.catalogStartIndex)
-      this.catalogStartIndex -= step
-      this.catalogVisibleCount += step
+      this.catalogStartIndex = shiftCatalogWindow(this.catalogMatchIndexes, this.catalogStartIndex, 'previous', {
+        size: CATALOG_WINDOW_SIZE
+      })
+    },
+    handleCatalogScroll(event) {
+      const scrollTop = Number(event && event.detail && event.detail.scrollTop || 0)
+      let windowWidth = 375
+      try {
+        windowWidth = Number(uni.getSystemInfoSync().windowWidth || windowWidth)
+      } catch (error) {}
+      const itemHeightPx = CATALOG_ITEM_HEIGHT_RPX * windowWidth / 750
+      const nextStart = catalogWindowStartForScroll(this.catalogMatchIndexes, scrollTop, itemHeightPx, {
+        size: CATALOG_WINDOW_SIZE,
+        preload: 20
+      })
+      if (Math.abs(nextStart - this.catalogStartIndex) >= 10) this.catalogStartIndex = nextStart
     },
     closeCatalog() {
       this.catalogVisible = false
@@ -2568,6 +2600,11 @@ export default {
 .catalog-list,
 .bookmark-list {
   height: 50vh;
+}
+
+.catalog-window-spacer {
+  width: 1px;
+  pointer-events: none;
 }
 
 .catalog-content {
