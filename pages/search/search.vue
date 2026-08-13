@@ -249,16 +249,14 @@
           <button class="starter primary" @tap="goLibrary">查看书源设置</button>
         </view>
 
-        <DEmptyState
-          class="empty-state no-result-state"
-          v-else-if="hasSearched && !loading && !searchError"
-          scene="search"
-          :theme-id="themeId"
-          :title="`没有找到“${lastSearchKeyword}”`"
-          :description="mode === 'cloud' ? '换一个更短的书名，或切换书源后再试。' : '本地书架中没有匹配项，可以先导入 TXT 或加入一本书。'"
-          :action-text="lastSearchReport && lastSearchReport.local && lastSearchReport.local.hasMore ? '继续检测下一批' : '换个关键词'"
-          @action="continueSearch"
-        />
+        <view class="empty-state no-result-state" v-else-if="hasSearched && !loading && !searchError">
+          <view class="state-mark">花</view>
+          <view class="empty-title">没有找到“{{ lastSearchKeyword }}”</view>
+          <text class="empty-desc">{{ mode === 'cloud' ? '换一个更短的书名，或切换书源后再试。' : '本地书架中没有匹配项，可以先导入 TXT 或加入一本书。' }}</text>
+          <button class="state-action continue-search-action" @tap.stop="continueSearch">
+            {{ lastSearchReport && lastSearchReport.local && lastSearchReport.local.hasMore ? '继续检测下一批' : '换个关键词' }}
+          </button>
+        </view>
 
         <view class="empty-state" v-else-if="!loading && !searchError">
           <view class="state-mark">书</view>
