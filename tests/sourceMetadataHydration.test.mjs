@@ -24,10 +24,16 @@ const makeSource = (name, host, detailRule) => ({
 
 const good = importSourcesWithStats(JSON.stringify(makeSource('Metadata good', 'metadata-good.example', '#title@text'))).importedSources[0]
 const bad = importSourcesWithStats(JSON.stringify(makeSource('Metadata bad', 'metadata-bad.example', '#missing@text'))).importedSources[0]
+const inferredUrl = importSourcesWithStats(JSON.stringify({
+  ...makeSource('Metadata inferred URL', 'metadata-inferred.example', '#title@text'),
+  ruleSearch: { bookList: '.item', name: 'h3@a@text', bookUrl: '' }
+})).importedSources[0]
 
 globalThis.fetch = async url => {
   const target = String(url)
-  const body = target.includes('/search')
+  const body = target.includes('metadata-inferred.example/search')
+    ? '<div class="item"><h3><a href="/book/6808">斗破苍穹</a></h3></div>'
+    : target.includes('/search')
     ? JSON.stringify({ items: [{ url: '/book/1' }] })
     : '<html><h1 id="title">斗破苍穹</h1><span id="author">天蚕土豆</span></html>'
   return {
@@ -54,6 +60,11 @@ await assert.rejects(
 )
 assert.equal(getSourceConfig(bad.id).runtimeV2.search.errorCode, 'SEARCH_RESULT_INCOMPLETE')
 assert.equal(getSourceConfig(bad.id).runtimeV2.search.status, 'cooldown')
+
+const inferred = await testSourceSearch(inferredUrl.id, '斗破苍穹', { failOnEmpty: true })
+assert.equal(inferred.count, 1)
+assert.equal(inferred.results[0].title, '斗破苍穹')
+assert.equal(inferred.results[0].book.bookUrl, 'https://metadata-inferred.example/book/6808')
 
 delete globalThis.fetch
 delete globalThis.uni

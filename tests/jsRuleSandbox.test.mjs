@@ -14,6 +14,13 @@ assert.equal(
   executeJsRule('<js>var url = "https://example.com/search"; var post = JSON.stringify({method: "POST", body: "q=" + encodeURIComponent(key), headers: {"Content-Type": "application/x-www-form-urlencoded"}}); url + "," + post;</js>', { key: '剑来' }),
   `https://example.com/search,{"method":"POST","body":"q=${encodeURIComponent('剑来')}","headers":{"Content-Type":"application/x-www-form-urlencoded"}}`
 )
+assert.equal(
+  executeJsRule(`@js:
+let data = JSON.stringify({ContentAnchorBatch: [{BookID: book.kind, ChapterSeqNo: [result]}], Scene: "chapter"})
+let option = {method: "POST", body: data}
+"https://example.com/content," + JSON.stringify(option)`, { result: '8', book: { kind: '6305' } }),
+  'https://example.com/content,{"method":"POST","body":"{\\"ContentAnchorBatch\\":[{\\"BookID\\":\\"6305\\",\\"ChapterSeqNo\\":[\\"8\\"]}],\\"Scene\\":\\"chapter\\"}"}'
+)
 
 for (const rule of ['fetch("https://x")', 'java.ajax()', 'window.location', 'document.cookie', 'eval("1")', 'while(true){}']) {
   assert.throws(() => executeJsRule(rule, {}), error => error instanceof JsRuleSandboxError && error.code === 'UNSUPPORTED_JS_CAPABILITY')

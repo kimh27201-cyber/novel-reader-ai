@@ -494,6 +494,11 @@ export function applyListRule(input, rule, context = {}) {
 }
 
 function applyRulePart(input, rule, context) {
+  const chainedJsIndex = String(rule || '').indexOf('@js:')
+  if (chainedJsIndex > 0) {
+    const selected = applyRulePart(input, String(rule).slice(0, chainedJsIndex), context)
+    return executeJsRule(String(rule).slice(chainedJsIndex), { ...context, result: selected })
+  }
   const concatRules = String(rule || '').split('&&').map(item => item.trim()).filter(Boolean)
   if (concatRules.length > 1) {
     const values = concatRules.map(item => applyRulePart(input, item, context))
@@ -522,6 +527,7 @@ function applySelectorPipeline(input, rule) {
   const text = String(rule || '').trim()
   if (!text) return input
   if (/^https?:\/\//i.test(text)) return text
+  if (/^(?:\/(?!\/)|\.{1,2}\/)/.test(text)) return text
   if (text === '@text' || text === 'text') return extractText(input)
   if (text === '@html' || text === 'html') return asArray(input).join('')
   if (/^(?:@?json:)/i.test(text)) return readJsonPath(input, text.replace(/^(?:@?json:)/i, ''))

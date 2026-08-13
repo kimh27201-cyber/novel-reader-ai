@@ -53,6 +53,35 @@ function splitTopLevel(text, delimiter) {
   return args
 }
 
+function splitStatements(text) {
+  const statements = []
+  let quote = ''
+  let regex = false
+  let escaped = false
+  let depth = 0
+  let start = 0
+  const source = String(text || '')
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index]
+    if (escaped) { escaped = false; continue }
+    if (char === '\\') { escaped = true; continue }
+    if (quote) { if (char === quote) quote = ''; continue }
+    if (regex) { if (char === '/') regex = false; continue }
+    if (char === '"' || char === "'") { quote = char; continue }
+    if (char === '/' && (index === 0 || /[,(=:\s]/.test(source[index - 1]))) { regex = true; continue }
+    if (char === '(' || char === '[' || char === '{') depth += 1
+    if (char === ')' || char === ']' || char === '}') depth -= 1
+    if ((char === ';' || char === '\n' || char === '\r') && depth === 0) {
+      const statement = source.slice(start, index).trim()
+      if (statement) statements.push(statement)
+      start = index + 1
+    }
+  }
+  const tail = source.slice(start).trim()
+  if (tail) statements.push(tail)
+  return statements
+}
+
 function findTopLevelBinary(text, operator) {
   const parts = splitTopLevel(text, operator)
   return parts.length > 1 ? parts : null
@@ -195,7 +224,7 @@ export function executeJsRule(rule, context = {}, options = {}) {
     maxDepth: Math.max(1, Math.min(16, Number(options.maxDepth || 8)))
   }
   const sandboxContext = { ...context }
-  const statements = splitTopLevel(source, ';').filter(Boolean)
+  const statements = splitStatements(source)
   let result = ''
   statements.forEach((statement, index) => {
     const declaration = statement.match(/^(?:var|let|const)\s+([A-Za-z_$][\w$]*)\s*=\s*([\s\S]+)$/)

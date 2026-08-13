@@ -234,6 +234,18 @@ function pickUrl(input, rule, names, context, baseUrl) {
   return resolveUrl(firstValue(applyRule(input, getFieldRule(rule, names), context)), baseUrl)
 }
 
+function deriveBookUrlRuleFromTitle(rule) {
+  const text = String(rule || '').trim()
+  if (!text) return ''
+  const declarative = text.split('@js:')[0].trim()
+  if (!declarative || /^(?:<js>|@js:)/i.test(declarative)) return ''
+  if (/@(?:text|textNodes|ownText|html)$/i.test(declarative)) {
+    return declarative.replace(/@(?:text|textNodes|ownText|html)$/i, '@href')
+  }
+  if (/(?:^|@)a(?:[.#\[:][^@]*)?$/i.test(declarative)) return `${declarative}@href`
+  return ''
+}
+
 function getUserSources() {
   const nativeSources = readNativeUserSources()
   const stored = nativeSources == null ? readStorage(USER_SOURCES_KEY, []) : nativeSources
@@ -3783,16 +3795,21 @@ async function loadOnlineBookInfoInternal(book, options = {}) {
 
   const html = await requestText(createSourceRequestSpec(source, book.bookUrl, {}, source.baseUrl))
   const payload = parseResponsePayload(html)
-  const context = { ...book, $: payload }
-  const next = {
-    ...book,
+  const context = { ...book, book, $: payload }
+  const parsedFields = {
     title: pickText(payload, rule, ['name', 'bookName', 'title'], context) || book.title,
     author: pickText(payload, rule, ['author', 'bookAuthor'], context) || book.author,
     intro: pickText(payload, rule, ['intro', 'description', 'desc'], context) || book.intro,
     kind: pickText(payload, rule, ['kind', 'category', 'type'], context) || book.kind,
     latestChapter: pickText(payload, rule, ['latestChapter', 'lastChapter', 'last'], context) || book.latestChapter,
-    coverUrl: pickUrl(payload, rule, ['coverUrl', 'cover', 'image'], context, source.baseUrl) || book.coverUrl,
-    tocUrl: pickUrl(payload, rule, ['tocUrl', 'chapterUrl', 'catalogUrl'], context, book.bookUrl) || book.tocUrl || book.bookUrl
+    coverUrl: pickUrl(payload, rule, ['coverUrl', 'cover', 'image'], context, source.baseUrl) || book.coverUrl
+  }
+  const resolvedBook = { ...book, ...parsedFields }
+  const resolvedContext = { ...resolvedBook, book: resolvedBook, $: payload }
+  const next = {
+    ...book,
+    ...parsedFields,
+    tocUrl: pickUrl(payload, rule, ['tocUrl', 'chapterUrl', 'catalogUrl'], resolvedContext, book.bookUrl) || book.tocUrl || book.bookUrl
   }
   const normalized = normalizeOnlineBookForShelf(next)
   writeOnlineDataCache('detail', cacheKey, normalized)
@@ -3823,32 +3840,35 @@ async function loadOnlineTocInternal(book, options = {}) {
   const seenPages = new Set()
   const seenChapters = new Set()
   const maxPages = clampNumber(options.maxPages, 1, 10, 5)
-  let currentUrl = tocUrl
-
-  for (let page = 1; currentUrl && page <= maxPages && !seenPages.has(currentUrl); page += 1) {
-    seenPages.add(currentUrl)
-    const html = await requestText(createSourceRequestSpec(source, currentUrl, { ...book, page }, source.baseUrl))
-    const payload = parseResponsePayload(html)
-    const list = applyListRule(payload, listRule, { ...book, page, $: payload })
-    list.forEach(item => {
-      const index = chapters.length
-      const context = { ...book, index, page, $: item }
-      const title = pickText(item, rule, ['chapterName', 'name', 'title'], context) || `第 ${index + 1} 章`
-      const url = pickUrl(item, rule, ['chapterUrl', 'url', 'link'], context, currentUrl)
-      const key = `${title}\n${url}`
-      if (!title || !url || seenChapters.has(key)) return
-      seenChapters.add(key)
-      const cachedChapter = !!readStorage(chapterCacheKey(book.id, index), '')
-      chapters.push({
-        title,
-        url,
-        index,
-        isCached: cachedChapter,
-        loadStatus: cachedChapter ? 'cached' : 'idle',
-        errorMessage: ''
+  const routeCandidates = uniqueStrings([tocUrl, book.bookUrl])
+  for (const routeUrl of routeCandidates) {
+    let currentUrl = routeUrl
+    for (let page = 1; currentUrl && page <= maxPages && !seenPages.has(currentUrl); page += 1) {
+      seenPages.add(currentUrl)
+      const html = await requestText(createSourceRequestSpec(source, currentUrl, { ...book, page }, source.baseUrl))
+      const payload = parseResponsePayload(html)
+      const list = applyListRule(payload, listRule, { ...book, book, page, $: payload })
+      list.forEach(item => {
+        const index = chapters.length
+        const context = { ...book, book, index, page, $: item }
+        const title = pickText(item, rule, ['chapterName', 'name', 'title'], context) || `第 ${index + 1} 章`
+        const url = pickUrl(item, rule, ['chapterUrl', 'url', 'link'], context, currentUrl)
+        const key = `${title}\n${url}`
+        if (!title || !url || seenChapters.has(key)) return
+        seenChapters.add(key)
+        const cachedChapter = !!readStorage(chapterCacheKey(book.id, index), '')
+        chapters.push({
+          title,
+          url,
+          index,
+          isCached: cachedChapter,
+          loadStatus: cachedChapter ? 'cached' : 'idle',
+          errorMessage: ''
+        })
       })
-    })
-    currentUrl = pickUrl(payload, rule, ['nextTocUrl', 'nextUrl'], { ...book, page, $: payload }, currentUrl)
+      currentUrl = pickUrl(payload, rule, ['nextTocUrl', 'nextUrl'], { ...book, book, page, $: payload }, currentUrl)
+    }
+    if (chapters.length) break
   }
 
   if (!chapters.length) throw new SourceRuntimeError('TOC_EMPTY', '目录解析为空，请换一个书源', { stage: 'toc' })
@@ -3885,11 +3905,11 @@ async function loadOnlineChapterInternal(book, chapter, options = {}) {
     const rawPageContent = firstValue(applyRule(
       payload,
       getFieldRule(rule, ['content', 'text']),
-      { ...book, ...chapter, page, $: payload }
+      { ...book, book, ...chapter, chapter, page, $: payload }
     ))
     const pageContent = sanitizeReadableContent(rawPageContent, { chapterTitle: chapter.title, page })
     if (pageContent.text) contents.push(pageContent.text)
-    currentUrl = pickUrl(payload, rule, ['nextContentUrl', 'nextUrl'], { ...book, ...chapter, page, $: payload }, currentUrl)
+    currentUrl = pickUrl(payload, rule, ['nextContentUrl', 'nextUrl'], { ...book, book, ...chapter, chapter, page, $: payload }, currentUrl)
   }
   const sanitizedContent = sanitizeReadableContent(uniqueStrings(contents).join('\n\n'), { chapterTitle: chapter.title })
   const content = sanitizedContent.text
@@ -4042,18 +4062,26 @@ function parseSearchResponse(source, rule, keyword, html) {
 
   const mappedResults = list.map(item => {
     const context = { key: keyword, keyword, $: item }
-    const rawTitle = pickText(item, rule, ['name', 'bookName', 'title'], context)
-    const book = normalizeOnlineBookForShelf({
-      sourceId: source.id,
-      sourceName: source.name,
-      sourceGroup: source.group,
-      bookUrl: pickUrl(item, rule, ['bookUrl', 'url', 'link'], context, source.baseUrl),
+    const titleRule = getFieldRule(rule, ['name', 'bookName', 'title'])
+    const rawTitle = cleanText(firstValue(applyRule(item, titleRule, context)))
+    const parsedFields = {
       title: rawTitle,
       author: pickText(item, rule, ['author', 'bookAuthor'], context) || '未知作者',
       kind: pickText(item, rule, ['kind', 'category', 'type'], context) || '在线书源',
       latestChapter: pickText(item, rule, ['latestChapter', 'lastChapter', 'last'], context),
       intro: pickText(item, rule, ['intro', 'description', 'desc'], context),
-      coverUrl: pickUrl(item, rule, ['coverUrl', 'cover', 'image'], context, source.baseUrl),
+      coverUrl: pickUrl(item, rule, ['coverUrl', 'cover', 'image'], context, source.baseUrl)
+    }
+    const parsedBook = { ...parsedFields, name: rawTitle }
+    const resolvedContext = { ...context, ...parsedFields, book: parsedBook }
+    const explicitBookUrlRule = getFieldRule(rule, ['bookUrl', 'url', 'link'])
+    const bookUrlRule = explicitBookUrlRule || deriveBookUrlRuleFromTitle(titleRule)
+    const book = normalizeOnlineBookForShelf({
+      sourceId: source.id,
+      sourceName: source.name,
+      sourceGroup: source.group,
+      bookUrl: resolveUrl(firstValue(applyRule(item, bookUrlRule, resolvedContext)), source.baseUrl),
+      ...parsedFields,
       metadataStatus: rawTitle ? 'complete' : 'needs_detail',
       metadataOrigin: 'search'
     }, { preserveMissingTitle: true })
