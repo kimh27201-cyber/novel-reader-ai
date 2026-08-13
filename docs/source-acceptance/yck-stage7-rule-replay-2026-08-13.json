@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 3,
+  "reportType": "stage7_rule_replay",
+  "capturedAt": "2026-08-13T17:30:00+08:00",
+  "baselineWindowId": "stage7-window1-2026-08-13",
+  "counts": {
+    "baselineParseEmpty": 19,
+    "replayedPassed": 6,
+    "remainingBaselineParseEmpty": 13
+  },
+  "samples": [
+    { "id": "6645", "sha256": "ad1c1027beb8299eaa53d00b3380072a50ef75e567178489ebfcd3537fe2138a", "before": "PARSE_EMPTY", "after": "PASSED", "chapters": 30, "cleanedChars": 141, "feature": "css_declarative" },
+    { "id": "6931", "sha256": "25bc88871fa6e50eaa57ba5f9e22636c582917f3195ce0659affa37fa69ea420", "before": "PARSE_EMPTY", "after": "PASSED", "chapters": 20, "cleanedChars": 13781, "feature": "declarative_parser" },
+    { "id": "6808", "sha256": "237d90206d6acebc09440dbb2c6b522b437ea430785606e845276783f26a0bd6", "before": "PARSE_EMPTY", "after": "PASSED", "chapters": 1663, "cleanedChars": 3505, "feature": "book_url_derivation_and_toc_fallback" },
+    { "id": "6305", "sha256": "1693abb1670397f428d4489510dd130db3d72f9d1b5a00de91d9205dc2ad26c3", "before": "PARSE_EMPTY", "after": "PASSED", "chapters": 1663, "cleanedChars": 2852, "feature": "book_context_and_multiline_safe_js" },
+    { "id": "6247", "sha256": "4b1a2a823a24fbb2468aa33ff62e62e3c60390e45a83c39e0625e01aa83d9659", "before": "PARSE_EMPTY", "after": "PASSED", "chapters": 50, "cleanedChars": 141, "feature": "compound_class_selector" },
+    { "id": "6311", "sha256": "17273d0fa726b96fe9db8d41dd19d7725ae154837855bd7e5e653f7f5711e9cd", "before": "PARSE_EMPTY", "after": "PASSED", "chapters": 1649, "cleanedChars": 3008, "feature": "readonly_attribute_regex_match_and_safe_index" }
+  ],
+  "privacy": {
+    "storesBody": false,
+    "storesCookies": false,
+    "storesTokens": false,
+    "storesFullResponse": false,
+    "storesFullSourceJson": false
+  },
+  "notes": [
+    "This replay does not mutate the baseline window report.",
+    "This replay is not a substitute for the second acceptance window."
+  ]
+}

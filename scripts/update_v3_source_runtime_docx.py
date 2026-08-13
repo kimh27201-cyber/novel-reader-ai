@@ -19,6 +19,7 @@ STAGE6_SECTION_TITLE = "15. 第六轮自适应搜索、发现跨源回退与运�
 STAGE6_FINAL_TITLE = "15.6 最终 Android 真机复测与按钮热修（2026-08-13）"
 STAGE7_SECTION_TITLE = "16. 第七阶段真实书源质量、可读率与稳定交付（2026-08-13）"
 STAGE7_REPLAY_TITLE = "16.6 首窗口高频规则差异重放（2026-08-13）"
+STAGE7_REPLAY2_TITLE = "16.7 第二批规则重放与外部变化审计（2026-08-13）"
 
 
 def set_east_asia_font(run, name="微软雅黑"):
@@ -466,6 +467,22 @@ def append_stage7_replay_section(document):
     return True
 
 
+def append_stage7_replay2_section(document):
+    if any(paragraph.text.strip() == STAGE7_REPLAY2_TITLE for paragraph in document.paragraphs):
+        return False
+    heading = document.add_heading(STAGE7_REPLAY2_TITLE, level=2)
+    for run in heading.runs:
+        set_east_asia_font(run)
+    add_bullet(document, "YCK 6247 完整通过：目录 50 章，首章清洗后 141 字符，验证复合类选择器兼容能力。")
+    add_bullet(document, "YCK 6311 的 @onclick@js:result.match(...)[1] 规则通过只读属性、正则 match() 和安全数组索引实现，目录 1649 章，首章清洗后 3008 字符。")
+    add_bullet(document, "首窗口共有 6 个原 PARSE_EMPTY 样本完成搜索、详情、目录和正文闭环；脱敏 Markdown 与 schema v3 JSON 同步保存 ID、配置哈希、阶段结果及长度统计。")
+    add_bullet(document, "6238、5915、5813 的当前页面已不再包含配置声明的结果容器，5998 当前接口仍返回“请输入搜索词”；这些归类为站点或配置变化，不增加站点专用绕过逻辑。")
+    add_bullet(document, "本批兼容仍受安全解释器预算约束，不开放 eval、Function、Java 类、文件系统或验证码绕过；重放结果不修改首窗口原始统计。")
+    add_bullet(document, "前端 108 / 108、后端 SQLite 125 / 125 通过，生产 H5 与 APK 构建成功。最新 APK 为 1,348,062 字节，SHA-256 为 5F9E9658B559E0857A2E627365AE0C8624D71ACDA5C22883DEE21A17A5FCAAF2，v1/v2/v3 签名通过。")
+    add_bullet(document, "REA-AN00 使用 adb install -r 保留数据覆盖安装成功，版本保持 1.0.0 (10000)，首次安装时间仍为 2026-05-29；第二窗口最早在北京时间 2026-08-14 15:47 后执行。")
+    return True
+
+
 def main():
     document = Document(DOCX_PATH)
     if any(paragraph.text.strip() == SECTION_TITLE for paragraph in document.paragraphs):
@@ -508,7 +525,8 @@ def main():
         stage6_final_added = append_stage6_final_section(document)
         stage7_added = append_stage7_section(document)
         stage7_replay_added = append_stage7_replay_section(document)
-        if stage4_updated or stage6_updated or stage2_added or stage3_added or stage4_added or stage5_added or stage6_added or stage6_final_added or stage7_added or stage7_replay_added:
+        stage7_replay2_added = append_stage7_replay2_section(document)
+        if stage4_updated or stage6_updated or stage2_added or stage3_added or stage4_added or stage5_added or stage6_added or stage6_final_added or stage7_added or stage7_replay_added or stage7_replay2_added:
             saved_path = save_document(document)
             print(f"Updated: {saved_path}")
         else:
@@ -587,6 +605,7 @@ def main():
     append_stage6_final_section(document)
     append_stage7_section(document)
     append_stage7_replay_section(document)
+    append_stage7_replay2_section(document)
     saved_path = save_document(document)
     print(f"Updated: {saved_path}")
 
