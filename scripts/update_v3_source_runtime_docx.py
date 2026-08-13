@@ -568,12 +568,50 @@ def append_stage9_section(document):
     return True
 
 
+def append_stage10_section(document):
+    title = "19. 第十阶段书源运行诊断与长目录固定窗口（2026-08-13）"
+    if any(paragraph.text.strip() == title for paragraph in document.paragraphs):
+        return False
+
+    document.add_heading(title, level=1)
+    document.add_heading("19.1 书源运行状态可见化", level=2)
+    add_bullet(document, "轻量索引增加运行状态、稳定错误码、HTTP 状态、检测时间和冷却截止时间；不保存完整书源配置、正文、Cookie、Token 或响应。")
+    add_bullet(document, "书源整理提供已验证、待检测、冷却中、受限快捷筛选，并聚合前六类失败码。失败来源继续保留，不自动删除或修改用户启用状态。")
+    add_body(document, "REA-AN00 当前 5330 源：已验证 0、待检测 5217、冷却中 100、受限 13、已有稳定错误码 113。")
+
+    document.add_heading("19.2 长目录固定窗口", level=2)
+    add_bullet(document, "阅读器目录固定生成 120 个轻量章节行，不再复制全部章节对象，也不会随滚动扩容到全量响应式 DOM。")
+    add_bullet(document, "窗口依据实时 scrollTop 提前移动，上下占位保持总滚动高度；真机发现的滚动占位空白已在交付前修复并加入自动测试。")
+    add_bullet(document, "999 章书籍连续快速滚动 10 次，从第 1 章稳定到第 984 章，无空白、无崩溃；静置 PSS 为 145,282KB。")
+
+    document.add_heading("19.3 验证、APK 与边界", level=2)
+    rows = [
+        ("前端测试", "114 / 114 passed", "新增诊断聚合与目录窗口测试"),
+        ("后端 SQLite", "125 / 125 passed", "未修改数据库"),
+        ("H5 生产构建", "通过", "保留既有体积警告"),
+        ("数据保留", "5330 源 / 3 本书架", "覆盖安装及阅读进度正常"),
+        ("最终 APK", "1,360,350 字节", "v1/v2/v3 签名通过"),
+    ]
+    table = document.add_table(rows=1, cols=3)
+    for index, value in enumerate(["指标", "结果", "说明"]):
+        table.rows[0].cells[index].text = value
+    for values in rows:
+        cells = table.add_row().cells
+        for index, value in enumerate(values):
+            cells[index].text = value
+    style_table(table)
+    add_body(document, "APK SHA-256：C285CE306891130CAD84C11BE48700C0AC7BEFAC8E6CDB9621A5FBFC3CF2860A。")
+    add_bullet(document, "本阶段不改变阶段七冻结统计；第二时间窗口最早仍为北京时间 2026-08-14 15:47，PR #1 继续保持 Draft。")
+    return True
+
+
 def main():
     document = Document(DOCX_PATH)
     if any(paragraph.text.strip() == SECTION_TITLE for paragraph in document.paragraphs):
         stage4_updated = False
         stage6_updated = False
         stage8_updated = False
+        stage10_render_note_added = False
         for paragraph in document.paragraphs:
             if "不自动透传 Cookie、Authorization 或原始请求体" in paragraph.text:
                 paragraph.text = "兼容相对路径 POST 搜索与首页跨域跳转：先以无敏感信息 GET 确认最终站点，再向新源站重建只包含搜索参数的 POST；不跨域透传 Cookie、Authorization 或 Proxy-Authorization。"
@@ -603,6 +641,14 @@ def main():
                 for run in paragraph.runs:
                     set_east_asia_font(run)
                 stage4_updated = True
+            if "8C17F02E7B98E33C98F67B27558A0069F23847A697B5C0D7A4D630B5DA123B22" in paragraph.text:
+                paragraph.text = paragraph.text.replace(
+                    "8C17F02E7B98E33C98F67B27558A0069F23847A697B5C0D7A4D630B5DA123B22",
+                    "C285CE306891130CAD84C11BE48700C0AC7BEFAC8E6CDB9621A5FBFC3CF2860A"
+                )
+                for run in paragraph.runs:
+                    set_east_asia_font(run)
+                stage8_updated = True
             if paragraph.text.startswith(("前端 110 / 110 passed；后端 SQLite 125 / 125 passed", "前端 111 / 111 passed；后端 SQLite 125 / 125 passed")) and "A47BE2B0" not in paragraph.text:
                 paragraph.text = "前端 111 / 111 passed；后端 SQLite 125 / 125 passed；生产 H5 和 Android APK 构建成功。原生书源分片改为每批最多 16 个读取后，完整 5330 源首次加载采样峰值由 391,717KB 降至 212,276KB，约 0.9 秒回落到 151,123KB。最终 APK 为 1,352,158 字节，SHA-256 为 A47BE2B0057D94D391ED314FF96446E4FC72CD41A03364269964609BF9034CC5，v1/v2/v3 签名通过。"
                 for run in paragraph.runs:
@@ -628,7 +674,11 @@ def main():
         stage7_replay2_added = append_stage7_replay2_section(document)
         stage8_added = append_stage8_section(document)
         stage9_added = append_stage9_section(document)
-        if stage4_updated or stage6_updated or stage8_updated or stage2_added or stage3_added or stage4_added or stage5_added or stage6_added or stage6_final_added or stage7_added or stage7_replay_added or stage7_replay2_added or stage8_added or stage9_added:
+        stage10_added = append_stage10_section(document)
+        if not any("缺少 LibreOffice/soffice" in paragraph.text for paragraph in document.paragraphs):
+            add_bullet(document, "DOCX 渲染工具因环境缺少 LibreOffice/soffice 无法生成页面预览；已完成 ZIP、正文 XML、样式、关系和关键证据结构审计，未将结构审计表述为逐页视觉检查。")
+            stage10_render_note_added = True
+        if stage4_updated or stage6_updated or stage8_updated or stage10_render_note_added or stage2_added or stage3_added or stage4_added or stage5_added or stage6_added or stage6_final_added or stage7_added or stage7_replay_added or stage7_replay2_added or stage8_added or stage9_added or stage10_added:
             saved_path = save_document(document)
             print(f"Updated: {saved_path}")
         else:
@@ -710,6 +760,7 @@ def main():
     append_stage7_replay2_section(document)
     append_stage8_section(document)
     append_stage9_section(document)
+    append_stage10_section(document)
     saved_path = save_document(document)
     print(f"Updated: {saved_path}")
 
