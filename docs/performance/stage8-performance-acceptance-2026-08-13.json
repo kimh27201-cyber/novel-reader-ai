@@ -1,0 +1,56 @@
+{
+  "schemaVersion": 1,
+  "stage": 8,
+  "capturedAt": "2026-08-13T18:55:30+08:00",
+  "device": {
+    "model": "REA-AN00",
+    "android": 15,
+    "sourceCount": 5330,
+    "shelfBookCount": 3
+  },
+  "startupMs": {
+    "cold": [643, 540, 591, 496, 513],
+    "warm": [146, 158, 177, 148, 175],
+    "warmP95": 177
+  },
+  "navigation": {
+    "sampleCount": 34,
+    "p95Ms": 4.9,
+    "switchCount": 30,
+    "totalFrames": 690,
+    "jankyFrames": 18,
+    "jankyPercent": 2.61,
+    "frameMs": {"p50": 22, "p90": 26, "p95": 30, "p99": 42},
+    "slowUiThreadEvents": 1
+  },
+  "sourceLibrary": {"pageSize": 30, "pageP95Ms": 16.2},
+  "memoryKb": {
+    "stableSamples": [156999, 155437, 158904, 158056],
+    "transientPreGcRange": [388000, 392000],
+    "baselineApprox": 269000,
+    "stableGrowthApprox": 1100
+  },
+  "finalInstall": {
+    "coldStartMs": 524,
+    "sourcePageTransientPssKb": 391717,
+    "sourcePageStablePssKb": 150759,
+    "apkBytes": 1352158,
+    "apkSha256": "0EF87EC765ED97F5DAD5CCB35DEEF2F0AAE5F98B32CC2FF22297FCDFE4E4B4E0",
+    "signatureSchemes": {"v1": true, "v2": true, "v3": true},
+    "versionName": "1.0.0",
+    "versionCode": 10000,
+    "firstInstallTimePreserved": true
+  },
+  "privacy": {
+    "storesBookNames": false,
+    "storesContent": false,
+    "storesCookiesOrTokens": false,
+    "storesFullSourceConfigs": false
+  },
+  "stage7": {
+    "firstWindowFrozen": {"passed": 9, "denominator": 33, "ratePercent": 27.27},
+    "secondWindowEarliest": "2026-08-14T15:47:00+08:00",
+    "executed": false,
+    "prMustRemainDraft": true
+  }
+}

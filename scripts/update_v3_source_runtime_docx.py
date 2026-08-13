@@ -483,11 +483,61 @@ def append_stage7_replay2_section(document):
     return True
 
 
+def append_stage8_section(document):
+    title = "17. 第八阶段全链路流畅度、内存与页面切换优化（2026-08-13）"
+    if any(paragraph.text.strip() == title for paragraph in document.paragraphs):
+        return False
+
+    document.add_page_break()
+    heading = document.add_heading(title, level=1)
+    for run in heading.runs:
+        set_east_asia_font(run)
+
+    document.add_heading("17.1 导航、快照与后台任务", level=2)
+    add_bullet(document, "底部标签移除固定 160ms 延迟，同一事件周期执行 switchTab；Android 自动性能档默认采用轻量模式，页面转场缩短为 80–100ms。")
+    add_bullet(document, "5330 个书源改用版本化内存快照、ID 索引、30 条轻量分页和 120ms 筛选防抖；页面响应式数据不再保存全部 raw 配置。")
+    add_bullet(document, "Android 原生存储桥新增分片批量读取；轻量书源索引和发现目录按数据修订号持久缓存，配置变化后精确失效。")
+    add_bullet(document, "搜索、发现和正文运行状态先写内存并在 250ms 内合并落盘；应用进入后台时强制刷新。同步、索引和 Wi-Fi 预热在首屏后错峰执行。")
+
+    document.add_heading("17.2 阅读、声音与性能诊断", level=2)
+    add_bullet(document, "阅读器在正文分页完成后再延迟预加载下一章，并记录 reader.chapter.render；AI 声音列表和服务状态缓存 5 分钟，用户主动刷新时才强制重取。")
+    add_bullet(document, "新增本地性能记录器和 Android PSS 采样，只保存阶段、耗时、数量和内存，不保存书名、正文、Cookie、Token 或完整书源。")
+    add_bullet(document, "我的页面提供自动、流畅、完整三档性能模式，并在调试面板显示性能摘要、复制报告和清空报告。")
+
+    document.add_heading("17.3 REA-AN00 真机结果", level=2)
+    rows = [
+        ("标签导航 P95", "4.9ms", "34 次应用内记录，低于 200ms 门槛"),
+        ("30 次切换帧耗时", "P95 30ms / P99 42ms", "690 帧，卡顿帧 2.61%"),
+        ("稳定态 PSS", "155,437KB", "相对约 269MB 基线下降约 42%"),
+        ("连续切换内存", "约 +1.1MB", "稳定采样未持续增长，低于 20MB 门槛"),
+        ("书源筛选分页", "P95 16.2ms", "5330 源、页面仅保留 30 条轻量行"),
+        ("暖启动", "P95 177ms", "5 次 WARM 样本，低于 200ms 门槛"),
+    ]
+    table = document.add_table(rows=1, cols=3)
+    for index, value in enumerate(["指标", "结果", "结论"]):
+        table.rows[0].cells[index].text = value
+    for values in rows:
+        cells = table.add_row().cells
+        for index, value in enumerate(values):
+            cells[index].text = value
+    style_table(table)
+    add_body(document, "说明：首次升级需在后台生成一次轻量索引和发现目录；生成后按修订号复用。采样期间观察到 WebView GC 前短时高 PSS，稳定态回落至约 155MB，报告按稳定态与连续增长口径验收。")
+
+    document.add_heading("17.4 自动验证、交付边界与后续", level=2)
+    add_bullet(document, "前端 110 / 110 passed；后端 SQLite 125 / 125 passed；生产 H5 和 Android APK 构建成功，APK v1/v2/v3 签名通过。")
+    add_bullet(document, "覆盖安装保留 5330 个书源、书架、章节缓存、阅读进度和首次安装时间；不新增运行时依赖或数据库表。")
+    add_bullet(document, "阶段七第二时间窗口最早为北京时间 2026-08-14 15:47，本轮未提前执行或修改冻结清单；首窗口仍为 9/33（27.27%），PR #1 继续保持 Draft。")
+    add_number(document, "第二时间窗口到期后用原锁定清单复测并生成双窗口合并报告；未达到分母不少于 20、完整通过率不少于 80% 前不宣称绝大书源稳定可读。")
+    add_number(document, "继续对首次升级索引构建、发现首屏和阅读章节渲染做真机性能采样；对稳定复现的慢阶段实施最小化优化。")
+    return True
+
+
 def main():
     document = Document(DOCX_PATH)
     if any(paragraph.text.strip() == SECTION_TITLE for paragraph in document.paragraphs):
         stage4_updated = False
         stage6_updated = False
+        stage8_updated = False
         for paragraph in document.paragraphs:
             if "不自动透传 Cookie、Authorization 或原始请求体" in paragraph.text:
                 paragraph.text = "兼容相对路径 POST 搜索与首页跨域跳转：先以无敏感信息 GET 确认最终站点，再向新源站重建只包含搜索参数的 POST；不跨域透传 Cookie、Authorization 或 Proxy-Authorization。"
@@ -517,6 +567,11 @@ def main():
                 for run in paragraph.runs:
                     set_east_asia_font(run)
                 stage4_updated = True
+            if paragraph.text.startswith("前端 110 / 110 passed；后端 SQLite 125 / 125 passed") and "0EF87EC7" not in paragraph.text:
+                paragraph.text = "前端 110 / 110 passed；后端 SQLite 125 / 125 passed；生产 H5 和 Android APK 构建成功。最终 APK 为 1,352,158 字节，SHA-256 为 0EF87EC765ED97F5DAD5CCB35DEEF2F0AAE5F98B32CC2FF22297FCDFE4E4B4E0，v1/v2/v3 签名通过。"
+                for run in paragraph.runs:
+                    set_east_asia_font(run)
+                stage8_updated = True
         stage2_added = append_stage2_section(document)
         stage3_added = append_stage3_section(document)
         stage4_added = append_stage4_section(document)
@@ -526,7 +581,8 @@ def main():
         stage7_added = append_stage7_section(document)
         stage7_replay_added = append_stage7_replay_section(document)
         stage7_replay2_added = append_stage7_replay2_section(document)
-        if stage4_updated or stage6_updated or stage2_added or stage3_added or stage4_added or stage5_added or stage6_added or stage6_final_added or stage7_added or stage7_replay_added or stage7_replay2_added:
+        stage8_added = append_stage8_section(document)
+        if stage4_updated or stage6_updated or stage8_updated or stage2_added or stage3_added or stage4_added or stage5_added or stage6_added or stage6_final_added or stage7_added or stage7_replay_added or stage7_replay2_added or stage8_added:
             saved_path = save_document(document)
             print(f"Updated: {saved_path}")
         else:
@@ -606,6 +662,7 @@ def main():
     append_stage7_section(document)
     append_stage7_replay_section(document)
     append_stage7_replay2_section(document)
+    append_stage8_section(document)
     saved_path = save_document(document)
     print(f"Updated: {saved_path}")
 
