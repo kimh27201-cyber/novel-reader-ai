@@ -281,7 +281,7 @@ export function renderTemplate(template, context = {}) {
     if (name === 'key' || name === 'keyword') return encodeURIComponent(context.key || context.keyword || '')
     if (name === 'page') return context.page || 1
     if (name.startsWith('$.')) {
-      const value = readJsonPath(context, name)
+      const value = readJsonPath(context.$ && typeof context.$ === 'object' ? context.$ : context, name)
       return Array.isArray(value) ? value[0] || '' : value || ''
     }
     if (context[name] != null) return context[name]
@@ -521,6 +521,7 @@ function applyRulePart(input, rule, context) {
 function applySelectorPipeline(input, rule) {
   const text = String(rule || '').trim()
   if (!text) return input
+  if (/^https?:\/\//i.test(text)) return text
   if (text === '@text' || text === 'text') return extractText(input)
   if (text === '@html' || text === 'html') return asArray(input).join('')
   if (/^(?:@?json:)/i.test(text)) return readJsonPath(input, text.replace(/^(?:@?json:)/i, ''))
@@ -571,7 +572,13 @@ function selectHtml(html, selector) {
 }
 
 function selectSimpleHtml(html, selector) {
-  const pseudo = extractSelectorPseudo(selector)
+  const excludeMatch = String(selector || '').match(/^(.*)!(\d+)$/)
+  const excludeFirst = /:not\(\s*:first-child\s*\)$/i.test(String(selector || ''))
+  const normalizedSelector = String(selector || '')
+    .replace(/:not\(\s*:first-child\s*\)$/i, '')
+    .replace(/:nth-child\(n\)$/i, '')
+    .replace(/!(\d+)$/, '')
+  const pseudo = extractSelectorPseudo(normalizedSelector)
   const indexMatch = pseudo.selector.match(/^(.*?)(?:\.|\[)(\d+)\]?$/)
   const cleanSelector = indexMatch ? indexMatch[1] : pseudo.selector
   const requestedIndex = indexMatch ? Number(indexMatch[2]) : pseudo.index
@@ -579,6 +586,8 @@ function selectSimpleHtml(html, selector) {
 
   if (id || classNames.length || attr) {
     const tagged = selectByAttribute(html, id, classNames, attr, tag)
+    if (excludeMatch) return tagged.filter((_, index) => index !== Number(excludeMatch[2]))
+    if (excludeFirst) return tagged.slice(1)
     if (requestedIndex === 'last') return tagged.length ? [tagged[tagged.length - 1]] : []
     if (requestedIndex !== null) return tagged[requestedIndex] ? [tagged[requestedIndex]] : []
     return tagged
@@ -597,6 +606,8 @@ function selectSimpleHtml(html, selector) {
     matches.push(sliceBalancedElement(html, match.index, pattern.lastIndex, match[1], match[0]))
   }
 
+  if (excludeMatch) return matches.filter((_, index) => index !== Number(excludeMatch[2]))
+  if (excludeFirst) return matches.slice(1)
   if (requestedIndex === 'last') return matches.length ? [matches[matches.length - 1]] : []
   if (requestedIndex !== null) return matches[requestedIndex] ? [matches[requestedIndex]] : []
   return matches
@@ -638,16 +649,18 @@ function sliceBalancedElement(html, start, openEnd, tag, openingTag) {
 }
 
 function parseSimpleSelector(selector) {
-  const attrMatch = selector.match(/^(.*?)(\[[^\]]+\])$/)
+  const rawAttrMatch = selector.match(/^(.*?)(\[[^\]]+\])$/)
+  const parsedAttr = rawAttrMatch ? parseAttributeSelector(rawAttrMatch[2]) : null
+  const attrMatch = parsedAttr ? rawAttrMatch : null
   const baseSelector = attrMatch ? attrMatch[1] : selector
-  const attr = attrMatch ? parseAttributeSelector(attrMatch[2]) : null
+  const attr = parsedAttr
   const tagMatch = baseSelector.match(/^([a-zA-Z][\w:-]*)/)
   const tag = tagMatch ? tagMatch[1] : ''
   const suffix = baseSelector.slice(tag.length)
   const idMatch = suffix.match(/#([\w-]+)/)
-  const classNames = [...suffix.matchAll(/\.([\w-]+)/g)].map(match => match[1])
+  const classNames = [...suffix.matchAll(/\.([\w\-\[\]]+)/g)].map(match => match[1])
 
-  if (suffix && suffix.replace(/#[\w-]+|\.[\w-]+/g, '')) {
+  if (suffix && suffix.replace(/#[\w-]+|\.[\w\-\[\]]+/g, '')) {
     return { tag: baseSelector || '', id: '', classNames: [], attr }
   }
 
@@ -656,7 +669,10 @@ function parseSimpleSelector(selector) {
 
 function hasRequiredClasses(attrs, classNames = []) {
   const expected = Array.isArray(classNames) ? classNames : [classNames]
-  return expected.every(className => new RegExp(`\\bclass=["'][^"']*\\b${escapeRegExp(className)}\\b`, 'i').test(attrs))
+  const match = String(attrs || '').match(/\bclass=["']([^"']*)["']/i)
+  if (!match) return expected.length === 0
+  const actual = new Set(String(match[1] || '').split(/\s+/).filter(Boolean))
+  return expected.every(className => actual.has(className))
 }
 
 function extractSelectorPseudo(selector) {
@@ -719,7 +735,9 @@ function extractOwnText(input) {
 }
 
 function selectXPath(input, expression) {
-  if (typeof DOMParser === 'undefined' || typeof document === 'undefined' || !document.evaluate) return []
+  if (typeof DOMParser === 'undefined' || typeof document === 'undefined' || !document.evaluate) {
+    return selectSimpleXPath(input, expression)
+  }
   const output = []
   asArray(input).forEach(fragment => {
     try {
@@ -742,6 +760,39 @@ function selectXPath(input, expression) {
   return output
 }
 
+function selectSimpleXPath(input, expression) {
+  const text = String(expression || '').trim()
+  if (!/^\/\//.test(text) || /\||::|\b(?:contains|starts-with|normalize-space)\s*\(/i.test(text)) return []
+  const steps = text.replace(/^\/+/, '').split(/\/+|\/\//).map(item => item.trim()).filter(Boolean)
+  let values = asArray(input)
+  for (const step of steps) {
+    if (step === 'text()') {
+      values = asArray(extractText(values))
+      continue
+    }
+    const attrOnly = step.match(/^@([\w:-]+)$/)
+    if (attrOnly) {
+      values = asArray(applyAccessor(values, attrOnly[1]))
+      continue
+    }
+    const matched = step.match(/^([a-zA-Z][\w:-]*|\*)(?:\[@(class|id|[\w:-]+)=['"]([^'"]+)['"]\])?(?:\[(\d+)\])?$/)
+    if (!matched) return []
+    const tag = matched[1] === '*' ? '' : matched[1]
+    const attr = matched[2]
+    const attrValue = matched[3]
+    let selector = tag || '*'
+    if (attr === 'class') selector += `.${attrValue.split(/\s+/).filter(Boolean).join('.')}`
+    else if (attr === 'id') selector += `#${attrValue}`
+    else if (attr) selector += `[${attr}="${attrValue}"]`
+    values = values.flatMap(fragment => selectHtml(String(fragment || ''), selector))
+    if (matched[4]) {
+      const index = Math.max(0, Number(matched[4]) - 1)
+      values = values[index] == null ? [] : [values[index]]
+    }
+  }
+  return values
+}
+
 function extractAttr(input, attr) {
   if (typeof input === 'object' && input !== null) return input[attr] || ''
   const match = String(input || '').match(new RegExp(`\\b${escapeRegExp(attr)}=["']([^"']*)["']`, 'i'))
@@ -750,6 +801,18 @@ function extractAttr(input, attr) {
 
 function readJsonPath(input, path) {
   if (typeof input !== 'object' || input === null) return ''
+  const recursive = String(path || '').match(/^\$\.\.([A-Za-z_$][\w$]*)$/)
+  if (recursive) {
+    const matches = []
+    const visit = value => {
+      if (!value || typeof value !== 'object') return
+      if (Object.prototype.hasOwnProperty.call(value, recursive[1])) matches.push(value[recursive[1]])
+      Object.values(value).forEach(visit)
+    }
+    visit(input)
+    const flattened = matches.flat()
+    return flattened.length > 1 ? flattened : flattened[0] == null ? '' : flattened[0]
+  }
   const filter = String(path || '').match(/^([\s\S]*?)\[\?\(@\.([A-Za-z_$][\w$]*)\s*(==|!=)\s*([^\]]+?)\)\]([\s\S]*)$/)
   if (filter) {
     const candidates = asArray(readJsonPath(input, filter[1] || '$.*')).flat()
@@ -851,13 +914,13 @@ function isSelectorToken(token) {
   const value = String(token || '').trim()
   if (isAccessor(value)) return false
   return /^(class\.|id\.|tag\.|css:|xpath:|json:|\/\/|#|\.)/i.test(value)
-    || /^[a-zA-Z][\w:-]*(?:\.-?\d+)?$/.test(value)
+    || /^[a-zA-Z][\w:-]*(?:[#.\[:!][\s\S]*)?$/.test(value)
 }
 
 function normalizeSelectorToken(token) {
   const value = String(token || '').trim()
   if (/^css:/i.test(value)) return value.replace(/^css:/i, '')
-  if (value.startsWith('class.')) return `.${value.slice(6)}`
+  if (value.startsWith('class.')) return `.${value.slice(6).split(/\s+/).filter(Boolean).join('.')}`
   if (value.startsWith('id.')) return `#${value.slice(3)}`
   if (value.startsWith('tag.')) return value.slice(4)
   return value

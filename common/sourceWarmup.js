@@ -3,6 +3,7 @@ import {
   getOnlineSearchSettings,
   getSourceConfigs,
   searchSourceBooks,
+  selectDiverseSourceCandidates,
   writeSourceRuntimeStageResult
 } from './bookSources.js'
 
@@ -74,7 +75,11 @@ export async function startSourceWarmup(options = {}) {
     const remaining = maxSources - sessionAttempted.size
     if (remaining <= 0) return { skipped: true, reason: 'session_limit' }
     const pool = buildSourceCandidatePool(getSourceConfigs(), { excludeSourceIds: Array.from(sessionAttempted) })
-    const candidates = [...pool.untested, ...pool.retryable].map(item => item.source).slice(0, remaining)
+    const candidates = selectDiverseSourceCandidates(
+      [...pool.untested, ...pool.retryable].map(item => item.source),
+      remaining,
+      2
+    )
     if (!candidates.length) return { skipped: true, reason: 'no_candidates' }
 
     const stored = readState()
