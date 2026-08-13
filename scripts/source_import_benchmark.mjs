@@ -5,13 +5,16 @@ import { fileURLToPath } from 'node:url'
 
 import {
   analyzeBookSourceCompatibility,
+  assessReadableContentQuality,
   applyImportPreview,
   buildImportPreview,
   getSourceConfigs,
   loadOnlineChapter,
   normalizeBookSources,
+  recordSourceAcceptanceWindow,
   runSourceReadingFlow
 } from '../common/bookSources.js'
+import { buildCurrentAcceptanceCohort, summarizeAcceptanceWindow } from '../common/sourceAcceptanceCohort.js'
 import { parseSourceMarketItems } from '../common/sourceMarket.js'
 import { classifySourceFailure, SourceRuntimeError } from '../common/sourceErrors.js'
 
@@ -20,7 +23,23 @@ const args = Object.fromEntries(process.argv.slice(2).map(value => {
   return [key, rest.join('=') || 'true']
 }))
 const target = Math.max(1, Math.min(500, Number(args.limit || 200)))
-const pages = String(args.pages || '1,28,56').split(',').map(Number).filter(Number.isFinite)
+function parsePages(value) {
+  const output = []
+  String(value || '').split(',').forEach(part => {
+    const range = part.trim().match(/^(\d+)\s*-\s*(\d+)$/)
+    if (range) {
+      const start = Number(range[1])
+      const end = Number(range[2])
+      const step = start <= end ? 1 : -1
+      for (let page = start; page !== end + step; page += step) output.push(page)
+      return
+    }
+    const page = Number(part)
+    if (Number.isFinite(page)) output.push(page)
+  })
+  return [...new Set(output.filter(page => page > 0 && page <= 500))]
+}
+const pages = parsePages(args.pages || '1,28,56')
 const concurrency = Math.max(1, Math.min(16, Number(args.concurrency || 8)))
 const flowLimit = Math.max(0, Math.min(target, Number(args.flowLimit || 0)))
 const timeoutMs = Math.max(3000, Math.min(30000, Number(args.timeoutMs || 12000)))
@@ -28,8 +47,11 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const jsonOutput = path.resolve(root, args.output || 'docs/source-acceptance/yck-text-source-benchmark-2026-08-11.json')
 const markdownOutput = jsonOutput.replace(/\.json$/i, '.md')
 const capturedAt = new Date().toISOString()
+const cohortKind = args.cohort === 'current' ? 'currentCohort' : 'fixed200'
+const windowId = String(args.windowId || `${cohortKind}-${capturedAt.slice(0, 13)}`).slice(0, 80)
 const keywords = ['斗破苍穹', '剑来', '诡秘之主']
 const storage = {}
+const marketPageFailures = []
 
 globalThis.uni = {
   getStorageSync(key) { return storage[key] },
@@ -98,8 +120,13 @@ async function collectCandidates() {
   const layers = pages.map((page, index) => ({ page, layer: index === 0 ? 'recent' : index === pages.length - 1 ? 'older' : 'middle' }))
   const pageRows = await mapConcurrent(layers, async layer => {
     const url = `https://www.yckceo.com/yuedu/shuyuan/index.html?page=${layer.page}`
-    const loaded = await fetchText(url)
-    return parseSourceMarketItems(loaded.text, url).map(item => ({ ...item, ...layer }))
+    try {
+      const loaded = await fetchText(url)
+      return parseSourceMarketItems(loaded.text, url).map(item => ({ ...item, ...layer }))
+    } catch (error) {
+      marketPageFailures.push({ page: layer.page, layer: layer.layer, errorCode: errorCode(error) })
+      return []
+    }
   })
   const unique = new Map()
   pageRows.flat().forEach(item => {
@@ -171,15 +198,25 @@ async function runFlow(row) {
   const startedAt = Date.now()
   try {
     const flow = await runSourceReadingFlow(row._source.id, keywords, { timeoutMs, limit: 5 })
+    if (!String(flow.book && flow.book.title || '').trim() || String(flow.book.title).trim() === '未命名小说') {
+      throw new SourceRuntimeError('DETAIL_METADATA_EMPTY', '详情缺少书名', { stage: 'detail' })
+    }
     if (flow.chapters.length < 3) throw new SourceRuntimeError('TOC_TOO_SHORT', '目录少于 3 章', { stage: 'toc' })
     const sampleIndexes = [...new Set([0, Math.floor(flow.chapters.length / 2), flow.chapters.length - 1])]
+    const contentQuality = []
     for (const index of sampleIndexes) {
       const chapter = index === flow.chapter.index ? flow.chapter : await loadOnlineChapter(flow.book, flow.chapters[index], { maxPages: 5 })
-      if (String(chapter.content || '').replace(/\s+/g, '').length < 50) {
+      const quality = assessReadableContentQuality(chapter.content || '')
+      contentQuality.push({ index, cleanedChars: quality.cleanedChars, status: quality.status, removedRatio: quality.removedRatio })
+      if (!quality.qualifiesForAcceptance) {
         throw new SourceRuntimeError('CONTENT_TOO_SHORT', '正文少于 50 字符', { stage: 'content' })
       }
     }
-    return { status: 'passed', keyword: flow.keyword, elapsedMs: Date.now() - startedAt, errorCode: '' }
+    return {
+      status: 'passed', keyword: flow.keyword, elapsedMs: Date.now() - startedAt, errorCode: '',
+      metadata: { titlePresent: true, authorPresent: !!String(flow.book.author || '').trim() },
+      contentQuality
+    }
   } catch (error) {
     const failedStage = Array.isArray(error && error.flowStages)
       ? [...error.flowStages].reverse().find(stage => stage.status === 'failed')
@@ -227,20 +264,30 @@ const candidates = await collectCandidates()
 const inspected = await mapConcurrent(candidates, inspectCandidate)
 const validRows = inspected.filter(row => row.downloadStatus === 'valid_text_json')
 const selectedIds = new Set()
-const textRows = []
-pages.forEach((page, index) => {
-  const layer = index === 0 ? 'recent' : index === pages.length - 1 ? 'older' : 'middle'
-  const quota = Math.floor(target / pages.length) + (index < target % pages.length ? 1 : 0)
-  validRows.filter(row => row.layer === layer).slice(0, quota).forEach(row => {
+let textRows = []
+let cohortManifest = null
+if (cohortKind === 'currentCohort') {
+  cohortManifest = buildCurrentAcceptanceCohort(validRows.filter(row => row.eligible), {
+    target,
+    maxPerHost: Number(args.maxPerHost || 2),
+    blockSize: Number(args.blockSize || 20)
+  })
+  textRows = cohortManifest.rows
+} else {
+  pages.forEach((page, index) => {
+    const layer = index === 0 ? 'recent' : index === pages.length - 1 ? 'older' : 'middle'
+    const quota = Math.floor(target / pages.length) + (index < target % pages.length ? 1 : 0)
+    validRows.filter(row => row.layer === layer).slice(0, quota).forEach(row => {
+      selectedIds.add(row.id)
+      textRows.push(row)
+    })
+  })
+  validRows.forEach(row => {
+    if (textRows.length >= target || selectedIds.has(row.id)) return
     selectedIds.add(row.id)
     textRows.push(row)
   })
-})
-validRows.forEach(row => {
-  if (textRows.length >= target || selectedIds.has(row.id)) return
-  selectedIds.add(row.id)
-  textRows.push(row)
-})
+}
 const failures = inspected.filter(row => row.downloadStatus !== 'valid_text_json')
 const samples = [...textRows, ...failures].slice(0, Math.max(target, textRows.length))
 const flowRows = textRows.filter(row => row.eligible).slice(0, flowLimit)
@@ -250,6 +297,12 @@ if (flowRows.length) {
 }
 await mapConcurrent(flowRows, async row => {
   row.flow = await runFlow(row)
+  recordSourceAcceptanceWindow(row._source.id, {
+    windowId,
+    status: row.flow.status,
+    errorCode: row.flow.errorCode,
+    checkedAt: Date.now()
+  })
   return row.flow
 }, 3)
 
@@ -272,6 +325,7 @@ const runtimeExcludedCodes = new Set([
   'WEBVIEW_REQUIRED'
 ])
 const runtimeEligibleRows = flowRows.filter(row => row.flow && (row.flow.status === 'passed' || !runtimeExcludedCodes.has(row.flow.errorCode)))
+const windowSummary = summarizeAcceptanceWindow(flowRows)
 const flowErrorCounts = flowRows.reduce((result, row) => {
   const code = row.flow && row.flow.errorCode || 'PASSED'
   result[code] = (result[code] || 0) + 1
@@ -283,10 +337,26 @@ const exclusionCounts = flowRows.filter(row => row.flow && runtimeExcludedCodes.
   return result
 }, {})
 const report = {
-  schemaVersion: 2,
+  schemaVersion: 3,
   capturedAt,
+  windowId,
+  cohortKind,
   repository: 'https://www.yckceo.com/yuedu/shuyuan/index.html',
   pages,
+  marketPageFailures,
+  fixed200: cohortKind === 'fixed200' ? {
+    locked: true,
+    sampleCount: textRows.length,
+    sampleIds: textRows.map(row => row.id)
+  } : null,
+  currentCohort: cohortKind === 'currentCohort' ? {
+    locked: true,
+    sampleCount: textRows.length,
+    hostCount: cohortManifest.hostCount,
+    maxPerHost: cohortManifest.maxPerHost,
+    blockSize: cohortManifest.blockSize,
+    blocks: cohortManifest.blocks
+  } : null,
   metrics: {
     target,
     candidateCount: candidates.length,
@@ -301,7 +371,19 @@ const report = {
     flowErrors: flowErrorCounts,
     flowTested: flowRows.length,
     flowPassed,
-    flowRatePercent: runtimeEligibleRows.length ? Number((flowPassed * 100 / runtimeEligibleRows.length).toFixed(2)) : 0
+    flowRatePercent: runtimeEligibleRows.length ? Number((flowPassed * 100 / runtimeEligibleRows.length).toFixed(2)) : 0,
+    metadataFailures: windowSummary.metadataFailures,
+    contentQuality: {
+      passedSamples: flowRows.reduce((total, row) => total + Number(row.flow && row.flow.contentQuality && row.flow.contentQuality.length || 0), 0),
+      noiseFailures: flowRows.filter(row => row.flow && row.flow.errorCode === 'CONTENT_NOISE').length,
+      shortFailures: flowRows.filter(row => row.flow && row.flow.errorCode === 'CONTENT_TOO_SHORT').length
+    },
+    gate: {
+      minimumDenominator: 20,
+      minimumRatePercent: 80,
+      denominatorPassed: runtimeEligibleRows.length >= 20,
+      ratePassed: runtimeEligibleRows.length >= 20 && Number((flowPassed * 100 / runtimeEligibleRows.length).toFixed(2)) >= 80
+    }
   },
   samples: samples.map(({ _source, ...row }) => row)
 }
