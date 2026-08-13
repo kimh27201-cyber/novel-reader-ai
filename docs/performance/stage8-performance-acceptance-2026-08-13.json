@@ -34,8 +34,15 @@
     "coldStartMs": 524,
     "sourcePageTransientPssKb": 391717,
     "sourcePageStablePssKb": 150759,
+    "optimizedFullSourceLoad": {
+      "nativeChunkBatchSize": 16,
+      "chunkCount": 214,
+      "peakPssKb": 212276,
+      "firstStablePssKb": 151123,
+      "peakReductionPercent": 45.8
+    },
     "apkBytes": 1352158,
-    "apkSha256": "0EF87EC765ED97F5DAD5CCB35DEEF2F0AAE5F98B32CC2FF22297FCDFE4E4B4E0",
+    "apkSha256": "A47BE2B0057D94D391ED314FF96446E4FC72CD41A03364269964609BF9034CC5",
     "signatureSchemes": {"v1": true, "v2": true, "v3": true},
     "versionName": "1.0.0",
     "versionCode": 10000,

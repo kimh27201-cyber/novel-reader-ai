@@ -524,7 +524,7 @@ def append_stage8_section(document):
     add_body(document, "说明：首次升级需在后台生成一次轻量索引和发现目录；生成后按修订号复用。采样期间观察到 WebView GC 前短时高 PSS，稳定态回落至约 155MB，报告按稳定态与连续增长口径验收。")
 
     document.add_heading("17.4 自动验证、交付边界与后续", level=2)
-    add_bullet(document, "前端 110 / 110 passed；后端 SQLite 125 / 125 passed；生产 H5 和 Android APK 构建成功，APK v1/v2/v3 签名通过。")
+    add_bullet(document, "前端 111 / 111 passed；后端 SQLite 125 / 125 passed；生产 H5 和 Android APK 构建成功。原生书源分片改为每批最多 16 个读取后，完整 5330 源首次加载采样峰值由 391,717KB 降至 212,276KB，约 0.9 秒回落到 151,123KB。最终 APK 为 1,352,158 字节，SHA-256 为 A47BE2B0057D94D391ED314FF96446E4FC72CD41A03364269964609BF9034CC5，v1/v2/v3 签名通过。")
     add_bullet(document, "覆盖安装保留 5330 个书源、书架、章节缓存、阅读进度和首次安装时间；不新增运行时依赖或数据库表。")
     add_bullet(document, "阶段七第二时间窗口最早为北京时间 2026-08-14 15:47，本轮未提前执行或修改冻结清单；首窗口仍为 9/33（27.27%），PR #1 继续保持 Draft。")
     add_number(document, "第二时间窗口到期后用原锁定清单复测并生成双窗口合并报告；未达到分母不少于 20、完整通过率不少于 80% 前不宣称绝大书源稳定可读。")
@@ -567,11 +567,20 @@ def main():
                 for run in paragraph.runs:
                     set_east_asia_font(run)
                 stage4_updated = True
-            if paragraph.text.startswith("前端 110 / 110 passed；后端 SQLite 125 / 125 passed") and "0EF87EC7" not in paragraph.text:
-                paragraph.text = "前端 110 / 110 passed；后端 SQLite 125 / 125 passed；生产 H5 和 Android APK 构建成功。最终 APK 为 1,352,158 字节，SHA-256 为 0EF87EC765ED97F5DAD5CCB35DEEF2F0AAE5F98B32CC2FF22297FCDFE4E4B4E0，v1/v2/v3 签名通过。"
+            if paragraph.text.startswith(("前端 110 / 110 passed；后端 SQLite 125 / 125 passed", "前端 111 / 111 passed；后端 SQLite 125 / 125 passed")) and "A47BE2B0" not in paragraph.text:
+                paragraph.text = "前端 111 / 111 passed；后端 SQLite 125 / 125 passed；生产 H5 和 Android APK 构建成功。原生书源分片改为每批最多 16 个读取后，完整 5330 源首次加载采样峰值由 391,717KB 降至 212,276KB，约 0.9 秒回落到 151,123KB。最终 APK 为 1,352,158 字节，SHA-256 为 A47BE2B0057D94D391ED314FF96446E4FC72CD41A03364269964609BF9034CC5，v1/v2/v3 签名通过。"
                 for run in paragraph.runs:
                     set_east_asia_font(run)
                 stage8_updated = True
+        for table in document.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    if cell.text.strip() == "110 / 110 passed":
+                        cell.text = "111 / 111 passed"
+                        for paragraph in cell.paragraphs:
+                            for run in paragraph.runs:
+                                set_east_asia_font(run)
+                        stage8_updated = True
         stage2_added = append_stage2_section(document)
         stage3_added = append_stage3_section(document)
         stage4_added = append_stage4_section(document)

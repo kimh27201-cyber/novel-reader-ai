@@ -589,7 +589,7 @@ node scripts/combine_source_acceptance_windows.mjs docs/source-acceptance/yck-cu
 
 | 项目 | 本阶段结果 | 门槛/说明 |
 | --- | ---: | --- |
-| 前端测试 | 110 / 110 passed | 全量 `*.test.mjs` |
+| 前端测试 | 111 / 111 passed | 全量 `*.test.mjs` |
 | 后端 SQLite | 125 / 125 passed | PostgreSQL 16 由 GitHub Actions 复验 |
 | 暖启动 | P95 177ms | ≤200ms |
 | 应用内标签导航 | P95 4.9ms，34 次 | 已移除固定 160ms |
@@ -599,7 +599,7 @@ node scripts/combine_source_acceptance_windows.mjs docs/source-acceptance/yck-cu
 | 稳态内存变化 | 约 1.1MB | 低于 20MB |
 
 - 真机为 REA-AN00（Android 15），保留 5330 个书源与 3 本书架数据完成覆盖安装。WebView 在垃圾回收前观察到约 388–392MB 的瞬时峰值，约 2 秒后回落到 155–158MB；因此本报告同时披露峰值和 GC 后稳态值，不把瞬时峰值隐藏为稳态指标。
-- H5 生产构建与 Android APK v1/v2/v3 签名验证通过；最终 APK 为 1,352,158 字节，SHA-256 为 `0EF87EC765ED97F5DAD5CCB35DEEF2F0AAE5F98B32CC2FF22297FCDFE4E4B4E0`。最终覆盖安装冷启动为 524ms，进入 5330 源书源页后 PSS 从短时 391,717KB 回落到 150,759KB。
+- H5 生产构建与 Android APK v1/v2/v3 签名验证通过。原生书源分片改为每批最多 16 个读取后，完整 5330 源首次加载采样峰值由 391,717KB 降至 212,276KB，约 0.9 秒回落到 151,123KB。最终 APK 为 1,352,158 字节，SHA-256 为 `A47BE2B0057D94D391ED314FF96446E4FC72CD41A03364269964609BF9034CC5`。
 - 阶段七第二时间窗口最早为北京时间 2026-08-14 15:47。当前尚未到执行时间，固定首窗口仍为 9/33（27.27%），PR #1 必须保持 Draft；性能改进不替代书源可读率门槛。
 
 ### 17.5 后续路线
