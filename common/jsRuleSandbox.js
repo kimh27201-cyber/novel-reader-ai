@@ -150,7 +150,37 @@ function applyMethod(value, method, args, context) {
     const pattern = regexMatch ? new RegExp(regexMatch[1], regexMatch[2]) : String(parseLiteral(args[0], context))
     return String(value).replace(pattern, String(parseLiteral(args[1], context)))
   }
+  if (method === 'match' && args.length === 1) {
+    const regexMatch = args[0].match(/^\/([\s\S]*)\/([gimsuy]*)$/)
+    const pattern = regexMatch ? new RegExp(regexMatch[1], regexMatch[2]) : String(parseLiteral(args[0], context))
+    return String(value).match(pattern) || []
+  }
   failUnsupported(method)
+}
+
+function parseMethodCall(text) {
+  const prefix = String(text || '').match(/^\.([A-Za-z_$][\w$]*)\(/)
+  if (!prefix) return null
+  let quote = ''
+  let regex = false
+  let escaped = false
+  let depth = 1
+  const start = prefix[0].length
+  for (let index = start; index < text.length; index += 1) {
+    const char = text[index]
+    if (escaped) { escaped = false; continue }
+    if (char === '\\') { escaped = true; continue }
+    if (quote) { if (char === quote) quote = ''; continue }
+    if (regex) { if (char === '/') regex = false; continue }
+    if (char === '"' || char === "'") { quote = char; continue }
+    if (char === '/' && (index === start || /[,(=:\s]/.test(text[index - 1]))) { regex = true; continue }
+    if (char === '(') depth += 1
+    if (char === ')') depth -= 1
+    if (depth === 0) {
+      return { method: prefix[1], args: text.slice(start, index), length: index + 1 }
+    }
+  }
+  return null
 }
 
 function emptyIfNullish(value) {
@@ -194,10 +224,17 @@ function evaluateExpression(expression, context, budget, depth = 0) {
   }
 
   while (rest) {
-    const method = rest.match(/^\.([A-Za-z_$][\w$]*)\(([^()]*)\)/)
+    const method = parseMethodCall(rest)
     if (method) {
-      value = applyMethod(value, method[1], splitArgs(method[2]), context)
-      rest = rest.slice(method[0].length)
+      value = applyMethod(value, method.method, splitArgs(method.args), context)
+      rest = rest.slice(method.length)
+      continue
+    }
+    const index = rest.match(/^\[(\d+)\]/)
+    if (index) {
+      value = value == null ? undefined : value[Number(index[1])]
+      if (value == null) value = ''
+      rest = rest.slice(index[0].length)
       continue
     }
     const property = rest.match(/^\.([A-Za-z_$][\w$]*)(?!\s*\()/)

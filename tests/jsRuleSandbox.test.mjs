@@ -10,6 +10,9 @@ assert.equal(executeJsRule('base64Encode(result)', { result: '书' }), '5Lmm')
 assert.equal(executeJsRule('jsonParse(result).name', { result: '{"name":"book"}' }), 'book')
 assert.equal(executeJsRule('resolveUrl(result, baseUrl)', { result: '/a', baseUrl: 'https://example.com/root/' }), 'https://example.com/a')
 assert.equal(executeJsRule('result.replace(/book/g, "novel")', { result: 'book-book' }), 'novel-novel')
+assert.equal(executeJsRule("result.match(/\\('([^']+)'/)[1]", { result: "openBook('6311', '', '')" }), '6311')
+assert.equal(executeJsRule("result.match(/\\('(.*?)', '', ''\\)/)[1]", { result: "newWebView('/b/229093.html', '', '')" }), '/b/229093.html')
+assert.equal(executeJsRule("result.match(/not-found/)[1]", { result: 'safe empty result' }), '')
 assert.equal(
   executeJsRule('<js>var url = "https://example.com/search"; var post = JSON.stringify({method: "POST", body: "q=" + encodeURIComponent(key), headers: {"Content-Type": "application/x-www-form-urlencoded"}}); url + "," + post;</js>', { key: '剑来' }),
   `https://example.com/search,{"method":"POST","body":"q=${encodeURIComponent('剑来')}","headers":{"Content-Type":"application/x-www-form-urlencoded"}}`

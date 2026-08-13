@@ -33,6 +33,11 @@ assert.equal(applyRule(items[1], 'h3 a@href'), '/book/2')
 assert.equal(applyRule(items[0], '.missing@text||.author@text'), '作者甲')
 assert.equal(applyRule(items[0], "h3 a@text@js:result.replace(/第/,'真实第')"), '真实第一本书')
 assert.equal(applyRule(items[0], 'h3 a@text@js:eval(result)'), '')
+assert.equal(applyRule(items[0], '@a@text'), '第一本书')
+assert.equal(
+  applyRule('<div onclick="newWebView(\'/b/229093.html\', \'\', \'\')"></div>', "@onclick@js:result.match(/\\('(.*?)', '', ''\\)/)[1]"),
+  '/b/229093.html'
+)
 
 const nestedCard = '<div class="search-novel-card"><div class="cover"><a href="/cover">封面</a></div><div class="info"><h3 class="search-novel-title"><a href="/novel/2416">诡秘之主</a></h3></div></div>'
 const nestedItems = applyListRule(nestedCard, '.search-novel-card')

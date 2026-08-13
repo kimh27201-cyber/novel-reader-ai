@@ -535,8 +535,15 @@ function applySelectorPipeline(input, rule) {
   if (text.startsWith('$.')) return readJsonPath(input, text)
 
   const tokens = text.split('@').map(item => item.trim()).filter(Boolean)
+  const startsWithAccessor = text.startsWith('@')
+    && tokens.length === 1
+    && !/^@(?:css|json|xpath|js):/i.test(text)
   let value = input
   tokens.forEach((token, index) => {
+    if (index === 0 && startsWithAccessor) {
+      value = applyAccessor(value, token)
+      return
+    }
     if ((index === 0 && !isAccessor(token)) || isSelectorToken(token)) {
       value = selectValues(value, normalizeSelectorToken(token))
       return
@@ -801,8 +808,10 @@ function selectSimpleXPath(input, expression) {
 
 function extractAttr(input, attr) {
   if (typeof input === 'object' && input !== null) return input[attr] || ''
-  const match = String(input || '').match(new RegExp(`\\b${escapeRegExp(attr)}=["']([^"']*)["']`, 'i'))
-  return match ? decodeHtml(match[1]) : ''
+  const quoted = String(input || '').match(new RegExp(`\\b${escapeRegExp(attr)}\\s*=\\s*(["'])([\\s\\S]*?)\\1`, 'i'))
+  if (quoted) return decodeHtml(quoted[2])
+  const unquoted = String(input || '').match(new RegExp(`\\b${escapeRegExp(attr)}\\s*=\\s*([^\\s>]+)`, 'i'))
+  return unquoted ? decodeHtml(unquoted[1]) : ''
 }
 
 function readJsonPath(input, path) {
