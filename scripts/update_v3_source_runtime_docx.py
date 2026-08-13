@@ -605,6 +605,40 @@ def append_stage10_section(document):
     return True
 
 
+def append_stage11_section(document):
+    title = "20. 第十一阶段可操作书源诊断与安全重试（2026-08-13）"
+    if any(paragraph.text.strip() == title for paragraph in document.paragraphs):
+        return False
+
+    document.add_heading(title, level=1)
+    document.add_heading("20.1 错误筛选与安全重试", level=2)
+    add_bullet(document, "稳定错误码改为可点击筛选条件；真机点击 PARSE_EMPTY 后，轻量分页准确收窄为 23 个来源，并可一键清除。")
+    add_bullet(document, "动态计算冷却到期数量。REA-AN00 当前 100 个冷却来源中有 60 个到期可重试；重试只选择已启用、规则兼容、支持搜索且冷却结束的来源。")
+    add_bullet(document, "登录、验证码、付费和安全越界来源不会自动重试；批量检测改为下一批 20 个并支持取消剩余任务，避免误触后连续请求数千个站点。")
+    add_bullet(document, "修复重复 sourceRuntimeLabel 覆盖问题，列表状态统一以 runtimeV2.search 为准。")
+
+    document.add_heading("20.2 验证、APK 与边界", level=2)
+    rows = [
+        ("前端测试", "114 / 114 passed", "到期、筛选、上限与取消均覆盖"),
+        ("后端 SQLite", "125 / 125 passed", "未修改数据库或后端契约"),
+        ("H5 生产构建", "通过", "保留既有 277KiB 入口警告"),
+        ("真机数据", "5330 源", "到期可重试 60，PARSE_EMPTY 23"),
+        ("最终 APK", "1,360,350 字节", "v1/v2/v3 签名与覆盖安装通过"),
+    ]
+    table = document.add_table(rows=1, cols=3)
+    for index, value in enumerate(["指标", "结果", "说明"]):
+        table.rows[0].cells[index].text = value
+    for values in rows:
+        cells = table.add_row().cells
+        for index, value in enumerate(values):
+            cells[index].text = value
+    style_table(table)
+    add_body(document, "APK SHA-256：AB5E84B9DE59D39DF5D249D08F86B4FF06AC48733D8229948FBFC5D8AB128195。覆盖安装后交互采样 TOTAL PSS 为 179,275KB。")
+    add_bullet(document, "本阶段没有扩大脚本白名单、自动启用、删除或重导书源；Android 本地优先与后端可选架构不变。")
+    add_bullet(document, "阶段七第二时间窗口最早仍为北京时间 2026-08-14 15:47；当前不能提前生成有效复测数据，PR #1 继续保持 Draft。")
+    return True
+
+
 def main():
     document = Document(DOCX_PATH)
     if any(paragraph.text.strip() == SECTION_TITLE for paragraph in document.paragraphs):
@@ -675,10 +709,11 @@ def main():
         stage8_added = append_stage8_section(document)
         stage9_added = append_stage9_section(document)
         stage10_added = append_stage10_section(document)
+        stage11_added = append_stage11_section(document)
         if not any("缺少 LibreOffice/soffice" in paragraph.text for paragraph in document.paragraphs):
             add_bullet(document, "DOCX 渲染工具因环境缺少 LibreOffice/soffice 无法生成页面预览；已完成 ZIP、正文 XML、样式、关系和关键证据结构审计，未将结构审计表述为逐页视觉检查。")
             stage10_render_note_added = True
-        if stage4_updated or stage6_updated or stage8_updated or stage10_render_note_added or stage2_added or stage3_added or stage4_added or stage5_added or stage6_added or stage6_final_added or stage7_added or stage7_replay_added or stage7_replay2_added or stage8_added or stage9_added or stage10_added:
+        if stage4_updated or stage6_updated or stage8_updated or stage10_render_note_added or stage2_added or stage3_added or stage4_added or stage5_added or stage6_added or stage6_final_added or stage7_added or stage7_replay_added or stage7_replay2_added or stage8_added or stage9_added or stage10_added or stage11_added:
             saved_path = save_document(document)
             print(f"Updated: {saved_path}")
         else:
@@ -761,6 +796,7 @@ def main():
     append_stage8_section(document)
     append_stage9_section(document)
     append_stage10_section(document)
+    append_stage11_section(document)
     saved_path = save_document(document)
     print(f"Updated: {saved_path}")
 
