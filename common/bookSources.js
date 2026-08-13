@@ -51,7 +51,7 @@ const NATIVE_SOURCE_CHUNK_SIZE = 25
 const NATIVE_SOURCE_READ_BATCH_SIZE = 16
 const SOURCE_SETTINGS_KEY = 'sources:settings'
 const SOURCE_REVISION_KEY = 'sources:revision:v1'
-const SOURCE_INDEX_CACHE_KEY = 'sources:index-cache:v1'
+const SOURCE_INDEX_CACHE_KEY = 'sources:index-cache:v2'
 const SOURCE_DISCOVERY_CACHE_KEY = 'sources:discovery-cache:v1'
 const IMPORT_HISTORY_KEY = 'sources:import-history'
 const ONLINE_SEARCH_SETTINGS_KEY = 'sources:online-search-settings'
@@ -838,7 +838,56 @@ function sourceIndexSummary(source) {
     compatible,
     searchable: compatible && !!raw.searchUrl && !!raw.ruleSearch,
     runtimeStatus: runtime.status === 'cooldown' ? 'failed' : runtime.status,
+    runtimeState: runtime.status,
+    resultCount: Number(runtime.resultCount || 0),
+    errorCode: String(runtime.errorCode || '').slice(0, 80),
+    httpStatus: Number(runtime.httpStatus || 0),
+    checkedAt: Number(runtime.checkedAt || 0),
+    cooldownUntil: Number(runtime.cooldownUntil || 0),
     updatedAt: Number(source.updatedAt || 0)
+  }
+}
+
+export function buildSourceLibraryDiagnostics(summaries = []) {
+  const rows = Array.isArray(summaries) ? summaries : []
+  const counts = {
+    total: rows.length,
+    verified: 0,
+    untested: 0,
+    probing: 0,
+    cooldown: 0,
+    blocked: 0,
+    failed: 0,
+    incompatible: 0
+  }
+  const errors = new Map()
+  let lastCheckedAt = 0
+  rows.forEach(item => {
+    const state = String(item.runtimeState || item.runtimeStatus || 'untested')
+    if (state === 'passed') counts.verified += 1
+    else if (state === 'probing') {
+      counts.probing += 1
+      counts.untested += 1
+    } else if (state === 'cooldown') counts.cooldown += 1
+    else if (state === 'blocked') counts.blocked += 1
+    else counts.untested += 1
+    if (!item.compatible) counts.incompatible += 1
+    const errorCode = String(item.errorCode || '').trim().toUpperCase()
+    if (errorCode) {
+      counts.failed += 1
+      const key = `${errorCode}:${Number(item.httpStatus || 0)}`
+      const previous = errors.get(key) || { code: errorCode, httpStatus: Number(item.httpStatus || 0), count: 0 }
+      previous.count += 1
+      errors.set(key, previous)
+    }
+    lastCheckedAt = Math.max(lastCheckedAt, Number(item.checkedAt || 0))
+  })
+  return {
+    counts,
+    lastCheckedAt,
+    topErrors: Array.from(errors.values())
+      .sort((a, b) => b.count - a.count || a.code.localeCompare(b.code))
+      .slice(0, 6)
   }
 }
 
@@ -862,6 +911,13 @@ function buildSourceIndexCache(summaries, revision, elapsedMs = 0, status = 'bui
     summaries,
     byId: new Map(summaries.map(item => [item.id, item])),
     groups,
+    stats: {
+      total: summaries.length,
+      enabled: summaries.filter(item => item.enabled).length,
+      incompatible: summaries.filter(item => !item.compatible).length,
+      searchable: summaries.filter(item => item.searchable).length
+    },
+    diagnostics: buildSourceLibraryDiagnostics(summaries),
     report: {
       cancelled: false,
       cached: status === 'cached',
@@ -1007,6 +1063,10 @@ export function getSourceLibraryPage(query = {}) {
     if (filter === 'enabled' && !item.enabled) return false
     if (filter === 'disabled' && item.enabled) return false
     if (filter === 'incompatible' && item.compatible) return false
+    if (filter === 'verified' && item.runtimeState !== 'passed') return false
+    if (filter === 'untested' && !['untested', 'probing'].includes(item.runtimeState || 'untested')) return false
+    if (filter === 'cooldown' && item.runtimeState !== 'cooldown') return false
+    if (filter === 'blocked' && item.runtimeState !== 'blocked') return false
     if (!keyword) return true
     return [item.name, item.group, item.baseUrl, item.compatibility, item.id].some(value => String(value || '').toLowerCase().includes(keyword))
   })
@@ -1022,12 +1082,8 @@ export function getSourceLibraryPage(query = {}) {
     rows: filtered.slice(offset, offset + limit),
     groups: ['全部分组', ...Array.from(index.groups.keys()).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'))],
     groupStats: Array.from(index.groups.entries()).map(([group, count]) => ({ group, count })).sort((a, b) => a.group.localeCompare(b.group, 'zh-Hans-CN')),
-    stats: {
-      total: index.summaries.length,
-      enabled: index.summaries.filter(item => item.enabled).length,
-      incompatible: index.summaries.filter(item => !item.compatible).length,
-      searchable: index.summaries.filter(item => item.searchable).length
-    }
+    stats: index.stats,
+    diagnostics: index.diagnostics
   }
   finishPerformanceSpan(span, { sourceCount: index.summaries.length, count: result.rows.length, status: 'ready' })
   return result

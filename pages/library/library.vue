@@ -113,6 +113,24 @@
           <text class="tools-toggle">{{ toolsExpanded ? '收起' : '展开' }}</text>
         </view>
         <view class="tools-body" v-if="toolsExpanded">
+          <view class="runtime-diagnostics">
+            <view class="runtime-diagnostics-head">
+              <view>
+                <view class="test-title">运行诊断</view>
+                <text class="source-hint">只汇总状态与错误码，不读取正文、Cookie 或完整配置。</text>
+              </view>
+              <text class="runtime-diagnostics-total">失败 {{ sourceRuntimeDiagnostics.counts.failed }}</text>
+            </view>
+            <view class="runtime-diagnostic-grid">
+              <button class="runtime-diagnostic-item passed" @tap="sourceFilter = 'verified'">已验证 {{ sourceRuntimeDiagnostics.counts.verified }}</button>
+              <button class="runtime-diagnostic-item" @tap="sourceFilter = 'untested'">待检测 {{ sourceRuntimeDiagnostics.counts.untested }}</button>
+              <button class="runtime-diagnostic-item warning" @tap="sourceFilter = 'cooldown'">冷却中 {{ sourceRuntimeDiagnostics.counts.cooldown }}</button>
+              <button class="runtime-diagnostic-item blocked" @tap="sourceFilter = 'blocked'">受限 {{ sourceRuntimeDiagnostics.counts.blocked }}</button>
+            </view>
+            <view class="runtime-error-list" v-if="sourceRuntimeDiagnostics.topErrors.length">
+              <text v-for="item in sourceRuntimeDiagnostics.topErrors" :key="`${item.code}-${item.httpStatus}`">{{ item.code }}{{ item.httpStatus ? ` · HTTP ${item.httpStatus}` : '' }} ×{{ item.count }}</text>
+            </view>
+          </view>
           <scroll-view class="filter-strip" scroll-x :show-scrollbar="false">
             <button
               class="filter-chip"
@@ -121,7 +139,7 @@
               :class="{ active: sourceFilter === item.value }"
               @tap="sourceFilter = item.value"
             >
-              {{ item.label }}
+              {{ filterOptionLabel(item) }}
             </button>
           </scroll-view>
 
@@ -628,7 +646,7 @@ export default {
   data() {
     return {
       sources: [],
-      sourcePage: { total: 0, rows: [], groups: [ALL_SOURCE_GROUP], groupStats: [], stats: { total: 0, enabled: 0, incompatible: 0, searchable: 0 } },
+      sourcePage: { total: 0, rows: [], groups: [ALL_SOURCE_GROUP], groupStats: [], stats: { total: 0, enabled: 0, incompatible: 0, searchable: 0 }, diagnostics: { counts: { total: 0, verified: 0, untested: 0, probing: 0, cooldown: 0, blocked: 0, failed: 0, incompatible: 0 }, topErrors: [], lastCheckedAt: 0 } },
       pageMotionKind: '',
       pageMotionDirection: 'forward',
       toolsExpanded: false,
@@ -689,6 +707,10 @@ export default {
       importFileText: '',
       filterOptions: [
         { label: '全部', value: 'all' },
+        { label: '已验证', value: 'verified' },
+        { label: '待检测', value: 'untested' },
+        { label: '冷却中', value: 'cooldown' },
+        { label: '受限', value: 'blocked' },
         { label: '启用', value: 'enabled' },
         { label: '停用', value: 'disabled' },
         { label: '不兼容', value: 'incompatible' }
@@ -732,6 +754,13 @@ export default {
     sourceStats() {
       return this.sourcePage.stats
     },
+    sourceRuntimeDiagnostics() {
+      return this.sourcePage.diagnostics || {
+        counts: { total: 0, verified: 0, untested: 0, probing: 0, cooldown: 0, blocked: 0, failed: 0, incompatible: 0 },
+        topErrors: [],
+        lastCheckedAt: 0
+      }
+    },
     v2SourceRows() {
       const rows = [
         ...this.visibleSources.map((source, index) => ({
@@ -739,7 +768,7 @@ export default {
           type: 'source',
           id: source.id,
           name: source.name,
-          meta: `${source.group || '未分组'} · ${source.enabled ? '已启用' : '已停用'} · ${source.compatible ? '规则兼容' : '规则不兼容'} · ${source.runtimeStatus === 'passed' ? '已验证' : source.runtimeStatus === 'failed' ? '站点不可用' : '待检测'}`,
+          meta: `${source.group || '未分组'} · ${source.enabled ? '已启用' : '已停用'} · ${source.compatible ? '规则兼容' : '规则不兼容'} · ${this.sourceRuntimeLabel(source)}`,
           partialUnsupported: false,
           icon: this.sourceListIcon(index),
           iconClass: this.sourceListIconClass(index),
@@ -859,6 +888,27 @@ export default {
     if (this.libraryFilterTimer) clearTimeout(this.libraryFilterTimer)
   },
   methods: {
+    filterOptionLabel(item) {
+      const counts = this.sourceRuntimeDiagnostics.counts
+      const countMap = {
+        all: counts.total,
+        verified: counts.verified,
+        untested: counts.untested,
+        cooldown: counts.cooldown,
+        blocked: counts.blocked,
+        enabled: this.sourceStats.enabled,
+        incompatible: this.sourceStats.incompatible
+      }
+      return countMap[item.value] == null ? item.label : `${item.label} ${countMap[item.value]}`
+    },
+    sourceRuntimeLabel(source) {
+      const state = source && (source.runtimeState || source.runtimeStatus)
+      if (state === 'passed') return '已验证'
+      if (state === 'cooldown') return `冷却中${source.errorCode ? ` · ${source.errorCode}` : ''}`
+      if (state === 'blocked') return `受限${source.errorCode ? ` · ${source.errorCode}` : ''}`
+      if (state === 'probing') return '检测中'
+      return '待检测'
+    },
     scheduleLibraryFilter() {
       if (this.libraryFilterTimer) clearTimeout(this.libraryFilterTimer)
       this.libraryFilterTimer = setTimeout(() => {
@@ -2043,6 +2093,57 @@ button,
   width: 100%;
   white-space: nowrap;
   margin-top: 20rpx;
+}
+
+.runtime-diagnostics {
+  margin-top: 18rpx;
+  padding: 18rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: 20rpx;
+  background: var(--app-panel);
+}
+
+.runtime-diagnostics-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+}
+
+.runtime-diagnostics-total {
+  flex-shrink: 0;
+  color: var(--app-muted);
+  font-size: 22rpx;
+}
+
+.runtime-diagnostic-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10rpx;
+  margin-top: 16rpx;
+}
+
+.runtime-diagnostic-item {
+  min-width: 0;
+  min-height: 58rpx;
+  padding: 0 8rpx;
+  border-radius: 14rpx;
+  color: var(--app-text);
+  background: var(--app-input);
+  font-size: 21rpx;
+}
+
+.runtime-diagnostic-item.passed { color: var(--app-on-accent); background: var(--app-accent); }
+.runtime-diagnostic-item.warning { color: var(--app-text); background: color-mix(in srgb, var(--app-accent-2) 24%, var(--app-input)); }
+.runtime-diagnostic-item.blocked { opacity: 0.72; }
+
+.runtime-error-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx 14rpx;
+  margin-top: 14rpx;
+  color: var(--app-muted);
+  font-size: 20rpx;
 }
 
 .filter-chip,
