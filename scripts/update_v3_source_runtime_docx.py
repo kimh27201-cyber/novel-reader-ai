@@ -9,12 +9,13 @@ from docx.shared import Pt, RGBColor
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCX_PATH = ROOT / "docs" / "解码阅读-V3阶段开发记录-2026-08-11.docx"
-DOCX_FALLBACK_PATH = ROOT / "docs" / "DEVELOPMENT_RECORD_2026-08-11-stage3.docx"
+DOCX_FALLBACK_PATH = ROOT / "docs" / "DEVELOPMENT_RECORD_2026-08-11-stage6.docx"
 SECTION_TITLE = "10. 书源本地优先运行时（2026-08-11 追加）"
 STAGE2_SECTION_TITLE = "11. 书源运行时第二轮完善（2026-08-11）"
 STAGE3_SECTION_TITLE = "12. YCK 全目录导入与 Android 大容量存储（2026-08-11）"
 STAGE4_SECTION_TITLE = "13. 第四轮真实阅读与 Android 全量导入（2026-08-12）"
 STAGE5_SECTION_TITLE = "14. 第五轮发现页运行态隔离与视频问题修复（2026-08-12）"
+STAGE6_SECTION_TITLE = "15. 第六轮自适应搜索、发现跨源回退与运行池（2026-08-13）"
 
 
 def set_east_asia_font(run, name="微软雅黑"):
@@ -312,16 +313,87 @@ def append_stage5_section(document):
     return True
 
 
+def append_stage6_section(document):
+    if any(paragraph.text.strip() == STAGE6_SECTION_TITLE for paragraph in document.paragraphs):
+        return False
+
+    document.add_page_break()
+    heading = document.add_heading(STAGE6_SECTION_TITLE, level=1)
+    for run in heading.runs:
+        set_east_asia_font(run)
+
+    document.add_heading("15.1 统一运行状态与搜索池", level=2)
+    add_bullet(document, "新增兼容式 runtimeV2，分别记录 search、explore、detail、toc、content 的 untested、probing、passed、cooldown、blocked 状态，以及时间、耗时、结果数、HTTP 状态、稳定错误码、连续失败和冷却截止时间。")
+    add_bullet(document, "配置指纹变化时自动清除旧失败状态；失败来源保留且不修改用户启用开关，只在对应阶段暂时隔离。旧 lastTest、exploreTest 和 health 继续兼容写入。")
+    add_bullet(document, "未测试但静态支持搜索的文字源可以自动进入候选池；登录、验证码、非文字类型和安全规则越界来源不会自动请求。网络、DNS、HTTP 和解析为空分别使用分级冷却。")
+
+    document.add_heading("15.2 自适应本地搜索、Wi-Fi 预热与发现回退", level=2)
+    add_bullet(document, "Android 始终先搜索手机本地来源；后端登录结果只并行合并，后端失败或离线不能中断本地结果。默认每轮最多 20 源、并发 4、单源超时 6 秒、整轮上限 20 秒，并支持继续检测下一批。")
+    add_bullet(document, "搜索结果按标题和作者去重并保留备用线路；搜索、详情、目录和正文分别记录真实运行结果，后续阶段失败时可以切换同书备用来源。")
+    add_bullet(document, "应用前台且 Wi-Fi 空闲时每会话最多预热 20 个来源、并发 2；移动数据、应用隐藏、正在搜索或阅读时暂停，不增加常驻后台服务。")
+    add_bullet(document, "发现标签统一归类，每个分类保留多个提供者；聚合入口最多尝试 3 个来源、并发最多 2 个，全部失败后显示稳定错误汇总，不再无限加载。")
+
+    document.add_heading("15.3 自动测试、真实基准与真机证据", level=2)
+    rows = [
+        ("前端全量测试", "101 / 101", "runtimeV2、搜索、预热、发现回退均覆盖"),
+        ("后端 SQLite 测试", "125 / 125", "账号、同步、代理与 AI TTS 无回归"),
+        ("合法文字源导入", "200 / 200", "导入率 100%"),
+        ("静态候选 / 流程测试", "36 / 36", "失败均有稳定错误分类"),
+        ("严格运行时分母", "3", "未达到至少 20 个目标"),
+        ("完整阅读通过", "1 / 3", "33.33%，未达到 ≥80%"),
+    ]
+    table = document.add_table(rows=1, cols=3)
+    for index, value in enumerate(["验收项", "结果", "说明"]):
+        table.rows[0].cells[index].text = value
+    for values in rows:
+        cells = table.add_row().cells
+        for index, value in enumerate(values):
+            cells[index].text = value
+    style_table(table)
+    add_body(document, "第六轮外部排除 33 个：NETWORK_ERROR 13、TIMEOUT 6、HTTP_BLOCKED 6、SITE_UNREACHABLE 4、HTTP_NOT_FOUND 2、HTTP_SERVER_ERROR 2；严格分母内另有 SEARCH_EMPTY 2。")
+    add_bullet(document, "REA-AN00 保留 5330 个来源。大容量候选池优化后，发现页框架约 4 秒可交互、完整目录约 10 秒出现；失效分类会跨多个提供者回退并明确结束。")
+    add_bullet(document, "真机搜索斗破苍穹在 20 秒内探测 20 个来源但未得到结果；随后增加真实通过源冷启动排序并修复无结果页入口，代码已通过自动测试并进入最终 APK，尚待设备重新连接后复测。")
+    add_bullet(document, "FastAPI 健康检查返回 ok，后端继续支持账号、同步和 AI 语音；Android 书源请求仍通过本地运行时执行。")
+
+    document.add_heading("15.4 交付状态与发布边界", level=2)
+    warning = document.add_paragraph()
+    warning_run = warning.add_run("验收结论：严格分母 3、完整阅读 33.33%，尚未达到至少 20 个分母和 ≥80% 发布目标。PR #1 必须继续保持草稿，不宣称 YCK 全部或绝大来源已稳定可读。")
+    warning_run.bold = True
+    warning_run.font.color.rgb = RGBColor(0xC6, 0x28, 0x28)
+    warning_run.font.highlight_color = WD_COLOR_INDEX.YELLOW
+    set_east_asia_font(warning_run)
+    add_bullet(document, "2026-08-13 最终 H5/APK 重建成功；APK 为 6,260,746 字节，SHA-256 为 AEBDCC9D87F7E4CA2A3B022DBAC20371848D83B1F94B0295867727D6E5B3405A，v1/v2/v3 签名通过。无线 ADB 在覆盖安装前断开，最终包尚未完成 REA-AN00 复测。")
+    add_number(document, "设备重新连接后覆盖安装最终 APK，并复测搜索、发现、备用线路、断网缓存与 AI 语音试听。")
+    add_number(document, "扩大第二时间窗口严格分母，优先修复 SEARCH_EMPTY 与高频可复现规则差异；继续禁止任意 eval、Java 类、文件系统、验证码绕过和付费内容访问。")
+    return True
+
+
 def main():
     document = Document(DOCX_PATH)
     if any(paragraph.text.strip() == SECTION_TITLE for paragraph in document.paragraphs):
         stage4_updated = False
+        stage6_updated = False
         for paragraph in document.paragraphs:
             if "不自动透传 Cookie、Authorization 或原始请求体" in paragraph.text:
                 paragraph.text = "兼容相对路径 POST 搜索与首页跨域跳转：先以无敏感信息 GET 确认最终站点，再向新源站重建只包含搜索参数的 POST；不跨域透传 Cookie、Authorization 或 Proxy-Authorization。"
                 for run in paragraph.runs:
                     set_east_asia_font(run)
                 stage4_updated = True
+            if "代码已通过自动测试，尚待新 APK 复测" in paragraph.text:
+                paragraph.text = "真机搜索斗破苍穹在 20 秒内探测 20 个来源但未得到结果；随后增加真实通过源冷启动排序并修复无结果页入口，代码已通过自动测试并进入最终 APK，尚待设备重新连接后复测。"
+                for run in paragraph.runs:
+                    set_east_asia_font(run)
+                stage6_updated = True
+            if "最终 H5/APK 重建被外部执行审批层拒绝" in paragraph.text:
+                paragraph.text = "2026-08-13 最终 H5/APK 重建成功；APK 为 6,260,746 字节，SHA-256 为 AEBDCC9D87F7E4CA2A3B022DBAC20371848D83B1F94B0295867727D6E5B3405A，v1/v2/v3 签名通过。无线 ADB 在覆盖安装前断开，最终包尚未完成 REA-AN00 复测。"
+                for run in paragraph.runs:
+                    set_east_asia_font(run)
+                stage6_updated = True
+            if "权限恢复后重建 H5/APK" in paragraph.text:
+                paragraph.text = "设备重新连接后覆盖安装最终 APK，并复测搜索、发现、备用线路、断网缓存与 AI 语音试听。"
+                for run in paragraph.runs:
+                    set_east_asia_font(run)
+                stage6_updated = True
             if "9AAE5CC3AEE128ABC9A5477EE79E768533C7A1CA1F6308A2F814028A58682C16" in paragraph.text:
                 paragraph.text = paragraph.text.replace(
                     "9AAE5CC3AEE128ABC9A5477EE79E768533C7A1CA1F6308A2F814028A58682C16",
@@ -334,7 +406,8 @@ def main():
         stage3_added = append_stage3_section(document)
         stage4_added = append_stage4_section(document)
         stage5_added = append_stage5_section(document)
-        if stage4_updated or stage2_added or stage3_added or stage4_added or stage5_added:
+        stage6_added = append_stage6_section(document)
+        if stage4_updated or stage6_updated or stage2_added or stage3_added or stage4_added or stage5_added or stage6_added:
             saved_path = save_document(document)
             print(f"Updated: {saved_path}")
         else:
@@ -409,6 +482,7 @@ def main():
     append_stage3_section(document)
     append_stage4_section(document)
     append_stage5_section(document)
+    append_stage6_section(document)
     saved_path = save_document(document)
     print(f"Updated: {saved_path}")
 
