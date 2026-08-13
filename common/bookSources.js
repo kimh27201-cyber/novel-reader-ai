@@ -46,6 +46,9 @@ const SOURCE_SCHEMA_VERSION = 4
 const NATIVE_SOURCE_MANIFEST_KEY = 'sources:user:native-manifest:v1'
 const NATIVE_SOURCE_CHUNK_PREFIX = 'sources:user:native-chunk:v1'
 const NATIVE_SOURCE_CHUNK_SIZE = 25
+// 分片仍通过批量桥读取，但限制单次返回体，避免 5000+ 源的全部原始 JSON
+// 与解析后对象同时驻留，造成 WebView 瞬时内存峰值。
+const NATIVE_SOURCE_READ_BATCH_SIZE = 16
 const SOURCE_SETTINGS_KEY = 'sources:settings'
 const SOURCE_REVISION_KEY = 'sources:revision:v1'
 const SOURCE_INDEX_CACHE_KEY = 'sources:index-cache:v1'
@@ -182,19 +185,22 @@ function readNativeUserSources() {
     if (!manifest.generation || chunkCount < 0 || chunkCount > 10000) throw new Error('invalid source manifest')
     const sources = []
     const chunkKeys = Array.from({ length: chunkCount }, (_, index) => nativeChunkKey(manifest.generation, index))
-    let batch = null
-    if (typeof bridge.readChapters === 'function' && chunkKeys.length) {
-      try {
-        batch = JSON.parse(String(bridge.readChapters(JSON.stringify(chunkKeys)) || '{}'))
-      } catch (error) {}
-    }
-    for (let index = 0; index < chunkCount; index += 1) {
-      const key = chunkKeys[index]
-      const chunkText = String(batch && batch[key] != null ? batch[key] : bridge.readChapter(key) || '')
-      if (!chunkText) throw new Error(`missing source chunk ${index}`)
-      const chunk = JSON.parse(chunkText)
-      if (!Array.isArray(chunk)) throw new Error(`invalid source chunk ${index}`)
-      sources.push(...chunk)
+    for (let start = 0; start < chunkKeys.length; start += NATIVE_SOURCE_READ_BATCH_SIZE) {
+      const keys = chunkKeys.slice(start, start + NATIVE_SOURCE_READ_BATCH_SIZE)
+      let batch = null
+      if (typeof bridge.readChapters === 'function') {
+        try {
+          batch = JSON.parse(String(bridge.readChapters(JSON.stringify(keys)) || '{}'))
+        } catch (error) {}
+      }
+      keys.forEach((key, offset) => {
+        const index = start + offset
+        const chunkText = String(batch && batch[key] != null ? batch[key] : bridge.readChapter(key) || '')
+        if (!chunkText) throw new Error(`missing source chunk ${index}`)
+        const chunk = JSON.parse(chunkText)
+        if (!Array.isArray(chunk)) throw new Error(`invalid source chunk ${index}`)
+        sources.push(...chunk)
+      })
     }
     if (Number(manifest.total || 0) !== sources.length) throw new Error('source manifest count mismatch')
     userSourcesCache = sources
