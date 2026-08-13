@@ -16,6 +16,7 @@ STAGE3_SECTION_TITLE = "12. YCK 全目录导入与 Android 大容量存储（202
 STAGE4_SECTION_TITLE = "13. 第四轮真实阅读与 Android 全量导入（2026-08-12）"
 STAGE5_SECTION_TITLE = "14. 第五轮发现页运行态隔离与视频问题修复（2026-08-12）"
 STAGE6_SECTION_TITLE = "15. 第六轮自适应搜索、发现跨源回退与运行池（2026-08-13）"
+STAGE6_FINAL_TITLE = "15.6 最终 Android 真机复测与按钮热修（2026-08-13）"
 
 
 def set_east_asia_font(run, name="微软雅黑"):
@@ -368,6 +369,22 @@ def append_stage6_section(document):
     return True
 
 
+def append_stage6_final_section(document):
+    if any(paragraph.text.strip() == STAGE6_FINAL_TITLE for paragraph in document.paragraphs):
+        return False
+    heading = document.add_heading(STAGE6_FINAL_TITLE, level=2)
+    for run in heading.runs:
+        set_east_asia_font(run)
+    add_bullet(document, "REA-AN00 使用 adb install -r 覆盖安装成功，应用仍为 1.0.0 (10000)，5330 条书源、两本书架图书和阅读记录均保留。")
+    add_bullet(document, "首轮搜索暴露“继续检测下一批”按钮事件未生效；改为搜索页原生按钮并补充回归断言后，真机点击 1.5 秒内进入探测状态。")
+    add_bullet(document, "第二批报告有结果 1、空结果 2、失败 17；打开后识别《斗破苍穹》、作者九支书竹、目录 1642 章，第一章正文成功加载并超过 50 个字符。")
+    add_bullet(document, "已知问题：搜索卡片先显示“未命名小说”，正文顶部残留 chap_tp(); theme();，下一轮继续修复标题提取与正文脚本清洗。")
+    add_bullet(document, "玄幻聚合分类会跨多个提供者回退并稳定结束；移除 tcp:8765 映射后 12 秒内仍出现本地结果，测试完成后已恢复映射。")
+    add_bullet(document, "五种 AI 音色均完成真实合成和手机播放，真实性刷新与缓存复跑通过；完整验收在 8/11 项后人工停止长时间连续播放。")
+    add_bullet(document, "热修最终 APK 为 6,433,142 字节，SHA-256 为 D9FD511D04340AD0065A726BAEE4EDBD234467A4BCA155E000FEBC5BD1D9E1B8；v1/v2/v3 签名通过并覆盖安装成功。")
+    return True
+
+
 def main():
     document = Document(DOCX_PATH)
     if any(paragraph.text.strip() == SECTION_TITLE for paragraph in document.paragraphs):
@@ -407,7 +424,8 @@ def main():
         stage4_added = append_stage4_section(document)
         stage5_added = append_stage5_section(document)
         stage6_added = append_stage6_section(document)
-        if stage4_updated or stage6_updated or stage2_added or stage3_added or stage4_added or stage5_added or stage6_added:
+        stage6_final_added = append_stage6_final_section(document)
+        if stage4_updated or stage6_updated or stage2_added or stage3_added or stage4_added or stage5_added or stage6_added or stage6_final_added:
             saved_path = save_document(document)
             print(f"Updated: {saved_path}")
         else:
@@ -483,6 +501,7 @@ def main():
     append_stage4_section(document)
     append_stage5_section(document)
     append_stage6_section(document)
+    append_stage6_final_section(document)
     saved_path = save_document(document)
     print(f"Updated: {saved_path}")
 
