@@ -479,3 +479,66 @@ adb install -r .\release\android-v2\V2.apk
 - 临时移除 `adb reverse tcp:8765` 后重复搜索，12 秒内仍显示本地书源结果；测试结束后已恢复 8765 映射，证明后端仅作为账号、同步和云 TTS 的可选能力。
 - 应用内置 TTS 自动验收确认后端、登录、真实服务、五种逻辑音色、五音色真实合成与手机播放、真实性刷新和缓存复跑均通过。为避免长时间继续占用扬声器和调用额度，在 8/11 项后人工停止三章连续播放，因此最终报告为 8 项通过、1 项因人工停止失败，降级与后台停止未执行；这不影响“五种 AI 声音可试听”的结论。
 - 热修最终 APK 为 `release/android-v2/V2.apk`，6,433,142 字节，SHA-256 为 `D9FD511D04340AD0065A726BAEE4EDBD234467A4BCA155E000FEBC5BD1D9E1B8`；v1、v2、v3 签名通过并在 REA-AN00 覆盖安装成功。
+
+## 16. 第七阶段真实书源质量、可读率与稳定交付（2026-08-13）
+
+### 16.1 搜索元数据与正文质量
+
+- 搜索解析不再提前写入“未命名小说”。结果统一分为 `complete`、`needs_detail`、`invalid`；仅标题和书籍 URL 均有效的结果可以直接展示。
+- 新增 `hydrateSourceSearchResults()`：每个来源最多补齐 3 个缺失标题结果、并发 2、详情超时 4 秒。补齐失败的项目不生成虚假图书卡片，并分别记录 `SEARCH_RESULT_INCOMPLETE`、`DETAIL_METADATA_EMPTY`。
+- 搜索与发现共用元数据补齐管线；只有至少返回一个完整结果时，才把 `runtimeV2.search` 写为 `passed`。同书备用来源也必须拥有完整标题与 URL。
+- 新增独立正文清洗器 `sanitizeReadableContent()` 与质量评估器 `assessReadableContentQuality()`：依次删除脚本/样式等非正文块、执行书源替换、转换 HTML、清理独立 JavaScript 调用行并合并重复片段。
+- `chapterCacheMeta` 增加 `sanitizerVersion`、`rawChars`、`cleanedChars`。旧缓存按版本 0 在首次读取时惰性重洗并原位升级，不清空章节、不改变书架 ID、章节索引或阅读进度。
+- 清洗后为空或以页面脚本为主时分别返回 `CONTENT_EMPTY`、`CONTENT_NOISE`；不足 50 字的合法短章可阅读，但不计入完整阅读通过率。
+
+### 16.2 候选调度与规则兼容
+
+- 搜索和 Wi-Fi 预热按基础域名分散抽样，同一域名每轮最多选择 2 个来源；两个独立时间窗口均完整通过的来源进入最高优先级。
+- `SEARCH_RESULT_INCOMPLETE` 与 `CONTENT_NOISE` 分别进入搜索、正文阶段冷却，不影响同一来源的其他阶段；正文质量通过后才写入 `runtimeV2.content=passed`。
+- 声明式引擎补齐了可复现的 CSS 类选择、简单 XPath、JSONPath 递归属性和 JSON 模板变量差异。YCK 代表样本 6645、6931 已由解析为空修复为搜索→详情→目录→正文完整通过。
+- 安全边界保持不变：任意 `eval`、`Function`、Java 类、文件系统、全局 DOM、验证码绕过和付费内容访问仍被拒绝；样本 7497 在需要越界宿主能力时继续返回稳定安全错误。
+
+### 16.3 当前公开候选集首窗口
+
+基准 schema 已升级为 v3，报告见 `docs/source-acceptance/yck-current-cohort-stage7-window1-2026-08-13.md` 与同名 JSON；失败审计见 `yck-source-failure-audit-stage7-window1-2026-08-13.json`。报告只保存 ID、配置哈希、阶段状态、耗时、错误码和内容长度统计，不保存正文、Cookie、Token、完整响应或完整配置。
+
+| 验收项 | 首窗口结果 | 门槛/结论 |
+|---|---:|---|
+| 当前候选配置 | 120 | 近期/中段/较早确定性分层，同域名最多 2 个 |
+| 合法且可导入 | 120 / 120 | 100% |
+| 严格运行时分母 | 33 | 已达到 ≥20 |
+| 完整阅读通过 | 9 / 33 | 27.27%，未达到 ≥80% |
+| 外部不可达或受限 | 87 | 不进入严格分母 |
+| 元数据失败 | 1 | `SEARCH_RESULT_INCOMPLETE` |
+| 合格正文抽样 | 27 段 | 噪声 0、短章 0 |
+
+- 外部排除主要为 `HTTP_BLOCKED 34`、`NETWORK_ERROR 25`、`TIMEOUT 13`、`HTTP_NOT_FOUND 11`、`HTTP_SERVER_ERROR 3`、`CAPTCHA_REQUIRED 1`。
+- 严格分母内主要差异为 `PARSE_EMPTY 19`，另有 `TOC_EMPTY`、`CONTENT_EMPTY`、`SEARCH_RESULT_INCOMPLETE`、`SEARCH_EMPTY`、`REQUEST_TEMPLATE_UNSUPPORTED` 各 1。
+- 首窗口已达到“严格分母至少 20”，但完整阅读率仅 27.27%。第二时间窗口必须与首窗口间隔至少 24 小时，当前尚未到可执行时间，因此 PR #1 继续保持草稿，不能宣称全部或绝大 YCK 来源已稳定可读。
+
+### 16.4 自动测试、APK 与真机结果
+
+- 前端全量 `106 / 106 passed`；后端 SQLite `125 / 125 passed`；H5 生产构建成功，仅保留既有 `caniuse-lite` 与入口包体积警告；`git diff --check` 通过。
+- 最终 APK 为 `release/android-v2/V2.apk`，1,343,966 字节，SHA-256 为 `BF1703548EC296AEC9DEC381C1ADAF8A6AED69701A401F84BBDFCAA1BB8D1CEA`；v1、v2、v3 签名均通过并在 REA-AN00 使用 `adb install -r` 覆盖安装成功。
+- 覆盖安装后仍保留 5330 个来源、已有书架与阅读记录。移除 `adb reverse tcp:8765` 后搜索“斗破苍穹”，本轮探测 20 个来源并在 20 秒内得到 1 个有效来源的真实书名结果，未出现“未命名小说”。
+- 无后端状态下打开搜索结果，详情识别到 1642 章；首章正文成功加载，页面中 `chap_tp`、`theme(` 与占位标题均未出现，验证了正文清洗和旧数据兼容。
+- 恢复 `tcp:8765` 后，FastAPI 健康检查正常；AI TTS 为已启用、已配置状态，`loli`、`uncle`、`youth`、`shota`、`recital` 五种声音均为已验证且可用。本阶段只做轻量回归，没有重复长时间三章播放。
+
+### 16.5 发布边界与后续工作
+
+1. 在首窗口至少 24 小时后，用相同锁定清单和 SHA-256 执行第二窗口；随后运行 `scripts/combine_source_acceptance_windows.mjs` 生成双窗口结论。
+2. 继续针对 `PARSE_EMPTY` 中占比最高且可复现的声明式规则差异增加脱敏夹具；每项能力同时包含成功样本、越界拒绝和执行预算测试。
+3. 双窗口都达到“分母 ≥20、完整通过率 ≥80%”，且 PostgreSQL 16 CI、真机闭环和全部自动测试通过后，才把 PR #1 从草稿改为可审阅；不自动合并、不强推。
+4. 第三方永久失效、主动屏蔽、登录、验证码和付费来源继续保存并准确标记限制，不通过引擎绕过访问控制。Android 阅读保持本地优先，后端继续仅承载账号、同步、云 TTS 和 H5 代理。
+
+首窗口命令（项目根目录）：
+
+```powershell
+node scripts/source_import_benchmark.mjs --cohort=current --limit=120 --pages=1-57 --concurrency=8 --flowLimit=120 --timeoutMs=10000 --windowId=stage7-window1-2026-08-13 --output=docs/source-acceptance/yck-current-cohort-stage7-window1-2026-08-13.json
+```
+
+第二窗口完成后的合并命令：
+
+```powershell
+node scripts/combine_source_acceptance_windows.mjs docs/source-acceptance/yck-current-cohort-stage7-window1-2026-08-13.json <第二窗口报告.json>
+```

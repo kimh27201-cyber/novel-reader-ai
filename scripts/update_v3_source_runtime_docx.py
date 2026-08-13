@@ -17,6 +17,7 @@ STAGE4_SECTION_TITLE = "13. 第四轮真实阅读与 Android 全量导入（2026
 STAGE5_SECTION_TITLE = "14. 第五轮发现页运行态隔离与视频问题修复（2026-08-12）"
 STAGE6_SECTION_TITLE = "15. 第六轮自适应搜索、发现跨源回退与运行池（2026-08-13）"
 STAGE6_FINAL_TITLE = "15.6 最终 Android 真机复测与按钮热修（2026-08-13）"
+STAGE7_SECTION_TITLE = "16. 第七阶段真实书源质量、可读率与稳定交付（2026-08-13）"
 
 
 def set_east_asia_font(run, name="微软雅黑"):
@@ -385,6 +386,71 @@ def append_stage6_final_section(document):
     return True
 
 
+def append_stage7_section(document):
+    if any(paragraph.text.strip() == STAGE7_SECTION_TITLE for paragraph in document.paragraphs):
+        return False
+
+    heading = document.add_heading(STAGE7_SECTION_TITLE, level=1)
+    for run in heading.runs:
+        set_east_asia_font(run)
+
+    document.add_heading("16.1 搜索元数据与正文质量", level=2)
+    add_bullet(document, "搜索解析不再提前写入“未命名小说”。结果分为 complete、needs_detail、invalid；只有标题和书籍 URL 均有效的结果可以直接展示。")
+    add_bullet(document, "新增 hydrateSourceSearchResults()：每个来源最多补齐 3 个缺失标题结果、并发 2、详情超时 4 秒。补齐失败的项目不显示虚假卡片，并记录 SEARCH_RESULT_INCOMPLETE 或 DETAIL_METADATA_EMPTY。")
+    add_bullet(document, "搜索与发现共用元数据补齐管线；只有至少一个完整结果时才把 runtimeV2.search 写为 passed，同书备用来源也必须拥有完整标题与 URL。")
+    add_bullet(document, "新增独立正文清洗器与质量评估器：删除 script/style/noscript/template/svg/canvas、执行书源替换、转换 HTML、清理独立 JavaScript 调用行并合并重复片段。")
+    add_bullet(document, "chapterCacheMeta 增加 sanitizerVersion、rawChars、cleanedChars。旧缓存首次读取时惰性重洗并原位升级，不清空章节，不改变书架 ID、章节索引或阅读进度。")
+    add_bullet(document, "清洗后为空或以页面脚本为主时分别返回 CONTENT_EMPTY、CONTENT_NOISE；不足 50 字的合法短章仍可阅读，但不计入完整阅读通过率。")
+
+    document.add_heading("16.2 候选调度与高频规则差异", level=2)
+    add_bullet(document, "搜索与 Wi-Fi 预热按基础域名分散抽样，同一域名每轮最多 2 个来源；两个独立时间窗口均完整通过的来源进入最高优先级。")
+    add_bullet(document, "SEARCH_RESULT_INCOMPLETE 与 CONTENT_NOISE 分别进入搜索、正文阶段冷却，不影响其他阶段；正文质量通过后才写入 runtimeV2.content=passed。")
+    add_bullet(document, "声明式引擎补齐可复现的 CSS 类选择、简单 XPath、JSONPath 递归属性和 JSON 模板变量差异。YCK 代表样本 6645、6931 已由解析为空修复为完整阅读通过。")
+    add_bullet(document, "任意 eval、Function、Java 类、文件系统、全局 DOM、验证码绕过与付费内容访问仍被拒绝；需要越界宿主能力的样本继续返回稳定安全错误。")
+
+    document.add_heading("16.3 当前公开候选集首窗口", level=2)
+    add_body(document, "基准报告升级为 schema v3，只保存 ID、配置哈希、阶段状态、耗时、错误码与内容长度统计，不保存正文、Cookie、Token、完整响应或完整书源配置。")
+    rows = [
+        ("当前候选配置", "120", "近期/中段/较早确定性分层，同域名最多 2 个"),
+        ("合法且可导入", "120 / 120", "导入率 100%"),
+        ("严格运行时分母", "33", "已达到至少 20 个"),
+        ("完整阅读通过", "9 / 33", "27.27%，未达到至少 80%"),
+        ("外部不可达或受限", "87", "不进入严格分母"),
+        ("元数据失败", "1", "SEARCH_RESULT_INCOMPLETE"),
+        ("合格正文抽样", "27 段", "噪声 0、短章 0"),
+    ]
+    table = document.add_table(rows=1, cols=3)
+    for index, value in enumerate(["验收项", "首窗口结果", "门槛与结论"]):
+        table.rows[0].cells[index].text = value
+    for values in rows:
+        cells = table.add_row().cells
+        for index, value in enumerate(values):
+            cells[index].text = value
+    style_table(table)
+    add_bullet(document, "外部排除主要为 HTTP_BLOCKED 34、NETWORK_ERROR 25、TIMEOUT 13、HTTP_NOT_FOUND 11、HTTP_SERVER_ERROR 3、CAPTCHA_REQUIRED 1。")
+    add_bullet(document, "严格分母内主要差异为 PARSE_EMPTY 19，另有 TOC_EMPTY、CONTENT_EMPTY、SEARCH_RESULT_INCOMPLETE、SEARCH_EMPTY、REQUEST_TEMPLATE_UNSUPPORTED 各 1。")
+    warning = document.add_paragraph()
+    warning_run = warning.add_run("验收结论：首窗口分母已达到 33，但完整阅读通过率仅 27.27%。第二窗口必须间隔至少 24 小时，当前尚未执行；PR #1 继续保持草稿，不能宣称全部或绝大 YCK 来源已稳定可读。")
+    warning_run.bold = True
+    warning_run.font.color.rgb = RGBColor(0xC6, 0x28, 0x28)
+    warning_run.font.highlight_color = WD_COLOR_INDEX.YELLOW
+    set_east_asia_font(warning_run)
+
+    document.add_heading("16.4 自动测试、APK 与真机验收", level=2)
+    add_bullet(document, "前端全量 106 / 106 passed；后端 SQLite 125 / 125 passed；H5 生产构建成功；git diff --check 通过。")
+    add_bullet(document, "最终 APK 为 release/android-v2/V2.apk，1,343,966 字节，SHA-256 为 BF1703548EC296AEC9DEC381C1ADAF8A6AED69701A401F84BBDFCAA1BB8D1CEA；v1、v2、v3 签名均通过。")
+    add_bullet(document, "REA-AN00 使用 adb install -r 覆盖安装成功，保留 5330 个来源、已有书架和阅读记录。移除 tcp:8765 映射后搜索“斗破苍穹”，20 秒内得到真实书名结果，未出现“未命名小说”。")
+    add_bullet(document, "无后端状态下打开结果并识别 1642 章，首章正文成功加载；页面中 chap_tp、theme( 与占位标题均未出现。")
+    add_bullet(document, "恢复 tcp:8765 后 FastAPI 健康检查正常；loli、uncle、youth、shota、recital 五种 AI 声音均已验证且可用。本阶段只做轻量回归，没有重复长时间三章播放。")
+
+    document.add_heading("16.5 发布边界与下一步", level=2)
+    add_number(document, "首窗口至少 24 小时后，用相同锁定清单和配置 SHA-256 执行第二窗口，并用 combine_source_acceptance_windows.mjs 生成双窗口结论。")
+    add_number(document, "继续针对 PARSE_EMPTY 中占比最高且可复现的声明式差异增加脱敏夹具；每项兼容能力同时包含成功样本、越界拒绝和执行预算测试。")
+    add_number(document, "只有两个窗口都达到分母至少 20、完整通过率至少 80%，且 PostgreSQL 16 CI、真机闭环与全部自动测试通过后，才把 PR #1 从草稿改为可审阅。")
+    add_number(document, "第三方永久失效、主动屏蔽、登录、验证码和付费来源继续准确标记限制，不绕过访问控制；Android 阅读保持本地优先，后端只承载账号、同步、云 TTS 与 H5 代理。")
+    return True
+
+
 def main():
     document = Document(DOCX_PATH)
     if any(paragraph.text.strip() == SECTION_TITLE for paragraph in document.paragraphs):
@@ -425,7 +491,8 @@ def main():
         stage5_added = append_stage5_section(document)
         stage6_added = append_stage6_section(document)
         stage6_final_added = append_stage6_final_section(document)
-        if stage4_updated or stage6_updated or stage2_added or stage3_added or stage4_added or stage5_added or stage6_added or stage6_final_added:
+        stage7_added = append_stage7_section(document)
+        if stage4_updated or stage6_updated or stage2_added or stage3_added or stage4_added or stage5_added or stage6_added or stage6_final_added or stage7_added:
             saved_path = save_document(document)
             print(f"Updated: {saved_path}")
         else:
@@ -502,6 +569,7 @@ def main():
     append_stage5_section(document)
     append_stage6_section(document)
     append_stage6_final_section(document)
+    append_stage7_section(document)
     saved_path = save_document(document)
     print(f"Updated: {saved_path}")
 
