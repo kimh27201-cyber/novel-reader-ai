@@ -6,6 +6,7 @@ import { installTimeAwareness, refreshTimeAwareness } from './common/timeAwarene
 import { applyPerformanceProfile, refreshPerformanceProfile } from './common/performanceProfile.js'
 import apiClient from './common/apiClient.js'
 import { syncOfflineLibrary } from './common/backendLibrary.js'
+import { pauseSourceWarmup, resetSourceWarmupSession, setSourceWarmupForeground, startSourceWarmup } from './common/sourceWarmup.js'
 
 export default {
   onLaunch() {
@@ -14,19 +15,31 @@ export default {
     applyPerformanceProfile({ motionReduced: motionState.reduced })
     installNavigationMotion()
     installTimeAwareness()
+    resetSourceWarmupSession()
     registerNovelReaderDeepLinkListener(globalThis, { storage: uni, navigator: uni })
     if (typeof uni !== 'undefined' && typeof uni.onNetworkStatusChange === 'function') {
       uni.onNetworkStatusChange(state => {
         if (state && state.isConnected && apiClient.getToken()) {
           syncOfflineLibrary({ reason: 'network-restored' }).catch(() => {})
         }
+        if (state && state.isConnected && state.networkType === 'wifi') {
+          startSourceWarmup().catch(() => {})
+        } else {
+          pauseSourceWarmup()
+        }
       })
     }
   },
   onShow() {
+    setSourceWarmupForeground(true)
     refreshTimeAwareness()
     refreshPerformanceProfile({ motionReduced: isMotionReduced() })
     if (apiClient.getToken()) syncOfflineLibrary({ reason: 'app-show' }).catch(() => {})
+    setTimeout(() => startSourceWarmup().catch(() => {}), 8000)
+  },
+  onHide() {
+    setSourceWarmupForeground(false)
+    pauseSourceWarmup()
   }
 }
 </script>

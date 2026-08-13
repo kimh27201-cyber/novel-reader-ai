@@ -30,6 +30,7 @@ import {
 } from './sourceImportLog.js'
 
 const canonicalSearchBaseCache = new Map()
+const sourceRuntimeHashCache = new WeakMap()
 
 const USER_SOURCES_KEY = 'sources:user'
 const SOURCE_SCHEMA_VERSION_KEY = 'sources:schema-version'
@@ -46,15 +47,22 @@ const CHAPTER_CACHE_SETTINGS_KEY = 'sources:chapter-cache-settings'
 const CHAPTER_CACHE_META_KEY = 'sources:chapter-cache-meta'
 const ONLINE_DATA_CACHE_SETTINGS_KEY = 'sources:online-data-cache-settings'
 const ONLINE_DATA_CACHE_KEY = 'sources:online-data-cache'
-export const ONLINE_SOURCE_SEARCH_LIMIT = 3
-export const ONLINE_SOURCE_TIMEOUT_MS = 5000
+export const ONLINE_SOURCE_SEARCH_LIMIT = 20
+export const ONLINE_SOURCE_TIMEOUT_MS = 6000
 export const ONLINE_SOURCE_TEST_TIMEOUT_MAX_MS = 30000
 export const ONLINE_SEARCH_DEFAULTS = {
-  concurrency: 3,
+  concurrency: 4,
   timeoutMs: ONLINE_SOURCE_TIMEOUT_MS,
   resultLimit: 80,
-  sourceLimit: ONLINE_SOURCE_SEARCH_LIMIT
+  sourceLimit: ONLINE_SOURCE_SEARCH_LIMIT,
+  autoWarmup: true,
+  mergeBackend: true
 }
+const SOURCE_RUNTIME_STAGES = ['search', 'explore', 'detail', 'toc', 'content']
+// 仅用于首次可用池冷启动；一旦真实检测失败，仍按 runtimeV2 冷却，不会强行继续请求。
+const SOURCE_BOOTSTRAP_KEYS = new Set(['source-key-1489xuk', 'source-key-13zaxtq'])
+const HOUR_MS = 60 * 60 * 1000
+const DAY_MS = 24 * HOUR_MS
 export const SOURCE_ANTI_CRAWLER_DEFAULTS = {
   requestIntervalMs: 1500,
   retryCount: 0,
@@ -314,6 +322,205 @@ function normalizeSourceExploreTest(value) {
   }
 }
 
+function hashSourceRuntimeConfig(source = {}) {
+  if (source && typeof source === 'object' && sourceRuntimeHashCache.has(source)) return sourceRuntimeHashCache.get(source)
+  const raw = source.raw || source || {}
+  const identity = [
+    source.sourceKey || '',
+    raw.bookSourceName || source.name || '',
+    raw.bookSourceUrl || source.baseUrl || '',
+    raw.searchUrl || '',
+    raw.exploreUrl || '',
+    raw.ruleSearch || {},
+    raw.ruleBookInfo || {},
+    raw.ruleToc || {},
+    raw.ruleContent || {}
+  ]
+  const text = stableStringify(identity)
+  let hash = 2166136261
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  const value = `v2-${(hash >>> 0).toString(16)}`
+  if (source && typeof source === 'object') sourceRuntimeHashCache.set(source, value)
+  return value
+}
+
+function defaultRuntimeStage(configHash) {
+  return {
+    status: 'untested',
+    checkedAt: 0,
+    lastSuccessAt: 0,
+    lastFailureAt: 0,
+    resultCount: 0,
+    latencyMs: 0,
+    errorCode: '',
+    httpStatus: 0,
+    consecutiveFailures: 0,
+    cooldownUntil: 0,
+    configHash
+  }
+}
+
+function legacyRuntimeStage(source, stage, configHash) {
+  const base = defaultRuntimeStage(configHash)
+  if (stage === 'search') {
+    const legacy = normalizeSourceTest(source.lastTest)
+    if (legacy.status === 'untested') return base
+    return {
+      ...base,
+      status: legacy.status === 'passed' ? 'passed' : 'cooldown',
+      checkedAt: legacy.testedAt,
+      lastSuccessAt: legacy.status === 'passed' ? legacy.testedAt : 0,
+      lastFailureAt: legacy.status === 'failed' ? legacy.testedAt : 0,
+      resultCount: legacy.count,
+      errorCode: legacy.errorCode,
+      httpStatus: legacy.httpStatus,
+      consecutiveFailures: legacy.status === 'failed' ? 1 : 0,
+      cooldownUntil: legacy.status === 'failed' ? legacy.testedAt + sourceRuntimeCooldownMs(legacy.errorCode, 1) : 0
+    }
+  }
+  if (stage === 'explore') {
+    const legacy = normalizeSourceExploreTest(source.exploreTest)
+    if (legacy.status === 'untested') return base
+    return {
+      ...base,
+      status: legacy.status === 'passed' ? 'passed' : 'cooldown',
+      checkedAt: legacy.testedAt,
+      lastSuccessAt: legacy.status === 'passed' ? legacy.testedAt : 0,
+      lastFailureAt: legacy.status === 'failed' ? legacy.testedAt : 0,
+      resultCount: legacy.count,
+      errorCode: legacy.errorCode,
+      httpStatus: legacy.httpStatus,
+      consecutiveFailures: legacy.status === 'failed' ? 1 : 0,
+      cooldownUntil: legacy.status === 'failed' ? legacy.testedAt + sourceRuntimeCooldownMs(legacy.errorCode, 1) : 0
+    }
+  }
+  const healthStageId = stage === 'detail' ? 'bookInfo' : stage
+  const health = normalizeSourceHealth(source.health)
+  const legacy = health.stages.find(item => item.id === healthStageId)
+  if (!legacy) return base
+  return {
+    ...base,
+    status: legacy.status === 'passed' ? 'passed' : 'cooldown',
+    checkedAt: health.checkedAt,
+    lastSuccessAt: legacy.status === 'passed' ? health.checkedAt : 0,
+    lastFailureAt: legacy.status === 'failed' ? health.checkedAt : 0,
+    latencyMs: legacy.elapsedMs,
+    errorCode: legacy.errorCode,
+    httpStatus: legacy.httpStatus,
+    consecutiveFailures: legacy.status === 'failed' ? 1 : 0,
+    cooldownUntil: legacy.status === 'failed' ? health.checkedAt + sourceRuntimeCooldownMs(legacy.errorCode, 1) : 0
+  }
+}
+
+function normalizeRuntimeStage(value, fallback, configHash) {
+  if (!value || typeof value !== 'object' || value.configHash !== configHash) return fallback
+  const allowed = ['untested', 'probing', 'passed', 'cooldown', 'blocked']
+  return {
+    status: allowed.includes(value.status) ? value.status : fallback.status,
+    checkedAt: Number(value.checkedAt || 0),
+    lastSuccessAt: Number(value.lastSuccessAt || 0),
+    lastFailureAt: Number(value.lastFailureAt || 0),
+    resultCount: Number(value.resultCount || 0),
+    latencyMs: Number(value.latencyMs || 0),
+    errorCode: String(value.errorCode || ''),
+    httpStatus: Number(value.httpStatus || 0),
+    consecutiveFailures: Number(value.consecutiveFailures || 0),
+    cooldownUntil: Number(value.cooldownUntil || 0),
+    configHash
+  }
+}
+
+export function normalizeSourceRuntimeV2(source = {}, options = {}) {
+  const stored = source.runtimeV2 && typeof source.runtimeV2 === 'object' ? source.runtimeV2 : {}
+  const legacySearch = normalizeSourceTest(source.lastTest)
+  const legacyExplore = normalizeSourceExploreTest(source.exploreTest)
+  const legacyHealth = normalizeSourceHealth(source.health)
+  const needsConfigHash = options.forceHash === true || !!stored.configHash ||
+    legacySearch.status !== 'untested' || legacyExplore.status !== 'untested' || legacyHealth.checkedAt > 0
+  const configHash = needsConfigHash ? hashSourceRuntimeConfig(source) : ''
+  const runtime = { version: 2, configHash }
+  if (!needsConfigHash) {
+    SOURCE_RUNTIME_STAGES.forEach(stage => { runtime[stage] = defaultRuntimeStage('') })
+    return runtime
+  }
+  SOURCE_RUNTIME_STAGES.forEach(stage => {
+    runtime[stage] = normalizeRuntimeStage(stored[stage], legacyRuntimeStage(source, stage, configHash), configHash)
+  })
+  return runtime
+}
+
+function sourceRuntimeCooldownMs(errorCode, consecutiveFailures = 1) {
+  const code = String(errorCode || '').toUpperCase()
+  if (/LOGIN|CAPTCHA|VERIFY|PAID|COOKIE_REQUIRED/.test(code)) return -1
+  if (/DNS/.test(code)) return 6 * HOUR_MS
+  if (/HTTP_FORBIDDEN|HTTP_RATE_LIMIT|HTTP_403|HTTP_429/.test(code)) return 12 * HOUR_MS
+  if (/HTTP_SERVER|HTTP_5\d\d/.test(code)) return HOUR_MS
+  if (/HTTP_NOT_FOUND|HTTP_404|HTTP_410|PARSE_EMPTY|RULE_EMPTY|SEARCH_EMPTY|DETAIL_EMPTY|TOC_EMPTY|CONTENT_EMPTY/.test(code)) return 7 * DAY_MS
+  if (/TIMEOUT|NETWORK|SITE_UNREACHABLE|CONNECTION/.test(code)) {
+    if (consecutiveFailures >= 3) return 12 * HOUR_MS
+    if (consecutiveFailures >= 2) return 2 * HOUR_MS
+    return 30 * 60 * 1000
+  }
+  if (/UNSUPPORTED|SCRIPT_BLOCKED|SECURITY/.test(code)) return -1
+  return 30 * 60 * 1000
+}
+
+export function writeSourceRuntimeStageResult(sourceId, stage, result = {}) {
+  if (!sourceId || !SOURCE_RUNTIME_STAGES.includes(stage)) return null
+  const source = getSourceConfig(sourceId)
+  if (!source) return null
+  const runtime = normalizeSourceRuntimeV2(source, { forceHash: true })
+  const previous = runtime[stage]
+  const now = Date.now()
+  const explicitStatus = String(result.status || '')
+  let next
+  if (explicitStatus === 'probing') {
+    next = { ...previous, status: 'probing', checkedAt: now, configHash: runtime.configHash }
+  } else if (explicitStatus === 'passed' || result.ok === true) {
+    next = {
+      ...previous,
+      status: 'passed',
+      checkedAt: now,
+      lastSuccessAt: now,
+      resultCount: Number(result.resultCount || result.count || 0),
+      latencyMs: Number(result.latencyMs || 0),
+      errorCode: '',
+      httpStatus: Number(result.httpStatus || 0),
+      consecutiveFailures: 0,
+      cooldownUntil: 0,
+      configHash: runtime.configHash
+    }
+  } else {
+    const failureCount = previous.consecutiveFailures + 1
+    const errorCode = String(result.errorCode || 'NETWORK_ERROR')
+    const cooldownMs = sourceRuntimeCooldownMs(errorCode, failureCount)
+    next = {
+      ...previous,
+      status: cooldownMs < 0 ? 'blocked' : 'cooldown',
+      checkedAt: now,
+      lastFailureAt: now,
+      resultCount: Number(result.resultCount || result.count || 0),
+      latencyMs: Number(result.latencyMs || 0),
+      errorCode,
+      httpStatus: Number(result.httpStatus || 0),
+      consecutiveFailures: failureCount,
+      cooldownUntil: cooldownMs < 0 ? 0 : now + cooldownMs,
+      configHash: runtime.configHash
+    }
+  }
+  const settings = getSourceSettings()
+  settings[sourceId] = {
+    ...(settings[sourceId] || {}),
+    runtimeV2: { ...runtime, [stage]: next },
+    updatedAt: Date.now()
+  }
+  writeSourceSettings(settings)
+  return next
+}
+
 function writeSourceTestResult(sourceId, result) {
   const settings = getSourceSettings()
   settings[sourceId] = {
@@ -472,25 +679,32 @@ function createSourceRequestSpec(source, url, context = {}, baseUrl = '') {
 
 export function getSourceConfigs() {
   const settings = getSourceSettings()
-  return getUserSources().map(source => {
-    const saved = settings[source.id] || {}
-    return {
-      ...source,
-      name: saved.name || source.name,
-      group: saved.group || source.group,
-      enabled: saved.enabled !== undefined ? saved.enabled : source.enabled,
-      updatedAt: saved.updatedAt || source.updatedAt,
-      lastTest: saved.lastTest || source.lastTest || '',
-      exploreTest: saved.exploreTest || source.exploreTest || null,
-      health: saved.health || source.health || null,
-      quality: saved.quality || source.quality || null,
-      antiCrawler: normalizeSourceAntiCrawler(saved.antiCrawler || source.antiCrawler)
-    }
-  })
+  return getUserSources().map(source => mergeSourceWithSettings(source, settings[source.id] || {}))
 }
 
 export function getSourceConfig(sourceId) {
-  return getSourceConfigs().find(source => source.id === sourceId)
+  const source = getUserSources().find(item => item.id === sourceId)
+  if (!source) return undefined
+  const settings = getSourceSettings()
+  return mergeSourceWithSettings(source, settings[source.id] || {})
+}
+
+function mergeSourceWithSettings(source, saved = {}) {
+  const merged = {
+    ...source,
+    name: saved.name || source.name,
+    group: saved.group || source.group,
+    enabled: saved.enabled !== undefined ? saved.enabled : source.enabled,
+    updatedAt: saved.updatedAt || source.updatedAt,
+    lastTest: saved.lastTest || source.lastTest || '',
+    exploreTest: saved.exploreTest || source.exploreTest || null,
+    health: saved.health || source.health || null,
+    quality: saved.quality || source.quality || null,
+    runtimeV2: saved.runtimeV2 || source.runtimeV2 || null,
+    antiCrawler: normalizeSourceAntiCrawler(saved.antiCrawler || source.antiCrawler)
+  }
+  merged.runtimeV2 = normalizeSourceRuntimeV2(merged)
+  return merged
 }
 
 export function setSourceEnabled(sourceId, enabled) {
@@ -565,9 +779,8 @@ export function getSourceDiagnostics(source) {
   const lastTest = normalizeSourceTest(source && source.lastTest)
   const exploreTest = normalizeSourceExploreTest(source && source.exploreTest)
   const health = normalizeSourceHealth(source && source.health)
-  const networkStatus = compatible ? lastTest.status : 'incompatible'
-  const exploreStatus = compatible ? exploreTest.status : 'incompatible'
-  const searchable = compatible && networkStatus === 'passed'
+  const runtimeV2 = normalizeSourceRuntimeV2(source || {})
+  const now = Date.now()
   const featureFlags = source && source.features || detectSourceFeatures(raw)
   const formatVersion = source && source.formatVersion || detectSourceFormat(raw)
   const ruleSearch = normalizeRuleObject(raw.ruleSearch)
@@ -581,20 +794,32 @@ export function getSourceDiagnostics(source) {
     content: compatible && !!Object.keys(ruleContent).length,
     explore: !!(raw.exploreUrl || raw.ruleExplore)
   }
+  const searchRuntime = runtimeV2.search
+  const exploreRuntime = runtimeV2.explore
+  const searchCooling = searchRuntime.status === 'cooldown' && searchRuntime.cooldownUntil > now
+  const exploreCooling = exploreRuntime.status === 'cooldown' && exploreRuntime.cooldownUntil > now
+  const networkStatus = compatible ? lastTest.status : 'incompatible'
+  const exploreStatus = compatible ? exploreTest.status : 'incompatible'
+  const searchable = compatible && ruleSummary.search && searchRuntime.status !== 'blocked' && !searchCooling
+  const verifiedSearchable = searchable && searchRuntime.status === 'passed' && searchRuntime.resultCount > 0
   const statusTitle = !compatible
     ? '规则不兼容'
-    : lastTest.status === 'passed'
-      ? '已通过网络测试'
-      : lastTest.status === 'failed'
-        ? '网络测试失败'
-        : '规则兼容，待网络测试'
+    : searchRuntime.status === 'blocked'
+      ? '需要人工处理'
+      : searchCooling
+        ? '临时冷却中'
+        : searchRuntime.status === 'passed' && searchRuntime.resultCount > 0
+          ? '已进入可用池'
+          : '规则兼容，可智能检测'
   const statusDesc = !compatible
     ? (reasons.length ? reasons.join('、') : '包含 H5 暂不支持的复杂规则')
-    : lastTest.status === 'passed'
-      ? `发现页会使用它，最近返回 ${lastTest.count || 0} 条结果。`
-      : lastTest.status === 'failed'
-        ? `${lastTest.message || '网络是否可用以单源测试为准'}，发现页会跳过它。`
-        : '网络是否可用以单源测试为准，测试通过后发现页会使用它。'
+    : searchRuntime.status === 'blocked'
+      ? '该来源需要登录、验证码或包含越界规则，只允许人工处理。'
+      : searchCooling
+        ? `${lastTest.message || searchRuntime.errorCode || '最近检测失败'}，冷却结束后会自动重新进入候选池。`
+        : searchRuntime.status === 'passed' && searchRuntime.resultCount > 0
+          ? `最近返回 ${searchRuntime.resultCount} 条结果，搜索时优先使用。`
+          : '无需手动逐个测试，联网搜索或 Wi-Fi 空闲时会自动检测。'
   return {
     id: source && source.id || '',
     name: source && source.name || raw.bookSourceName || '未命名书源',
@@ -608,6 +833,9 @@ export function getSourceDiagnostics(source) {
     imported: !!(source && source.importedAt),
     compatible,
     searchable,
+    verifiedSearchable,
+    searchCooling,
+    exploreCooling,
     networkStatus,
     exploreStatus,
     compatibilityLevel: levelInfo.level,
@@ -619,6 +847,7 @@ export function getSourceDiagnostics(source) {
     lastTest,
     exploreTest,
     health,
+    runtimeV2,
     reasons: compatible ? [] : (reasons.length ? reasons : ['包含 H5 暂不支持的复杂规则']),
     ruleSummary
   }
@@ -795,7 +1024,9 @@ export function getOnlineSearchSettings() {
     concurrency: clampNumber(raw.concurrency, 1, 10, ONLINE_SEARCH_DEFAULTS.concurrency),
     timeoutMs: clampNumber(raw.timeoutMs, 3000, 15000, ONLINE_SEARCH_DEFAULTS.timeoutMs),
     resultLimit: clampNumber(raw.resultLimit, 20, 120, ONLINE_SEARCH_DEFAULTS.resultLimit),
-    sourceLimit: clampNumber(raw.sourceLimit, 1, 10, 10)
+    sourceLimit: clampNumber(raw.sourceLimit, 10, 30, ONLINE_SEARCH_DEFAULTS.sourceLimit),
+    autoWarmup: raw.autoWarmup !== false,
+    mergeBackend: raw.mergeBackend !== false
   }
 }
 
@@ -808,7 +1039,9 @@ export function saveOnlineSearchSettings(settings = {}) {
     concurrency: clampNumber(next.concurrency, 1, 10, ONLINE_SEARCH_DEFAULTS.concurrency),
     timeoutMs: clampNumber(next.timeoutMs, 3000, 15000, ONLINE_SEARCH_DEFAULTS.timeoutMs),
     resultLimit: clampNumber(next.resultLimit, 20, 120, ONLINE_SEARCH_DEFAULTS.resultLimit),
-    sourceLimit: clampNumber(next.sourceLimit, 1, 10, 10)
+    sourceLimit: clampNumber(next.sourceLimit, 10, 30, ONLINE_SEARCH_DEFAULTS.sourceLimit),
+    autoWarmup: next.autoWarmup !== false,
+    mergeBackend: next.mergeBackend !== false
   }
   writeStorage(ONLINE_SEARCH_SETTINGS_KEY, normalized)
   return normalized
@@ -1078,6 +1311,7 @@ export async function preloadOnlineChapters(book, startIndex = 0, options = {}) 
 }
 
 function normalizeSourceQuality(value = {}) {
+  value = value && typeof value === 'object' ? value : {}
   const searchCount = Number(value.searchCount || 0)
   const successCount = Number(value.successCount || 0)
   const failCount = Number(value.failCount || 0)
@@ -2021,10 +2255,119 @@ export function deleteOnlineBookFromShelf(bookId) {
   return next.length !== current.length
 }
 
+function sourceHost(source) {
+  try {
+    return new URL(String(source.baseUrl || (source.raw && source.raw.bookSourceUrl) || '')).hostname.toLowerCase()
+  } catch (error) {
+    return String(source.baseUrl || source.id || '')
+  }
+}
+
+function diversifySources(items = []) {
+  const queues = new Map()
+  items.forEach(item => {
+    const host = sourceHost(item.source)
+    if (!queues.has(host)) queues.set(host, [])
+    queues.get(host).push(item)
+  })
+  const output = []
+  while (queues.size) {
+    Array.from(queues.entries()).forEach(([host, queue]) => {
+      const item = queue.shift()
+      if (item) output.push(item)
+      if (!queue.length) queues.delete(host)
+    })
+  }
+  return output
+}
+
+function sourceCandidateScore(item) {
+  const quality = normalizeSourceQuality(item.source.quality)
+  const speed = Math.max(0, 20 - Math.round(Number(item.runtime.latencyMs || quality.averageElapsedMs || 0) / 300))
+  const bootstrap = SOURCE_BOOTSTRAP_KEYS.has(item.source.sourceKey) ? 100000 : 0
+  return bootstrap + (item.tier * 1000) + (quality.qualityScore * 5) + speed + Number(item.source.weight || 0) / 1000
+}
+
+export function buildSourceCandidatePool(sources = getSourceConfigs(), context = {}) {
+  const now = Number(context.now || Date.now())
+  const excluded = new Set(Array.isArray(context.excludeSourceIds) ? context.excludeSourceIds : [])
+  const pool = {
+    verified: [],
+    untested: [],
+    retryable: [],
+    cooling: [],
+    blocked: [],
+    candidates: [],
+    counts: { total: 0, verified: 0, untested: 0, retryable: 0, cooling: 0, blocked: 0 }
+  }
+  ;(Array.isArray(sources) ? sources : getSourceConfigs()).forEach(source => {
+    if (!source || excluded.has(source.id)) return
+    pool.counts.total += 1
+    const raw = source.raw || source
+    const textSource = Number(raw.bookSourceType || 0) === 0
+    const runtimeV2 = normalizeSourceRuntimeV2(source)
+    const runtime = runtimeV2.search
+    const storedStatus = String(source.status || '')
+    const statusEligible = storedStatus
+      ? storedStatus === 'ready' || storedStatus === 'partial'
+      : getSourceDiagnostics(source).compatible
+    const searchRulePresent = hasNonEmptyField(raw, ['searchUrl']) && hasNonEmptyField(raw, ['ruleSearch'])
+    const searchRuleSafe = !hasStageUnsupportedRule({ searchUrl: raw.searchUrl, ruleSearch: raw.ruleSearch })
+    if (!source.enabled || !textSource || !statusEligible || !searchRulePresent || !searchRuleSafe || runtime.status === 'blocked') {
+      pool.blocked.push(source)
+      pool.counts.blocked += 1
+      return
+    }
+    if (runtime.status === 'cooldown' && runtime.cooldownUntil > now) {
+      pool.cooling.push(source)
+      pool.counts.cooling += 1
+      return
+    }
+    const health = normalizeSourceHealth(source.health)
+    const healthFresh = health.status === 'passed' && health.checkedAt >= now - (7 * DAY_MS)
+    const searchFresh = runtime.status === 'passed' && runtime.resultCount > 0 && runtime.lastSuccessAt >= now - (72 * HOUR_MS)
+    const item = {
+      source,
+      diagnostics: { runtimeV2, health },
+      runtime,
+      tier: healthFresh ? 5 : searchFresh ? 4 : runtime.status === 'passed' ? 3 : runtime.status === 'cooldown' ? 1 : 2
+    }
+    if (healthFresh || searchFresh) {
+      pool.verified.push(item)
+      pool.counts.verified += 1
+    } else if (runtime.status === 'cooldown') {
+      pool.retryable.push(item)
+      pool.counts.retryable += 1
+    } else {
+      pool.untested.push(item)
+      pool.counts.untested += 1
+    }
+  })
+  const sortItems = items => diversifySources(items.sort((left, right) => sourceCandidateScore(right) - sourceCandidateScore(left)))
+  pool.verified = sortItems(pool.verified)
+  pool.untested = sortItems(pool.untested)
+  pool.retryable = sortItems(pool.retryable)
+  const ordered = [
+    ...pool.verified.slice(0, 6),
+    ...pool.untested,
+    ...pool.retryable,
+    ...pool.verified.slice(6)
+  ]
+  pool.candidates = ordered.map(item => item.source)
+  return pool
+}
+
+export function getSourcePoolStats(sources = getSourceConfigs()) {
+  const pool = buildSourceCandidatePool(sources)
+  return {
+    ...pool.counts,
+    available: pool.candidates.length,
+    checkedAt: Date.now()
+  }
+}
+
 export function pickOnlineSearchSources(sources = getSourceConfigs(), limit = ONLINE_SOURCE_SEARCH_LIMIT) {
-  return (Array.isArray(sources) ? sources : getSourceConfigs())
-    .filter(source => source.enabled && getSourceDiagnostics(source).searchable)
-    .slice(0, limit)
+  return buildSourceCandidatePool(Array.isArray(sources) ? sources : getSourceConfigs()).candidates.slice(0, limit)
 }
 
 export function getOnlineExploreEntries(options = {}) {
@@ -2032,11 +2375,119 @@ export function getOnlineExploreEntries(options = {}) {
   const limit = Number(options.limit || 0)
   const entries = sources
     .filter(source => {
-      const diagnostics = getSourceDiagnostics(source)
-      return source.enabled && diagnostics.compatible && diagnostics.exploreStatus !== 'failed'
+      const raw = source.raw || source
+      const storedStatus = String(source.status || '')
+      const statusEligible = storedStatus
+        ? storedStatus === 'ready' || storedStatus === 'partial'
+        : getSourceDiagnostics(source).compatible
+      const runtime = normalizeSourceRuntimeV2(source).explore
+      const cooling = runtime.status === 'cooldown' && runtime.cooldownUntil > Date.now()
+      const ruleSafe = !hasStageUnsupportedRule({
+        exploreUrl: raw.exploreUrl || raw.ruleExploreUrl || raw.explore,
+        ruleExplore: raw.ruleExplore
+      })
+      return source.enabled && statusEligible && ruleSafe && runtime.status !== 'blocked' && !cooling
     })
     .flatMap(source => parseSourceExploreUrl(source))
   return limit > 0 ? entries.slice(0, limit) : entries
+}
+
+function normalizeExploreCatalogTitle(title, kind = 'category') {
+  const text = cleanText(title).replace(/[\s·|丨]/g, '')
+  const mappings = [
+    [/玄幻|奇幻/, '玄幻'], [/都市|现实|生活/, '都市'], [/历史|架空/, '历史'],
+    [/仙侠|修真/, '仙侠'], [/武侠/, '武侠'], [/科幻|末世/, '科幻'],
+    [/网游|游戏|电竞/, '网游'], [/言情|女生|女频/, '言情'], [/悬疑|灵异|惊悚/, '悬疑'],
+    [/军事|战争/, '军事'], [/完本|完结/, '完本'], [/最新|新书|更新/, '最新'],
+    [/热搜|热门|人气|畅销/, '热门'], [/收藏/, '收藏'], [/推荐/, '推荐']
+  ]
+  const matched = mappings.find(([pattern]) => pattern.test(text))
+  if (matched) return matched[1]
+  const stripped = text.replace(/小说|分类|频道|书库|榜单|排行榜|排行|总榜|榜$/g, '')
+  return stripped || (kind === 'rank' ? '排行' : kind === 'latest' ? '最新' : '其他')
+}
+
+function exploreProviderScore(entry, sourceMap) {
+  const source = sourceMap.get(entry.sourceId)
+  if (!source) return 0
+  const runtimeV2 = normalizeSourceRuntimeV2(source)
+  const health = normalizeSourceHealth(source.health)
+  const quality = normalizeSourceQuality(source.quality)
+  const fullReading = health.status === 'passed' ? 10000 : 0
+  const explored = runtimeV2.explore.status === 'passed' ? 5000 : 0
+  const speed = Math.max(0, 1000 - Number(runtimeV2.explore.latencyMs || quality.averageElapsedMs || 1000))
+  return fullReading + explored + (quality.qualityScore * 20) + speed + Number(source.weight || 0)
+}
+
+export function buildExploreCatalog(sources = getSourceConfigs(), preparedEntries = null) {
+  const sourceList = Array.isArray(sources) ? sources : getSourceConfigs()
+  const sourceMap = new Map(sourceList.map(source => [source.id, source]))
+  const entries = Array.isArray(preparedEntries) ? preparedEntries : getOnlineExploreEntries({ sources: sourceList })
+  const groups = new Map()
+  entries.forEach(entry => {
+    const title = normalizeExploreCatalogTitle(entry.title, entry.kind)
+    const key = `${entry.kind}:${title}`
+    if (!groups.has(key)) {
+      groups.set(key, {
+        id: `catalog:${key}`,
+        key,
+        title,
+        kind: entry.kind,
+        providers: [],
+        providerCount: 0
+      })
+    }
+    const group = groups.get(key)
+    if (!group.providers.some(item => item.sourceId === entry.sourceId)) group.providers.push(entry)
+  })
+  return Array.from(groups.values()).map(group => {
+    group.providers.sort((left, right) => exploreProviderScore(right, sourceMap) - exploreProviderScore(left, sourceMap))
+    group.providerCount = group.providers.length
+    group.sourceId = group.providers[0] && group.providers[0].sourceId || ''
+    group.sourceName = group.providers[0] && group.providers[0].sourceName || ''
+    return group
+  }).sort((left, right) => {
+    const kindOrder = { category: 0, rank: 1, latest: 2 }
+    const leftOrder = kindOrder[left.kind] === undefined ? 9 : kindOrder[left.kind]
+    const rightOrder = kindOrder[right.kind] === undefined ? 9 : kindOrder[right.kind]
+    return leftOrder - rightOrder || right.providerCount - left.providerCount || left.title.localeCompare(right.title)
+  })
+}
+
+export async function openExploreCatalogEntry(category, options = {}) {
+  const providers = Array.isArray(category && category.providers) ? category.providers.slice(0, 3) : []
+  const attempts = []
+  for (let index = 0; index < providers.length; index += 2) {
+    const batch = providers.slice(index, index + 2)
+    const results = await Promise.all(batch.map(async provider => {
+      try {
+        const books = await exploreOnlineBooks(provider, options)
+        if (!books.length) {
+          writeSourceExploreTestResult(provider.sourceId, {
+            status: 'failed', entryTitle: provider.title, count: 0,
+            message: '分类页面没有解析出图书', errorCode: 'PARSE_EMPTY'
+          })
+          writeSourceRuntimeStageResult(provider.sourceId, 'explore', {
+            status: 'failed', errorCode: 'PARSE_EMPTY', resultCount: 0
+          })
+          throw new SourceRuntimeError('PARSE_EMPTY', '分类页面没有解析出图书', { stage: 'explore' })
+        }
+        attempts.push({ sourceId: provider.sourceId, sourceName: provider.sourceName, status: 'passed', count: books.length, errorCode: '' })
+        return { provider, books }
+      } catch (error) {
+        const failure = classifySourceFailure(error, { stage: 'explore' })
+        attempts.push({ sourceId: provider.sourceId, sourceName: provider.sourceName, status: 'failed', count: 0, errorCode: failure.errorCode })
+        return null
+      }
+    }))
+    const winner = results.find(item => item && item.books.length)
+    if (winner) {
+      return { categoryKey: category.key, provider: winner.provider, results: winner.books, attempts }
+    }
+  }
+  const error = new SourceRuntimeError('EXPLORE_PROVIDERS_FAILED', '已尝试多个发现来源，暂时都不可用', { stage: 'explore', retryable: true })
+  error.attempts = attempts
+  throw error
 }
 
 export function getSourceExploreEntries(sourceOrId) {
@@ -2122,12 +2573,18 @@ export async function exploreOnlineBooks(entry, options = {}) {
   if (!entry || !entry.sourceId || !entry.url) return []
   const source = getSourceConfig(entry.sourceId)
   const timeoutMs = getSourceTimeoutBudget(source, options.timeoutMs || ONLINE_SOURCE_TIMEOUT_MS)
+  const startedAt = Date.now()
+  writeSourceRuntimeStageResult(entry.sourceId, 'explore', { status: 'probing' })
   try {
     const results = await withTimeout(exploreSourceEntry(entry, options), timeoutMs, entry.sourceName)
     writeSourceExploreTestResult(entry.sourceId, {
       status: 'passed',
       entryTitle: entry.title,
       count: results.length
+    })
+    writeSourceRuntimeStageResult(entry.sourceId, 'explore', {
+      status: 'passed', resultCount: results.length,
+      latencyMs: Date.now() - startedAt, httpStatus: 200
     })
     return results
   } catch (error) {
@@ -2140,6 +2597,10 @@ export async function exploreOnlineBooks(entry, options = {}) {
       errorCode: failure.errorCode,
       httpStatus: failure.status,
       retryable: failure.retryable
+    })
+    writeSourceRuntimeStageResult(entry.sourceId, 'explore', {
+      status: 'failed', errorCode: failure.errorCode, httpStatus: failure.status,
+      latencyMs: Date.now() - startedAt
     })
     throw runtimeError
   }
@@ -2173,99 +2634,125 @@ export async function loadSourceExploreBooks(sourceOrId, entry, options = {}) {
   }
 }
 
-async function legacySearchOnlineBooks(keyword, options = {}) {
+export async function runAdaptiveSourceSearch(keyword, options = {}) {
   const word = String(keyword || '').trim()
-  if (!word) return []
-
-  const limit = options.limit || ONLINE_SOURCE_SEARCH_LIMIT
-  const timeoutMs = options.timeoutMs || ONLINE_SOURCE_TIMEOUT_MS
-  const sources = pickOnlineSearchSources(getSourceConfigs(), limit)
-  const searches = sources.map(source => withTimeout(searchSource(source, word), getSourceTimeoutBudget(source, timeoutMs), source.name).catch(error => {
-    return [{
-      type: 'source-error',
-      sourceId: source.id,
-      title: source.name,
-      subtitle: '书源不可用',
-      snippet: friendlyErrorMessage(error, '搜索失败')
-    }]
-  }))
-  const groups = await Promise.all(searches)
-  return groups.flat().slice(0, 80)
-}
-
-export async function searchOnlineBooks(keyword, options = {}) {
-  const word = String(keyword || '').trim()
-  if (!word) return []
+  if (!word) return {
+    keyword: '', results: [], attempted: 0, succeeded: 0, empty: 0, failed: 0,
+    attemptedSourceIds: [], errorsByCode: {}, hasMore: false, elapsedMs: 0,
+    poolStats: getSourcePoolStats(options.sources || getSourceConfigs())
+  }
 
   const searchOptions = normalizeOnlineSearchOptions(options)
-  const sources = pickOnlineSearchSources(options.sources || getSourceConfigs(), searchOptions.sourceLimit)
+  const allSources = options.sources || getSourceConfigs()
+  const pool = buildSourceCandidatePool(allSources, { excludeSourceIds: options.excludeSourceIds })
+  const selected = pool.candidates.slice(0, searchOptions.sourceLimit)
+  const startedAt = Date.now()
+  const deadline = startedAt + clampNumber(options.roundTimeoutMs, 10000, 30000, 20000)
+  const report = {
+    keyword: word,
+    results: [],
+    attempted: 0,
+    succeeded: 0,
+    empty: 0,
+    failed: 0,
+    attemptedSourceIds: [],
+    sourceNames: [],
+    errorsByCode: {},
+    hasMore: pool.candidates.length > selected.length,
+    elapsedMs: 0,
+    poolStats: { ...pool.counts, available: pool.candidates.length }
+  }
   const cacheKey = onlineDataCacheKey('search', {
     word,
-    sourceIds: sources.map(source => source.id),
+    sourceIds: selected.map(source => source.id),
     resultLimit: searchOptions.resultLimit
   })
   const cached = readOnlineDataCache('search', cacheKey, options)
-  if (cached) return cached
-
+  if (cached) {
+    report.results = cached
+    report.elapsedMs = Date.now() - startedAt
+    if (typeof options.onResults === 'function') options.onResults(cached.slice(), { ...report, cached: true })
+    return { ...report, cached: true }
+  }
+  const groups = []
   let done = 0
-  const startedAt = Date.now()
-  const groups = await runConcurrent(sources, searchOptions.concurrency, async source => {
-    const sourceStartedAt = Date.now()
-    try {
-      const results = await withTimeout(searchSource(source, word), getSourceTimeoutBudget(source, searchOptions.timeoutMs), source.name)
-      const elapsedMs = Date.now() - sourceStartedAt
-      const quality = writeSourceQualityResult(source.id, {
-        status: 'success',
-        count: results.length,
-        elapsedMs
-      })
-      done += 1
-      emitSearchProgress(options.onProgress, {
-        done,
-        total: sources.length,
-        source,
-        status: 'success',
-        count: results.length,
-        elapsedMs,
-        startedAt,
-        qualityScore: quality.qualityScore
-      })
-      return results.map(item => decorateSearchResult(item, quality))
-    } catch (error) {
-      const elapsedMs = Date.now() - sourceStartedAt
-      const message = friendlyErrorMessage(error, '搜索失败')
-      const quality = writeSourceQualityResult(source.id, {
-        status: 'failed',
-        count: 0,
-        elapsedMs,
-        message
-      })
-      done += 1
-      emitSearchProgress(options.onProgress, {
-        done,
-        total: sources.length,
-        source,
-        status: 'failed',
-        count: 0,
-        elapsedMs,
-        startedAt,
-        message,
-        qualityScore: quality.qualityScore
-      })
-      return [{
-        type: 'source-error',
-        sourceId: source.id,
-        sourceName: source.name,
-        title: source.name,
-        subtitle: '书源不可用',
-        snippet: message,
-        sourceQualityScore: quality.qualityScore
-      }]
+  const batches = []
+  if (selected.length) {
+    batches.push(selected.slice(0, Math.min(6, selected.length)))
+    for (let index = batches[0].length; index < selected.length; index += 5) {
+      batches.push(selected.slice(index, index + 5))
     }
-  })
-  const results = dedupeOnlineSearchResults(groups.flat()).slice(0, searchOptions.resultLimit)
-  writeOnlineDataCache('search', cacheKey, results)
-  return results
+  }
+  for (const batch of batches) {
+    if (Date.now() >= deadline || (options.signal && options.signal.cancelled)) {
+      report.hasMore = true
+      break
+    }
+    const batchGroups = await runConcurrent(batch, searchOptions.concurrency, async source => {
+      const sourceStartedAt = Date.now()
+      report.attempted += 1
+      report.attemptedSourceIds.push(source.id)
+      report.sourceNames.push(source.name)
+      writeSourceRuntimeStageResult(source.id, 'search', { status: 'probing' })
+      try {
+        const remainingMs = Math.max(500, Math.min(searchOptions.timeoutMs, deadline - Date.now()))
+        const sourceResults = await withTimeout(searchSource(source, word), remainingMs, source.name)
+        const elapsedMs = Date.now() - sourceStartedAt
+        const quality = writeSourceQualityResult(source.id, {
+          status: 'success', count: sourceResults.length, elapsedMs
+        })
+        writeSourceRuntimeStageResult(source.id, 'search', {
+          status: 'passed', resultCount: sourceResults.length, latencyMs: elapsedMs, httpStatus: 200
+        })
+        writeSourceTestResult(source.id, { status: 'passed', keyword: word, count: sourceResults.length })
+        if (sourceResults.length) report.succeeded += 1
+        else report.empty += 1
+        done += 1
+        emitSearchProgress(options.onProgress, {
+          done, total: selected.length, source,
+          status: sourceResults.length ? 'success' : 'empty',
+          count: sourceResults.length, elapsedMs, startedAt, qualityScore: quality.qualityScore
+        })
+        return sourceResults.map(item => decorateSearchResult(item, quality))
+      } catch (error) {
+        const elapsedMs = Date.now() - sourceStartedAt
+        const failure = classifySourceFailure(error, { stage: 'search' })
+        const message = friendlyErrorMessage(error, '搜索失败')
+        const quality = writeSourceQualityResult(source.id, {
+          status: 'failed', count: 0, elapsedMs, message
+        })
+        writeSourceRuntimeStageResult(source.id, 'search', {
+          status: 'failed', errorCode: failure.errorCode,
+          httpStatus: failure.status, latencyMs: elapsedMs
+        })
+        writeSourceTestResult(source.id, {
+          status: 'failed', keyword: word, count: 0, message,
+          errorCode: failure.errorCode, failedStage: failure.stage,
+          httpStatus: failure.status, retryable: failure.retryable
+        })
+        report.failed += 1
+        report.errorsByCode[failure.errorCode] = Number(report.errorsByCode[failure.errorCode] || 0) + 1
+        done += 1
+        emitSearchProgress(options.onProgress, {
+          done, total: selected.length, source, status: 'failed', count: 0,
+          elapsedMs, startedAt, message, qualityScore: quality.qualityScore
+        })
+        return []
+      }
+    })
+    groups.push(...batchGroups)
+    report.results = dedupeOnlineSearchResults(groups.flat()).slice(0, searchOptions.resultLimit)
+    if (typeof options.onResults === 'function') options.onResults(report.results.slice(), { ...report })
+  }
+  report.elapsedMs = Date.now() - startedAt
+  report.hasMore = report.hasMore || report.attempted < selected.length
+  writeOnlineDataCache('search', cacheKey, report.results)
+  return report
+}
+
+export async function searchOnlineBooks(keyword, options = {}) {
+  const report = await runAdaptiveSourceSearch(keyword, options)
+  return report.results
 }
 
 function normalizeOnlineSearchOptions(options = {}) {
@@ -2275,7 +2762,7 @@ function normalizeOnlineSearchOptions(options = {}) {
     concurrency: clampNumber(options.concurrency, 1, 10, saved.concurrency),
     timeoutMs: clampNumber(options.timeoutMs, 3000, 15000, saved.timeoutMs),
     resultLimit: clampNumber(options.resultLimit, 20, 120, legacyLimit || saved.resultLimit),
-    sourceLimit: clampNumber(options.sourceLimit || legacyLimit, 1, 10, saved.sourceLimit)
+    sourceLimit: clampNumber(options.sourceLimit || legacyLimit, 1, 30, saved.sourceLimit)
   }
 }
 
@@ -2332,20 +2819,23 @@ function dedupeOnlineSearchResults(results = []) {
       return
     }
     if (!seen.has(key)) {
-      const next = { ...item, duplicateCount: 1 }
+      const next = { ...item, duplicateCount: 1, alternateSources: [] }
       seen.set(key, next)
       output.push(next)
       return
     }
     const current = seen.get(key)
     const duplicateCount = Number(current.duplicateCount || 1) + 1
+    const alternatives = Array.isArray(current.alternateSources) ? current.alternateSources : []
+    alternatives.push(item)
     const currentScore = Number(current.sourceQualityScore || 0)
     const nextScore = Number(item.sourceQualityScore || 0)
     if (nextScore > currentScore) {
-      Object.assign(current, item, { duplicateCount })
+      Object.assign(current, item, { duplicateCount, alternateSources: alternatives })
       return
     }
     current.duplicateCount = duplicateCount
+    current.alternateSources = alternatives
   })
   return output
 }
@@ -2645,6 +3135,8 @@ export async function testSourceSearch(sourceId, keyword, options = {}) {
     throw new Error('当前书源已停用，请先启用后测试')
   }
   const timeoutMs = options.timeoutMs || ONLINE_SOURCE_TIMEOUT_MS
+  const startedAt = Date.now()
+  writeSourceRuntimeStageResult(source.id, 'search', { status: 'probing' })
   let results
   try {
     results = await withTimeout(searchSource(source, word), getSourceTimeoutBudget(source, timeoutMs, {
@@ -2661,6 +3153,10 @@ export async function testSourceSearch(sourceId, keyword, options = {}) {
       httpStatus: failure.status,
       retryable: failure.retryable
     })
+    writeSourceRuntimeStageResult(source.id, 'search', {
+      status: 'failed', errorCode: failure.errorCode, httpStatus: failure.status,
+      latencyMs: Date.now() - startedAt
+    })
     throw asSourceRuntimeError(error, { stage: 'search' })
   }
   if (options.failOnEmpty && !results.length) {
@@ -2675,12 +3171,18 @@ export async function testSourceSearch(sourceId, keyword, options = {}) {
       failedStage: error.stage,
       diagnostics: searchDiagnostics
     })
+    writeSourceRuntimeStageResult(source.id, 'search', {
+      status: 'failed', errorCode: error.code, latencyMs: Date.now() - startedAt
+    })
     throw error
   }
   writeSourceTestResult(source.id, {
     status: 'passed',
     keyword: word,
     count: results.length
+  })
+  writeSourceRuntimeStageResult(source.id, 'search', {
+    status: 'passed', resultCount: results.length, latencyMs: Date.now() - startedAt, httpStatus: 200
   })
   return {
     sourceId,
@@ -2703,14 +3205,42 @@ export async function searchSourceBooks(sourceId, keyword, options = {}) {
   }
 
   const timeoutMs = options.timeoutMs || ONLINE_SOURCE_TIMEOUT_MS
-  const results = await withTimeout(searchSource(source, word), getSourceTimeoutBudget(source, timeoutMs, {
-    respectSourceRespondTime: true
-  }), source.name)
+  const startedAt = Date.now()
+  writeSourceRuntimeStageResult(source.id, 'search', { status: 'probing' })
+  let results
+  try {
+    results = await withTimeout(searchSource(source, word), getSourceTimeoutBudget(source, timeoutMs, {
+      respectSourceRespondTime: true
+    }), source.name)
+  } catch (error) {
+    const failure = classifySourceFailure(error, { stage: 'search' })
+    writeSourceRuntimeStageResult(source.id, 'search', {
+      status: 'failed', errorCode: failure.errorCode, httpStatus: failure.status,
+      latencyMs: Date.now() - startedAt
+    })
+    writeSourceTestResult(source.id, {
+      status: 'failed', keyword: word, count: 0,
+      message: friendlyErrorMessage(error, '搜索失败'), errorCode: failure.errorCode,
+      failedStage: failure.stage, httpStatus: failure.status, retryable: failure.retryable
+    })
+    throw asSourceRuntimeError(error, { stage: 'search' })
+  }
   const limit = Number(options.limit || 0)
   const filtered = limit > 0 ? results.slice(0, limit) : results
   if (options.failOnEmpty && !filtered.length) {
+    writeSourceRuntimeStageResult(source.id, 'search', {
+      status: 'failed', errorCode: 'SEARCH_EMPTY', latencyMs: Date.now() - startedAt
+    })
+    writeSourceTestResult(source.id, {
+      status: 'failed', keyword: word, count: 0,
+      message: '没有搜索结果', errorCode: 'SEARCH_EMPTY', failedStage: 'empty_result'
+    })
     throw new Error('无搜索结果')
   }
+  writeSourceRuntimeStageResult(source.id, 'search', {
+    status: 'passed', resultCount: filtered.length, latencyMs: Date.now() - startedAt, httpStatus: 200
+  })
+  writeSourceTestResult(source.id, { status: 'passed', keyword: word, count: filtered.length })
   return {
     sourceId,
     sourceName: source.name,
@@ -2734,6 +3264,14 @@ export async function runSourceReadingFlow(sourceId, keyword, options = {}) {
     } catch (error) {
       lastError = error
       const failure = classifySourceFailure(error)
+      const flowStages = Array.isArray(error && error.flowStages) ? error.flowStages : []
+      if (flowStages.length) {
+        writeSourceHealthResult(sourceId, {
+          status: 'failed', keyword: candidate, checkedAt: Date.now(),
+          failedStage: failure.stage, errorCode: failure.errorCode,
+          message: friendlyErrorMessage(error, '完整阅读链路失败'), stages: flowStages
+        })
+      }
       keywordAttempts.push({ keyword: candidate, status: 'failed', errorCode: failure.errorCode })
       if (!['SEARCH_EMPTY', 'PARSE_EMPTY', 'DETAIL_EMPTY', 'TOC_EMPTY', 'CONTENT_EMPTY'].includes(failure.errorCode)) break
     }
@@ -2816,6 +3354,11 @@ async function runSingleSourceReadingFlow(sourceId, keyword, options = {}) {
     latestChapter: info.latestChapter || loadedChapter.title,
     chapters: shelfChapters
   })))
+  const health = writeSourceHealthResult(sourceId, {
+    status: 'passed', score: calculateHealthScore(stages), keyword: search.keyword,
+    checkedAt: Date.now(), elapsedMs: stages.reduce((sum, stage) => sum + Number(stage.elapsedMs || 0), 0),
+    message: `完整阅读链路通过：${shelfBook.title}`, stages
+  })
 
   return {
     sourceId,
@@ -2824,7 +3367,8 @@ async function runSingleSourceReadingFlow(sourceId, keyword, options = {}) {
     book: shelfBook,
     chapters: shelfBook.chapters,
     chapter: loadedChapter,
-    stages
+    stages,
+    health
   }
 }
 
@@ -3073,7 +3617,32 @@ export async function batchTestSources(options = {}) {
   return summary
 }
 
-export async function loadOnlineBookInfo(book, options = {}) {
+async function runTrackedReadingStage(book, stage, action) {
+  const sourceId = book && book.sourceId
+  const startedAt = Date.now()
+  if (sourceId) writeSourceRuntimeStageResult(sourceId, stage, { status: 'probing' })
+  try {
+    const result = await action()
+    const resultCount = Array.isArray(result) ? result.length : stage === 'content' ? cleanText(result && result.content).length : 1
+    if (sourceId) {
+      writeSourceRuntimeStageResult(sourceId, stage, {
+        status: 'passed', resultCount, latencyMs: Date.now() - startedAt, httpStatus: 200
+      })
+    }
+    return result
+  } catch (error) {
+    const failure = classifySourceFailure(error, { stage })
+    if (sourceId) {
+      writeSourceRuntimeStageResult(sourceId, stage, {
+        status: 'failed', errorCode: failure.errorCode, httpStatus: failure.status,
+        latencyMs: Date.now() - startedAt
+      })
+    }
+    throw asSourceRuntimeError(error, { stage })
+  }
+}
+
+async function loadOnlineBookInfoInternal(book, options = {}) {
   const source = getSourceConfig(book.sourceId)
   if (!source) throw new Error('书源不存在或已删除')
   const rule = normalizeRuleObject(source.raw.ruleBookInfo)
@@ -3105,7 +3674,11 @@ export async function loadOnlineBookInfo(book, options = {}) {
   return normalized
 }
 
-export async function loadOnlineToc(book, options = {}) {
+export async function loadOnlineBookInfo(book, options = {}) {
+  return runTrackedReadingStage(book, 'detail', () => loadOnlineBookInfoInternal(book, options))
+}
+
+async function loadOnlineTocInternal(book, options = {}) {
   const source = getSourceConfig(book.sourceId)
   if (!source) throw new Error('书源不存在或已删除')
   const rule = normalizeRuleObject(source.raw.ruleToc)
@@ -3158,7 +3731,11 @@ export async function loadOnlineToc(book, options = {}) {
   return chapters
 }
 
-export async function loadOnlineChapter(book, chapter, options = {}) {
+export async function loadOnlineToc(book, options = {}) {
+  return runTrackedReadingStage(book, 'toc', () => loadOnlineTocInternal(book, options))
+}
+
+async function loadOnlineChapterInternal(book, chapter, options = {}) {
   const cached = readOnlineChapterCache(book.id, chapter.index)
   if (cached) return { ...chapter, content: cached, isCached: true, loadStatus: 'cached', errorMessage: '' }
 
@@ -3198,6 +3775,10 @@ export async function loadOnlineChapter(book, chapter, options = {}) {
     })
   }
   return loaded
+}
+
+export async function loadOnlineChapter(book, chapter, options = {}) {
+  return runTrackedReadingStage(book, 'content', () => loadOnlineChapterInternal(book, chapter, options))
 }
 
 async function searchSource(source, keyword) {

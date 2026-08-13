@@ -70,6 +70,7 @@
           <text class="status-desc">{{ errorMessage || (chapters.length ? '目录已经就绪，可以选择任意章节开始阅读。' : '目录暂时为空，可重新解析或返回更换书源。') }}</text>
         </view>
         <button class="status-retry" v-if="errorMessage" @tap="reload">重试</button>
+        <button class="status-retry" v-if="errorMessage && hasAlternateSources" @tap="switchAlternateSource">切换备用书源</button>
         <view class="status-track" v-if="loading"><view class="status-progress"></view></view>
       </view>
 
@@ -167,6 +168,7 @@ import {
   getOnlineShelfBooks,
   loadOnlineBookInfo,
   loadOnlineToc,
+  saveOnlineBookDraft,
   saveChapterCacheSettings
 } from '../../common/bookSources.js'
 import { getAppThemeId, getAppThemeStyle } from '../../common/appTheme.js'
@@ -175,6 +177,7 @@ import {
   loadBackendSourceToc
 } from '../../common/backendLibrary.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
+import { setSourceWarmupBusy } from '../../common/sourceWarmup.js'
 
 const CHAPTER_BATCH_SIZE = 80
 
@@ -208,6 +211,9 @@ export default {
     },
     hasLongIntro() {
       return String((this.book && (this.book.intro || this.book.latestChapter)) || '').length > 72
+    },
+    hasAlternateSources() {
+      return Array.isArray(this.book && this.book.alternateSources) && this.book.alternateSources.length > 0
     },
     formattedCacheChars() {
       const total = Number(this.cacheStats.totalChars || 0)
@@ -291,6 +297,7 @@ export default {
     },
     async reload() {
       if (!this.book) return
+      setSourceWarmupBusy(true)
       this.loading = true
       this.errorMessage = ''
       try {
@@ -312,7 +319,19 @@ export default {
         this.errorMessage = friendlyErrorMessage(error, '书源解析失败')
       } finally {
         this.loading = false
+        setSourceWarmupBusy(false)
       }
+    },
+    async switchAlternateSource() {
+      if (!this.hasAlternateSources || this.loading) return
+      const [candidate, ...remaining] = this.book.alternateSources
+      const nextBook = candidate && candidate.book ? candidate.book : candidate
+      if (!nextBook) return
+      this.book = { ...nextBook, alternateSources: remaining }
+      this.chapters = []
+      this.errorMessage = ''
+      saveOnlineBookDraft(this.book)
+      await this.reload()
     },
     resetVisibleChapters() {
       this.visibleChapterCount = CHAPTER_BATCH_SIZE

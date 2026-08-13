@@ -407,6 +407,7 @@ import {
   saveBackendReadingHistory
 } from '../../common/backendLibrary.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
+import { setSourceWarmupBusy } from '../../common/sourceWarmup.js'
 import { isMotionReduced, setNavigationMotion } from '../../common/motion.js'
 import {
   SHARED_BOOK_TRANSITION_DURATION,
@@ -704,6 +705,7 @@ export default {
     }
   },
   onShow() {
+    setSourceWarmupBusy(true)
     this.appThemeId = getAppThemeId()
     this.motionReduced = isMotionReduced()
     const latestPrefs = getPrefs()
@@ -724,6 +726,7 @@ export default {
     this.scheduleRepagination(140)
   },
   onHide() {
+    setSourceWarmupBusy(false)
     this.stopReadAloud('page-hidden')
     this.clearPaginationWork()
     this.clearPageTurnAnimation()
@@ -731,6 +734,7 @@ export default {
     this.clearSharedBookTransitionView()
   },
   onUnload() {
+    setSourceWarmupBusy(false)
     if (this.offlineDownloading && this.book && this.book.id) {
       pauseBackendBookDownload(this.book.id)
       this.offlineDownloading = false
