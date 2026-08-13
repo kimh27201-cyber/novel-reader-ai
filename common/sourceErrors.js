@@ -17,9 +17,12 @@ const STABLE_CODES = new Set([
   'RULE_EMPTY',
   'PARSE_EMPTY',
   'SEARCH_EMPTY',
+  'SEARCH_RESULT_INCOMPLETE',
   'DETAIL_EMPTY',
+  'DETAIL_METADATA_EMPTY',
   'TOC_EMPTY',
   'CONTENT_EMPTY',
+  'CONTENT_NOISE',
   'CONTENT_TOO_SHORT',
   'TOC_TOO_SHORT',
   'SOURCE_TYPE_UNSUPPORTED',
@@ -78,6 +81,9 @@ export function classifySourceFailure(error, context = {}) {
   if (!errorCode && (/Cookie/i.test(message))) errorCode = 'COOKIE_REQUIRED'
   if (!errorCode && (/WebView|动态渲染/i.test(message))) errorCode = 'WEBVIEW_REQUIRED'
   if (!errorCode && (/没有.*规则|规则为空/i.test(message))) errorCode = 'RULE_EMPTY'
+  if (!errorCode && (/搜索结果信息不完整|缺少书名/i.test(message))) errorCode = 'SEARCH_RESULT_INCOMPLETE'
+  if (!errorCode && (/详情元数据为空|详情缺少书名/i.test(message))) errorCode = 'DETAIL_METADATA_EMPTY'
+  if (!errorCode && (/正文噪声|脚本内容占比/i.test(message))) errorCode = 'CONTENT_NOISE'
   if (!errorCode && (/无搜索结果|没有搜索结果/i.test(message))) errorCode = 'SEARCH_EMPTY'
   if (!errorCode && (/解析为空|没有解析出/i.test(message))) errorCode = stage ? `${stage}_EMPTY` : 'PARSE_EMPTY'
   if (!errorCode && (/fetch failed|network|网络请求|connection|ECONN|socket|请求失败/i.test(`${originalCode} ${message}`))) errorCode = 'NETWORK_ERROR'

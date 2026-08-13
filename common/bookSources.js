@@ -28,6 +28,13 @@ import {
   getImportLogs as getStoredImportLogs,
   saveImportLog
 } from './sourceImportLog.js'
+import {
+  assessReadableContentQuality,
+  CONTENT_SANITIZER_VERSION,
+  sanitizeReadableContent
+} from './sourceContentSanitizer.js'
+
+export { assessReadableContentQuality, CONTENT_SANITIZER_VERSION, sanitizeReadableContent } from './sourceContentSanitizer.js'
 
 const canonicalSearchBaseCache = new Map()
 const sourceRuntimeHashCache = new WeakMap()
@@ -83,6 +90,7 @@ export const ONLINE_DATA_CACHE_DEFAULTS = {
   maxEntries: 80
 }
 const chapterCacheKey = (bookId, chapterIndex) => `sources:chapter:${bookId}:${chapterIndex}`
+const ONLINE_BOOK_PLACEHOLDER_TITLE = '未命名小说'
 
 const memoryStore = {}
 let userSourcesCache = null
@@ -458,7 +466,7 @@ function sourceRuntimeCooldownMs(errorCode, consecutiveFailures = 1) {
   if (/DNS/.test(code)) return 6 * HOUR_MS
   if (/HTTP_FORBIDDEN|HTTP_RATE_LIMIT|HTTP_403|HTTP_429/.test(code)) return 12 * HOUR_MS
   if (/HTTP_SERVER|HTTP_5\d\d/.test(code)) return HOUR_MS
-  if (/HTTP_NOT_FOUND|HTTP_404|HTTP_410|PARSE_EMPTY|RULE_EMPTY|SEARCH_EMPTY|DETAIL_EMPTY|TOC_EMPTY|CONTENT_EMPTY/.test(code)) return 7 * DAY_MS
+  if (/HTTP_NOT_FOUND|HTTP_404|HTTP_410|PARSE_EMPTY|RULE_EMPTY|SEARCH_EMPTY|SEARCH_RESULT_INCOMPLETE|DETAIL_EMPTY|DETAIL_METADATA_EMPTY|TOC_EMPTY|CONTENT_EMPTY|CONTENT_NOISE/.test(code)) return 7 * DAY_MS
   if (/TIMEOUT|NETWORK|SITE_UNREACHABLE|CONNECTION/.test(code)) {
     if (consecutiveFailures >= 3) return 12 * HOUR_MS
     if (consecutiveFailures >= 2) return 2 * HOUR_MS
@@ -700,6 +708,7 @@ function mergeSourceWithSettings(source, saved = {}) {
     exploreTest: saved.exploreTest || source.exploreTest || null,
     health: saved.health || source.health || null,
     quality: saved.quality || source.quality || null,
+    acceptanceWindows: Array.isArray(saved.acceptanceWindows) ? saved.acceptanceWindows : (source.acceptanceWindows || []),
     runtimeV2: saved.runtimeV2 || source.runtimeV2 || null,
     antiCrawler: normalizeSourceAntiCrawler(saved.antiCrawler || source.antiCrawler)
   }
@@ -1085,11 +1094,32 @@ function chapterCacheMetaKey(bookId, chapterIndex) {
 }
 
 function readOnlineChapterCache(bookId, chapterIndex) {
-  return readStorage(chapterCacheKey(bookId, chapterIndex), '')
+  const storageKey = chapterCacheKey(bookId, chapterIndex)
+  const cached = String(readStorage(storageKey, '') || '')
+  if (!cached) return ''
+  const key = chapterCacheMetaKey(bookId, chapterIndex)
+  const meta = getChapterCacheMeta()
+  const current = meta[key] && typeof meta[key] === 'object' ? meta[key] : {}
+  if (Number(current.sanitizerVersion || 0) >= CONTENT_SANITIZER_VERSION) return cached
+  const sanitized = sanitizeReadableContent(cached, { chapterTitle: current.chapterTitle })
+  if (sanitized.text !== cached) writeStorage(storageKey, sanitized.text)
+  meta[key] = {
+    ...current,
+    bookId,
+    chapterIndex: Number(chapterIndex || 0),
+    chars: sanitized.cleanedChars,
+    rawChars: sanitized.rawChars,
+    cleanedChars: sanitized.cleanedChars,
+    sanitizerVersion: CONTENT_SANITIZER_VERSION,
+    cachedAt: Number(current.cachedAt || Date.now())
+  }
+  writeChapterCacheMeta(meta)
+  return sanitized.text
 }
 
 function writeOnlineChapterCache(book, chapter, content, protectedKeys = []) {
-  const text = String(content || '')
+  const sanitized = sanitizeReadableContent(content, { chapterTitle: chapter && chapter.title })
+  const text = sanitized.text
   if (!book || !book.id || !chapter || !text) return ''
   const index = Number(chapter.index || 0)
   writeStorage(chapterCacheKey(book.id, index), text)
@@ -1101,6 +1131,9 @@ function writeOnlineChapterCache(book, chapter, content, protectedKeys = []) {
     chapterIndex: index,
     chapterTitle: chapter.title || `第 ${index + 1} 章`,
     chars: text.length,
+    rawChars: sanitized.rawChars,
+    cleanedChars: sanitized.cleanedChars,
+    sanitizerVersion: CONTENT_SANITIZER_VERSION,
     cachedAt: Date.now()
   }
   writeChapterCacheMeta(meta)
@@ -1410,6 +1443,30 @@ function writeSourceHealthResult(sourceId, health) {
   }
   writeSourceSettings(settings)
   return normalized
+}
+
+export function recordSourceAcceptanceWindow(sourceId, result = {}) {
+  if (!sourceId || !result.windowId) return []
+  const settings = getSourceSettings()
+  const current = Array.isArray((settings[sourceId] || {}).acceptanceWindows)
+    ? settings[sourceId].acceptanceWindows.slice()
+    : []
+  const normalized = {
+    windowId: String(result.windowId).slice(0, 80),
+    status: result.status === 'passed' ? 'passed' : 'failed',
+    checkedAt: Number(result.checkedAt || Date.now()),
+    errorCode: result.status === 'passed' ? '' : String(result.errorCode || '')
+  }
+  const next = current.filter(item => item && item.windowId !== normalized.windowId)
+  next.push(normalized)
+  next.sort((left, right) => Number(right.checkedAt || 0) - Number(left.checkedAt || 0))
+  settings[sourceId] = {
+    ...(settings[sourceId] || {}),
+    acceptanceWindows: next.slice(0, 4),
+    updatedAt: Date.now()
+  }
+  writeSourceSettings(settings)
+  return settings[sourceId].acceptanceWindows
 }
 
 function writeSourceQualityResult(sourceId, result = {}) {
@@ -2281,6 +2338,22 @@ function diversifySources(items = []) {
   return output
 }
 
+export function selectDiverseSourceCandidates(candidates = [], limit = ONLINE_SOURCE_SEARCH_LIMIT, perHostLimit = 2) {
+  const maximum = Math.max(0, Number(limit || 0))
+  const hostMaximum = Math.max(1, Number(perHostLimit || 2))
+  const hostCounts = new Map()
+  const output = []
+  for (const source of Array.isArray(candidates) ? candidates : []) {
+    if (!source || output.length >= maximum) break
+    const host = sourceHost(source)
+    const count = Number(hostCounts.get(host) || 0)
+    if (count >= hostMaximum) continue
+    hostCounts.set(host, count + 1)
+    output.push(source)
+  }
+  return output
+}
+
 function sourceCandidateScore(item) {
   const quality = normalizeSourceQuality(item.source.quality)
   const speed = Math.max(0, 20 - Math.round(Number(item.runtime.latencyMs || quality.averageElapsedMs || 0) / 300))
@@ -2324,13 +2397,16 @@ export function buildSourceCandidatePool(sources = getSourceConfigs(), context =
       return
     }
     const health = normalizeSourceHealth(source.health)
+    const stableWindowPasses = new Set((source.acceptanceWindows || [])
+      .filter(item => item && item.status === 'passed')
+      .map(item => item.windowId)).size
     const healthFresh = health.status === 'passed' && health.checkedAt >= now - (7 * DAY_MS)
     const searchFresh = runtime.status === 'passed' && runtime.resultCount > 0 && runtime.lastSuccessAt >= now - (72 * HOUR_MS)
     const item = {
       source,
       diagnostics: { runtimeV2, health },
       runtime,
-      tier: healthFresh ? 5 : searchFresh ? 4 : runtime.status === 'passed' ? 3 : runtime.status === 'cooldown' ? 1 : 2
+      tier: stableWindowPasses >= 2 ? 6 : healthFresh ? 5 : searchFresh ? 4 : runtime.status === 'passed' ? 3 : runtime.status === 'cooldown' ? 1 : 2
     }
     if (healthFresh || searchFresh) {
       pool.verified.push(item)
@@ -2645,7 +2721,7 @@ export async function runAdaptiveSourceSearch(keyword, options = {}) {
   const searchOptions = normalizeOnlineSearchOptions(options)
   const allSources = options.sources || getSourceConfigs()
   const pool = buildSourceCandidatePool(allSources, { excludeSourceIds: options.excludeSourceIds })
-  const selected = pool.candidates.slice(0, searchOptions.sourceLimit)
+  const selected = selectDiverseSourceCandidates(pool.candidates, searchOptions.sourceLimit, 2)
   const startedAt = Date.now()
   const deadline = startedAt + clampNumber(options.roundTimeoutMs, 10000, 30000, 20000)
   const report = {
@@ -2658,6 +2734,9 @@ export async function runAdaptiveSourceSearch(keyword, options = {}) {
     attemptedSourceIds: [],
     sourceNames: [],
     errorsByCode: {},
+    completeResultCount: 0,
+    incompleteResultCount: 0,
+    metadataFailureCount: 0,
     hasMore: pool.candidates.length > selected.length,
     elapsedMs: 0,
     poolStats: { ...pool.counts, available: pool.candidates.length }
@@ -2697,6 +2776,10 @@ export async function runAdaptiveSourceSearch(keyword, options = {}) {
       try {
         const remainingMs = Math.max(500, Math.min(searchOptions.timeoutMs, deadline - Date.now()))
         const sourceResults = await withTimeout(searchSource(source, word), remainingMs, source.name)
+        const metadataReport = sourceResults.metadataReport || {}
+        report.incompleteResultCount += Number(metadataReport.incompleteResultCount || 0)
+        report.metadataFailureCount += Number(metadataReport.metadataFailureCount || 0)
+        if (!sourceResults.length) throw createEmptySearchError(sourceResults.diagnostics || {})
         const elapsedMs = Date.now() - sourceStartedAt
         const quality = writeSourceQualityResult(source.id, {
           status: 'success', count: sourceResults.length, elapsedMs
@@ -2705,12 +2788,12 @@ export async function runAdaptiveSourceSearch(keyword, options = {}) {
           status: 'passed', resultCount: sourceResults.length, latencyMs: elapsedMs, httpStatus: 200
         })
         writeSourceTestResult(source.id, { status: 'passed', keyword: word, count: sourceResults.length })
-        if (sourceResults.length) report.succeeded += 1
-        else report.empty += 1
+        report.succeeded += 1
+        report.completeResultCount += sourceResults.length
         done += 1
         emitSearchProgress(options.onProgress, {
           done, total: selected.length, source,
-          status: sourceResults.length ? 'success' : 'empty',
+          status: 'success',
           count: sourceResults.length, elapsedMs, startedAt, qualityScore: quality.qualityScore
         })
         return sourceResults.map(item => decorateSearchResult(item, quality))
@@ -2730,7 +2813,8 @@ export async function runAdaptiveSourceSearch(keyword, options = {}) {
           errorCode: failure.errorCode, failedStage: failure.stage,
           httpStatus: failure.status, retryable: failure.retryable
         })
-        report.failed += 1
+        if (failure.errorCode === 'SEARCH_EMPTY') report.empty += 1
+        else report.failed += 1
         report.errorsByCode[failure.errorCode] = Number(report.errorsByCode[failure.errorCode] || 0) + 1
         done += 1
         emitSearchProgress(options.onProgress, {
@@ -3086,20 +3170,23 @@ async function exploreSourceEntry(entry, options = {}) {
     throw error
   }
 
-  const results = list.map(item => {
+  const parsedResults = list.map(item => {
     const context = { key: entry.title, keyword: entry.title, page, $: item }
+    const rawTitle = pickText(item, rule, ['name', 'bookName', 'title'], context)
     const book = normalizeOnlineBookForShelf({
       sourceId: source.id,
       sourceName: source.name,
       sourceGroup: source.group,
       bookUrl: pickUrl(item, rule, ['bookUrl', 'url', 'link'], context, source.baseUrl),
-      title: pickText(item, rule, ['name', 'bookName', 'title'], context),
+      title: rawTitle,
       author: pickText(item, rule, ['author', 'bookAuthor'], context) || 'Unknown',
       kind: pickText(item, rule, ['kind', 'category', 'type'], context) || entry.title || 'Explore',
       latestChapter: pickText(item, rule, ['latestChapter', 'lastChapter', 'last'], context),
       intro: pickText(item, rule, ['intro', 'description', 'desc'], context),
-      coverUrl: pickUrl(item, rule, ['coverUrl', 'cover', 'image'], context, source.baseUrl)
-    })
+      coverUrl: pickUrl(item, rule, ['coverUrl', 'cover', 'image'], context, source.baseUrl),
+      metadataStatus: rawTitle ? 'complete' : 'needs_detail',
+      metadataOrigin: 'explore'
+    }, { preserveMissingTitle: true })
 
     return {
       type: 'online',
@@ -3110,10 +3197,20 @@ async function exploreSourceEntry(entry, options = {}) {
       sourceId: source.id,
       sourceName: source.name,
       exploreTitle: entry.title,
+      metadataStatus: rawTitle ? 'complete' : 'needs_detail',
       book
     }
-  }).filter(result => result.book.bookUrl && result.book.title).slice(0, options.limit || 80)
+  }).filter(result => result.book.bookUrl)
+  const hydrated = await hydrateSourceSearchResults(parsedResults, {
+    maxItems: 3,
+    concurrency: 2,
+    timeoutMs: Math.min(4000, Number(options.timeoutMs || 4000))
+  })
+  const results = hydrated.results.slice(0, options.limit || 80)
   diagnostics.parsedCount = results.length
+  diagnostics.completeResultCount = hydrated.completeResultCount
+  diagnostics.incompleteResultCount = hydrated.incompleteResultCount
+  diagnostics.metadataFailureCount = hydrated.metadataFailureCount
   if (!results.length) {
     diagnostics.failedStage = 'empty_result'
     diagnostics.errorMessage = '分类页请求成功，但没有解析出图书。可能原因：分类规则与搜索规则不同、目标页面结构变化、需要 Cookie / Referer / User-Agent，或该书源依赖 JS / WebView。'
@@ -3159,7 +3256,7 @@ export async function testSourceSearch(sourceId, keyword, options = {}) {
     })
     throw asSourceRuntimeError(error, { stage: 'search' })
   }
-  if (options.failOnEmpty && !results.length) {
+  if (!results.length) {
     const searchDiagnostics = results && results.diagnostics || {}
     const error = createEmptySearchError(searchDiagnostics)
     writeSourceTestResult(source.id, {
@@ -3174,7 +3271,16 @@ export async function testSourceSearch(sourceId, keyword, options = {}) {
     writeSourceRuntimeStageResult(source.id, 'search', {
       status: 'failed', errorCode: error.code, latencyMs: Date.now() - startedAt
     })
-    throw error
+    if (options.failOnEmpty) throw error
+    return {
+      sourceId,
+      keyword: word,
+      count: 0,
+      results: [],
+      completeResultCount: 0,
+      incompleteResultCount: Number(searchDiagnostics.incompleteResultCount || 0),
+      metadataFailureCount: Number(searchDiagnostics.metadataFailureCount || 0)
+    }
   }
   writeSourceTestResult(source.id, {
     status: 'passed',
@@ -3188,7 +3294,10 @@ export async function testSourceSearch(sourceId, keyword, options = {}) {
     sourceId,
     keyword: word,
     count: results.length,
-    results: results.slice(0, options.limit || 5)
+    results: results.slice(0, options.limit || 5),
+    completeResultCount: results.length,
+    incompleteResultCount: Number(results.diagnostics && results.diagnostics.incompleteResultCount || 0),
+    metadataFailureCount: Number(results.diagnostics && results.diagnostics.metadataFailureCount || 0)
   }
 }
 
@@ -3227,15 +3336,28 @@ export async function searchSourceBooks(sourceId, keyword, options = {}) {
   }
   const limit = Number(options.limit || 0)
   const filtered = limit > 0 ? results.slice(0, limit) : results
-  if (options.failOnEmpty && !filtered.length) {
+  if (!filtered.length) {
+    const searchDiagnostics = results && results.diagnostics || {}
+    const error = createEmptySearchError(searchDiagnostics)
     writeSourceRuntimeStageResult(source.id, 'search', {
-      status: 'failed', errorCode: 'SEARCH_EMPTY', latencyMs: Date.now() - startedAt
+      status: 'failed', errorCode: error.code, latencyMs: Date.now() - startedAt
     })
     writeSourceTestResult(source.id, {
       status: 'failed', keyword: word, count: 0,
-      message: '没有搜索结果', errorCode: 'SEARCH_EMPTY', failedStage: 'empty_result'
+      message: error.message, errorCode: error.code, failedStage: error.stage,
+      diagnostics: searchDiagnostics
     })
-    throw new Error('无搜索结果')
+    if (options.failOnEmpty) throw error
+    return {
+      sourceId,
+      sourceName: source.name,
+      keyword: word,
+      count: 0,
+      results: [],
+      completeResultCount: 0,
+      incompleteResultCount: Number(searchDiagnostics.incompleteResultCount || 0),
+      metadataFailureCount: Number(searchDiagnostics.metadataFailureCount || 0)
+    }
   }
   writeSourceRuntimeStageResult(source.id, 'search', {
     status: 'passed', resultCount: filtered.length, latencyMs: Date.now() - startedAt, httpStatus: 200
@@ -3246,7 +3368,10 @@ export async function searchSourceBooks(sourceId, keyword, options = {}) {
     sourceName: source.name,
     keyword: word,
     count: filtered.length,
-    results: filtered
+    results: filtered,
+    completeResultCount: filtered.length,
+    incompleteResultCount: Number(results.diagnostics && results.diagnostics.incompleteResultCount || 0),
+    metadataFailureCount: Number(results.diagnostics && results.diagnostics.metadataFailureCount || 0)
   }
 }
 
@@ -3757,17 +3882,34 @@ async function loadOnlineChapterInternal(book, chapter, options = {}) {
     seenPages.add(currentUrl)
     const html = await requestText(createSourceRequestSpec(source, currentUrl, { ...book, ...chapter, page }, source.baseUrl))
     const payload = parseResponsePayload(html)
-    const pageContent = pickText(payload, rule, ['content', 'text'], { ...book, ...chapter, page, $: payload })
-    if (pageContent) contents.push(pageContent)
+    const rawPageContent = firstValue(applyRule(
+      payload,
+      getFieldRule(rule, ['content', 'text']),
+      { ...book, ...chapter, page, $: payload }
+    ))
+    const pageContent = sanitizeReadableContent(rawPageContent, { chapterTitle: chapter.title, page })
+    if (pageContent.text) contents.push(pageContent.text)
     currentUrl = pickUrl(payload, rule, ['nextContentUrl', 'nextUrl'], { ...book, ...chapter, page, $: payload }, currentUrl)
   }
-  const content = uniqueStrings(contents).join('\n\n')
+  const sanitizedContent = sanitizeReadableContent(uniqueStrings(contents).join('\n\n'), { chapterTitle: chapter.title })
+  const content = sanitizedContent.text
+  const contentQuality = assessReadableContentQuality(sanitizedContent)
   if (!content) throw new SourceRuntimeError('CONTENT_EMPTY', '正文解析为空，请换一个书源', { stage: 'content' })
+  if (!contentQuality.readable) {
+    throw new SourceRuntimeError('CONTENT_NOISE', '正文噪声过多，请切换备用书源', {
+      stage: 'content',
+      diagnostics: {
+        rawChars: contentQuality.rawChars,
+        cleanedChars: contentQuality.cleanedChars,
+        removedRatio: contentQuality.removedRatio
+      }
+    })
+  }
 
   const protectedKeys = Array.isArray(options.protectedCacheKeys) ? options.protectedCacheKeys : []
   writeOnlineChapterCache(book, chapter, content, protectedKeys)
   const persisted = !!readOnlineChapterCache(book.id, chapter.index)
-  const loaded = { ...chapter, content, isCached: persisted, loadStatus: 'loaded', errorMessage: '' }
+  const loaded = { ...chapter, content, contentQuality, isCached: persisted, loadStatus: 'loaded', errorMessage: '' }
   const savedBook = persisted ? (updateOnlineBookChapterCache(book, loaded) || book) : book
   if (options.autoPreload) {
     await preloadOnlineChapters(savedBook, chapter.index, {
@@ -3803,7 +3945,94 @@ async function searchSource(source, keyword) {
       parsed.results.diagnostics.canonicalBaseUrl = activeSource.baseUrl
     }
   }
-  return parsed.results
+  const hydrated = await hydrateSourceSearchResults(parsed.results, {
+    maxItems: 3,
+    concurrency: 2,
+    timeoutMs: 4000
+  })
+  const results = hydrated.results
+  results.diagnostics = {
+    ...(parsed.results.diagnostics || {}),
+    completeResultCount: hydrated.completeResultCount,
+    incompleteResultCount: hydrated.incompleteResultCount,
+    metadataFailureCount: hydrated.metadataFailureCount
+  }
+  results.metadataReport = hydrated
+  return results
+}
+
+function hasUsableOnlineBookTitle(value) {
+  const title = cleanText(value)
+  return !!title && title !== ONLINE_BOOK_PLACEHOLDER_TITLE
+}
+
+function withHydratedSearchMetadata(item, book) {
+  const normalized = { ...book, metadataStatus: 'complete', metadataOrigin: 'detail' }
+  return {
+    ...item,
+    bookId: normalized.id,
+    title: normalized.title,
+    subtitle: `${normalized.author} · ${normalized.sourceName}`,
+    snippet: normalized.latestChapter || normalized.kind || '在线书源结果',
+    metadataStatus: 'complete',
+    book: normalized
+  }
+}
+
+export async function hydrateSourceSearchResults(results = [], options = {}) {
+  const rows = Array.isArray(results) ? results : []
+  const incomplete = []
+  let invalidCount = 0
+  rows.forEach((item, index) => {
+    const book = item && item.book || {}
+    if (!book.bookUrl) {
+      invalidCount += 1
+      return
+    }
+    if (!hasUsableOnlineBookTitle(item.title || book.title)) incomplete.push({ item, index })
+  })
+  const maximum = clampNumber(options.maxItems, 0, 10, 3)
+  const selected = incomplete.slice(0, maximum)
+  const hydratedRows = await runConcurrent(selected, clampNumber(options.concurrency, 1, 4, 2), async row => {
+    try {
+      const loaded = await withTimeout(
+        loadOnlineBookInfoInternal(row.item.book, { bypassCache: options.bypassCache === true }),
+        clampNumber(options.timeoutMs, 1000, 8000, 4000),
+        row.item.sourceName
+      )
+      if (!hasUsableOnlineBookTitle(loaded && loaded.title)) {
+        throw new SourceRuntimeError('DETAIL_METADATA_EMPTY', '详情缺少书名', { stage: 'detail' })
+      }
+      return { index: row.index, item: withHydratedSearchMetadata(row.item, loaded), errorCode: '' }
+    } catch (error) {
+      return { index: row.index, item: null, errorCode: classifySourceFailure(error, { stage: 'detail' }).errorCode }
+    }
+  })
+  const hydratedMap = new Map(hydratedRows.map(row => [row.index, row]))
+  const output = []
+  rows.forEach((item, index) => {
+    const book = item && item.book || {}
+    if (!book.bookUrl) return
+    if (hasUsableOnlineBookTitle(item.title || book.title)) {
+      output.push({ ...item, metadataStatus: 'complete', book: { ...book, metadataStatus: 'complete' } })
+      return
+    }
+    const hydrated = hydratedMap.get(index)
+    if (hydrated && hydrated.item) output.push(hydrated.item)
+  })
+  const metadataFailureCount = invalidCount + incomplete.length - hydratedRows.filter(row => row.item).length
+  return {
+    results: output,
+    completeResultCount: output.length,
+    incompleteResultCount: incomplete.length,
+    metadataFailureCount,
+    invalidResultCount: invalidCount,
+    attemptedDetailCount: selected.length,
+    errorsByCode: hydratedRows.reduce((counts, row) => {
+      if (row.errorCode) counts[row.errorCode] = Number(counts[row.errorCode] || 0) + 1
+      return counts
+    }, {})
+  }
 }
 
 function parseSearchResponse(source, rule, keyword, html) {
@@ -3813,18 +4042,21 @@ function parseSearchResponse(source, rule, keyword, html) {
 
   const mappedResults = list.map(item => {
     const context = { key: keyword, keyword, $: item }
+    const rawTitle = pickText(item, rule, ['name', 'bookName', 'title'], context)
     const book = normalizeOnlineBookForShelf({
       sourceId: source.id,
       sourceName: source.name,
       sourceGroup: source.group,
       bookUrl: pickUrl(item, rule, ['bookUrl', 'url', 'link'], context, source.baseUrl),
-      title: pickText(item, rule, ['name', 'bookName', 'title'], context),
+      title: rawTitle,
       author: pickText(item, rule, ['author', 'bookAuthor'], context) || '未知作者',
       kind: pickText(item, rule, ['kind', 'category', 'type'], context) || '在线书源',
       latestChapter: pickText(item, rule, ['latestChapter', 'lastChapter', 'last'], context),
       intro: pickText(item, rule, ['intro', 'description', 'desc'], context),
-      coverUrl: pickUrl(item, rule, ['coverUrl', 'cover', 'image'], context, source.baseUrl)
-    })
+      coverUrl: pickUrl(item, rule, ['coverUrl', 'cover', 'image'], context, source.baseUrl),
+      metadataStatus: rawTitle ? 'complete' : 'needs_detail',
+      metadataOrigin: 'search'
+    }, { preserveMissingTitle: true })
 
     return {
       type: 'online',
@@ -3834,13 +4066,14 @@ function parseSearchResponse(source, rule, keyword, html) {
       snippet: book.latestChapter || book.kind || '在线书源结果',
       sourceId: source.id,
       sourceName: source.name,
+      metadataStatus: rawTitle ? 'complete' : 'needs_detail',
       book
     }
   })
-  const results = mappedResults.filter(result => result.book.bookUrl && result.book.title)
+  const results = mappedResults.filter(result => result.book.bookUrl)
   results.diagnostics = {
     ...buildSearchResponseDiagnostics(html, payload, listRule, list.length, results.length),
-    missingTitleCount: mappedResults.filter(result => !result.book.title).length,
+    missingTitleCount: mappedResults.filter(result => !hasUsableOnlineBookTitle(result.book.title)).length,
     missingBookUrlCount: mappedResults.filter(result => !result.book.bookUrl).length
   }
   return { results, payload, list }
@@ -3924,7 +4157,10 @@ function createEmptySearchError(diagnostics = {}) {
   const markers = diagnostics.markers || {}
   let code = 'PARSE_EMPTY'
   let message = '搜索响应已返回，但规则没有解析出有效图书'
-  if (markers.captcha) {
+  if (Number(diagnostics.metadataFailureCount || 0) > 0 && Number(diagnostics.completeResultCount || 0) === 0) {
+    code = 'SEARCH_RESULT_INCOMPLETE'
+    message = '搜索结果信息不完整，详情也未能补齐书名'
+  } else if (markers.captcha) {
     code = 'CAPTCHA_REQUIRED'
     message = '搜索页面要求验证码或人机验证'
   } else if (markers.login) {
@@ -3946,8 +4182,9 @@ function createEmptySearchError(diagnostics = {}) {
   return new SourceRuntimeError(code, message, { stage: 'search', diagnostics })
 }
 
-function normalizeOnlineBookForShelf(book) {
+function normalizeOnlineBookForShelf(book, options = {}) {
   const id = book.id || createOnlineBookId(book.sourceId, book.bookUrl)
+  const title = cleanText(book.title)
   return {
     id,
     source: 'online',
@@ -3956,7 +4193,7 @@ function normalizeOnlineBookForShelf(book) {
     sourceGroup: book.sourceGroup || '',
     bookUrl: book.bookUrl,
     tocUrl: book.tocUrl || book.bookUrl,
-    title: cleanText(book.title) || '未命名小说',
+    title: title || (options.preserveMissingTitle ? '' : ONLINE_BOOK_PLACEHOLDER_TITLE),
     author: cleanText(book.author) || '未知作者',
     category: cleanText(book.kind || book.category) || '在线书源',
     kind: cleanText(book.kind) || '在线书源',
@@ -3966,6 +4203,8 @@ function normalizeOnlineBookForShelf(book) {
     coverUrl: book.coverUrl || '',
     coverColor: '#506f89',
     accent: '#31584f',
+    metadataStatus: book.metadataStatus || (title ? 'complete' : 'needs_detail'),
+    metadataOrigin: book.metadataOrigin || '',
     chapters: (book.chapters || []).map((chapter, index) => {
       const content = chapter.content || ''
       const errorMessage = cleanText(chapter.errorMessage)
