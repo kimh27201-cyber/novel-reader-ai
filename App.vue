@@ -7,9 +7,20 @@ import { applyPerformanceProfile, refreshPerformanceProfile } from './common/per
 import apiClient from './common/apiClient.js'
 import { syncOfflineLibrary } from './common/backendLibrary.js'
 import { pauseSourceWarmup, resetSourceWarmupSession, setSourceWarmupForeground, startSourceWarmup } from './common/sourceWarmup.js'
+import { flushPendingSourceRuntimeWrites, prepareSourceIndexes } from './common/bookSources.js'
+import { finishPerformanceSpan, flushPerformanceMetrics, samplePerformanceMemory, startPerformanceSpan } from './common/performanceMetrics.js'
+
+let launchSpan = null
+let appShowTimers = []
+
+function clearAppShowTimers() {
+  appShowTimers.forEach(timer => clearTimeout(timer))
+  appShowTimers = []
+}
 
 export default {
   onLaunch() {
+    launchSpan = startPerformanceSpan('app.launch')
     applyAppThemeChrome()
     const motionState = applyMotionPreference()
     applyPerformanceProfile({ motionReduced: motionState.reduced })
@@ -31,15 +42,29 @@ export default {
     }
   },
   onShow() {
+    clearAppShowTimers()
     setSourceWarmupForeground(true)
     refreshTimeAwareness()
     refreshPerformanceProfile({ motionReduced: isMotionReduced() })
-    if (apiClient.getToken()) syncOfflineLibrary({ reason: 'app-show' }).catch(() => {})
-    setTimeout(() => startSourceWarmup().catch(() => {}), 8000)
+    appShowTimers.push(setTimeout(() => {
+      if (launchSpan) {
+        finishPerformanceSpan(launchSpan, { status: 'first-frame' })
+        launchSpan = null
+      }
+    }, 0))
+    appShowTimers.push(setTimeout(() => prepareSourceIndexes().catch(() => {}), 2500))
+    appShowTimers.push(setTimeout(() => samplePerformanceMemory('app-show'), 800))
+    if (apiClient.getToken()) {
+      appShowTimers.push(setTimeout(() => syncOfflineLibrary({ reason: 'app-show' }).catch(() => {}), 1200))
+    }
+    appShowTimers.push(setTimeout(() => startSourceWarmup().catch(() => {}), 10000))
   },
   onHide() {
+    clearAppShowTimers()
     setSourceWarmupForeground(false)
     pauseSourceWarmup()
+    flushPendingSourceRuntimeWrites()
+    flushPerformanceMetrics()
   }
 }
 </script>
@@ -304,13 +329,24 @@ html[data-app-motion-kind="tab"] {
 }
 
 html[data-app-motion-kind="tab"] .app-page {
-  animation: app-tab-page-enter 180ms var(--app-motion-standard) both;
+  animation: app-tab-page-enter 100ms var(--app-motion-standard) both;
   will-change: opacity, transform;
 }
 
 .app-page.app-tab-enter {
-  animation: app-tab-page-enter 180ms var(--app-motion-standard) both;
+  animation: app-tab-page-enter 100ms var(--app-motion-standard) both;
   will-change: opacity, transform;
+}
+
+html[data-app-performance="lite"] .app-page.app-tab-enter,
+html[data-app-performance="lite"][data-app-motion-kind="tab"] .app-page {
+  animation: app-tab-page-enter-reduced 80ms linear both !important;
+  will-change: opacity;
+}
+
+html[data-app-performance="lite"] .app-page *,
+html[data-app-performance="lite"] .reader-page * {
+  animation-iteration-count: 1 !important;
 }
 
 .app-page.app-tab-enter-forward {

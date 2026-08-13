@@ -20,6 +20,25 @@ const PERFORMANCE_PROFILES = Object.freeze({
 })
 
 let currentProfile = null
+const PERFORMANCE_MODE_KEY = 'performance:mode:v1'
+const PERFORMANCE_MODES = ['auto', 'lite', 'full']
+
+export function getPerformanceMode() {
+  try {
+    const value = typeof uni !== 'undefined' && uni.getStorageSync ? uni.getStorageSync(PERFORMANCE_MODE_KEY) : ''
+    return PERFORMANCE_MODES.includes(value) ? value : 'auto'
+  } catch (error) {
+    return 'auto'
+  }
+}
+
+export function savePerformanceMode(mode) {
+  const value = PERFORMANCE_MODES.includes(mode) ? mode : 'auto'
+  try {
+    if (typeof uni !== 'undefined' && uni.setStorageSync) uni.setStorageSync(PERFORMANCE_MODE_KEY, value)
+  } catch (error) {}
+  return value
+}
 
 function finitePositive(value) {
   const number = Number(value)
@@ -81,6 +100,8 @@ function profileResult(tier, capabilities, reasons) {
 
 export function getPerformanceProfile(options = {}) {
   const capabilities = detectPerformanceCapabilities(options)
+  const mode = options.mode || getPerformanceMode()
+  if (mode === 'lite' || mode === 'full') return profileResult(mode, capabilities, [`user-${mode}`])
   const reasons = []
   if (options.motionReduced) reasons.push('motion-reduced')
   if (capabilities.benchmarkLevel && capabilities.benchmarkLevel <= 15) reasons.push('low-benchmark')
@@ -91,9 +112,8 @@ export function getPerformanceProfile(options = {}) {
   if (capabilities.benchmarkLevel && capabilities.benchmarkLevel <= 25) reasons.push('balanced-benchmark')
   if (capabilities.hardwareConcurrency && capabilities.hardwareConcurrency <= 4) reasons.push('balanced-core-count')
   if (capabilities.deviceMemory && capabilities.deviceMemory <= 4) reasons.push('balanced-memory')
-  if (!capabilities.hardwareConcurrency && !capabilities.deviceMemory && !capabilities.benchmarkLevel && capabilities.isAndroid) {
-    reasons.push('unknown-android-capability')
-  }
+  if (capabilities.isAndroid) reasons.push('android-smooth-default')
+  if (reasons.includes('android-smooth-default')) return profileResult('lite', capabilities, reasons)
   return reasons.length
     ? profileResult('balanced', capabilities, reasons)
     : profileResult('full', capabilities, ['capability-ready'])
@@ -126,3 +146,4 @@ export function getCurrentPerformanceProfile() {
 }
 
 export const PERFORMANCE_TIERS = Object.freeze(Object.keys(PERFORMANCE_PROFILES))
+export const PERFORMANCE_MODE_OPTIONS = Object.freeze([...PERFORMANCE_MODES])

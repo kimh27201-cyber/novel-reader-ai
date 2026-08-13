@@ -113,6 +113,27 @@
         </view>
       </view>
 
+      <view class="dev-panel demo-card">
+        <view class="demo-head">
+          <view>
+            <view class="demo-title">本机性能报告</view>
+            <text class="demo-desc">仅记录页面阶段、耗时、数量和内存，不保存书名、正文或账号凭据。</text>
+          </view>
+        </view>
+        <view class="demo-actions">
+          <button class="demo-button primary" @tap="copyPerformanceReport">复制报告</button>
+          <button class="demo-button" @tap="clearPerformanceMetrics">清空报告</button>
+        </view>
+        <view class="performance-summary">
+          <text class="performance-summary-count">已记录 {{ performanceReport.count }} 条</text>
+          <text
+            class="performance-summary-row"
+            v-for="item in performanceReport.summary.slice(0, 8)"
+            :key="item.name"
+          >{{ item.name }} · P95 {{ item.p95Ms }}ms · {{ item.count }} 次</text>
+        </view>
+      </view>
+
       <view class="dev-panel tts-acceptance-card" @tap="openTtsAcceptance">
         <view class="tts-acceptance-copy">
           <text class="eyebrow">REAL VOICE LAB</text>
@@ -192,11 +213,11 @@
           </view>
           <view class="setting-extra">{{ motionPreferenceLabel }}</view>
         </view>
-        <view class="setting-item" aria-label="设备性能自动适配状态">
+        <view class="setting-item" aria-label="性能模式" @tap="cyclePerformanceMode">
           <text class="setting-icon">▦</text>
           <view class="setting-copy">
             <view class="setting-title">性能适配</view>
-            <text class="setting-desc">按设备能力自动精简装饰动效，阅读功能保持完整</text>
+            <text class="setting-desc">自动、流畅和完整三档；Android 默认优先流畅</text>
           </view>
           <view class="setting-extra">{{ performanceProfileLabel }}</view>
         </view>
@@ -328,7 +349,8 @@ import {
   tapDebugModeVersion
 } from '../../common/debugMode.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
-import { getCurrentPerformanceProfile, refreshPerformanceProfile } from '../../common/performanceProfile.js'
+import { getCurrentPerformanceProfile, getPerformanceMode, refreshPerformanceProfile, savePerformanceMode } from '../../common/performanceProfile.js'
+import { clearPerformanceReport, getPerformanceReport } from '../../common/performanceMetrics.js'
 
 export default {
   components: { GlassTabBar },
@@ -346,6 +368,8 @@ export default {
       themePreviewToken: 0,
       motionPreference: getMotionPreference(),
       performanceProfile: getCurrentPerformanceProfile(),
+      performanceMode: getPerformanceMode(),
+      performanceReport: getPerformanceReport(),
       timeAwarenessEnabled: getTimeAwarenessEnabled(),
       timeAwarenessState: getCurrentTimeAwareness(),
       backend: {
@@ -402,7 +426,8 @@ export default {
       }[this.motionPreference] || '跟随系统'
     },
     performanceProfileLabel() {
-      return `${(this.performanceProfile && this.performanceProfile.label) || '自动'}档`
+      const modeLabel = { auto: '自动', lite: '流畅', full: '完整' }[this.performanceMode] || '自动'
+      return `${modeLabel} · ${(this.performanceProfile && this.performanceProfile.label) || '轻量'}`
     },
     timeAwarenessLabel() {
       return this.timeAwarenessEnabled
@@ -461,6 +486,8 @@ export default {
     this.pageMotionDirection = motion.direction
     this.motionPreference = getMotionPreference()
     this.performanceProfile = getCurrentPerformanceProfile()
+    this.performanceMode = getPerformanceMode()
+    this.performanceReport = getPerformanceReport()
     this.timeAwarenessEnabled = getTimeAwarenessEnabled()
     this.timeAwarenessState = refreshTimeAwareness()
     this.debugModeState = getDebugModeState()
@@ -486,6 +513,26 @@ export default {
       this.motionPreference = state.preference
       this.performanceProfile = refreshPerformanceProfile({ motionReduced: state.reduced })
       uni.showToast({ title: `动效：${this.motionPreferenceLabel}`, icon: 'none' })
+    },
+    cyclePerformanceMode() {
+      const modes = ['auto', 'lite', 'full']
+      const next = modes[(modes.indexOf(this.performanceMode) + 1) % modes.length]
+      this.performanceMode = savePerformanceMode(next)
+      this.performanceProfile = refreshPerformanceProfile({
+        motionReduced: this.motionPreference === 'reduced',
+        mode: this.performanceMode
+      })
+      uni.showToast({ title: `性能：${this.performanceProfileLabel}`, icon: 'none' })
+    },
+    copyPerformanceReport() {
+      this.performanceReport = getPerformanceReport()
+      const payload = JSON.stringify(this.performanceReport, null, 2)
+      uni.setClipboardData({ data: payload })
+    },
+    clearPerformanceMetrics() {
+      clearPerformanceReport()
+      this.performanceReport = getPerformanceReport()
+      uni.showToast({ title: '性能报告已清空', icon: 'none' })
     },
     toggleTimeAwareness() {
       const state = saveTimeAwarenessEnabled(!this.timeAwarenessEnabled)
@@ -2120,6 +2167,27 @@ button::after {
 .theme-cyber.profile-page .setting-item,
 .theme-cyber.profile-page .theme-card {
   border-radius: var(--profile-surface-radius, 20rpx);
+}
+
+.performance-summary {
+  display: grid;
+  gap: 8rpx;
+  padding: 14rpx 16rpx;
+  border-radius: 14rpx;
+  color: var(--app-muted);
+  background: var(--app-panel);
+}
+
+.performance-summary-count,
+.performance-summary-row {
+  display: block;
+  font-size: 21rpx;
+  line-height: 32rpx;
+}
+
+.performance-summary-count {
+  color: var(--app-text);
+  font-weight: 800;
 }
 
 .tts-acceptance-card {

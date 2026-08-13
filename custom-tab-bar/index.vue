@@ -64,6 +64,7 @@ import {
   stageTabSelection,
   subscribeTabNavigationState
 } from '../common/tabNavigation.js'
+import { finishPerformanceSpan, startPerformanceSpan } from '../common/performanceMetrics.js'
 
 const tabs = [
   {
@@ -313,6 +314,10 @@ export default {
     scheduleTabCommit(index) {
       if (this.tabCommitTimer) clearTimeout(this.tabCommitTimer)
       const delay = getTabCommitDelay(this.reduceMotion)
+      if (delay <= 0) {
+        this.commitTabNavigation(index)
+        return
+      }
       this.$nextTick(() => {
         if (this.pendingTargetIndex !== index) return
         this.tabCommitTimer = setTimeout(() => this.commitTabNavigation(index), delay)
@@ -329,11 +334,19 @@ export default {
         pendingTargetIndex: -1
       })
       pendingBounceIndex = index
+      const navigationSpan = startPerformanceSpan('tab.navigation', {
+        route: next.pagePath,
+        mode: this.reduceMotion ? 'reduced' : 'normal'
+      })
       this.beginTabNavigation()
       uni.switchTab({
         url: `/${next.pagePath}`,
-        success: () => this.releaseTabNavigation(),
+        success: () => {
+          finishPerformanceSpan(navigationSpan, { status: 'success' })
+          this.releaseTabNavigation()
+        },
         fail: () => {
+          finishPerformanceSpan(navigationSpan, { status: 'failed' })
           publishTabNavigationState({
             routeIndex: this.routeIndex,
             visualIndex: this.routeIndex,
