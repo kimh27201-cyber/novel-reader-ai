@@ -64,7 +64,7 @@
           <button
             class="source-detail-action"
             aria-label="书源详情"
-            @tap.stop="openSourceDetail(source.raw)"
+            @tap.stop="openSourceDetail(source)"
           >
             <text class="source-detail-mark">i</text>
           </button>
@@ -569,7 +569,10 @@ import {
   getSourceAntiCrawlerSettings,
   getSourceDiagnostics,
   getSourceExploreEntries,
+  getSourceConfig,
   getSourceConfigs,
+  getSourceLibraryPage,
+  getSourceSnapshot,
   applyImportPreview,
   importSourcesFromAny,
   previewSourcesFromAny,
@@ -605,12 +608,7 @@ import {
   runSourceAcceptance
 } from '../../common/sourceAcceptance.js'
 import { resolveMarketScanTarget } from '../../common/sourceMarket.js'
-import {
-  ALL_SOURCE_GROUP,
-  filterLibrarySources,
-  getLibrarySourceGroups,
-  normalizeLibrarySources
-} from '../../common/sourceLibrary.js'
+import { ALL_SOURCE_GROUP } from '../../common/sourceLibrary.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 import { markTabDirty, markTabFresh, shouldRefreshTab } from '../../common/tabFreshness.js'
 import { getNavigationMotion } from '../../common/motion.js'
@@ -630,6 +628,7 @@ export default {
   data() {
     return {
       sources: [],
+      sourcePage: { total: 0, rows: [], groups: [ALL_SOURCE_GROUP], groupStats: [], stats: { total: 0, enabled: 0, incompatible: 0, searchable: 0 } },
       pageMotionKind: '',
       pageMotionDirection: 'forward',
       toolsExpanded: false,
@@ -681,6 +680,7 @@ export default {
       sourceSort: 'manual',
       sourceKeyword: '',
       sourceGroupFilter: ALL_SOURCE_GROUP,
+      libraryFilterTimer: null,
       allSourceGroup: ALL_SOURCE_GROUP,
       themeId: getAppThemeId(),
       importTitle: '',
@@ -730,12 +730,7 @@ export default {
       return String(this.sourceImportMode === 'json' ? this.sourceImportText : this.sourceImportUrl).trim()
     },
     sourceStats() {
-      return {
-        total: this.sources.length,
-        enabled: this.sources.filter(source => source.enabled).length,
-        incompatible: this.sources.filter(source => !getSourceDiagnostics(source).compatible).length,
-        searchable: this.sources.filter(source => getSourceDiagnostics(source).searchable).length
-      }
+      return this.sourcePage.stats
     },
     v2SourceRows() {
       const rows = [
@@ -744,8 +739,8 @@ export default {
           type: 'source',
           id: source.id,
           name: source.name,
-          meta: `${source.group || '未分组'} · ${source.enabled ? '已启用' : '已停用'} · ${this.sourceCompatibilityLabel(source)} · ${this.sourceRuntimeLabel(source)}`,
-          partialUnsupported: this.isPartialUnsupportedSource(source),
+          meta: `${source.group || '未分组'} · ${source.enabled ? '已启用' : '已停用'} · ${source.compatible ? '规则兼容' : '规则不兼容'} · ${source.runtimeStatus === 'passed' ? '已验证' : source.runtimeStatus === 'failed' ? '站点不可用' : '待检测'}`,
+          partialUnsupported: false,
           icon: this.sourceListIcon(index),
           iconClass: this.sourceListIconClass(index),
           raw: source
@@ -754,14 +749,7 @@ export default {
       return rows.slice(0, 30)
     },
     sourceGroupStats() {
-      const counts = {}
-      this.sources.forEach(source => {
-        const group = source.group || '未分组'
-        counts[group] = (counts[group] || 0) + 1
-      })
-      return Object.keys(counts)
-        .sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'))
-        .map(group => ({ group, count: counts[group] }))
+      return this.sourcePage.groupStats
     },
     importReadinessSummaryText() {
       return summarizeImportReadiness(this.importReadiness).text
@@ -843,17 +831,16 @@ export default {
       ].filter(Boolean)
     },
     sourceGroups() {
-      return getLibrarySourceGroups(this.sources)
+      return this.sourcePage.groups
     },
     visibleSources() {
-      const list = filterLibrarySources(this.sources, {
-        keyword: this.sourceKeyword,
-        sourceFilter: this.sourceFilter,
-        sourceGroupFilter: this.sourceGroupFilter,
-        getDiagnostics: getSourceDiagnostics
-      })
-      return this.sortSources(list)
+      return this.sourcePage.rows
     }
+  },
+  watch: {
+    sourceKeyword() { this.scheduleLibraryFilter() },
+    sourceFilter() { this.scheduleLibraryFilter() },
+    sourceGroupFilter() { this.scheduleLibraryFilter() }
   },
   onLoad() {
     if (uni.$on) uni.$on('sources:changed', this.handleSourcesChanged)
@@ -869,8 +856,16 @@ export default {
   },
   onUnload() {
     if (uni.$off) uni.$off('sources:changed', this.handleSourcesChanged)
+    if (this.libraryFilterTimer) clearTimeout(this.libraryFilterTimer)
   },
   methods: {
+    scheduleLibraryFilter() {
+      if (this.libraryFilterTimer) clearTimeout(this.libraryFilterTimer)
+      this.libraryFilterTimer = setTimeout(() => {
+        this.libraryFilterTimer = null
+        this.refreshInstalledSources({ readiness: false })
+      }, 120)
+    },
     sourceListIcon(index) {
       const icons = ['📘', '☯', '🌈', '八', '⑬']
       return icons[index % icons.length]
@@ -879,7 +874,14 @@ export default {
       return ['blue', 'ink', 'rainbow', 'plain', 'red'][index % 5]
     },
     refreshInstalledSources(options = {}) {
-      this.sources = normalizeLibrarySources(getSourceConfigs())
+      this.sourcePage = getSourceLibraryPage({
+        keyword: this.sourceKeyword,
+        filter: this.sourceFilter,
+        group: this.sourceGroupFilter,
+        sort: this.sourceSort,
+        limit: 30
+      })
+      this.sources = this.sourcePage.rows
       this.recentImportHistory = getRecentImportHistory()
       if (this.sourceGroupFilter !== ALL_SOURCE_GROUP && !this.sourceGroups.includes(this.sourceGroupFilter)) {
         this.sourceGroupFilter = ALL_SOURCE_GROUP
@@ -934,6 +936,7 @@ export default {
     },
     selectSourceSort(value) {
       this.sourceSort = value
+      this.refreshInstalledSources({ readiness: false })
     },
     openFilterSheet() {
       this.filterSheetVisible = true
@@ -1003,11 +1006,13 @@ export default {
       this.invalidateSourceImportPreview()
     },
     openSourceDetail(source) {
-      this.selectedSource = source
-      this.sourceDiagnostics = getSourceDiagnostics(source)
+      const fullSource = getSourceConfig(source && source.id)
+      if (!fullSource) return
+      this.selectedSource = fullSource
+      this.sourceDiagnostics = getSourceDiagnostics(fullSource)
       this.sourceAcceptanceReport = getSourceAcceptanceReports(source.id).latest
-      this.syncAntiCrawlerForm(source)
-      this.testSourceKeyword = this.getSourceTestKeyword(source)
+      this.syncAntiCrawlerForm(fullSource)
+      this.testSourceKeyword = this.getSourceTestKeyword(fullSource)
       this.sourceTestResult = null
       this.importDrawerVisible = false
       this.txtVisible = false
@@ -1086,9 +1091,10 @@ export default {
       this.openSourceHub(row)
     },
     openSourceEdit(source) {
-      this.editingSource = source
-      this.sourceEditName = source.name
-      this.sourceEditGroup = source.group || '未分组'
+      this.editingSource = getSourceConfig(source && source.id)
+      if (!this.editingSource) return
+      this.sourceEditName = this.editingSource.name
+      this.sourceEditGroup = this.editingSource.group || '未分组'
       this.importDrawerVisible = false
       this.txtVisible = false
       this.sourceDetailVisible = false
@@ -1130,7 +1136,7 @@ export default {
       return '未测试'
     },
     getBatchSourceIds(scope) {
-      return this.sources
+      return getSourceSnapshot().sources
         .filter(source => source.enabled)
         .filter(source => {
           if (scope !== 'group') return true
@@ -1209,7 +1215,7 @@ export default {
     },
     refreshSelectedSource() {
       if (!this.selectedSource) return
-      const latest = getSourceConfigs().find(source => source.id === this.selectedSource.id)
+      const latest = getSourceConfig(this.selectedSource.id)
       if (!latest) {
         this.closePanels()
         return

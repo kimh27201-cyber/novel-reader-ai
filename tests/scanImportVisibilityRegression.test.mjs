@@ -95,8 +95,8 @@ assert.equal(filterLibrarySources(normalizeLibrarySources(getSourceConfigs()), {
 
 const libraryPage = readFileSync(new URL('../pages/library/library.vue', import.meta.url), 'utf8')
 assert.match(libraryPage, /refreshInstalledSources/)
-assert.match(libraryPage, /normalizeLibrarySources/)
-assert.match(libraryPage, /filterLibrarySources/)
+assert.match(libraryPage, /getSourceLibraryPage/)
+assert.doesNotMatch(libraryPage, /normalizeLibrarySources\(getSourceConfigs\(\)\)/)
 
 const scanPage = readFileSync(new URL('../pages/import/scan.vue', import.meta.url), 'utf8')
 assert.match(scanPage, /appliedCount/)

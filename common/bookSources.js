@@ -33,6 +33,7 @@ import {
   CONTENT_SANITIZER_VERSION,
   sanitizeReadableContent
 } from './sourceContentSanitizer.js'
+import { finishPerformanceSpan, startPerformanceSpan } from './performanceMetrics.js'
 
 export { assessReadableContentQuality, CONTENT_SANITIZER_VERSION, sanitizeReadableContent } from './sourceContentSanitizer.js'
 
@@ -46,6 +47,9 @@ const NATIVE_SOURCE_MANIFEST_KEY = 'sources:user:native-manifest:v1'
 const NATIVE_SOURCE_CHUNK_PREFIX = 'sources:user:native-chunk:v1'
 const NATIVE_SOURCE_CHUNK_SIZE = 25
 const SOURCE_SETTINGS_KEY = 'sources:settings'
+const SOURCE_REVISION_KEY = 'sources:revision:v1'
+const SOURCE_INDEX_CACHE_KEY = 'sources:index-cache:v1'
+const SOURCE_DISCOVERY_CACHE_KEY = 'sources:discovery-cache:v1'
 const IMPORT_HISTORY_KEY = 'sources:import-history'
 const ONLINE_SEARCH_SETTINGS_KEY = 'sources:online-search-settings'
 const ONLINE_BOOKS_KEY = 'sources:online-books'
@@ -95,6 +99,22 @@ const ONLINE_BOOK_PLACEHOLDER_TITLE = '未命名小说'
 const memoryStore = {}
 let userSourcesCache = null
 let userSourcesCacheManifest = ''
+let sourceSettingsCache = null
+let sourceSnapshotCache = null
+let sourceSnapshotVersion = 1
+let sourceIndexCache = null
+let sourceIndexJob = null
+let pendingSourceRuntimeWriteTimer = null
+let pendingSourceRuntimeDirty = false
+
+function clearSourceCaches(reason = 'changed') {
+  sourceSnapshotVersion += 1
+  sourceSnapshotCache = null
+  sourceIndexCache = null
+  if (sourceIndexJob) sourceIndexJob.cancelled = true
+  sourceIndexJob = null
+  return { version: sourceSnapshotVersion, reason }
+}
 
 function readStorage(key, fallback) {
   try {
@@ -161,8 +181,16 @@ function readNativeUserSources() {
     const chunkCount = Number(manifest.chunkCount || 0)
     if (!manifest.generation || chunkCount < 0 || chunkCount > 10000) throw new Error('invalid source manifest')
     const sources = []
+    const chunkKeys = Array.from({ length: chunkCount }, (_, index) => nativeChunkKey(manifest.generation, index))
+    let batch = null
+    if (typeof bridge.readChapters === 'function' && chunkKeys.length) {
+      try {
+        batch = JSON.parse(String(bridge.readChapters(JSON.stringify(chunkKeys)) || '{}'))
+      } catch (error) {}
+    }
     for (let index = 0; index < chunkCount; index += 1) {
-      const chunkText = String(bridge.readChapter(nativeChunkKey(manifest.generation, index)) || '')
+      const key = chunkKeys[index]
+      const chunkText = String(batch && batch[key] != null ? batch[key] : bridge.readChapter(key) || '')
       if (!chunkText) throw new Error(`missing source chunk ${index}`)
       const chunk = JSON.parse(chunkText)
       if (!Array.isArray(chunk)) throw new Error(`invalid source chunk ${index}`)
@@ -272,6 +300,10 @@ function writeUserSources(sources) {
     userSourcesCacheManifest = ''
   }
   writeStorage(SOURCE_SCHEMA_VERSION_KEY, SOURCE_SCHEMA_VERSION)
+  writeStorage(SOURCE_REVISION_KEY, Date.now())
+  removeStorage(SOURCE_INDEX_CACHE_KEY)
+  removeStorage(SOURCE_DISCOVERY_CACHE_KEY)
+  clearSourceCaches('sources-written')
 }
 
 export function getSourceStorageCapabilities() {
@@ -303,11 +335,49 @@ function uniqueStrings(values = []) {
 }
 
 function getSourceSettings() {
-  return readStorage(SOURCE_SETTINGS_KEY, {})
+  if (sourceSettingsCache) return sourceSettingsCache
+  const value = readStorage(SOURCE_SETTINGS_KEY, {})
+  sourceSettingsCache = value && typeof value === 'object' ? value : {}
+  return sourceSettingsCache
 }
 
 function writeSourceSettings(settings) {
+  if (pendingSourceRuntimeWriteTimer) clearTimeout(pendingSourceRuntimeWriteTimer)
+  pendingSourceRuntimeWriteTimer = null
+  pendingSourceRuntimeDirty = false
+  sourceSettingsCache = settings && typeof settings === 'object' ? settings : {}
   writeStorage(SOURCE_SETTINGS_KEY, settings)
+  removeStorage(SOURCE_INDEX_CACHE_KEY)
+  removeStorage(SOURCE_DISCOVERY_CACHE_KEY)
+  clearSourceCaches('settings-written')
+}
+
+function writeSourceSettingsDeferred(settings, sourceId = '') {
+  sourceSettingsCache = settings && typeof settings === 'object' ? settings : {}
+  if (sourceId && sourceSnapshotCache && sourceSnapshotCache.byId.has(sourceId)) {
+    const current = sourceSnapshotCache.byId.get(sourceId)
+    const merged = mergeSourceWithSettings(current, sourceSettingsCache[sourceId] || {})
+    const index = sourceSnapshotCache.indexById.get(sourceId)
+    if (Number.isInteger(index)) sourceSnapshotCache.sources[index] = merged
+    sourceSnapshotCache.byId.set(sourceId, merged)
+    sourceIndexCache = null
+  }
+  pendingSourceRuntimeDirty = true
+  if (pendingSourceRuntimeWriteTimer) return
+  pendingSourceRuntimeWriteTimer = setTimeout(() => flushPendingSourceRuntimeWrites(), 250)
+  if (pendingSourceRuntimeWriteTimer && typeof pendingSourceRuntimeWriteTimer.unref === 'function') {
+    pendingSourceRuntimeWriteTimer.unref()
+  }
+}
+
+export function flushPendingSourceRuntimeWrites() {
+  if (pendingSourceRuntimeWriteTimer) clearTimeout(pendingSourceRuntimeWriteTimer)
+  pendingSourceRuntimeWriteTimer = null
+  if (!pendingSourceRuntimeDirty) return false
+  pendingSourceRuntimeDirty = false
+  writeStorage(SOURCE_SETTINGS_KEY, sourceSettingsCache || {})
+  clearSourceCaches('runtime-flushed')
+  return true
 }
 
 function normalizeSourceTest(value) {
@@ -537,7 +607,7 @@ export function writeSourceRuntimeStageResult(sourceId, stage, result = {}) {
     runtimeV2: { ...runtime, [stage]: next },
     updatedAt: Date.now()
   }
-  writeSourceSettings(settings)
+  writeSourceSettingsDeferred(settings, sourceId)
   return next
 }
 
@@ -559,7 +629,7 @@ function writeSourceTestResult(sourceId, result) {
     },
     updatedAt: Date.now()
   }
-  writeSourceSettings(settings)
+  writeSourceSettingsDeferred(settings, sourceId)
 }
 
 function writeSourceExploreTestResult(sourceId, result) {
@@ -579,7 +649,7 @@ function writeSourceExploreTestResult(sourceId, result) {
     },
     updatedAt: Date.now()
   }
-  writeSourceSettings(settings)
+  writeSourceSettingsDeferred(settings, sourceId)
 }
 
 function hasNonEmptyField(raw = {}, names = []) {
@@ -698,15 +768,191 @@ function createSourceRequestSpec(source, url, context = {}, baseUrl = '') {
 }
 
 export function getSourceConfigs() {
-  const settings = getSourceSettings()
-  return getUserSources().map(source => mergeSourceWithSettings(source, settings[source.id] || {}))
+  return getSourceSnapshot().sources.slice()
 }
 
 export function getSourceConfig(sourceId) {
-  const source = getUserSources().find(item => item.id === sourceId)
-  if (!source) return undefined
-  const settings = getSourceSettings()
-  return mergeSourceWithSettings(source, settings[source.id] || {})
+  return getSourceSnapshot().byId.get(sourceId)
+}
+
+export function invalidateSourceSnapshot(reason = 'manual') {
+  return clearSourceCaches(reason)
+}
+
+export function getSourceSnapshot(options = {}) {
+  if (!sourceSnapshotCache || options.force === true) {
+    const span = startPerformanceSpan('source.snapshot')
+    const settings = getSourceSettings()
+    const startedAt = Date.now()
+    const sources = getUserSources().map(source => mergeSourceWithSettings(source, settings[source.id] || {}))
+    sourceSnapshotCache = {
+      version: sourceSnapshotVersion,
+      createdAt: Date.now(),
+      buildMs: Date.now() - startedAt,
+      sources,
+      byId: new Map(sources.map(source => [source.id, source])),
+      indexById: new Map(sources.map((source, index) => [source.id, index]))
+    }
+    finishPerformanceSpan(span, { sourceCount: sources.length, status: 'built' })
+  }
+  return sourceSnapshotCache
+}
+
+function sourceIndexSummary(source) {
+  const raw = source.raw || source
+  const compatible = source.compatibilityLevel !== 'unsupported' && !hasUnsupportedRule(raw)
+  const runtime = normalizeSourceRuntimeV2(source).search
+  return {
+    id: source.id,
+    name: source.name,
+    group: source.group || '未分组',
+    baseUrl: source.baseUrl || '',
+    enabled: source.enabled !== false,
+    compatibility: source.compatibility || '',
+    compatible,
+    searchable: compatible && !!raw.searchUrl && !!raw.ruleSearch,
+    runtimeStatus: runtime.status === 'cooldown' ? 'failed' : runtime.status,
+    updatedAt: Number(source.updatedAt || 0)
+  }
+}
+
+function currentSourceRevision() {
+  const bridge = nativeSourceStorage()
+  if (bridge) {
+    try {
+      const manifest = String(bridge.readChapter(NATIVE_SOURCE_MANIFEST_KEY) || '')
+      if (manifest) return `native:${manifest}`
+    } catch (error) {}
+  }
+  return `web:${Number(readStorage(SOURCE_REVISION_KEY, 0) || 0)}`
+}
+
+function buildSourceIndexCache(summaries, revision, elapsedMs = 0, status = 'built') {
+  const groups = new Map()
+  summaries.forEach(item => groups.set(item.group, Number(groups.get(item.group) || 0) + 1))
+  return {
+    version: sourceSnapshotVersion,
+    revision,
+    summaries,
+    byId: new Map(summaries.map(item => [item.id, item])),
+    groups,
+    report: {
+      cancelled: false,
+      cached: status === 'cached',
+      version: sourceSnapshotVersion,
+      count: summaries.length,
+      groupCount: groups.size,
+      elapsedMs
+    }
+  }
+}
+
+function restorePersistedSourceIndex() {
+  const revision = currentSourceRevision()
+  const cached = readStorage(SOURCE_INDEX_CACHE_KEY, null)
+  if (!cached || cached.revision !== revision || !Array.isArray(cached.summaries)) return null
+  if (cached.summaries.length > 10000) return null
+  sourceIndexCache = buildSourceIndexCache(cached.summaries, revision, 0, 'cached')
+  return sourceIndexCache
+}
+
+function persistSourceIndex(index) {
+  if (!index || !Array.isArray(index.summaries)) return
+  writeStorage(SOURCE_INDEX_CACHE_KEY, {
+    schemaVersion: 1,
+    revision: index.revision || currentSourceRevision(),
+    createdAt: Date.now(),
+    summaries: index.summaries
+  })
+}
+
+export async function prepareSourceIndexes(options = {}) {
+  if (sourceIndexCache) return sourceIndexCache.report
+  const persisted = restorePersistedSourceIndex()
+  if (persisted) return persisted.report
+  const snapshot = getSourceSnapshot()
+  if (sourceIndexCache && sourceIndexCache.version === snapshot.version) return sourceIndexCache.report
+  if (sourceIndexJob && sourceIndexJob.version === snapshot.version) return sourceIndexJob.promise
+  const job = { version: snapshot.version, cancelled: false, promise: null }
+  const batchSize = Math.max(10, Math.min(200, Number(options.batchSize || 100)))
+  job.promise = (async () => {
+    const span = startPerformanceSpan('source.index')
+    const startedAt = Date.now()
+    const summaries = []
+    const groups = new Map()
+    for (let index = 0; index < snapshot.sources.length; index += batchSize) {
+      if (job.cancelled || snapshot.version !== sourceSnapshotVersion) return { cancelled: true, version: snapshot.version }
+      snapshot.sources.slice(index, index + batchSize).forEach(source => {
+        const summary = sourceIndexSummary(source)
+        summaries.push(summary)
+        groups.set(summary.group, Number(groups.get(summary.group) || 0) + 1)
+      })
+      if (index + batchSize < snapshot.sources.length) await new Promise(resolve => setTimeout(resolve, 0))
+    }
+    sourceIndexCache = buildSourceIndexCache(summaries, currentSourceRevision(), Date.now() - startedAt)
+    sourceIndexCache.version = snapshot.version
+    sourceIndexCache.report.version = snapshot.version
+    persistSourceIndex(sourceIndexCache)
+    finishPerformanceSpan(span, { sourceCount: summaries.length, count: groups.size, status: 'built' })
+    return sourceIndexCache.report
+  })().finally(() => {
+    if (sourceIndexJob === job) sourceIndexJob = null
+  })
+  sourceIndexJob = job
+  return job.promise
+}
+
+function ensureSynchronousSourceIndex() {
+  if (sourceIndexCache) return sourceIndexCache
+  const persisted = restorePersistedSourceIndex()
+  if (persisted) return persisted
+  const snapshot = getSourceSnapshot()
+  const summaries = snapshot.sources.map(sourceIndexSummary)
+  sourceIndexCache = buildSourceIndexCache(summaries, currentSourceRevision())
+  sourceIndexCache.version = snapshot.version
+  sourceIndexCache.report.version = snapshot.version
+  persistSourceIndex(sourceIndexCache)
+  return sourceIndexCache
+}
+
+export function getSourceLibraryPage(query = {}) {
+  const span = startPerformanceSpan('source.library-page')
+  const index = ensureSynchronousSourceIndex()
+  const keyword = String(query.keyword || '').trim().toLowerCase()
+  const group = String(query.group || query.sourceGroupFilter || '全部分组')
+  const filter = String(query.filter || query.sourceFilter || 'all')
+  const sort = String(query.sort || 'manual')
+  const offset = Math.max(0, Number(query.offset || 0))
+  const limit = Math.max(1, Math.min(100, Number(query.limit || 30)))
+  const filtered = index.summaries.filter(item => {
+    if (group !== '全部分组' && item.group !== group) return false
+    if (filter === 'enabled' && !item.enabled) return false
+    if (filter === 'disabled' && item.enabled) return false
+    if (filter === 'incompatible' && item.compatible) return false
+    if (!keyword) return true
+    return [item.name, item.group, item.baseUrl, item.compatibility, item.id].some(value => String(value || '').toLowerCase().includes(keyword))
+  })
+  if (sort === 'name') filtered.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'))
+  else if (sort === 'group') filtered.sort((a, b) => a.group.localeCompare(b.group, 'zh-Hans-CN') || a.name.localeCompare(b.name, 'zh-Hans-CN'))
+  else if (sort === 'updated') filtered.sort((a, b) => b.updatedAt - a.updatedAt)
+  else if (sort === 'enabled') filtered.sort((a, b) => Number(b.enabled) - Number(a.enabled))
+  const result = {
+    version: index.version,
+    total: filtered.length,
+    offset,
+    limit,
+    rows: filtered.slice(offset, offset + limit),
+    groups: ['全部分组', ...Array.from(index.groups.keys()).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'))],
+    groupStats: Array.from(index.groups.entries()).map(([group, count]) => ({ group, count })).sort((a, b) => a.group.localeCompare(b.group, 'zh-Hans-CN')),
+    stats: {
+      total: index.summaries.length,
+      enabled: index.summaries.filter(item => item.enabled).length,
+      incompatible: index.summaries.filter(item => !item.compatible).length,
+      searchable: index.summaries.filter(item => item.searchable).length
+    }
+  }
+  finishPerformanceSpan(span, { sourceCount: index.summaries.length, count: result.rows.length, status: 'ready' })
+  return result
 }
 
 function mergeSourceWithSettings(source, saved = {}) {
@@ -1453,7 +1699,7 @@ function writeSourceHealthResult(sourceId, health) {
     health: normalized,
     updatedAt: Date.now()
   }
-  writeSourceSettings(settings)
+  writeSourceSettingsDeferred(settings, sourceId)
   return normalized
 }
 
@@ -1502,7 +1748,7 @@ function writeSourceQualityResult(sourceId, result = {}) {
     quality: next,
     updatedAt: Date.now()
   }
-  writeSourceSettings(settings)
+  writeSourceSettingsDeferred(settings, sourceId)
   return next
 }
 
@@ -2542,6 +2788,65 @@ export function buildExploreCatalog(sources = getSourceConfigs(), preparedEntrie
   })
 }
 
+export function getSourceDiscoverySnapshot(options = {}) {
+  const span = startPerformanceSpan('source.discovery')
+  const revision = currentSourceRevision()
+  if (options.preferCache === true) {
+    const cached = readStorage(SOURCE_DISCOVERY_CACHE_KEY, null)
+    if (cached && cached.revision === revision && cached.result && Array.isArray(cached.result.catalog)) {
+      finishPerformanceSpan(span, { sourceCount: Number(cached.sourceCount || 0), count: cached.result.catalog.length, status: 'cached' })
+      return cached.result
+    }
+    if (!Array.isArray(options.sources) || !options.sources.length) {
+      const empty = {
+        version: sourceSnapshotVersion,
+        candidates: [],
+        counts: { total: 0, verified: 0, untested: 0, retryable: 0, cooling: 0, blocked: 0, available: 0 },
+        entries: [],
+        catalog: []
+      }
+      finishPerformanceSpan(span, { sourceCount: 0, count: 0, status: 'empty-cache' })
+      return empty
+    }
+  }
+  const snapshot = Array.isArray(options.sources) ? null : getSourceSnapshot()
+  const sources = Array.isArray(options.sources) ? options.sources : snapshot.sources
+  const pool = buildSourceCandidatePool(sources)
+  const candidates = pool.candidates
+    .slice(0, Math.max(20, Math.min(40, Number(options.candidateLimit || 30))))
+    .map(sourceIndexSummary)
+  const entries = getOnlineExploreEntries({ sources })
+  const catalog = buildExploreCatalog(sources, entries).filter(entry => {
+    if (entry.kind === 'category') return true
+    if (entry.kind === 'rank') return true
+    return entry.kind === 'latest'
+  }).slice(0, Math.max(30, Math.min(80, Number(options.catalogLimit || 48))))
+  const retainedEntries = []
+  const retainedKeys = new Set()
+  catalog.forEach(item => item.providers.slice(0, 3).forEach(provider => {
+    const key = `${provider.sourceId}:${provider.url}:${provider.title}`
+    if (retainedKeys.has(key)) return
+    retainedKeys.add(key)
+    retainedEntries.push(provider)
+  }))
+  const result = {
+    version: snapshot ? snapshot.version : sourceSnapshotVersion,
+    candidates,
+    counts: { ...pool.counts, available: pool.candidates.length },
+    entries: retainedEntries.slice(0, 120),
+    catalog
+  }
+  writeStorage(SOURCE_DISCOVERY_CACHE_KEY, {
+    schemaVersion: 1,
+    revision,
+    sourceCount: sources.length,
+    createdAt: Date.now(),
+    result
+  })
+  finishPerformanceSpan(span, { sourceCount: sources.length, count: catalog.length, status: 'ready' })
+  return result
+}
+
 export async function openExploreCatalogEntry(category, options = {}) {
   const providers = Array.isArray(category && category.providers) ? category.providers.slice(0, 3) : []
   const attempts = []
@@ -2843,6 +3148,7 @@ export async function runAdaptiveSourceSearch(keyword, options = {}) {
   report.elapsedMs = Date.now() - startedAt
   report.hasMore = report.hasMore || report.attempted < selected.length
   writeOnlineDataCache('search', cacheKey, report.results)
+  flushPendingSourceRuntimeWrites()
   return report
 }
 

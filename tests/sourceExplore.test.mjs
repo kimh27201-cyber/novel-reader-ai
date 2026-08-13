@@ -391,9 +391,9 @@ assert.equal(partialExplore.available, false)
 assert.equal(partialExplore.reasonCode, 'source_disabled')
 
 const searchPage = readFileSync(new URL('../pages/search/search.vue', import.meta.url), 'utf8')
-assert.match(searchPage, /getOnlineExploreEntries/)
+assert.match(searchPage, /getSourceDiscoverySnapshot/)
 assert.match(searchPage, /openExploreCatalogEntry/)
-assert.match(searchPage, /buildExploreCatalog/)
+assert.match(searchPage, /snapshot\.catalog/)
 assert.match(searchPage, /exploreEntries/)
 assert.match(searchPage, /openExploreEntry/)
 assert.match(searchPage, /discover-source-list/)
@@ -424,7 +424,7 @@ assert.ok(pagesConfig.pages.some(page => page.path === 'pages/sourceHub/sourceHu
 
 const libraryPage = readFileSync(new URL('../pages/library/library.vue', import.meta.url), 'utf8')
 assert.match(libraryPage, /@tap="openSourceHub\(source\)"/)
-assert.match(libraryPage, /@tap\.stop="openSourceDetail\(source\.raw\)"/)
+assert.match(libraryPage, /@tap\.stop="openSourceDetail\(source\)"/)
 assert.match(libraryPage, /\/pages\/sourceHub\/sourceHub\?sourceId=/)
 assert.doesNotMatch(libraryPage, /categoryButtons|rankButtons|latestButtons|decorateExploreButtons/)
 

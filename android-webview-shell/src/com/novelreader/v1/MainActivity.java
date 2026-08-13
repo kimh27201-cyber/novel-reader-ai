@@ -12,6 +12,7 @@ import android.graphics.drawable.ColorDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Debug;
 import android.os.Handler;
 import android.os.Looper;
 import android.speech.tts.TextToSpeech;
@@ -394,6 +395,22 @@ public class MainActivity extends Activity {
 
     public class LaunchBridge {
         @JavascriptInterface
+        public String getMemoryInfo() {
+            JSONObject payload = new JSONObject();
+            try {
+                Debug.MemoryInfo memoryInfo = new Debug.MemoryInfo();
+                Debug.getMemoryInfo(memoryInfo);
+                payload.put("totalPssKb", memoryInfo.getTotalPss());
+                payload.put("dalvikPssKb", memoryInfo.dalvikPss);
+                payload.put("nativePssKb", memoryInfo.nativePss);
+                payload.put("otherPssKb", memoryInfo.otherPss);
+            } catch (Exception error) {
+                Log.e(TAG, "memory sample failed: " + error.getMessage());
+            }
+            return payload.toString();
+        }
+
+        @JavascriptInterface
         public void saveTheme(String themeId) {
             saveLaunchTheme(themeId);
         }
@@ -731,6 +748,25 @@ public class MainActivity extends Activity {
                     } catch (IOException ignored) {
                     }
                 }
+            }
+        }
+
+        @JavascriptInterface
+        public String readChapters(String keysJson) {
+            JSONArray keys;
+            JSONObject result = new JSONObject();
+            try {
+                keys = new JSONArray(String.valueOf(keysJson));
+                if (keys.length() > 10000) return "{}";
+                for (int index = 0; index < keys.length(); index++) {
+                    String key = keys.optString(index, "");
+                    if (key.isEmpty()) continue;
+                    result.put(key, readChapter(key));
+                }
+                return result.toString();
+            } catch (Exception error) {
+                Log.e(TAG, "local chapter batch read failed: " + error.getMessage());
+                return "{}";
             }
         }
 

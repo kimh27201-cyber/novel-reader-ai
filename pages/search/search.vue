@@ -277,7 +277,7 @@
 
 <script>
 import { searchBooks } from '../../common/books.js'
-import { buildExploreCatalog, buildSourceCandidatePool, getOnlineExploreEntries, getOnlineSearchSettings, getSourceConfigs, openExploreCatalogEntry, saveOnlineBookDraft, saveOnlineSearchSettings, setSourceEnabled } from '../../common/bookSources.js'
+import { getOnlineSearchSettings, getSourceConfigs, getSourceDiscoverySnapshot, getSourceLibraryPage, openExploreCatalogEntry, saveOnlineBookDraft, saveOnlineSearchSettings, setSourceEnabled } from '../../common/bookSources.js'
 import { mergeUnifiedSearchResults, searchUnifiedBooks } from '../../common/sourceSearchRuntime.js'
 import { setSourceWarmupBusy } from '../../common/sourceWarmup.js'
 import { buildSearchResultKey, buildSourceToggleState, demoSearchKeywords, sanitizeSearchKeyword } from '../../common/searchHelpers.js'
@@ -292,6 +292,7 @@ import { markTabRouteShown } from '../../common/tabNavigation.js'
 import { ensureNativeTabBarHidden } from '../../common/tabShell.js'
 
 const SEARCH_HISTORY_KEY = 'search:history'
+let searchSourceConfigs = []
 
 function getStoredSearchHistory() {
   try {
@@ -329,6 +330,8 @@ export default {
       searchedSourceIds: [],
       activeExploreEntry: null,
       discoverRefreshing: false,
+      sourceFilterTimer: null,
+      sourceHydrationTimer: null,
       themeId: getAppThemeId(),
       pageMotionKind: '',
       pageMotionDirection: 'forward',
@@ -441,6 +444,16 @@ export default {
       return ['candy', 'sakura'].includes(this.themeId) ? 'black' : 'white'
     }
   },
+  watch: {
+    keyword() {
+      if (this.mode !== 'source') return
+      if (this.sourceFilterTimer) clearTimeout(this.sourceFilterTimer)
+      this.sourceFilterTimer = setTimeout(() => {
+        this.sourceFilterTimer = null
+        this.sources = getSourceLibraryPage({ keyword: this.keyword, limit: 30 }).rows
+      }, 120)
+    }
+  },
   onLoad() {
     if (uni.$on) uni.$on('sources:changed', this.handleSourcesChanged)
   },
@@ -455,26 +468,40 @@ export default {
   },
   onUnload() {
     if (uni.$off) uni.$off('sources:changed', this.handleSourcesChanged)
+    if (this.sourceFilterTimer) clearTimeout(this.sourceFilterTimer)
+    if (this.sourceHydrationTimer) clearTimeout(this.sourceHydrationTimer)
+  },
+  onHide() {
+    if (this.sourceHydrationTimer) clearTimeout(this.sourceHydrationTimer)
+    this.sourceHydrationTimer = null
   },
   methods: {
     refreshSourcePool() {
-      const pool = buildSourceCandidatePool(this.sources)
-      this.sourceCandidates = pool.candidates
-      this.sourcePoolStats = { ...pool.counts, available: pool.candidates.length }
+      const snapshot = searchSourceConfigs.length
+        ? getSourceDiscoverySnapshot({ sources: searchSourceConfigs })
+        : getSourceDiscoverySnapshot({ preferCache: true })
+      this.sourceCandidates = snapshot.candidates
+      this.sourcePoolStats = snapshot.counts
+      return snapshot
     },
     refreshExploreEntries(options = {}) {
-      if (!options.skipPool) this.refreshSourcePool()
-      this.exploreEntries = getOnlineExploreEntries({ sources: this.sources })
-      this.exploreCatalog = buildExploreCatalog(this.sources, this.exploreEntries)
+      const snapshot = options.skipPool ? getSourceDiscoverySnapshot({ sources: searchSourceConfigs }) : this.refreshSourcePool()
+      this.exploreEntries = snapshot.entries
+      this.exploreCatalog = snapshot.catalog
       markTabFresh('search')
+      return snapshot
     },
     refreshDiscoverShell() {
       this.searchSettings = getOnlineSearchSettings()
-      this.sources = getSourceConfigs()
-      this.refreshSourcePool()
-      this.$nextTick(() => {
-        setTimeout(() => this.refreshExploreEntries({ skipPool: true }), 300)
-      })
+      this.sources = getSourceLibraryPage({ keyword: this.mode === 'source' ? this.keyword : '', limit: 30 }).rows
+      const cachedSnapshot = this.refreshExploreEntries()
+      if (cachedSnapshot.catalog.length || cachedSnapshot.candidates.length) return
+      if (this.sourceHydrationTimer) clearTimeout(this.sourceHydrationTimer)
+      this.sourceHydrationTimer = setTimeout(() => {
+        this.sourceHydrationTimer = null
+        searchSourceConfigs = getSourceConfigs()
+        this.refreshExploreEntries()
+      }, 1800)
     },
     handleSourcesChanged() {
       markTabDirty('search')
@@ -484,7 +511,8 @@ export default {
       this.discoverRefreshing = true
       try {
         this.searchSettings = getOnlineSearchSettings()
-        this.sources = getSourceConfigs()
+      searchSourceConfigs = getSourceConfigs()
+      this.sources = getSourceLibraryPage({ keyword: this.mode === 'source' ? this.keyword : '', limit: 30 }).rows
         this.refreshExploreEntries()
         if (this.loading) return
         if (this.activeExploreEntry) {
@@ -578,7 +606,8 @@ export default {
       const state = buildSourceToggleState(source)
       if (state.sourceId) {
         setSourceEnabled(state.sourceId, state.nextEnabled)
-        this.sources = getSourceConfigs()
+        searchSourceConfigs = getSourceConfigs()
+        this.sources = getSourceLibraryPage({ keyword: this.mode === 'source' ? this.keyword : '', limit: 30 }).rows
         this.refreshExploreEntries()
       }
       uni.showToast({ title: state.toast, icon: 'none' })
@@ -609,7 +638,7 @@ export default {
         if (this.searchToken === token) {
           this.results = []
           this.searchError = friendlyErrorMessage(error, '发现入口打开失败')
-          this.sources = getSourceConfigs()
+          searchSourceConfigs = getSourceConfigs()
           this.refreshExploreEntries()
           if (!this.exploreEntries.some(item => item.sourceId === entry.sourceId)) {
             this.activeExploreEntry = null
@@ -674,7 +703,7 @@ export default {
           this.results = mergeUnifiedSearchResults(previousResults, report.results)
           this.lastSearchReport = report
           this.searchedSourceIds = [...this.searchedSourceIds, ...report.local.attemptedSourceIds]
-          this.sources = getSourceConfigs()
+          searchSourceConfigs = getSourceConfigs()
           this.refreshExploreEntries()
         }
       } catch (error) {

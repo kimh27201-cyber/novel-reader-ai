@@ -15,6 +15,7 @@ let busy = false
 let running = null
 let cancelToken = null
 let sessionAttempted = new Set()
+let resumeTimer = null
 
 function readState() {
   try {
@@ -47,11 +48,18 @@ export function setSourceWarmupForeground(value) {
 
 export function setSourceWarmupBusy(value) {
   busy = !!value
+  if (resumeTimer) clearTimeout(resumeTimer)
+  resumeTimer = null
   if (busy) pauseSourceWarmup()
-  else if (foreground) setTimeout(() => startSourceWarmup().catch(() => {}), 800)
+  else if (foreground) resumeTimer = setTimeout(() => {
+    resumeTimer = null
+    startSourceWarmup().catch(() => {})
+  }, 2000)
 }
 
 export function pauseSourceWarmup() {
+  if (resumeTimer) clearTimeout(resumeTimer)
+  resumeTimer = null
   if (cancelToken) cancelToken.cancelled = true
 }
 
