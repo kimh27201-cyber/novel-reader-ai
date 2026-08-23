@@ -1,5 +1,6 @@
 const FORBIDDEN_PATTERN = /\b(?:fetch|XMLHttpRequest|WebSocket|java|Packages|require|import|process|window|document|localStorage|sessionStorage|eval|Function|while|for|do|setTimeout|setInterval)\b/i
 const IDENTIFIER_PATTERN = /^[A-Za-z_$][\w$]*$/
+const FORBIDDEN_OBJECT_KEYS = new Set(['__proto__', 'prototype', 'constructor'])
 
 export class JsRuleSandboxError extends Error {
   constructor(code, message) {
@@ -97,7 +98,9 @@ function evaluateObjectLiteral(text, context, budget, depth) {
     const quotedKey = /^['"]/.test(rawKey)
     const key = quotedKey ? parseLiteral(rawKey, context) : rawKey
     if (!quotedKey && !IDENTIFIER_PATTERN.test(String(key))) failUnsupported('对象键')
-    result[String(key)] = evaluateExpression(pair.join(':'), context, budget, depth + 1)
+    const safeKey = String(key)
+    if (FORBIDDEN_OBJECT_KEYS.has(safeKey)) failUnsupported('对象原型字段')
+    result[safeKey] = evaluateExpression(pair.join(':'), context, budget, depth + 1)
     return result
   }, {})
 }
@@ -201,7 +204,7 @@ function evaluateExpression(expression, context, budget, depth = 0) {
   if (text[0] === '{' && text[text.length - 1] === '}') return evaluateObjectLiteral(text, context, budget, depth)
   if (text[0] === '[' && text[text.length - 1] === ']') return evaluateArrayLiteral(text, context, budget, depth)
 
-  const functionMatch = text.match(/^(encodeURIComponent|decodeURIComponent|base64Encode|base64Decode|jsonParse|jsonStringify|JSON\.parse|JSON\.stringify|String|resolveUrl)\(([\s\S]*)\)([\s\S]*)$/)
+  const functionMatch = text.match(/^(encodeURIComponent|decodeURIComponent|base64Encode|base64Decode|jsonParse|jsonStringify|JSON\.parse|JSON\.stringify|J|String|resolveUrl|Base)\(([\s\S]*)\)([\s\S]*)$/)
   let value
   let rest = ''
   if (functionMatch) {
@@ -211,10 +214,13 @@ function evaluateExpression(expression, context, budget, depth = 0) {
     else if (name === 'decodeURIComponent') value = decodeURIComponent(String(emptyIfNullish(args[0])))
     else if (name === 'base64Encode') value = encodeBase64(args[0])
     else if (name === 'base64Decode') value = decodeBase64(args[0])
-    else if (name === 'jsonParse' || name === 'JSON.parse') value = JSON.parse(String(emptyIfNullish(args[0])))
+    else if (name === 'jsonParse' || name === 'JSON.parse' || name === 'J') value = JSON.parse(String(emptyIfNullish(args[0])))
     else if (name === 'jsonStringify' || name === 'JSON.stringify') value = JSON.stringify(args[0])
     else if (name === 'String') value = String(emptyIfNullish(args[0]))
-    else value = new URL(String(emptyIfNullish(args[0])), String(emptyIfNullish(args[1]))).toString()
+    else if (name === 'Base') {
+      const baseUrl = String(context.baseUrl || context.sourceKey || '')
+      try { value = new URL(baseUrl).origin } catch (error) { value = baseUrl }
+    } else value = new URL(String(emptyIfNullish(args[0])), String(emptyIfNullish(args[1]))).toString()
     rest = functionMatch[3]
   } else {
     const base = text.match(/^([A-Za-z_$][\w$]*|"(?:\\.|[^"])*"|'(?:\\.|[^'])*'|-?\d+(?:\.\d+)?)([\s\S]*)$/)

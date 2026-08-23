@@ -45,6 +45,26 @@ export function createSourceId(source) {
   return `source-${Math.abs(hash).toString(36)}`
 }
 
+export function createRuleFlowContext(sourceKey = '', initialValues = {}, options = {}) {
+  const values = Object.create(null)
+  Object.entries(initialValues && typeof initialValues === 'object' ? initialValues : {}).forEach(([key, value]) => {
+    if (/^[A-Za-z_$][\w$-]{0,63}$/.test(key)) values[key] = String(value == null ? '' : value).slice(0, 8192)
+  })
+  return {
+    sourceKey: String(sourceKey || ''),
+    values,
+    maxKeys: Math.max(1, Math.min(64, Number(options.maxKeys || 32))),
+    maxValueChars: Math.max(64, Math.min(16384, Number(options.maxValueChars || 8192))),
+    maxTotalChars: Math.max(1024, Math.min(131072, Number(options.maxTotalChars || 65536)))
+  }
+}
+
+export function exportRuleFlowValues(flowContext) {
+  return flowContext && flowContext.values && typeof flowContext.values === 'object'
+    ? { ...flowContext.values }
+    : {}
+}
+
 export function createSourceKey(source) {
   const name = String(source.bookSourceName || source.name || source.sourceName || '').trim().toLowerCase()
   const url = trimTrailingSlash(String(source.bookSourceUrl || source.sourceUrl || source.baseUrl || ''))
@@ -284,6 +304,16 @@ export function renderTemplate(template, context = {}) {
       const value = readJsonPath(context.$ && typeof context.$ === 'object' ? context.$ : context, name)
       return Array.isArray(value) ? value[0] || '' : value || ''
     }
+    if (name === 'source.getKey()') return context.sourceKey || context.baseUrl || ''
+    const flowString = name.match(/^java\.getString\((['"])([A-Za-z_$][\w$-]{0,63})\1\)$/)
+    if (flowString) return getRuleFlowValue(context, flowString[2])
+    if (name === 'Base()') {
+      try { return new URL(context.baseUrl || context.sourceKey || '').origin } catch (error) { return context.baseUrl || '' }
+    }
+    if (name === 'cookie.removeCookie(source.getKey())') {
+      if (typeof context.clearSourceCookie === 'function') context.clearSourceCookie()
+      return ''
+    }
     if (context[name] != null) return context[name]
     try {
       return executeJsRule(name, context)
@@ -307,12 +337,13 @@ export function resolveUrl(url, baseUrl) {
 export function parseRequestSpec(spec, context = {}, baseUrl = '') {
   const rawSpec = String(spec || '').trim()
   const requestContext = { ...context, baseUrl: context.baseUrl || baseUrl }
-  const text = /^(?:<js>|@js:)/i.test(rawSpec)
+  const renderedText = /^(?:<js>|@js:)/i.test(rawSpec)
     ? String(executeJsRule(rawSpec, {
       ...requestContext,
       result: requestContext.result == null ? (requestContext.key || '') : requestContext.result
     }))
     : renderTemplate(rawSpec, requestContext)
+  const text = expandRuleFlowGets(renderedText, requestContext).value
   const match = text.match(/^([^,]+),\s*(\{[\s\S]*\})\s*$/)
   if (!match) {
     return {
@@ -326,11 +357,28 @@ export function parseRequestSpec(spec, context = {}, baseUrl = '') {
   let options = {}
   try {
     options = JSON.parse(match[2])
-  } catch (error) {
-    throw new SourceRuntimeError('REQUEST_TEMPLATE_UNSUPPORTED', '书源请求模板中的 JSON 配置无效', {
-      stage: 'request',
-      cause: error
-    })
+  } catch (jsonError) {
+    try {
+      options = executeJsRule(match[2], requestContext, {
+        timeoutMs: 100,
+        maxOperations: 48,
+        maxDepth: 6
+      })
+    } catch (sandboxError) {
+      throw new SourceRuntimeError('REQUEST_TEMPLATE_UNSUPPORTED', '书源请求模板配置无效或包含不安全表达式', {
+        stage: 'request',
+        cause: sandboxError || jsonError
+      })
+    }
+  }
+
+  if (!options || Array.isArray(options) || typeof options !== 'object') {
+    throw new SourceRuntimeError('REQUEST_TEMPLATE_UNSUPPORTED', '书源请求模板配置必须是对象', { stage: 'request' })
+  }
+  const allowedOptionKeys = new Set(['method', 'body', 'data', 'charset', 'headers', 'header'])
+  const invalidOptionKey = Object.keys(options).find(key => !allowedOptionKeys.has(key))
+  if (invalidOptionKey) {
+    throw new SourceRuntimeError('REQUEST_TEMPLATE_UNSUPPORTED', `书源请求模板包含未允许字段：${invalidOptionKey}`, { stage: 'request' })
   }
 
   const method = String(options.method || (options.body != null || options.data != null ? 'POST' : 'GET')).toUpperCase()
@@ -494,6 +542,14 @@ export function applyListRule(input, rule, context = {}) {
 }
 
 function applyRulePart(input, rule, context) {
+  const flowGet = String(rule || '').match(/^@get:\{\s*([A-Za-z_$][\w$-]{0,63})\s*\}$/)
+  if (flowGet) return getRuleFlowValue(context, flowGet[1])
+  const putMatch = matchTrailingPutRule(rule)
+  if (putMatch) {
+    const selected = putMatch.selector ? applyRulePart(input, putMatch.selector, context) : input
+    applyRuleFlowPut(input, putMatch.body, context)
+    return selected
+  }
   const chainedJsIndex = String(rule || '').indexOf('@js:')
   if (chainedJsIndex > 0) {
     const selected = applyRulePart(input, String(rule).slice(0, chainedJsIndex), context)
@@ -512,7 +568,10 @@ function applyRulePart(input, rule, context) {
     return values.join('')
   }
   const parts = String(rule || '').split('##')
-  let value = applySelectorPipeline(input, renderTemplate(parts[0], context))
+  const expandedRule = expandRuleFlowGets(renderTemplate(parts[0], context), context)
+  let value = expandedRule.changed
+    ? expandedRule.value
+    : applySelectorPipeline(input, expandedRule.value)
 
   for (let index = 1; index < parts.length; index += 2) {
     const pattern = parts[index]
@@ -526,12 +585,15 @@ function applyRulePart(input, rule, context) {
 function applySelectorPipeline(input, rule) {
   const text = String(rule || '').trim()
   if (!text) return input
+  if (input && typeof input === 'object' && !Array.isArray(input) && /^[A-Za-z_$][\w$]*$/.test(text)) {
+    return Object.prototype.hasOwnProperty.call(input, text) ? input[text] : ''
+  }
   if (/^https?:\/\//i.test(text)) return text
   if (/^(?:\/(?!\/)|\.{1,2}\/)/.test(text)) return text
   if (text === '@text' || text === 'text') return extractText(input)
   if (text === '@html' || text === 'html') return asArray(input).join('')
   if (/^(?:@?json:)/i.test(text)) return readJsonPath(input, text.replace(/^(?:@?json:)/i, ''))
-  if (/^(?:@?xpath:|\/\/)/i.test(text)) return selectXPath(input, text.replace(/^(?:@?xpath:)/i, ''))
+  if (/^(?:@?xpath:|\.?\/\/)/i.test(text)) return selectXPath(input, text.replace(/^(?:@?xpath:)/i, ''))
   if (text.startsWith('$.')) return readJsonPath(input, text)
 
   const tokens = text.split('@').map(item => item.trim()).filter(Boolean)
@@ -565,6 +627,103 @@ function selectValues(input, selector) {
   return asArray(input).flatMap(fragment => selectHtml(String(fragment || ''), selector))
 }
 
+function matchTrailingPutRule(rule) {
+  const text = String(rule || '').trim()
+  const marker = text.lastIndexOf('@put:{')
+  if (marker < 0 || !text.endsWith('}')) return null
+  return { selector: text.slice(0, marker).trim(), body: text.slice(marker + 6, -1) }
+}
+
+function splitTopLevelRuleEntries(text) {
+  const entries = []
+  let quote = ''
+  let escaped = false
+  let depth = 0
+  let start = 0
+  const source = String(text || '')
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index]
+    if (escaped) { escaped = false; continue }
+    if (char === '\\') { escaped = true; continue }
+    if (quote) { if (char === quote) quote = ''; continue }
+    if (char === '"' || char === "'") { quote = char; continue }
+    if (char === '{' || char === '[' || char === '(') depth += 1
+    else if (char === '}' || char === ']' || char === ')') depth -= 1
+    else if (char === ',' && depth === 0) {
+      entries.push(source.slice(start, index).trim())
+      start = index + 1
+    }
+  }
+  const tail = source.slice(start).trim()
+  if (tail) entries.push(tail)
+  return entries
+}
+
+function splitRuleEntry(entry) {
+  let quote = ''
+  let escaped = false
+  const text = String(entry || '')
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index]
+    if (escaped) { escaped = false; continue }
+    if (char === '\\') { escaped = true; continue }
+    if (quote) { if (char === quote) quote = ''; continue }
+    if (char === '"' || char === "'") { quote = char; continue }
+    if (char === ':') return [text.slice(0, index).trim(), text.slice(index + 1).trim()]
+  }
+  return []
+}
+
+function normalizePutRuleValue(value) {
+  const text = String(value || '').trim()
+  if ((text.startsWith('"') && text.endsWith('"')) || (text.startsWith("'") && text.endsWith("'"))) {
+    try { return text.startsWith('"') ? JSON.parse(text) : text.slice(1, -1).replace(/\\'/g, "'") } catch (error) { return '' }
+  }
+  return text
+}
+
+function applyRuleFlowPut(input, body, context) {
+  const flow = context && context.ruleFlow
+  if (!flow || !flow.values || typeof flow.values !== 'object') return
+  const entries = splitTopLevelRuleEntries(body)
+  if (entries.length > flow.maxKeys) throw new SourceRuntimeError('SCRIPT_BUDGET_EXCEEDED', '书源流程缓存键数量超限', { stage: 'rule' })
+  entries.forEach(entry => {
+    const pair = splitRuleEntry(entry)
+    const key = String(pair[0] || '').replace(/^['"]|['"]$/g, '')
+    if (!/^[A-Za-z_$][\w$-]{0,63}$/.test(key) || ['__proto__', 'prototype', 'constructor'].includes(key)) {
+      throw new SourceRuntimeError('SCRIPT_BLOCKED', '书源流程缓存键不安全', { stage: 'rule' })
+    }
+    const valueRule = normalizePutRuleValue(pair[1])
+    const value = valueRule ? firstRuleFlowValue(applyRule(input, valueRule, context)) : ''
+    const text = String(value == null ? '' : value)
+    if (text.length > flow.maxValueChars) throw new SourceRuntimeError('SCRIPT_BUDGET_EXCEEDED', '书源流程缓存值大小超限', { stage: 'rule' })
+    const existing = Object.prototype.hasOwnProperty.call(flow.values, key)
+    if (!existing && Object.keys(flow.values).length >= flow.maxKeys) throw new SourceRuntimeError('SCRIPT_BUDGET_EXCEEDED', '书源流程缓存键数量超限', { stage: 'rule' })
+    const total = Object.entries(flow.values).reduce((sum, [name, stored]) => sum + (name === key ? 0 : String(stored).length), 0) + text.length
+    if (total > flow.maxTotalChars) throw new SourceRuntimeError('SCRIPT_BUDGET_EXCEEDED', '书源流程缓存总大小超限', { stage: 'rule' })
+    flow.values[key] = text
+  })
+}
+
+function firstRuleFlowValue(value) {
+  return Array.isArray(value) ? value[0] == null ? '' : value[0] : value
+}
+
+function getRuleFlowValue(context, key) {
+  const flow = context && context.ruleFlow
+  if (!flow || !flow.values || !Object.prototype.hasOwnProperty.call(flow.values, key)) return ''
+  return flow.values[key]
+}
+
+function expandRuleFlowGets(rule, context) {
+  let changed = false
+  const value = String(rule || '').replace(/@get:\{\s*([A-Za-z_$][\w$-]{0,63})\s*\}/g, (_, key) => {
+    changed = true
+    return getRuleFlowValue(context, key)
+  })
+  return { value, changed }
+}
+
 function selectHtml(html, selector) {
   if (typeof DOMParser !== 'undefined') {
     try {
@@ -585,6 +744,19 @@ function selectHtml(html, selector) {
 }
 
 function selectSimpleHtml(html, selector) {
+  const hasMatch = String(selector || '').match(/^(.*):has\(([^()]+)\)$/i)
+  if (hasMatch) {
+    return selectSimpleHtml(html, hasMatch[1] || '*')
+      .filter(fragment => selectHtml(fragment, hasMatch[2]).length > 0)
+  }
+  const containsMatch = String(selector || '').match(/^(.*):contains\((['"]?)([\s\S]*?)\2\)$/i)
+  if (containsMatch) {
+    const expected = cleanText(containsMatch[3])
+    return selectSimpleHtml(html, containsMatch[1] || '*')
+      .filter(fragment => cleanText(fragment).includes(expected))
+  }
+  const textMatch = String(selector || '').match(/^text\.([\s\S]+)$/)
+  if (textMatch) return selectElementsByText(html, textMatch[1])
   const excludeMatch = String(selector || '').match(/^(.*)!(\d+)$/)
   const excludeFirst = /:not\(\s*:first-child\s*\)$/i.test(String(selector || ''))
   const normalizedSelector = String(selector || '')
@@ -592,17 +764,22 @@ function selectSimpleHtml(html, selector) {
     .replace(/:nth-child\(n\)$/i, '')
     .replace(/!(\d+)$/, '')
   const pseudo = extractSelectorPseudo(normalizedSelector)
-  const indexMatch = pseudo.selector.match(/^(.*?)(?:\.|\[)(\d+)\]?$/)
-  const cleanSelector = indexMatch ? indexMatch[1] : pseudo.selector
-  const requestedIndex = indexMatch ? Number(indexMatch[2]) : pseudo.index
-  const { tag, id, classNames, attr } = parseSimpleSelector(cleanSelector)
+  const rangeMatch = pseudo.selector.match(/^(.*?)(?:\.|\[)(-?\d+)(?::(-?\d+))?\]?$/)
+  const cleanSelector = rangeMatch ? rangeMatch[1] : pseudo.selector
+  const requestedIndex = rangeMatch && rangeMatch[3] == null ? Number(rangeMatch[2]) : pseudo.index
+  const requestedRange = rangeMatch && rangeMatch[3] != null ? [Number(rangeMatch[2]), Number(rangeMatch[3])] : null
+  const legadoClass = cleanSelector.match(/^legado-class:([^\s]+)$/)
+  const { tag, id, classNames, attr } = legadoClass
+    ? { tag: '', id: '', classNames: [decodeURIComponent(legadoClass[1])], attr: null }
+    : parseSimpleSelector(cleanSelector)
 
   if (id || classNames.length || attr) {
     const tagged = selectByAttribute(html, id, classNames, attr, tag)
     if (excludeMatch) return tagged.filter((_, index) => index !== Number(excludeMatch[2]))
     if (excludeFirst) return tagged.slice(1)
+    if (requestedRange) return sliceSelectorRange(tagged, requestedRange)
     if (requestedIndex === 'last') return tagged.length ? [tagged[tagged.length - 1]] : []
-    if (requestedIndex !== null) return tagged[requestedIndex] ? [tagged[requestedIndex]] : []
+    if (requestedIndex !== null) return selectSelectorIndex(tagged, requestedIndex)
     return tagged
   }
 
@@ -621,8 +798,32 @@ function selectSimpleHtml(html, selector) {
 
   if (excludeMatch) return matches.filter((_, index) => index !== Number(excludeMatch[2]))
   if (excludeFirst) return matches.slice(1)
+  if (requestedRange) return sliceSelectorRange(matches, requestedRange)
   if (requestedIndex === 'last') return matches.length ? [matches[matches.length - 1]] : []
-  if (requestedIndex !== null) return matches[requestedIndex] ? [matches[requestedIndex]] : []
+  if (requestedIndex !== null) return selectSelectorIndex(matches, requestedIndex)
+  return matches
+}
+
+function selectSelectorIndex(values, index) {
+  const resolved = index < 0 ? values.length + index : index
+  return values[resolved] == null ? [] : [values[resolved]]
+}
+
+function sliceSelectorRange(values, range) {
+  const resolve = value => value < 0 ? Math.max(0, values.length + value) : value
+  return values.slice(resolve(range[0]), resolve(range[1]))
+}
+
+function selectElementsByText(html, expectedText) {
+  const expected = cleanText(expectedText)
+  if (!expected) return []
+  const pattern = /<([a-zA-Z][\w:-]*)([^>]*)>/gi
+  const matches = []
+  let match
+  while ((match = pattern.exec(String(html || '')))) {
+    const element = sliceBalancedElement(String(html || ''), match.index, pattern.lastIndex, match[1], match[0])
+    if (cleanText(element) === expected) matches.push(element)
+  }
   return matches
 }
 
@@ -690,6 +891,8 @@ function hasRequiredClasses(attrs, classNames = []) {
 
 function extractSelectorPseudo(selector) {
   const text = String(selector || '').trim()
+  const equal = text.match(/^(.*?):eq\((-?\d+)\)$/i)
+  if (equal) return { selector: equal[1], index: Number(equal[2]) }
   const indexed = text.match(/^(.*?):nth-(?:of-type|child)\((\d+)\)$/i)
   if (indexed) return { selector: indexed[1], index: Math.max(0, Number(indexed[2]) - 1) }
   if (/:last-child$/i.test(text)) return { selector: text.replace(/:last-child$/i, ''), index: 'last' }
@@ -774,7 +977,7 @@ function selectXPath(input, expression) {
 }
 
 function selectSimpleXPath(input, expression) {
-  const text = String(expression || '').trim()
+  const text = String(expression || '').trim().replace(/^\.\/\//, '//')
   if (!/^\/\//.test(text) || /\||::|\b(?:contains|starts-with|normalize-space)\s*\(/i.test(text)) return []
   const steps = text.replace(/^\/+/, '').split(/\/+|\/\//).map(item => item.trim()).filter(Boolean)
   let values = asArray(input)
@@ -922,20 +1125,24 @@ function splitFallbacks(rule) {
 }
 
 function isAccessor(token) {
-  return /^(?:text|textNodes|ownText|html|children|href|src|content|value|-?\d+|!\d+|\$\..+)$/.test(String(token || ''))
+  return /^(?:text|textNodes|ownText|html|children|href|src|title|alt|content|value|data-[\w-]+|-?\d+|!\d+|\$\..+)$/.test(String(token || ''))
 }
 
 function isSelectorToken(token) {
   const value = String(token || '').trim()
   if (isAccessor(value)) return false
-  return /^(class\.|id\.|tag\.|css:|xpath:|json:|\/\/|#|\.)/i.test(value)
+  return /^(class\.|id\.|tag\.|text\.|css:|xpath:|json:|\.?\/\/|#|\.)/i.test(value)
     || /^[a-zA-Z][\w:-]*(?:[#.\[:!][\s\S]*)?$/.test(value)
 }
 
 function normalizeSelectorToken(token) {
   const value = String(token || '').trim()
   if (/^css:/i.test(value)) return value.replace(/^css:/i, '')
-  if (value.startsWith('class.')) return `.${value.slice(6).split(/\s+/).filter(Boolean).join('.')}`
+  if (value.startsWith('class.')) {
+    const className = value.slice(6).trim()
+    if (/[#\[\]]/.test(className)) return `legado-class:${encodeURIComponent(className)}`
+    return `.${className.split(/\s+/).filter(Boolean).join('.')}`
+  }
   if (value.startsWith('id.')) return `#${value.slice(3)}`
   if (value.startsWith('tag.')) return value.slice(4)
   return value

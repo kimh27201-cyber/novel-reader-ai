@@ -26,7 +26,8 @@ assert.deepEqual(report.counts, {
   blocked: 1,
   retryReady: 1,
   failed: 3,
-  incompatible: 1
+  incompatible: 1,
+  stable: 0
 })
 assert.deepEqual(report.topErrors[0], { code: 'DNS_ERROR', httpStatus: 0, count: 2, retryReady: 1 })
 assert.equal(report.lastCheckedAt, 40)

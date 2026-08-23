@@ -43,7 +43,7 @@ for (const id of ids) {
   const source = normalizeBookSources(raw, { source: 'probe', sourceUrl: url })[0]
   applyImportPreview(buildImportPreview([source], []), { importMethod: 'probe' })
   try {
-    const flow = await runSourceReadingFlow(source.id, ['斗破苍穹', '剑来', '诡秘之主'], { timeoutMs: 10000 })
+    const flow = await runSourceReadingFlow(source.id, ['斗破苍穹', '剑来', '诡秘之主'], { timeoutMs: 10000, allowDisabled: true })
     process.stdout.write(`${JSON.stringify({ id, name: source.name, status: 'passed', keyword: flow.keyword, chapters: flow.chapters.length, contentLength: String(flow.chapter.content || '').length })}\n`)
   } catch (error) {
     const failedStage = Array.isArray(error && error.flowStages)

@@ -113,8 +113,16 @@ assert.equal(request.method, 'POST')
 assert.equal(request.data, 'key=abc')
 assert.equal(request.header['X-Test'], '3')
 assert.equal(request.header['Content-Type'], 'application/x-www-form-urlencoded')
+const relaxedRequest = parseRequestSpec("https://example.com/search,{method:'POST', body:'key={{key}}', charset:'gbk'}", { key: 'abc' })
+assert.equal(relaxedRequest.method, 'POST')
+assert.equal(relaxedRequest.data, 'key=abc')
+assert.equal(relaxedRequest.charset, 'gbk')
 assert.throws(
-  () => parseRequestSpec('https://example.com/search,{method:"POST"}', { key: 'abc' }),
+  () => parseRequestSpec('https://example.com/search,{method: makeMethod()}', { key: 'abc' }),
+  error => error && error.code === 'REQUEST_TEMPLATE_UNSUPPORTED'
+)
+assert.throws(
+  () => parseRequestSpec('https://example.com/search,{__proto__: {polluted: true}}', { key: 'abc' }),
   error => error && error.code === 'REQUEST_TEMPLATE_UNSUPPORTED'
 )
 

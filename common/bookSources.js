@@ -2,12 +2,14 @@ import {
   applyListRule,
   applyRule,
   cleanText,
+  createRuleFlowContext,
   createSourceKey,
   detectSourceCompatibilityLevel,
   detectSourceFeatures,
   detectSourceFormat,
   detectSourceImportPayload,
   extractRepositorySourceUrl,
+  exportRuleFlowValues,
   hasUnsupportedRule,
   normalizeSourceConfig,
   parseRequestSpec,
@@ -34,6 +36,7 @@ import {
   sanitizeReadableContent
 } from './sourceContentSanitizer.js'
 import { finishPerformanceSpan, startPerformanceSpan } from './performanceMetrics.js'
+import { buildStableSourceSeedMap, STABLE_SOURCE_SEEDS } from './sourceAcceptanceSeeds.js'
 
 export { assessReadableContentQuality, CONTENT_SANITIZER_VERSION, sanitizeReadableContent } from './sourceContentSanitizer.js'
 
@@ -75,6 +78,7 @@ export const ONLINE_SEARCH_DEFAULTS = {
 const SOURCE_RUNTIME_STAGES = ['search', 'explore', 'detail', 'toc', 'content']
 // 仅用于首次可用池冷启动；一旦真实检测失败，仍按 runtimeV2 冷却，不会强行继续请求。
 const SOURCE_BOOTSTRAP_KEYS = new Set(['source-key-1489xuk', 'source-key-13zaxtq'])
+const STABLE_SOURCE_SEED_MAP = buildStableSourceSeedMap(STABLE_SOURCE_SEEDS)
 const HOUR_MS = 60 * 60 * 1000
 const DAY_MS = 24 * HOUR_MS
 export const SOURCE_ANTI_CRAWLER_DEFAULTS = {
@@ -288,6 +292,28 @@ function pickUrl(input, rule, names, context, baseUrl) {
   return resolveUrl(firstValue(applyRule(input, getFieldRule(rule, names), context)), baseUrl)
 }
 
+function getAttachedRuleFlowValues(value) {
+  return value && value.__sourceRuleVars && typeof value.__sourceRuleVars === 'object'
+    ? value.__sourceRuleVars
+    : {}
+}
+
+function createSourceRuleFlow(source, ...values) {
+  const initial = Object.assign({}, ...values.map(getAttachedRuleFlowValues))
+  return createRuleFlowContext(source && (source.sourceKey || source.id) || '', initial)
+}
+
+function attachRuleFlowValues(value, ruleFlow) {
+  if (!value || typeof value !== 'object') return value
+  Object.defineProperty(value, '__sourceRuleVars', {
+    configurable: true,
+    enumerable: false,
+    writable: true,
+    value: exportRuleFlowValues(ruleFlow)
+  })
+  return value
+}
+
 function deriveBookUrlRuleFromTitle(rule) {
   const text = String(rule || '').trim()
   if (!text) return ''
@@ -438,7 +464,7 @@ function normalizeSourceExploreTest(value) {
   }
 }
 
-function hashSourceRuntimeConfig(source = {}) {
+export function hashSourceRuntimeConfig(source = {}) {
   if (source && typeof source === 'object' && sourceRuntimeHashCache.has(source)) return sourceRuntimeHashCache.get(source)
   const raw = source.raw || source || {}
   const identity = [
@@ -760,6 +786,8 @@ function createSourceRequestSpec(source, url, context = {}, baseUrl = '') {
   const raw = source && (source.raw || source) || {}
   const requestContext = {
     baseUrl: source && source.baseUrl || raw.bookSourceUrl || raw.sourceUrl || raw.baseUrl || baseUrl,
+    sourceKey: source && (source.sourceKey || source.id) || '',
+    clearSourceCookie: () => clearSourceCookies(source && source.id),
     ...context
   }
   const spec = parseRequestSpec(url, requestContext, baseUrl || requestContext.baseUrl)
@@ -837,6 +865,7 @@ function sourceIndexSummary(source) {
     compatibility: source.compatibility || '',
     compatible,
     searchable: compatible && !!raw.searchUrl && !!raw.ruleSearch,
+    stableAccepted: matchesStableSourceSeed(source),
     runtimeStatus: runtime.status === 'cooldown' ? 'failed' : runtime.status,
     runtimeState: runtime.status,
     resultCount: Number(runtime.resultCount || 0),
@@ -859,7 +888,8 @@ export function buildSourceLibraryDiagnostics(summaries = []) {
     blocked: 0,
     retryReady: 0,
     failed: 0,
-    incompatible: 0
+    incompatible: 0,
+    stable: 0
   }
   const errors = new Map()
   let lastCheckedAt = 0
@@ -876,6 +906,7 @@ export function buildSourceLibraryDiagnostics(summaries = []) {
     else if (state === 'blocked') counts.blocked += 1
     else counts.untested += 1
     if (!item.compatible) counts.incompatible += 1
+    if (item.stableAccepted) counts.stable += 1
     const errorCode = String(item.errorCode || '').trim().toUpperCase()
     if (errorCode) {
       counts.failed += 1
@@ -2798,7 +2829,15 @@ function sourceCandidateScore(item) {
   const quality = normalizeSourceQuality(item.source.quality)
   const speed = Math.max(0, 20 - Math.round(Number(item.runtime.latencyMs || quality.averageElapsedMs || 0) / 300))
   const bootstrap = SOURCE_BOOTSTRAP_KEYS.has(item.source.sourceKey) ? 100000 : 0
-  return bootstrap + (item.tier * 1000) + (quality.qualityScore * 5) + speed + Number(item.source.weight || 0) / 1000
+  const stable = matchesStableSourceSeed(item.source) ? 200000 : 0
+  return stable + bootstrap + (item.tier * 1000) + (quality.qualityScore * 5) + speed + Number(item.source.weight || 0) / 1000
+}
+
+export function matchesStableSourceSeed(source, seeds = null) {
+  if (!source) return false
+  const map = seeds == null ? STABLE_SOURCE_SEED_MAP : buildStableSourceSeedMap(seeds)
+  if (!map.size) return false
+  return map.has(`${String(source.sourceKey || '')}\n${hashSourceRuntimeConfig(source)}`)
 }
 
 export function buildSourceCandidatePool(sources = getSourceConfigs(), context = {}) {
@@ -3940,7 +3979,8 @@ async function runSingleSourceReadingFlow(sourceId, keyword, options = {}) {
         return await testSourceSearch(sourceId, candidate, {
           timeoutMs: options.timeoutMs,
           limit: options.limit || 5,
-          failOnEmpty: true
+          failOnEmpty: true,
+          allowDisabled: options.allowDisabled === true
         })
       } catch (error) {
         lastError = error
@@ -4293,7 +4333,9 @@ async function loadOnlineBookInfoInternal(book, options = {}) {
 
   const html = await requestText(createSourceRequestSpec(source, book.bookUrl, {}, source.baseUrl))
   const payload = parseResponsePayload(html)
-  const context = { ...book, book, $: payload }
+  const ruleFlow = options.ruleFlow || createSourceRuleFlow(source, book)
+  const context = { ...book, book, $: payload, ruleFlow, baseUrl: source.baseUrl }
+  if (rule.init) applyRule(payload, rule.init, context)
   const parsedFields = {
     title: pickText(payload, rule, ['name', 'bookName', 'title'], context) || book.title,
     author: pickText(payload, rule, ['author', 'bookAuthor'], context) || book.author,
@@ -4303,13 +4345,13 @@ async function loadOnlineBookInfoInternal(book, options = {}) {
     coverUrl: pickUrl(payload, rule, ['coverUrl', 'cover', 'image'], context, source.baseUrl) || book.coverUrl
   }
   const resolvedBook = { ...book, ...parsedFields }
-  const resolvedContext = { ...resolvedBook, book: resolvedBook, $: payload }
+  const resolvedContext = { ...resolvedBook, book: resolvedBook, $: payload, ruleFlow, baseUrl: source.baseUrl }
   const next = {
     ...book,
     ...parsedFields,
     tocUrl: pickUrl(payload, rule, ['tocUrl', 'chapterUrl', 'catalogUrl'], resolvedContext, book.bookUrl) || book.tocUrl || book.bookUrl
   }
-  const normalized = normalizeOnlineBookForShelf(next)
+  const normalized = attachRuleFlowValues(normalizeOnlineBookForShelf(next), ruleFlow)
   writeOnlineDataCache('detail', cacheKey, normalized)
   return normalized
 }
@@ -4334,6 +4376,7 @@ async function loadOnlineTocInternal(book, options = {}) {
   if (cached) return cached
 
   const listRule = getFieldRule(rule, ['chapterList', 'list', 'toc'])
+  const ruleFlow = options.ruleFlow || createSourceRuleFlow(source, book)
   const chapters = []
   const seenPages = new Set()
   const seenChapters = new Set()
@@ -4343,28 +4386,29 @@ async function loadOnlineTocInternal(book, options = {}) {
     let currentUrl = routeUrl
     for (let page = 1; currentUrl && page <= maxPages && !seenPages.has(currentUrl); page += 1) {
       seenPages.add(currentUrl)
-      const html = await requestText(createSourceRequestSpec(source, currentUrl, { ...book, page }, source.baseUrl))
+      const html = await requestText(createSourceRequestSpec(source, currentUrl, { ...book, page, ruleFlow }, source.baseUrl))
       const payload = parseResponsePayload(html)
-      const list = applyListRule(payload, listRule, { ...book, book, page, $: payload })
+      const list = applyListRule(payload, listRule, { ...book, book, page, $: payload, ruleFlow, baseUrl: source.baseUrl })
       list.forEach(item => {
         const index = chapters.length
-        const context = { ...book, book, index, page, $: item }
+        const chapterRuleFlow = createRuleFlowContext(source.sourceKey || source.id, exportRuleFlowValues(ruleFlow))
+        const context = { ...book, book, index, page, $: item, ruleFlow: chapterRuleFlow, baseUrl: source.baseUrl }
         const title = pickText(item, rule, ['chapterName', 'name', 'title'], context) || `第 ${index + 1} 章`
         const url = pickUrl(item, rule, ['chapterUrl', 'url', 'link'], context, currentUrl)
         const key = `${title}\n${url}`
         if (!title || !url || seenChapters.has(key)) return
         seenChapters.add(key)
         const cachedChapter = !!readStorage(chapterCacheKey(book.id, index), '')
-        chapters.push({
+        chapters.push(attachRuleFlowValues({
           title,
           url,
           index,
           isCached: cachedChapter,
           loadStatus: cachedChapter ? 'cached' : 'idle',
           errorMessage: ''
-        })
+        }, chapterRuleFlow))
       })
-      currentUrl = pickUrl(payload, rule, ['nextTocUrl', 'nextUrl'], { ...book, book, page, $: payload }, currentUrl)
+      currentUrl = pickUrl(payload, rule, ['nextTocUrl', 'nextUrl'], { ...book, book, page, $: payload, ruleFlow, baseUrl: source.baseUrl }, currentUrl)
     }
     if (chapters.length) break
   }
@@ -4393,21 +4437,22 @@ async function loadOnlineChapterInternal(book, chapter, options = {}) {
   if (!Object.keys(rule).length) throw new Error('这个书源没有正文规则')
 
   const contents = []
+  const ruleFlow = options.ruleFlow || createSourceRuleFlow(source, book, chapter)
   const seenPages = new Set()
   const maxPages = clampNumber(options.maxPages, 1, 10, 5)
   let currentUrl = chapter.url
   for (let page = 1; currentUrl && page <= maxPages && !seenPages.has(currentUrl); page += 1) {
     seenPages.add(currentUrl)
-    const html = await requestText(createSourceRequestSpec(source, currentUrl, { ...book, ...chapter, page }, source.baseUrl))
+    const html = await requestText(createSourceRequestSpec(source, currentUrl, { ...book, ...chapter, page, ruleFlow }, source.baseUrl))
     const payload = parseResponsePayload(html)
     const rawPageContent = firstValue(applyRule(
       payload,
       getFieldRule(rule, ['content', 'text']),
-      { ...book, book, ...chapter, chapter, page, $: payload }
+      { ...book, book, ...chapter, chapter, page, $: payload, ruleFlow, baseUrl: source.baseUrl }
     ))
     const pageContent = sanitizeReadableContent(rawPageContent, { chapterTitle: chapter.title, page })
     if (pageContent.text) contents.push(pageContent.text)
-    currentUrl = pickUrl(payload, rule, ['nextContentUrl', 'nextUrl'], { ...book, book, ...chapter, chapter, page, $: payload }, currentUrl)
+    currentUrl = pickUrl(payload, rule, ['nextContentUrl', 'nextUrl'], { ...book, book, ...chapter, chapter, page, $: payload, ruleFlow, baseUrl: source.baseUrl }, currentUrl)
   }
   const sanitizedContent = sanitizeReadableContent(uniqueStrings(contents).join('\n\n'), { chapterTitle: chapter.title })
   const content = sanitizedContent.text
@@ -4441,16 +4486,17 @@ export async function loadOnlineChapter(book, chapter, options = {}) {
   return runTrackedReadingStage(book, 'content', () => loadOnlineChapterInternal(book, chapter, options))
 }
 
-async function searchSource(source, keyword) {
+async function searchSource(source, keyword, options = {}) {
   const raw = source.raw || {}
   const rule = normalizeRuleObject(raw.ruleSearch)
   if (!raw.searchUrl || !Object.keys(rule).length) return []
 
-  const context = { key: keyword, keyword, page: 1, rendered: false }
+  const ruleFlow = options.ruleFlow || createSourceRuleFlow(source)
+  const context = { key: keyword, keyword, page: 1, rendered: false, ruleFlow, baseUrl: source.baseUrl }
   let activeSource = source
   const initialSpec = createSourceRequestSpec(activeSource, raw.searchUrl, context, activeSource.baseUrl)
   let html = await requestText(initialSpec)
-  let parsed = parseSearchResponse(activeSource, rule, keyword, html)
+  let parsed = parseSearchResponse(activeSource, rule, keyword, html, ruleFlow)
   if (!parsed.results.length && initialSpec.method === 'POST' && !/^https?:\/\//i.test(String(raw.searchUrl || '').trim())) {
     const canonicalSource = await resolveCanonicalSearchSource(source)
     if (canonicalSource) {
@@ -4459,7 +4505,7 @@ async function searchSource(source, keyword) {
         createSourceRequestSpec(activeSource, raw.searchUrl, context, activeSource.baseUrl)
       )
       html = await requestText(canonicalSpec)
-      parsed = parseSearchResponse(activeSource, rule, keyword, html)
+      parsed = parseSearchResponse(activeSource, rule, keyword, html, ruleFlow)
       parsed.results.diagnostics.canonicalBaseUrl = activeSource.baseUrl
     }
   }
@@ -4485,7 +4531,11 @@ function hasUsableOnlineBookTitle(value) {
 }
 
 function withHydratedSearchMetadata(item, book) {
-  const normalized = { ...book, metadataStatus: 'complete', metadataOrigin: 'detail' }
+  const source = getSourceConfig(book && book.sourceId)
+  const normalized = attachRuleFlowValues(
+    { ...book, metadataStatus: 'complete', metadataOrigin: 'detail' },
+    createSourceRuleFlow(source, book)
+  )
   return {
     ...item,
     bookId: normalized.id,
@@ -4532,7 +4582,12 @@ export async function hydrateSourceSearchResults(results = [], options = {}) {
     const book = item && item.book || {}
     if (!book.bookUrl) return
     if (hasUsableOnlineBookTitle(item.title || book.title)) {
-      output.push({ ...item, metadataStatus: 'complete', book: { ...book, metadataStatus: 'complete' } })
+      const source = getSourceConfig(book.sourceId)
+      const completeBook = attachRuleFlowValues(
+        { ...book, metadataStatus: 'complete' },
+        createSourceRuleFlow(source, book)
+      )
+      output.push({ ...item, metadataStatus: 'complete', book: completeBook })
       return
     }
     const hydrated = hydratedMap.get(index)
@@ -4553,13 +4608,15 @@ export async function hydrateSourceSearchResults(results = [], options = {}) {
   }
 }
 
-function parseSearchResponse(source, rule, keyword, html) {
+function parseSearchResponse(source, rule, keyword, html, ruleFlow = null) {
   const payload = parseResponsePayload(html)
   const listRule = getFieldRule(rule, ['bookList', 'list', 'books'])
-  const list = applyListRule(payload, listRule, { key: keyword, keyword, page: 1, $: payload })
+  const listContext = ruleFlow || createSourceRuleFlow(source)
+  const list = applyListRule(payload, listRule, { key: keyword, keyword, page: 1, $: payload, ruleFlow: listContext, baseUrl: source.baseUrl })
 
   const mappedResults = list.map(item => {
-    const context = { key: keyword, keyword, $: item }
+    const itemRuleFlow = createRuleFlowContext(source.sourceKey || source.id, exportRuleFlowValues(listContext))
+    const context = { key: keyword, keyword, $: item, ruleFlow: itemRuleFlow, baseUrl: source.baseUrl }
     const titleRule = getFieldRule(rule, ['name', 'bookName', 'title'])
     const rawTitle = cleanText(firstValue(applyRule(item, titleRule, context)))
     const parsedFields = {
@@ -4574,7 +4631,7 @@ function parseSearchResponse(source, rule, keyword, html) {
     const resolvedContext = { ...context, ...parsedFields, book: parsedBook }
     const explicitBookUrlRule = getFieldRule(rule, ['bookUrl', 'url', 'link'])
     const bookUrlRule = explicitBookUrlRule || deriveBookUrlRuleFromTitle(titleRule)
-    const book = normalizeOnlineBookForShelf({
+    const book = attachRuleFlowValues(normalizeOnlineBookForShelf({
       sourceId: source.id,
       sourceName: source.name,
       sourceGroup: source.group,
@@ -4582,7 +4639,7 @@ function parseSearchResponse(source, rule, keyword, html) {
       ...parsedFields,
       metadataStatus: rawTitle ? 'complete' : 'needs_detail',
       metadataOrigin: 'search'
-    }, { preserveMissingTitle: true })
+    }, { preserveMissingTitle: true }), itemRuleFlow)
 
     return {
       type: 'online',

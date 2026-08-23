@@ -127,6 +127,7 @@
               <button class="runtime-diagnostic-item warning" @tap="sourceFilter = 'cooldown'">冷却中 {{ sourceRuntimeDiagnostics.counts.cooldown }}</button>
               <button class="runtime-diagnostic-item blocked" @tap="sourceFilter = 'blocked'">受限 {{ sourceRuntimeDiagnostics.counts.blocked }}</button>
             </view>
+            <text class="source-hint">双窗稳定 {{ sourceRuntimeDiagnostics.counts.stable || 0 }} · 仅提升候选排序，不改变启停状态</text>
             <view class="runtime-error-list" v-if="sourceRuntimeDiagnostics.topErrors.length">
               <button
                 class="runtime-error-chip"
@@ -665,7 +666,7 @@ export default {
   data() {
     return {
       sources: [],
-      sourcePage: { total: 0, rows: [], groups: [ALL_SOURCE_GROUP], groupStats: [], stats: { total: 0, enabled: 0, incompatible: 0, searchable: 0 }, diagnostics: { counts: { total: 0, verified: 0, untested: 0, probing: 0, cooldown: 0, blocked: 0, retryReady: 0, failed: 0, incompatible: 0 }, topErrors: [], lastCheckedAt: 0 } },
+      sourcePage: { total: 0, rows: [], groups: [ALL_SOURCE_GROUP], groupStats: [], stats: { total: 0, enabled: 0, incompatible: 0, searchable: 0 }, diagnostics: { counts: { total: 0, verified: 0, untested: 0, probing: 0, cooldown: 0, blocked: 0, retryReady: 0, failed: 0, incompatible: 0, stable: 0 }, topErrors: [], lastCheckedAt: 0 } },
       pageMotionKind: '',
       pageMotionDirection: 'forward',
       toolsExpanded: false,
@@ -777,7 +778,7 @@ export default {
     },
     sourceRuntimeDiagnostics() {
       return this.sourcePage.diagnostics || {
-        counts: { total: 0, verified: 0, untested: 0, probing: 0, cooldown: 0, blocked: 0, retryReady: 0, failed: 0, incompatible: 0 },
+        counts: { total: 0, verified: 0, untested: 0, probing: 0, cooldown: 0, blocked: 0, retryReady: 0, failed: 0, incompatible: 0, stable: 0 },
         topErrors: [],
         lastCheckedAt: 0
       }
@@ -789,7 +790,7 @@ export default {
           type: 'source',
           id: source.id,
           name: source.name,
-          meta: `${source.group || '未分组'} · ${source.enabled ? '已启用' : '已停用'} · ${source.compatible ? '规则兼容' : '规则不兼容'} · ${this.sourceRuntimeLabel(source)}`,
+          meta: `${source.group || '未分组'} · ${source.enabled ? '已启用' : '已停用'} · ${source.compatible ? '规则兼容' : '规则不兼容'} · ${this.sourceRuntimeLabel(source)}${source.stableAccepted ? ' · 双窗稳定' : ''}`,
           partialUnsupported: false,
           icon: this.sourceListIcon(index),
           iconClass: this.sourceListIconClass(index),

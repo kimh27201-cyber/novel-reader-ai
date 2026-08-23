@@ -1,6 +1,13 @@
 import assert from 'node:assert/strict'
 
-import { applyListRule, applyRule, renderTemplate } from '../common/sourceEngine.js'
+import {
+  applyListRule,
+  applyRule,
+  createRuleFlowContext,
+  exportRuleFlowValues,
+  parseRequestSpec,
+  renderTemplate
+} from '../common/sourceEngine.js'
 import { JsRuleSandboxError, executeJsRule } from '../common/jsRuleSandbox.js'
 
 const html = `
@@ -16,6 +23,16 @@ assert.equal(applyListRule(html, '.txt-list li!0').length, 2)
 assert.equal(applyListRule(html, '.txt-list li:not(:first-child)').length, 2)
 assert.equal(applyListRule(html, 'class.txt-list@li:not(:first-child)').length, 2)
 assert.equal(applyRule(html, '.text-[18px]@text'), '第一本')
+assert.equal(applyRule('<span class="text-[#555]">特殊类名</span>', 'class.text-[#555]@text'), '特殊类名')
+assert.deepEqual(applyListRule(html, '.txt-list li.0:2').map(item => applyRule(item, '@text')), ['忽略', '第一本'])
+assert.equal(applyRule(html, '.txt-list li.-1@text'), '第二本')
+assert.equal(applyRule('<a href="/next">下一页</a><a href="/last">尾页</a>', 'text.下一页@href'), '/next')
+assert.equal(applyRule('<div><img src="/cover.jpg" title="真实书名" alt="备用书名"></div>', 'div@img@title'), '真实书名')
+assert.equal(applyRule('<div><img src="/cover.jpg" title="真实书名" alt="备用书名"></div>', 'div@img@alt'), '备用书名')
+const pseudoHtml = '<section class="card"><a>剑来</a></section><section class="card"><span>其他</span></section>'
+assert.equal(applyListRule(pseudoHtml, 'section.card:has(a)').length, 1)
+assert.equal(applyRule(pseudoHtml, 'section.card:contains(剑来)@text'), '剑来')
+assert.equal(applyRule(html, '.txt-list li:eq(-1)@text'), '第二本')
 const xpathBooks = applyListRule(html, "//div[@class='bookbox']")
 assert.equal(xpathBooks.length, 1)
 assert.deepEqual(applyRule(xpathBooks[0], "//div[@class='bookname']/a/text()"), ['XPath 书名'])
@@ -25,6 +42,36 @@ const json = { data: [{ item: { title: '甲' } }, { item: { title: '乙' } }] }
 assert.deepEqual(applyRule(json, '$..title'), ['甲', '乙'])
 assert.equal(renderTemplate('/book/{{$.articleid}}', { $: { articleid: 42 } }), '/book/42')
 assert.equal(applyRule({ articleid: 42 }, 'https://example.com/book/{{$.articleid}}', { $: { articleid: 42 } }), 'https://example.com/book/42')
+assert.equal(applyRule({ articleid: 42 }, 'articleid'), 42)
+
+const ruleFlow = createRuleFlowContext('source-a')
+const flowContext = { ruleFlow, $: { id: 42 } }
+assert.equal(applyRule({ id: 42, name: '示例书' }, '$.name@put:{book:$.id}', flowContext), '示例书')
+assert.equal(applyRule({}, '/v2/book/@get:{book}/chapters', flowContext), '/v2/book/42/chapters')
+assert.equal(applyRule({ id: 43, name: '示例书二' }, 'name@put:{book:id}', flowContext), '示例书二')
+assert.equal(applyRule('', '@get:{book}', flowContext), '43')
+assert.equal(applyRule({}, 'resourceid=@get:{book}&page=1', flowContext), 'resourceid=43&page=1')
+assert.equal(parseRequestSpec('/chapter?resourceid=@get:{book}', flowContext, 'https://example.com').url, 'https://example.com/chapter?resourceid=43')
+assert.equal(renderTemplate('{{java.getString("book")}}', flowContext), '43')
+assert.deepEqual(exportRuleFlowValues(ruleFlow), { book: '43' })
+assert.equal(applyRule('<h1>书名</h1><span class="author">作者</span>', '@put:{n:"h1@text",a:".author@text"}', { ruleFlow }), '<h1>书名</h1><span class="author">作者</span>')
+assert.equal(applyRule('', '@get:{n}', { ruleFlow }), '书名')
+assert.throws(
+  () => applyRule({ id: 'x'.repeat(128) }, '$.id@put:{large:$.id}', { ruleFlow: createRuleFlowContext('source-a', {}, { maxValueChars: 64 }) }),
+  error => error && error.code === 'SCRIPT_BUDGET_EXCEEDED'
+)
+assert.equal(applyRule('', '@get:{book}', { ruleFlow: createRuleFlowContext('source-b') }), '')
+assert.deepEqual(executeJsRule('J(result)', { result: '{"id":7}' }), { id: 7 })
+assert.equal(executeJsRule('Base()', { baseUrl: 'https://example.com/path?q=1' }), 'https://example.com')
+let cookieCleared = 0
+assert.equal(
+  renderTemplate('{{cookie.removeCookie(source.getKey())}}/search/{{source.getKey()}}', {
+    sourceKey: 'https://example.com',
+    clearSourceCookie: () => { cookieCleared += 1 }
+  }),
+  '/search/https://example.com'
+)
+assert.equal(cookieCleared, 1)
 
 assert.equal(applyRule(html, "//div[contains(@class,'book')]"), '')
 assert.throws(
