@@ -750,3 +750,61 @@ node scripts\source_import_benchmark.mjs --cohort=current --limit=200 --flowLimi
 # 合并门禁；时间、清单、顺序或哈希不合格时命令直接失败
 node scripts\combine_source_acceptance_windows.mjs --inputs=docs/source-acceptance/stage12-qualification-window-a.json,docs/source-acceptance/stage12-qualification-window-b.json --output=docs/source-acceptance/stage12-qualification-combined.json --seedsOutput=docs/source-acceptance/stage12-stable-source-seeds.json
 ```
+
+## 二十二、第十三阶段：真实可读率收口、可恢复验收与 V3.0 发布门禁（2026-08-24）
+
+### 22.1 可恢复验收与运行时冻结
+
+- 验收工具增加 `--help`、`--dryRun`、`--checkpoint`、`--resume`、有限网络重试和进度心跳；每完成一个来源就写入本地检查点，200 源全部完成后才原子生成正式报告。
+- Windows 下临时文件改为进程号加 UUID，并在 `rename` 被阻时执行有限复制替换；第二轮验收已实际从 176/200 的检查点恢复，未重复测试已完成样本。
+- 新增阶段十三状态机，记录 `acceptanceCommit`、`engineFingerprint`、`manifestHash`、窗口时间和阻断原因。当前状态为 `prequalification / failed / PREQUALIFICATION_GATE_FAILED`，未产生窗口 A/B 时间戳。
+- 四轮预资格均复用同一份 200 源清单，清单哈希为 `manifest-v1-b9c40e1a`；没有重新挑选 ID、替换失败样本或改变顺序。
+
+### 22.2 通用 3.x 兼容收口
+
+- 请求对象补齐安全 `params`，只允许标量值和已定义字段；当前来源的 `cookie.removeCookie(baseUrl/source.getKey())` 只映射到来源隔离的 Cookie 容器。
+- 可选封面、作者等元数据脚本超出白名单时不再杀死标题和书籍 URL 均有效的搜索结果；安全脚本边界不变。
+- 搜索新增受限同域降级：只接受标题命中关键词、HTTP/HTTPS、与书源 origin 一致的链接；搜索跳转到详情页时仍需要详情页结构特征。跨域、搜索、分类、排行和登录链接被拒绝。
+- 目录新增同域章节结构降级，只在章节标题明确，或链接位于 `chapter/catalog/mulu` 等通用目录容器且至少 3 条时生效；跨域与 JavaScript 链接被拒绝。
+- JSONPath 补齐根节点 `$`、`$..rows[*]`、递归字段后续路径和 10,000 节点遍历预算。非 HTTP 目录/正文翻页 URL 不再发起请求，已有正文可正常返回。
+- 真实重放确认：YCK 5621 可读 99 章、首章 4182 字符；7131/7155 各 6 章、首章 568 字符。YCK 7025 的公开目录 API 已返回 17 字非 JSON 错误页，记录为页面/配置变化，没有增加站点专用硬编码。
+
+### 22.3 四轮预资格结果
+
+| 轮次 | 严格分母 | 完整通过 | 通过率 | 结论 |
+| --- | ---: | ---: | ---: | --- |
+| R1 | 55 | 19 | 34.55% | 未达标 |
+| R2 | 52 | 22 | 42.31% | 未达标 |
+| R3 | 54 | 25 | 46.30% | 未达标 |
+| R4 | 55 | 29 | 52.73% | 未达标 |
+
+- R4 外部状态排除 145 个：HTTP_BLOCKED 54、NETWORK_ERROR 51、HTTP_NOT_FOUND 15、TIMEOUT 15、HTTP_SERVER_ERROR 7，以及登录、验证码和站点不可达各 1。
+- R4 严格分母内失败为 PARSE_EMPTY 21、TOC_EMPTY 2、SEARCH_EMPTY 2、CONTENT_EMPTY 1。站点返回空数组或确实没有三个验收关键词时仍计入严格分母，没有通过更改错误分类提高通过率。
+- 脱敏报告位于 `docs/source-acceptance/stage13-prequalification*-2026-08-24.{json,md}`；不保存正文、Cookie、Token、完整响应或完整书源 JSON。
+- 发布门禁结论：预资格尚未达到严格分母至少 20 且通过率至少 80%，因此不启动窗口 A 的 24 小时计时，不生成窗口 B，不生成稳定源种子，不将 PR #1 转为 Ready。
+
+### 22.4 自动测试、构建与真机候选验收
+
+| 项目 | 结果 | 说明 |
+| --- | ---: | --- |
+| 前端测试 | 120 / 120 passed | 全量 `tests/*.test.mjs` |
+| 后端 SQLite | 125 / 125 passed | 10.37 秒 |
+| H5 生产构建 | 通过 | 既有 Browserslist 与 374 KiB 入口警告 |
+| APK 构建 | 通过 | zipalign、v1/v2/v3 签名通过 |
+| APK 大小 | 1,573,969 字节 | `release/android-stage13-candidate-r4/V2.apk` |
+| APK SHA-256 | `B3EC611D24BB1814469C65D2724E176EF1A8DDF3549D9FA46831FAA529DBD147` | 候选包，非正式 V3.0 |
+| 真机覆盖安装 | 通过 | REA-AN00 / Android 15 |
+| 数据保留 | 5330 源、3 本书架 | 首次安装时间仍为 2026-05-29 |
+
+- 候选 APK 继续使用包名 `com.novelreader.v1`、版本 `1.0.0 (10000)` 和原更新签名；只有正式双窗门禁、GitHub Actions 和真机闭环全部通过后才升级到 `3.0.0 (30000)`。
+- 覆盖安装后真机首页显示 3 本书架，书源页显示 5330 源；安装前后首次安装时间未变，说明没有清除应用数据。
+- 本地 8765 后端 readiness 通过；Volcengine 五种声音 `loli/uncle/youth/shota/recital` 均为可用且已验证。每种仅合成“试听”两字，HTTP 200，MP3 文件头均为 ID3，大小为 7149 / 7149 / 10221 / 7149 / 7341 字节。
+- DOCX 已局部追加阶段十三。文档渲染工具因环境缺少 LibreOffice/soffice 无法生成页面 PNG；已改做 OOXML/ZIP、关系、标题、段落、表格和关键证据结构审计，结果通过，未将其表述为逐页视觉检查。
+- GitHub 网络与 PR #1 实时状态尚待推送时复核；PostgreSQL 16 仍由 GitHub Actions 验证。在这两项完成前不将本地测试表述为全部发布门禁通过。
+
+### 22.5 当前结论与继续路线
+
+1. 当前已交付可安装的阶段十三候选包，但真实可读率仅 52.73%，不宣称“绝大多数 YCK 书源稳定可读”。
+2. 下一轮只针对严格分母内剩余的通用高频差异，优先处理有真实结果容器但规则失配的搜索页；站点返回空结果、错误页或已下线 API 不通过站点硬编码修复。
+3. 预资格达到至少 80% 后才从新的冻结提交执行窗口 A；A 达标后精确等待 24 小时执行 B。任何影响书源结果的修改都会废弃当前 A 并重新计时。
+4. 双窗、GitHub Actions、正式 APK 签名和真机无后端阅读闭环全部通过后，再升级版本为 V3.0、生成稳定源种子并将 PR #1 从 Draft 转为 Ready for review。

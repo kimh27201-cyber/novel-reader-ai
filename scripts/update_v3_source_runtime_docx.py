@@ -21,6 +21,7 @@ STAGE7_SECTION_TITLE = "16. 第七阶段真实书源质量、可读率与稳定�
 STAGE7_REPLAY_TITLE = "16.6 首窗口高频规则差异重放（2026-08-13）"
 STAGE7_REPLAY2_TITLE = "16.7 第二批规则重放与外部变化审计（2026-08-13）"
 STAGE12_SECTION_TITLE = "21. 第十二阶段 YCK 规则兼容与修复后双窗口验收（2026-08-13）"
+STAGE13_SECTION_TITLE = "22. 第十三阶段真实可读率收口与 V3.0 发布门禁（2026-08-24）"
 
 
 def set_east_asia_font(run, name="微软雅黑"):
@@ -702,6 +703,76 @@ def append_stage12_section(document):
     return True
 
 
+def append_stage13_section(document):
+    if any(paragraph.text.strip() == STAGE13_SECTION_TITLE for paragraph in document.paragraphs):
+        return False
+
+    document.add_page_break()
+    heading = document.add_heading(STAGE13_SECTION_TITLE, level=1)
+    for run in heading.runs:
+        set_east_asia_font(run)
+
+    document.add_heading("22.1 可恢复验收与运行时冻结", level=2)
+    add_bullet(document, "验收工具增加 help、dryRun、checkpoint、resume、有限网络重试和心跳；每完成一个来源就写入检查点，200 源完成后才原子生成报告。")
+    add_bullet(document, "Windows 临时文件使用进程号加 UUID，rename 被阻时有限复制替换；已实际从 176/200 检查点恢复。")
+    add_bullet(document, "四轮预资格复用同一 200 源清单，manifestHash 为 manifest-v1-b9c40e1a，未替换 ID、改变顺序或删除失败样本。")
+    add_bullet(document, "当前发布状态为 prequalification / failed / PREQUALIFICATION_GATE_FAILED；窗口 A/B 都未启动。")
+
+    document.add_heading("22.2 通用 3.x 兼容收口", level=2)
+    add_bullet(document, "请求对象补齐安全 params 和来源隔离 Cookie 清理；可选元数据脚本失败不再丢弃标题与 URL 有效的结果。")
+    add_bullet(document, "搜索降级只接受关键词命中、HTTP/HTTPS 且同 origin 的链接；跨域、分类、排行、登录与 JavaScript 链接拒绝。")
+    add_bullet(document, "目录降级只在章节标题明确，或位于 chapter/catalog/mulu 通用容器且至少 3 条时生效。")
+    add_bullet(document, "JSONPath 支持根节点、递归数组和后续路径，最多遍历 10,000 节点；非 HTTP 目录/正文分页不再发起请求。")
+    add_body(document, "真实重放：YCK 5621 可读 99 章、首章 4182 字符；7131/7155 各 6 章、首章 568 字符。7025 目录 API 已返回非 JSON 错误页，未增加站点硬编码。")
+
+    document.add_heading("22.3 四轮预资格数据", level=2)
+    rows = [
+        ("R1", "19 / 55", "34.55%", "未达标"),
+        ("R2", "22 / 52", "42.31%", "未达标"),
+        ("R3", "25 / 54", "46.30%", "未达标"),
+        ("R4", "29 / 55", "52.73%", "未达标"),
+    ]
+    table = document.add_table(rows=1, cols=4)
+    for index, value in enumerate(["轮次", "通过 / 严格分母", "通过率", "结论"]):
+        table.rows[0].cells[index].text = value
+    for values in rows:
+        cells = table.add_row().cells
+        for index, value in enumerate(values):
+            cells[index].text = value
+    style_table(table)
+    add_bullet(document, "R4 外部状态排除 145 个；严格分母内失败为 PARSE_EMPTY 21、TOC_EMPTY 2、SEARCH_EMPTY 2、CONTENT_EMPTY 1。")
+    warning = document.add_paragraph()
+    warning_run = warning.add_run("门禁结论：52.73% 低于 80%，不启动窗口 A 计时，不生成窗口 B 或稳定源种子，PR #1 必须保持 Draft。")
+    warning_run.bold = True
+    warning_run.font.color.rgb = RGBColor(0xC6, 0x28, 0x28)
+    warning_run.font.highlight_color = WD_COLOR_INDEX.YELLOW
+    set_east_asia_font(warning_run)
+
+    document.add_heading("22.4 构建、真机与 AI 声音", level=2)
+    rows = [
+        ("前端测试", "120 / 120 passed", "全量 tests/*.test.mjs"),
+        ("后端 SQLite", "125 / 125 passed", "10.37 秒"),
+        ("H5 生产构建", "通过", "仅已知 Browserslist/374 KiB 警告"),
+        ("APK 签名", "v1/v2/v3 通过", "zipalign 通过"),
+        ("真机数据", "5330 源 / 3 本书架", "REA-AN00 覆盖安装保留"),
+        ("AI 声音", "5 / 5 短试听通过", "HTTP 200、MP3/ID3"),
+    ]
+    table = document.add_table(rows=1, cols=3)
+    for index, value in enumerate(["项目", "结果", "说明"]):
+        table.rows[0].cells[index].text = value
+    for values in rows:
+        cells = table.add_row().cells
+        for index, value in enumerate(values):
+            cells[index].text = value
+    style_table(table)
+    add_body(document, "候选 APK：release/android-stage13-candidate-r4/V2.apk，1,573,969 字节，SHA-256 B3EC611D24BB1814469C65D2724E176EF1A8DDF3549D9FA46831FAA529DBD147。")
+    add_bullet(document, "候选包保持 com.novelreader.v1 和 1.0.0 (10000)；发布门禁全部通过前不升级为 3.0.0 (30000)。")
+    add_bullet(document, "覆盖安装后 firstInstallTime 仍为 2026-05-29；书源页显示 5330 源，书架显示 3 本。")
+    add_bullet(document, "Volcengine 五种声音 loli/uncle/youth/shota/recital 均短合成成功，产物为 HTTP 200 的 MP3/ID3，未执行长章节播放。")
+    add_bullet(document, "PostgreSQL 16 和 PR #1 实时状态仍待 GitHub Actions/推送复核，当前不声称所有发布门禁通过。")
+    return True
+
+
 def main():
     document = Document(DOCX_PATH)
     if any(paragraph.text.strip() == SECTION_TITLE for paragraph in document.paragraphs):
@@ -774,10 +845,11 @@ def main():
         stage10_added = append_stage10_section(document)
         stage11_added = append_stage11_section(document)
         stage12_added = append_stage12_section(document)
+        stage13_added = append_stage13_section(document)
         if not any("缺少 LibreOffice/soffice" in paragraph.text for paragraph in document.paragraphs):
             add_bullet(document, "DOCX 渲染工具因环境缺少 LibreOffice/soffice 无法生成页面预览；已完成 ZIP、正文 XML、样式、关系和关键证据结构审计，未将结构审计表述为逐页视觉检查。")
             stage10_render_note_added = True
-        if stage4_updated or stage6_updated or stage8_updated or stage10_render_note_added or stage2_added or stage3_added or stage4_added or stage5_added or stage6_added or stage6_final_added or stage7_added or stage7_replay_added or stage7_replay2_added or stage8_added or stage9_added or stage10_added or stage11_added or stage12_added:
+        if stage4_updated or stage6_updated or stage8_updated or stage10_render_note_added or stage2_added or stage3_added or stage4_added or stage5_added or stage6_added or stage6_final_added or stage7_added or stage7_replay_added or stage7_replay2_added or stage8_added or stage9_added or stage10_added or stage11_added or stage12_added or stage13_added:
             saved_path = save_document(document)
             print(f"Updated: {saved_path}")
         else:
@@ -862,6 +934,7 @@ def main():
     append_stage10_section(document)
     append_stage11_section(document)
     append_stage12_section(document)
+    append_stage13_section(document)
     saved_path = save_document(document)
     print(f"Updated: {saved_path}")
 
