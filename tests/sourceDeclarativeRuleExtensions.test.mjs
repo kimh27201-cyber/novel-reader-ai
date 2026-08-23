@@ -20,6 +20,11 @@ const html = `
 `
 
 assert.equal(applyListRule(html, '.txt-list li!0').length, 2)
+assert.equal(applyListRule('<ul class="list"><li>甲</li><li>乙</li></ul>', 'ul.list@li').length, 2)
+assert.equal(applyListRule('<ul class="sort_list"><li>甲</li></ul>', '.sort_list@li').length, 1)
+assert.equal(applyListRule('<div class="block">甲</div><div class="block">乙</div>', 'class.block.[0:-1]').length, 1)
+assert.equal(applyRule('<div class="block"><div class="block_txt"><h2><a href="/book/1">剑来</a></h2></div></div>', 'class.block_txt@tag.h2@tag.a@text'), '剑来')
+assert.equal(applyListRule('<ul class="liebiao2"><li>甲</li></ul>', '.liebiao2 li').length, 1)
 assert.equal(applyListRule(html, '.txt-list li:not(:first-child)').length, 2)
 assert.equal(applyListRule(html, 'class.txt-list@li:not(:first-child)').length, 2)
 assert.equal(applyRule(html, '.text-[18px]@text'), '第一本')

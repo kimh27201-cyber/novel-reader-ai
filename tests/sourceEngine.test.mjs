@@ -117,6 +117,18 @@ const relaxedRequest = parseRequestSpec("https://example.com/search,{method:'POS
 assert.equal(relaxedRequest.method, 'POST')
 assert.equal(relaxedRequest.data, 'key=abc')
 assert.equal(relaxedRequest.charset, 'gbk')
+const paramsRequest = parseRequestSpec('https://example.com/search,{"method":"GET","params":{"q":"{{key}}","page":"{{page}}"}}', { key: '剑来', page: 2 })
+assert.equal(paramsRequest.method, 'GET')
+assert.equal(new URL(paramsRequest.url).searchParams.get('q'), '剑来')
+assert.equal(new URL(paramsRequest.url).searchParams.get('page'), '2')
+assert.throws(
+  () => parseRequestSpec('https://example.com/search,{"method":"GET","params":{"__proto__":"x"}}', {}),
+  error => error && error.code === 'REQUEST_TEMPLATE_UNSUPPORTED'
+)
+const cookieRequest = parseRequestSpec('@js:cookie.removeCookie(baseUrl); var body = "searchkey="+key; var option = {"method":"POST","body":String(body)}; baseUrl+"/search,"+JSON.stringify(option)', { key: '剑来', baseUrl: 'https://example.com' })
+assert.equal(cookieRequest.url, 'https://example.com/search')
+assert.equal(cookieRequest.method, 'POST')
+assert.equal(cookieRequest.data, 'searchkey=剑来')
 assert.throws(
   () => parseRequestSpec('https://example.com/search,{method: makeMethod()}', { key: 'abc' }),
   error => error && error.code === 'REQUEST_TEMPLATE_UNSUPPORTED'

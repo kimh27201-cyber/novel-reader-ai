@@ -292,6 +292,29 @@ function pickUrl(input, rule, names, context, baseUrl) {
   return resolveUrl(firstValue(applyRule(input, getFieldRule(rule, names), context)), baseUrl)
 }
 
+function isOptionalMetadataRuleError(error) {
+  return ['UNSUPPORTED_JS_CAPABILITY', 'JS_RULE_BUDGET_EXCEEDED', 'JS_RULE_TIMEOUT', 'JS_RULE_RESULT_TOO_LARGE']
+    .includes(String(error && (error.code || error.errorCode) || ''))
+}
+
+function pickOptionalText(input, rule, names, context) {
+  try {
+    return pickText(input, rule, names, context)
+  } catch (error) {
+    if (isOptionalMetadataRuleError(error)) return ''
+    throw error
+  }
+}
+
+function pickOptionalUrl(input, rule, names, context, baseUrl) {
+  try {
+    return pickUrl(input, rule, names, context, baseUrl)
+  } catch (error) {
+    if (isOptionalMetadataRuleError(error)) return ''
+    throw error
+  }
+}
+
 function getAttachedRuleFlowValues(value) {
   return value && value.__sourceRuleVars && typeof value.__sourceRuleVars === 'object'
     ? value.__sourceRuleVars
@@ -3718,11 +3741,11 @@ async function exploreSourceEntry(entry, options = {}) {
       sourceGroup: source.group,
       bookUrl: pickUrl(item, rule, ['bookUrl', 'url', 'link'], context, source.baseUrl),
       title: rawTitle,
-      author: pickText(item, rule, ['author', 'bookAuthor'], context) || 'Unknown',
-      kind: pickText(item, rule, ['kind', 'category', 'type'], context) || entry.title || 'Explore',
-      latestChapter: pickText(item, rule, ['latestChapter', 'lastChapter', 'last'], context),
-      intro: pickText(item, rule, ['intro', 'description', 'desc'], context),
-      coverUrl: pickUrl(item, rule, ['coverUrl', 'cover', 'image'], context, source.baseUrl),
+      author: pickOptionalText(item, rule, ['author', 'bookAuthor'], context) || 'Unknown',
+      kind: pickOptionalText(item, rule, ['kind', 'category', 'type'], context) || entry.title || 'Explore',
+      latestChapter: pickOptionalText(item, rule, ['latestChapter', 'lastChapter', 'last'], context),
+      intro: pickOptionalText(item, rule, ['intro', 'description', 'desc'], context),
+      coverUrl: pickOptionalUrl(item, rule, ['coverUrl', 'cover', 'image'], context, source.baseUrl),
       metadataStatus: rawTitle ? 'complete' : 'needs_detail',
       metadataOrigin: 'explore'
     }, { preserveMissingTitle: true })
@@ -4621,11 +4644,11 @@ function parseSearchResponse(source, rule, keyword, html, ruleFlow = null) {
     const rawTitle = cleanText(firstValue(applyRule(item, titleRule, context)))
     const parsedFields = {
       title: rawTitle,
-      author: pickText(item, rule, ['author', 'bookAuthor'], context) || '未知作者',
-      kind: pickText(item, rule, ['kind', 'category', 'type'], context) || '在线书源',
-      latestChapter: pickText(item, rule, ['latestChapter', 'lastChapter', 'last'], context),
-      intro: pickText(item, rule, ['intro', 'description', 'desc'], context),
-      coverUrl: pickUrl(item, rule, ['coverUrl', 'cover', 'image'], context, source.baseUrl)
+      author: pickOptionalText(item, rule, ['author', 'bookAuthor'], context) || '未知作者',
+      kind: pickOptionalText(item, rule, ['kind', 'category', 'type'], context) || '在线书源',
+      latestChapter: pickOptionalText(item, rule, ['latestChapter', 'lastChapter', 'last'], context),
+      intro: pickOptionalText(item, rule, ['intro', 'description', 'desc'], context),
+      coverUrl: pickOptionalUrl(item, rule, ['coverUrl', 'cover', 'image'], context, source.baseUrl)
     }
     const parsedBook = { ...parsedFields, name: rawTitle }
     const resolvedContext = { ...context, ...parsedFields, book: parsedBook }

@@ -337,8 +337,12 @@ export function resolveUrl(url, baseUrl) {
 export function parseRequestSpec(spec, context = {}, baseUrl = '') {
   const rawSpec = String(spec || '').trim()
   const requestContext = { ...context, baseUrl: context.baseUrl || baseUrl }
+  const safeScriptSpec = rawSpec.replace(
+    /^((?:<js>|@js:)\s*)cookie\.removeCookie\(\s*(?:baseUrl|source\.getKey\(\))\s*\)\s*;?/i,
+    '$1'
+  )
   const renderedText = /^(?:<js>|@js:)/i.test(rawSpec)
-    ? String(executeJsRule(rawSpec, {
+    ? String(executeJsRule(safeScriptSpec, {
       ...requestContext,
       result: requestContext.result == null ? (requestContext.key || '') : requestContext.result
     }))
@@ -375,7 +379,7 @@ export function parseRequestSpec(spec, context = {}, baseUrl = '') {
   if (!options || Array.isArray(options) || typeof options !== 'object') {
     throw new SourceRuntimeError('REQUEST_TEMPLATE_UNSUPPORTED', '书源请求模板配置必须是对象', { stage: 'request' })
   }
-  const allowedOptionKeys = new Set(['method', 'body', 'data', 'charset', 'headers', 'header'])
+  const allowedOptionKeys = new Set(['method', 'body', 'data', 'charset', 'headers', 'header', 'params'])
   const invalidOptionKey = Object.keys(options).find(key => !allowedOptionKeys.has(key))
   if (invalidOptionKey) {
     throw new SourceRuntimeError('REQUEST_TEMPLATE_UNSUPPORTED', `书源请求模板包含未允许字段：${invalidOptionKey}`, { stage: 'request' })
@@ -387,18 +391,39 @@ export function parseRequestSpec(spec, context = {}, baseUrl = '') {
   }
   const header = normalizeHeaders(options.headers || options.header || {}, { channel: 'proxy', context: requestContext })
   const data = renderTemplate(options.body == null ? options.data || '' : options.body, requestContext)
+  let requestUrl = resolveUrl(match[1], baseUrl)
+  if (options.params != null) {
+    if (!options.params || Array.isArray(options.params) || typeof options.params !== 'object') {
+      throw new SourceRuntimeError('REQUEST_TEMPLATE_UNSUPPORTED', '书源请求 params 必须是对象', { stage: 'request' })
+    }
+    const entries = Object.entries(options.params)
+    if (entries.length > 64 || entries.some(([key, value]) => FORBIDDEN_REQUEST_PARAM_KEYS.has(key) || value != null && typeof value === 'object')) {
+      throw new SourceRuntimeError('REQUEST_TEMPLATE_UNSUPPORTED', '书源请求 params 包含不安全字段或超出数量限制', { stage: 'request' })
+    }
+    const resolved = new URL(requestUrl)
+    entries.forEach(([key, value]) => {
+      const rawValue = String(value == null ? '' : value).replace(/\{\{\s*(?:key|keyword)\s*\}\}/gi, String(requestContext.key || requestContext.keyword || ''))
+      const renderedValue = renderTemplate(rawValue, requestContext)
+      let decodedValue = renderedValue
+      try { decodedValue = decodeURIComponent(renderedValue) } catch (error) {}
+      resolved.searchParams.set(key, decodedValue)
+    })
+    requestUrl = resolved.toString()
+  }
   if (method === 'POST' && data && !Object.keys(header).some(key => key.toLowerCase() === 'content-type')) {
     header['Content-Type'] = 'application/x-www-form-urlencoded'
   }
 
   return {
-    url: resolveUrl(match[1], baseUrl),
+    url: requestUrl,
     method,
     header,
     data,
     charset: options.charset || ''
   }
 }
+
+const FORBIDDEN_REQUEST_PARAM_KEYS = new Set(['__proto__', 'prototype', 'constructor'])
 
 const sourceRequestTimestamps = new Map()
 
@@ -1139,9 +1164,13 @@ function normalizeSelectorToken(token) {
   const value = String(token || '').trim()
   if (/^css:/i.test(value)) return value.replace(/^css:/i, '')
   if (value.startsWith('class.')) {
-    const className = value.slice(6).trim()
-    if (/[#\[\]]/.test(className)) return `legado-class:${encodeURIComponent(className)}`
-    return `.${className.split(/\s+/).filter(Boolean).join('.')}`
+    const className = value.slice(6).trim().replace(/\.\[(-?\d+(?::-?\d+)?)\]$/, '[$1]')
+    const range = className.match(/^([\s\S]+?)\[(-?\d+(?::-?\d+)?)\]$/)
+    const baseClassName = range ? range[1] : className
+    const selector = /[#\[\]]/.test(baseClassName)
+      ? `legado-class:${encodeURIComponent(baseClassName)}`
+      : `.${baseClassName.split(/\s+/).filter(Boolean).join('.')}`
+    return range ? `${selector}[${range[2]}]` : selector
   }
   if (value.startsWith('id.')) return `#${value.slice(3)}`
   if (value.startsWith('tag.')) return value.slice(4)
