@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { writeFile } from 'node:fs/promises'
+import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -9,12 +9,18 @@ import {
   applyImportPreview,
   buildImportPreview,
   getSourceConfigs,
+  hashSourceRuntimeConfig,
   loadOnlineChapter,
   normalizeBookSources,
   recordSourceAcceptanceWindow,
   runSourceReadingFlow
 } from '../common/bookSources.js'
-import { buildCurrentAcceptanceCohort, summarizeAcceptanceWindow } from '../common/sourceAcceptanceCohort.js'
+import {
+  buildCurrentAcceptanceCohort,
+  createLockedAcceptanceManifest,
+  summarizeAcceptanceWindow,
+  verifyLockedAcceptanceManifest
+} from '../common/sourceAcceptanceCohort.js'
 import { parseSourceMarketItems } from '../common/sourceMarket.js'
 import { classifySourceFailure, SourceRuntimeError } from '../common/sourceErrors.js'
 
@@ -22,6 +28,35 @@ const args = Object.fromEntries(process.argv.slice(2).map(value => {
   const [key, ...rest] = value.replace(/^--/, '').split('=')
   return [key, rest.join('=') || 'true']
 }))
+const HELP_TEXT = `YCK 书源验收工具
+
+用法：
+  node scripts/source_import_benchmark.mjs [options]
+
+主要参数：
+  --cohort=current|fixed        样本类型，默认 fixed
+  --limit=200                   锁定样本数量
+  --flowLimit=200               执行完整阅读流程的数量
+  --pages=1-57                  YCK 分页范围
+  --concurrency=3               配置抓取并发
+  --timeoutMs=12000             单请求超时
+  --windowId=<id>               当前窗口 ID
+  --manifestOutput=<path>       窗口 A 固定清单输出
+  --manifest=<path>             窗口 B 固定清单输入
+  --referenceWindowId=<id>      窗口 B 引用的窗口 A ID
+  --output=<path>               脱敏 JSON 报告输出
+  --checkpoint=<path>           本地可恢复检查点
+  --resume[=<path>]             从检查点恢复已完成流程
+  --requestRetries=2            网络请求额外重试次数（最大 2）
+  --heartbeatMs=300000          进度心跳间隔
+  --dryRun                      只校验并显示解析后的参数，不联网、不写文件
+  --help                        显示帮助
+`
+
+if (args.help === 'true') {
+  process.stdout.write(HELP_TEXT)
+  process.exit(0)
+}
 const target = Math.max(1, Math.min(500, Number(args.limit || 200)))
 function parsePages(value) {
   const output = []
@@ -43,15 +78,44 @@ const pages = parsePages(args.pages || '1,28,56')
 const concurrency = Math.max(1, Math.min(16, Number(args.concurrency || 8)))
 const flowLimit = Math.max(0, Math.min(target, Number(args.flowLimit || 0)))
 const timeoutMs = Math.max(3000, Math.min(30000, Number(args.timeoutMs || 12000)))
+const requestRetries = Math.max(0, Math.min(2, Number(args.requestRetries || 2)))
+const heartbeatMs = Math.max(1000, Number(args.heartbeatMs || 5 * 60 * 1000))
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const jsonOutput = path.resolve(root, args.output || 'docs/source-acceptance/yck-text-source-benchmark-2026-08-11.json')
 const markdownOutput = jsonOutput.replace(/\.json$/i, '.md')
+const manifestInput = args.manifest ? path.resolve(root, args.manifest) : ''
+const manifestOutput = args.manifestOutput ? path.resolve(root, args.manifestOutput) : ''
 const capturedAt = new Date().toISOString()
 const cohortKind = args.cohort === 'current' ? 'currentCohort' : 'fixed200'
 const windowId = String(args.windowId || `${cohortKind}-${capturedAt.slice(0, 13)}`).slice(0, 80)
+const checkpointInput = args.resume && args.resume !== 'true'
+  ? path.resolve(root, args.resume)
+  : args.checkpoint
+    ? path.resolve(root, args.checkpoint)
+    : path.resolve(root, 'artifacts', 'stage13', `${windowId}.checkpoint.json`)
+const checkpointEnabled = !!args.checkpoint || !!args.resume
 const keywords = ['斗破苍穹', '剑来', '诡秘之主']
 const storage = {}
 const marketPageFailures = []
+
+if (args.dryRun === 'true') {
+  process.stdout.write(`${JSON.stringify({
+    dryRun: true,
+    target,
+    pages,
+    concurrency,
+    flowLimit,
+    timeoutMs,
+    requestRetries,
+    windowId,
+    cohortKind,
+    jsonOutput,
+    manifestInput,
+    manifestOutput,
+    checkpoint: checkpointEnabled ? checkpointInput : ''
+  }, null, 2)}\n`)
+  process.exit(0)
+}
 
 globalThis.uni = {
   getStorageSync(key) { return storage[key] },
@@ -63,20 +127,58 @@ function sha256(value) {
   return createHash('sha256').update(String(value || ''), 'utf8').digest('hex')
 }
 
+function wait(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms))
+}
+
 async function fetchText(url) {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
   const startedAt = Date.now()
+  let lastError = null
+  for (let attempt = 0; attempt <= requestRetries; attempt += 1) {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
+    try {
+      const response = await fetch(url, {
+        signal: controller.signal,
+        headers: { 'User-Agent': 'NovelReader-Acceptance/3.0 (+local benchmark)' }
+      })
+      const text = await response.text()
+      if (!response.ok) throw Object.assign(new Error(`HTTP ${response.status}`), { code: `HTTP_${response.status}` })
+      return { text, elapsedMs: Date.now() - startedAt }
+    } catch (error) {
+      lastError = error
+      if (attempt >= requestRetries) break
+      await wait(1000 * (2 ** attempt))
+    } finally {
+      clearTimeout(timer)
+    }
+  }
+  throw lastError
+}
+
+async function writeJsonAtomic(filePath, value) {
+  await mkdir(path.dirname(filePath), { recursive: true })
+  const tempPath = `${filePath}.${process.pid}.tmp`
+  await writeFile(tempPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
+  await rename(tempPath, filePath)
+}
+
+async function writeTextAtomic(filePath, value) {
+  await mkdir(path.dirname(filePath), { recursive: true })
+  const tempPath = `${filePath}.${process.pid}.tmp`
+  await writeFile(tempPath, value, 'utf8')
+  await rename(tempPath, filePath)
+}
+
+async function readCheckpoint() {
+  if (!args.resume) return null
   try {
-    const response = await fetch(url, {
-      signal: controller.signal,
-      headers: { 'User-Agent': 'NovelReader-Acceptance/3.0 (+local benchmark)' }
-    })
-    const text = await response.text()
-    if (!response.ok) throw Object.assign(new Error(`HTTP ${response.status}`), { code: `HTTP_${response.status}` })
-    return { text, elapsedMs: Date.now() - startedAt }
-  } finally {
-    clearTimeout(timer)
+    const checkpoint = JSON.parse(await readFile(checkpointInput, 'utf8'))
+    if (String(checkpoint.windowId || '') !== windowId) throw new Error('CHECKPOINT_WINDOW_MISMATCH')
+    return checkpoint
+  } catch (error) {
+    if (error && error.code === 'ENOENT') return null
+    throw error
   }
 }
 
@@ -110,10 +212,22 @@ function isTextSource(raw) {
 function isEligible(raw, analysis, source) {
   const text = JSON.stringify(raw || {})
   return analysis.status === 'ready'
-    && source.enabled !== false
     && !!raw.searchUrl
     && !!raw.ruleSearch
     && !/(?:验证码|captcha|付费|VIP|loginUrl|登录后|18禁|成人|🔞|漫画|音频|听书)/i.test(text)
+}
+
+function detectRuleFamily(raw = {}) {
+  const rules = JSON.stringify({
+    search: raw.ruleSearch || {},
+    detail: raw.ruleBookInfo || {},
+    toc: raw.ruleToc || {},
+    content: raw.ruleContent || {}
+  })
+  if (/(?:<js>|@js:)/i.test(rules)) return 'safe_js'
+  if (/(?:xpath:|\/\/)/i.test(rules)) return 'xpath'
+  if (/(?:\$\.|@json:)/i.test(rules)) return 'jsonpath'
+  return 'css'
 }
 
 async function collectCandidates() {
@@ -160,6 +274,11 @@ async function inspectCandidate(candidate) {
       elapsedMs: Date.now() - startedAt,
       status: analysis.status,
       sourceKey: source.sourceKey,
+      configHash: hashSourceRuntimeConfig(source),
+      actualConfigHash: hashSourceRuntimeConfig(source),
+      configStatus: 'matched',
+      ruleFamily: detectRuleFamily(raw),
+      responseFingerprint: sha256(`config:${loaded.text}`).slice(0, 24),
       format: source.formatVersion,
       capabilities: {
         search: analysis.searchable,
@@ -197,7 +316,7 @@ async function inspectCandidate(candidate) {
 async function runFlow(row) {
   const startedAt = Date.now()
   try {
-    const flow = await runSourceReadingFlow(row._source.id, keywords, { timeoutMs, limit: 5 })
+    const flow = await runSourceReadingFlow(row._source.id, keywords, { timeoutMs, limit: 5, allowDisabled: true })
     if (!String(flow.book && flow.book.title || '').trim() || String(flow.book.title).trim() === '未命名小说') {
       throw new SourceRuntimeError('DETAIL_METADATA_EMPTY', '详情缺少书名', { stage: 'detail' })
     }
@@ -260,13 +379,46 @@ function buildMarkdown(report) {
   return `${lines.join('\n')}\n`
 }
 
-const candidates = await collectCandidates()
+let lockedManifest = null
+if (manifestInput) {
+  if (!args.referenceWindowId) throw new Error('窗口 B 必须通过 --referenceWindowId 指向窗口 A')
+  lockedManifest = JSON.parse(await readFile(manifestInput, 'utf8'))
+  const verification = verifyLockedAcceptanceManifest(lockedManifest)
+  if (!verification.valid) throw new Error(`固定清单校验失败：${verification.errorCode}`)
+}
+const restoredCheckpoint = await readCheckpoint()
+const candidates = lockedManifest
+  ? lockedManifest.entries.map(entry => ({ id: entry.id, layer: entry.layer, page: entry.page, _manifest: entry }))
+  : await collectCandidates()
 const inspected = await mapConcurrent(candidates, inspectCandidate)
+if (lockedManifest) {
+  inspected.forEach((row, index) => {
+    const expected = lockedManifest.entries[index]
+    row.expectedConfigHash = expected.configHash
+    row.actualConfigHash = row.configHash || ''
+    row.configStatus = row.sha256 === expected.sha256 && row.actualConfigHash === expected.configHash ? 'matched' : 'changed'
+    row.windowId = windowId
+    if (row.configStatus === 'changed') {
+      row.errorCode = 'CONFIG_CHANGED'
+      row.eligible = false
+      row.flow = {
+        status: 'failed',
+        keyword: '',
+        elapsedMs: row.elapsedMs || 0,
+        errorCode: 'CONFIG_CHANGED',
+        failedStage: 'manifest',
+        retryable: false
+      }
+    }
+  })
+}
 const validRows = inspected.filter(row => row.downloadStatus === 'valid_text_json')
 const selectedIds = new Set()
 let textRows = []
 let cohortManifest = null
-if (cohortKind === 'currentCohort') {
+if (lockedManifest) {
+  textRows = inspected
+} else if (cohortKind === 'currentCohort') {
   cohortManifest = buildCurrentAcceptanceCohort(validRows.filter(row => row.eligible), {
     target,
     maxPerHost: Number(args.maxPerHost || 2),
@@ -288,30 +440,111 @@ if (cohortKind === 'currentCohort') {
     textRows.push(row)
   })
 }
+if (!lockedManifest && cohortKind === 'currentCohort') {
+  textRows.forEach(row => {
+    row.expectedConfigHash = row.configHash
+    row.actualConfigHash = row.configHash
+    row.configStatus = 'matched'
+    row.windowId = windowId
+  })
+  lockedManifest = createLockedAcceptanceManifest(textRows, {
+    target,
+    blockSize: Number(args.blockSize || 20),
+    maxPerHost: Number(args.maxPerHost || 2),
+    timeoutMs,
+    keywords,
+    cohortId: args.cohortId,
+    createdAt: capturedAt
+  })
+  if (manifestOutput) await writeJsonAtomic(manifestOutput, lockedManifest)
+}
+if (restoredCheckpoint && String(restoredCheckpoint.manifestHash || '') !== String(lockedManifest && lockedManifest.manifestHash || '')) {
+  throw new Error('CHECKPOINT_MANIFEST_MISMATCH')
+}
 const failures = inspected.filter(row => row.downloadStatus !== 'valid_text_json')
-const samples = [...textRows, ...failures].slice(0, Math.max(target, textRows.length))
-const flowRows = textRows.filter(row => row.eligible).slice(0, flowLimit)
+const samples = lockedManifest ? textRows.slice() : [...textRows, ...failures].slice(0, Math.max(target, textRows.length))
+const flowRows = textRows.filter(row => row.eligible && row.configStatus !== 'changed' && row._source).slice(0, flowLimit)
 if (flowRows.length) {
   const preview = buildImportPreview(flowRows.map(row => row._source), getSourceConfigs())
   applyImportPreview(preview, { importMethod: 'benchmark' })
 }
-await mapConcurrent(flowRows, async row => {
+const restoredFlows = new Map((restoredCheckpoint && restoredCheckpoint.completed || []).map(item => [String(item.id), item]))
+flowRows.forEach(row => {
+  const restored = restoredFlows.get(String(row.id))
+  if (!restored) return
+  if (String(restored.sourceKey || '') !== String(row.sourceKey || '') || String(restored.configHash || '') !== String(row.configHash || '')) return
+  row.flow = restored.flow
+  row.responseFingerprint = restored.responseFingerprint || row.responseFingerprint
+})
+const pendingFlowRows = flowRows.filter(row => !row.flow)
+const completedFlows = new Map(flowRows.filter(row => row.flow).map(row => [String(row.id), {
+  id: String(row.id),
+  sourceKey: String(row.sourceKey || ''),
+  configHash: String(row.configHash || ''),
+  flow: row.flow,
+  responseFingerprint: String(row.responseFingerprint || ''),
+  completedAt: String(restoredFlows.get(String(row.id)) && restoredFlows.get(String(row.id)).completedAt || capturedAt)
+}]))
+let lastHeartbeatAt = 0
+let checkpointWriteQueue = Promise.resolve()
+
+async function persistCheckpoint(status = 'running') {
+  if (!checkpointEnabled) return
+  const snapshot = {
+    schemaVersion: 1,
+    status,
+    windowId,
+    cohortId: lockedManifest && lockedManifest.cohortId || '',
+    manifestHash: lockedManifest && lockedManifest.manifestHash || '',
+    target: flowRows.length,
+    completedCount: completedFlows.size,
+    lastHeartbeatAt: new Date().toISOString(),
+    completed: [...completedFlows.values()]
+  }
+  checkpointWriteQueue = checkpointWriteQueue.then(() => writeJsonAtomic(checkpointInput, snapshot))
+  await checkpointWriteQueue
+}
+
+await persistCheckpoint('running')
+await mapConcurrent(pendingFlowRows, async row => {
   row.flow = await runFlow(row)
+  row.responseFingerprint = sha256(JSON.stringify({
+    status: row.flow.status,
+    errorCode: row.flow.errorCode,
+    failedStage: row.flow.failedStage || '',
+    httpStatus: row.flow.httpStatus || 0,
+    contentLengths: (row.flow.contentQuality || []).map(item => item.cleanedChars)
+  })).slice(0, 24)
   recordSourceAcceptanceWindow(row._source.id, {
     windowId,
     status: row.flow.status,
     errorCode: row.flow.errorCode,
     checkedAt: Date.now()
   })
+  completedFlows.set(String(row.id), {
+    id: String(row.id),
+    sourceKey: String(row.sourceKey || ''),
+    configHash: String(row.configHash || ''),
+    flow: row.flow,
+    responseFingerprint: row.responseFingerprint,
+    completedAt: new Date().toISOString()
+  })
+  await persistCheckpoint('running')
+  if (Date.now() - lastHeartbeatAt >= heartbeatMs) {
+    lastHeartbeatAt = Date.now()
+    process.stderr.write(`${JSON.stringify({ type: 'heartbeat', windowId, completed: completedFlows.size, total: flowRows.length, at: new Date(lastHeartbeatAt).toISOString() })}\n`)
+  }
   return row.flow
 }, 3)
 
 const statusCounts = textRows.reduce((result, row) => {
+  if (!row.status) return result
   result[row.status] = (result[row.status] || 0) + 1
   return result
 }, {})
-const importable = textRows.filter(row => row.status !== 'invalid').length
-const flowPassed = flowRows.filter(row => row.flow && row.flow.status === 'passed').length
+const importable = textRows.filter(row => row.downloadStatus === 'valid_text_json' && row.status !== 'invalid').length
+const evaluatedRows = textRows.filter(row => row.flow)
+const flowPassed = evaluatedRows.filter(row => row.flow && row.flow.status === 'passed').length
 const runtimeExcludedCodes = new Set([
   'SITE_UNREACHABLE',
   'HTTP_BLOCKED',
@@ -322,24 +555,30 @@ const runtimeExcludedCodes = new Set([
   'LOGIN_REQUIRED',
   'CAPTCHA_REQUIRED',
   'COOKIE_REQUIRED',
-  'WEBVIEW_REQUIRED'
+  'WEBVIEW_REQUIRED',
+  'CONFIG_CHANGED'
 ])
-const runtimeEligibleRows = flowRows.filter(row => row.flow && (row.flow.status === 'passed' || !runtimeExcludedCodes.has(row.flow.errorCode)))
-const windowSummary = summarizeAcceptanceWindow(flowRows)
-const flowErrorCounts = flowRows.reduce((result, row) => {
+const runtimeEligibleRows = evaluatedRows.filter(row => row.flow && (row.flow.status === 'passed' || !runtimeExcludedCodes.has(row.flow.errorCode)))
+const windowSummary = summarizeAcceptanceWindow(evaluatedRows)
+const flowErrorCounts = evaluatedRows.reduce((result, row) => {
   const code = row.flow && row.flow.errorCode || 'PASSED'
   result[code] = (result[code] || 0) + 1
   return result
 }, {})
-const exclusionCounts = flowRows.filter(row => row.flow && runtimeExcludedCodes.has(row.flow.errorCode)).reduce((result, row) => {
+const exclusionCounts = evaluatedRows.filter(row => row.flow && runtimeExcludedCodes.has(row.flow.errorCode)).reduce((result, row) => {
   const code = row.flow.errorCode
   result[code] = (result[code] || 0) + 1
   return result
 }, {})
 const report = {
-  schemaVersion: 3,
+  schemaVersion: 4,
   capturedAt,
+  completedAt: new Date().toISOString(),
   windowId,
+  cohortId: lockedManifest && lockedManifest.cohortId || '',
+  referenceWindowId: String(args.referenceWindowId || ''),
+  manifestHash: lockedManifest && lockedManifest.manifestHash || '',
+  manifest: lockedManifest,
   cohortKind,
   repository: 'https://www.yckceo.com/yuedu/shuyuan/index.html',
   pages,
@@ -352,31 +591,35 @@ const report = {
   currentCohort: cohortKind === 'currentCohort' ? {
     locked: true,
     sampleCount: textRows.length,
-    hostCount: cohortManifest.hostCount,
-    maxPerHost: cohortManifest.maxPerHost,
-    blockSize: cohortManifest.blockSize,
-    blocks: cohortManifest.blocks
+    hostCount: cohortManifest ? cohortManifest.hostCount : null,
+    maxPerHost: lockedManifest && lockedManifest.maxPerHost,
+    blockSize: lockedManifest && lockedManifest.blockSize,
+    blocks: cohortManifest ? cohortManifest.blocks : lockedManifest.entries.reduce((blocks, entry) => {
+      if (!blocks[entry.block]) blocks[entry.block] = []
+      blocks[entry.block].push({ id: entry.id, sourceKey: entry.sourceKey, sha256: entry.sha256, configHash: entry.configHash })
+      return blocks
+    }, [])
   } : null,
   metrics: {
     target,
     candidateCount: candidates.length,
-    validTextJson: textRows.length,
+    validTextJson: textRows.filter(row => row.downloadStatus === 'valid_text_json').length,
     importable,
     importRatePercent: textRows.length ? Number((importable * 100 / textRows.length).toFixed(2)) : 0,
     status: statusCounts,
     staticEligible: textRows.filter(row => row.eligible).length,
     runtimeEligible: runtimeEligibleRows.length,
-    runtimeExcluded: flowRows.length - runtimeEligibleRows.length,
+    runtimeExcluded: evaluatedRows.length - runtimeEligibleRows.length,
     runtimeExclusions: exclusionCounts,
     flowErrors: flowErrorCounts,
-    flowTested: flowRows.length,
+    flowTested: evaluatedRows.length,
     flowPassed,
     flowRatePercent: runtimeEligibleRows.length ? Number((flowPassed * 100 / runtimeEligibleRows.length).toFixed(2)) : 0,
     metadataFailures: windowSummary.metadataFailures,
     contentQuality: {
-      passedSamples: flowRows.reduce((total, row) => total + Number(row.flow && row.flow.contentQuality && row.flow.contentQuality.length || 0), 0),
-      noiseFailures: flowRows.filter(row => row.flow && row.flow.errorCode === 'CONTENT_NOISE').length,
-      shortFailures: flowRows.filter(row => row.flow && row.flow.errorCode === 'CONTENT_TOO_SHORT').length
+      passedSamples: evaluatedRows.reduce((total, row) => total + Number(row.flow && row.flow.contentQuality && row.flow.contentQuality.length || 0), 0),
+      noiseFailures: evaluatedRows.filter(row => row.flow && row.flow.errorCode === 'CONTENT_NOISE').length,
+      shortFailures: evaluatedRows.filter(row => row.flow && row.flow.errorCode === 'CONTENT_TOO_SHORT').length
     },
     gate: {
       minimumDenominator: 20,
@@ -388,6 +631,7 @@ const report = {
   samples: samples.map(({ _source, ...row }) => row)
 }
 
-await writeFile(jsonOutput, `${JSON.stringify(report, null, 2)}\n`, 'utf8')
-await writeFile(markdownOutput, buildMarkdown(report), 'utf8')
+await writeJsonAtomic(jsonOutput, report)
+await writeTextAtomic(markdownOutput, buildMarkdown(report))
+await persistCheckpoint('completed')
 process.stdout.write(`${JSON.stringify({ jsonOutput, markdownOutput, metrics: report.metrics })}\n`)

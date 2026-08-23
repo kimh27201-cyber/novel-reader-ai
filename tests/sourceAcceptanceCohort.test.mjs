@@ -1,9 +1,13 @@
 import assert from 'node:assert/strict'
 
 import {
+  buildStableSourceSeeds,
   buildCurrentAcceptanceCohort,
   combineAcceptanceWindows,
-  summarizeAcceptanceWindow
+  createLockedAcceptanceManifest,
+  summarizeAcceptanceWindow,
+  validateAcceptanceWindowPair,
+  verifyLockedAcceptanceManifest
 } from '../common/sourceAcceptanceCohort.js'
 
 const rows = []
@@ -43,5 +47,44 @@ const windowTwo = { windowId: 'w2', capturedAt: '2026-08-14T00:00:00.000Z', samp
 assert.equal(combineAcceptanceWindows([windowOne, windowTwo], { minimumRate: 70 }).gatePassed, true)
 assert.equal(combineAcceptanceWindows([windowOne, windowTwo]).gatePassed, false)
 assert.equal(combineAcceptanceWindows([windowOne, { ...windowTwo, capturedAt: '2026-08-13T12:00:00.000Z' }], { minimumRate: 70 }).gatePassed, false)
+
+const manifestRows = rows.slice(0, 20).map((row, index) => ({ ...row, configHash: `config-${index}` }))
+const manifest = createLockedAcceptanceManifest(manifestRows, {
+  cohortId: 'stage12-qualification',
+  createdAt: '2026-08-13T00:00:00.000Z',
+  target: 20,
+  blockSize: 5,
+  timeoutMs: 12000
+})
+assert.equal(manifest.entries.length, 20)
+assert.equal(verifyLockedAcceptanceManifest(manifest).valid, true)
+assert.equal(verifyLockedAcceptanceManifest({ ...manifest, entries: manifest.entries.slice().reverse() }).errorCode, 'MANIFEST_HASH_MISMATCH')
+
+const qualificationSamples = Array.from({ length: 20 }, (_, index) => ({
+  id: manifest.entries[index].id,
+  sourceKey: manifest.entries[index].sourceKey,
+  configHash: `config-${index}`,
+  expectedConfigHash: `config-${index}`,
+  actualConfigHash: `config-${index}`,
+  configStatus: 'matched',
+  capturedAt: '2026-08-13T00:00:00.000Z',
+  windowId: 'qualification-a',
+  flow: { status: index < 16 ? 'passed' : 'failed', errorCode: index < 16 ? '' : 'SEARCH_EMPTY', elapsedMs: 100 + index }
+}))
+const qualificationA = {
+  windowId: 'qualification-a', capturedAt: '2026-08-13T00:00:00.000Z', completedAt: '2026-08-13T01:00:00.000Z', cohortId: manifest.cohortId,
+  manifest, samples: qualificationSamples
+}
+const qualificationB = {
+  windowId: 'qualification-b', referenceWindowId: 'qualification-a', capturedAt: '2026-08-14T01:00:00.000Z', cohortId: manifest.cohortId,
+  manifest, samples: qualificationSamples.map(row => ({ ...row, capturedAt: '2026-08-14T01:00:00.000Z', windowId: 'qualification-b' }))
+}
+const gate = validateAcceptanceWindowPair(qualificationA, qualificationB)
+assert.equal(gate.gatePassed, true)
+assert.equal(validateAcceptanceWindowPair(qualificationA, { ...qualificationB, capturedAt: '2026-08-13T12:00:00.000Z' }).gatePassed, false)
+assert.ok(validateAcceptanceWindowPair(qualificationA, { ...qualificationB, capturedAt: '2026-08-14T00:30:00.000Z' }).errors.includes('WINDOW_SEPARATION_TOO_SHORT'))
+assert.ok(validateAcceptanceWindowPair(qualificationA, { ...qualificationB, samples: qualificationB.samples.slice().reverse() }).errors.includes('WINDOW_B_SAMPLE_MISMATCH'))
+assert.equal(buildStableSourceSeeds(gate, [qualificationA, qualificationB]).length, 16)
+assert.deepEqual(buildStableSourceSeeds({ ...gate, gatePassed: false }, [qualificationA, qualificationB]), [])
 
 console.log('sourceAcceptanceCohort tests passed')
