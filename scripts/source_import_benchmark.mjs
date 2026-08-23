@@ -39,6 +39,9 @@ const HELP_TEXT = `YCK 书源验收工具
   --flowLimit=200               执行完整阅读流程的数量
   --pages=1-57                  YCK 分页范围
   --concurrency=3               配置抓取并发
+  --catalogConcurrency=8        YCK 目录页抓取并发
+  --inspectionConcurrency=8     YCK 配置检查并发
+  --flowConcurrency=3           第三方站点完整阅读并发
   --timeoutMs=12000             单请求超时
   --windowId=<id>               当前窗口 ID
   --manifestOutput=<path>       窗口 A 固定清单输出
@@ -76,6 +79,9 @@ function parsePages(value) {
 }
 const pages = parsePages(args.pages || '1,28,56')
 const concurrency = Math.max(1, Math.min(16, Number(args.concurrency || 8)))
+const catalogConcurrency = Math.max(1, Math.min(12, Number(args.catalogConcurrency || Math.max(8, concurrency))))
+const inspectionConcurrency = Math.max(1, Math.min(12, Number(args.inspectionConcurrency || Math.max(8, concurrency))))
+const flowConcurrency = Math.max(1, Math.min(4, Number(args.flowConcurrency || 3)))
 const flowLimit = Math.max(0, Math.min(target, Number(args.flowLimit || 0)))
 const timeoutMs = Math.max(3000, Math.min(30000, Number(args.timeoutMs || 12000)))
 const requestRetries = Math.max(0, Math.min(2, Number(args.requestRetries || 2)))
@@ -104,6 +110,9 @@ if (args.dryRun === 'true') {
     target,
     pages,
     concurrency,
+    catalogConcurrency,
+    inspectionConcurrency,
+    flowConcurrency,
     flowLimit,
     timeoutMs,
     requestRetries,
@@ -131,10 +140,11 @@ function wait(ms) {
   return new Promise(resolve => setTimeout(resolve, ms))
 }
 
-async function fetchText(url) {
+async function fetchText(url, options = {}) {
   const startedAt = Date.now()
   let lastError = null
-  for (let attempt = 0; attempt <= requestRetries; attempt += 1) {
+  const retries = Math.max(0, Math.min(2, Number(options.retries == null ? requestRetries : options.retries)))
+  for (let attempt = 0; attempt <= retries; attempt += 1) {
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), timeoutMs)
     try {
@@ -147,7 +157,7 @@ async function fetchText(url) {
       return { text, elapsedMs: Date.now() - startedAt }
     } catch (error) {
       lastError = error
-      if (attempt >= requestRetries) break
+      if (attempt >= retries) break
       await wait(1000 * (2 ** attempt))
     } finally {
       clearTimeout(timer)
@@ -235,13 +245,13 @@ async function collectCandidates() {
   const pageRows = await mapConcurrent(layers, async layer => {
     const url = `https://www.yckceo.com/yuedu/shuyuan/index.html?page=${layer.page}`
     try {
-      const loaded = await fetchText(url)
+      const loaded = await fetchText(url, { retries: 1 })
       return parseSourceMarketItems(loaded.text, url).map(item => ({ ...item, ...layer }))
     } catch (error) {
       marketPageFailures.push({ page: layer.page, layer: layer.layer, errorCode: errorCode(error) })
       return []
     }
-  })
+  }, catalogConcurrency)
   const unique = new Map()
   pageRows.flat().forEach(item => {
     const id = detailId(item.detailUrl)
@@ -390,7 +400,7 @@ const restoredCheckpoint = await readCheckpoint()
 const candidates = lockedManifest
   ? lockedManifest.entries.map(entry => ({ id: entry.id, layer: entry.layer, page: entry.page, _manifest: entry }))
   : await collectCandidates()
-const inspected = await mapConcurrent(candidates, inspectCandidate)
+const inspected = await mapConcurrent(candidates, inspectCandidate, inspectionConcurrency)
 if (lockedManifest) {
   inspected.forEach((row, index) => {
     const expected = lockedManifest.entries[index]
@@ -535,7 +545,7 @@ await mapConcurrent(pendingFlowRows, async row => {
     process.stderr.write(`${JSON.stringify({ type: 'heartbeat', windowId, completed: completedFlows.size, total: flowRows.length, at: new Date(lastHeartbeatAt).toISOString() })}\n`)
   }
   return row.flow
-}, 3)
+}, flowConcurrency)
 
 const statusCounts = textRows.reduce((result, row) => {
   if (!row.status) return result
