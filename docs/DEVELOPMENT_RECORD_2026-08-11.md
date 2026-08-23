@@ -800,7 +800,7 @@ node scripts\combine_source_acceptance_windows.mjs --inputs=docs/source-acceptan
 - 覆盖安装后真机首页显示 3 本书架，书源页显示 5330 源；安装前后首次安装时间未变，说明没有清除应用数据。
 - 本地 8765 后端 readiness 通过；Volcengine 五种声音 `loli/uncle/youth/shota/recital` 均为可用且已验证。每种仅合成“试听”两字，HTTP 200，MP3 文件头均为 ID3，大小为 7149 / 7149 / 10221 / 7149 / 7341 字节。
 - DOCX 已局部追加阶段十三。文档渲染工具因环境缺少 LibreOffice/soffice 无法生成页面 PNG；已改做 OOXML/ZIP、关系、标题、段落、表格和关键证据结构审计，结果通过，未将其表述为逐页视觉检查。
-- GitHub 网络与 PR #1 实时状态尚待推送时复核；PostgreSQL 16 仍由 GitHub Actions 验证。在这两项完成前不将本地测试表述为全部发布门禁通过。
+- 推送后 PR #1 仍为 Draft；GitHub Actions 的 `Backend migrations and tests` 与 `Frontend utility tests` 均已成功，后端作业包含 PostgreSQL 16 迁移与测试。预资格 52.73% 仍是发布阻断，因此 CI 全绿不会将 PR 转为 Ready。
 
 ### 22.5 当前结论与继续路线
 

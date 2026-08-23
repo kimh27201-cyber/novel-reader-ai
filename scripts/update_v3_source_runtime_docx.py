@@ -779,6 +779,7 @@ def main():
         stage4_updated = False
         stage6_updated = False
         stage8_updated = False
+        stage13_updated = False
         stage10_render_note_added = False
         for paragraph in document.paragraphs:
             if "不自动透传 Cookie、Authorization 或原始请求体" in paragraph.text:
@@ -817,6 +818,11 @@ def main():
                 for run in paragraph.runs:
                     set_east_asia_font(run)
                 stage8_updated = True
+            if paragraph.text.startswith("PostgreSQL 16 和 PR #1 实时状态仍待"):
+                paragraph.text = "推送后 PR #1 仍为 Draft；GitHub Actions 的 Backend migrations and tests 与 Frontend utility tests 均已成功，后端作业包含 PostgreSQL 16 迁移与测试。预资格 52.73% 仍是发布阻断。"
+                for run in paragraph.runs:
+                    set_east_asia_font(run)
+                stage13_updated = True
             if paragraph.text.startswith(("前端 110 / 110 passed；后端 SQLite 125 / 125 passed", "前端 111 / 111 passed；后端 SQLite 125 / 125 passed")) and "A47BE2B0" not in paragraph.text:
                 paragraph.text = "前端 111 / 111 passed；后端 SQLite 125 / 125 passed；生产 H5 和 Android APK 构建成功。原生书源分片改为每批最多 16 个读取后，完整 5330 源首次加载采样峰值由 391,717KB 降至 212,276KB，约 0.9 秒回落到 151,123KB。最终 APK 为 1,352,158 字节，SHA-256 为 A47BE2B0057D94D391ED314FF96446E4FC72CD41A03364269964609BF9034CC5，v1/v2/v3 签名通过。"
                 for run in paragraph.runs:
@@ -849,7 +855,7 @@ def main():
         if not any("缺少 LibreOffice/soffice" in paragraph.text for paragraph in document.paragraphs):
             add_bullet(document, "DOCX 渲染工具因环境缺少 LibreOffice/soffice 无法生成页面预览；已完成 ZIP、正文 XML、样式、关系和关键证据结构审计，未将结构审计表述为逐页视觉检查。")
             stage10_render_note_added = True
-        if stage4_updated or stage6_updated or stage8_updated or stage10_render_note_added or stage2_added or stage3_added or stage4_added or stage5_added or stage6_added or stage6_final_added or stage7_added or stage7_replay_added or stage7_replay2_added or stage8_added or stage9_added or stage10_added or stage11_added or stage12_added or stage13_added:
+        if stage4_updated or stage6_updated or stage8_updated or stage13_updated or stage10_render_note_added or stage2_added or stage3_added or stage4_added or stage5_added or stage6_added or stage6_final_added or stage7_added or stage7_replay_added or stage7_replay2_added or stage8_added or stage9_added or stage10_added or stage11_added or stage12_added or stage13_added:
             saved_path = save_document(document)
             print(f"Updated: {saved_path}")
         else:
