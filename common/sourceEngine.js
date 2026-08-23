@@ -1044,16 +1044,28 @@ function extractAttr(input, attr) {
 
 function readJsonPath(input, path) {
   if (typeof input !== 'object' || input === null) return ''
-  const recursive = String(path || '').match(/^\$\.\.([A-Za-z_$][\w$]*)$/)
+  if (String(path || '').trim() === '$') return input
+  const recursive = String(path || '').match(/^\$\.\.([A-Za-z_$][\w$]*)(?:\[(\*|\d+)\])?([\s\S]*)$/)
   if (recursive) {
     const matches = []
+    const visited = new WeakSet()
+    let remaining = 10000
     const visit = value => {
-      if (!value || typeof value !== 'object') return
+      if (!value || typeof value !== 'object' || visited.has(value) || remaining <= 0) return
+      visited.add(value)
+      remaining -= 1
       if (Object.prototype.hasOwnProperty.call(value, recursive[1])) matches.push(value[recursive[1]])
       Object.values(value).forEach(visit)
     }
     visit(input)
-    const flattened = matches.flat()
+    let flattened = matches.flatMap(value => {
+      if (recursive[2] === '*') return asArray(value)
+      if (/^\d+$/.test(recursive[2] || '')) return Array.isArray(value) && value[Number(recursive[2])] != null ? [value[Number(recursive[2])]] : []
+      return [value]
+    })
+    if (recursive[3]) {
+      flattened = flattened.flatMap(value => asArray(readJsonPath(value, `$${recursive[3]}`)))
+    }
     return flattened.length > 1 ? flattened : flattened[0] == null ? '' : flattened[0]
   }
   const filter = String(path || '').match(/^([\s\S]*?)\[\?\(@\.([A-Za-z_$][\w$]*)\s*(==|!=)\s*([^\]]+?)\)\]([\s\S]*)$/)

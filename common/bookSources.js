@@ -4369,10 +4369,12 @@ async function loadOnlineBookInfoInternal(book, options = {}) {
   }
   const resolvedBook = { ...book, ...parsedFields }
   const resolvedContext = { ...resolvedBook, book: resolvedBook, $: payload, ruleFlow, baseUrl: source.baseUrl }
+  const parsedTocUrl = pickUrl(payload, rule, ['tocUrl', 'chapterUrl', 'catalogUrl'], resolvedContext, book.bookUrl)
+  const fallbackTocUrl = /^https?:\/\//i.test(String(book.tocUrl || '')) ? book.tocUrl : book.bookUrl
   const next = {
     ...book,
     ...parsedFields,
-    tocUrl: pickUrl(payload, rule, ['tocUrl', 'chapterUrl', 'catalogUrl'], resolvedContext, book.bookUrl) || book.tocUrl || book.bookUrl
+    tocUrl: /^https?:\/\//i.test(parsedTocUrl) ? parsedTocUrl : fallbackTocUrl
   }
   const normalized = attachRuleFlowValues(normalizeOnlineBookForShelf(next), ruleFlow)
   writeOnlineDataCache('detail', cacheKey, normalized)
@@ -4386,19 +4388,30 @@ export async function loadOnlineBookInfo(book, options = {}) {
 function collectSameOriginChapterFallback(source, book, html, pageUrl, ruleFlow) {
   let pageOrigin = ''
   try { pageOrigin = new URL(pageUrl).origin } catch (error) { return [] }
-  const seen = new Set()
-  return applyListRule(String(html || ''), 'a').flatMap(anchor => {
-    const title = cleanText(anchor)
-    if (title.length < 2 || title.length > 100 || !/^(?:第.{1,30}[章回卷集部篇]|(?:chapter|chap\.?)\s*\d+|\d{1,6}[\s、.．_-])/i.test(title)) return []
-    const rawHref = String(firstValue(applyRule(anchor, '@href')) || '').trim()
-    if (!rawHref || /^(?:javascript:|#)/i.test(rawHref)) return []
-    const chapterUrl = resolveUrl(rawHref, pageUrl || source.baseUrl)
-    let resolved
-    try { resolved = new URL(chapterUrl) } catch (error) { return [] }
-    if (!/^https?:$/.test(resolved.protocol) || resolved.origin !== pageOrigin || seen.has(resolved.toString())) return []
-    seen.add(resolved.toString())
-    return [{ title, url: resolved.toString(), ruleFlowValues: exportRuleFlowValues(ruleFlow) }]
-  }).slice(0, 5000)
+  const collect = (anchors, requireChapterLabel) => {
+    const seen = new Set()
+    return anchors.flatMap(anchor => {
+      const title = cleanText(anchor)
+      const chapterLabel = /^(?:第.{1,30}[章回卷集部篇]|(?:chapter|chap\.?)\s*\d+|\d{1,6}[\s、.．_-])/i.test(title)
+      if (title.length < 2 || title.length > 100 || (requireChapterLabel && !chapterLabel) || /^(?:上一页|下一页|上一章|下一章|返回|首页|目录)$/i.test(title)) return []
+      const rawHref = String(firstValue(applyRule(anchor, '@href')) || '').trim()
+      if (!rawHref || /^(?:javascript:|#)/i.test(rawHref) || /(?:^|[/_-])(?:search|category|sort|rank|login)(?:[./?_-]|$)/i.test(rawHref)) return []
+      const chapterUrl = resolveUrl(rawHref, pageUrl || source.baseUrl)
+      let resolved
+      try { resolved = new URL(chapterUrl) } catch (error) { return [] }
+      if (!/^https?:$/.test(resolved.protocol) || resolved.origin !== pageOrigin || seen.has(resolved.toString())) return []
+      seen.add(resolved.toString())
+      return [{ title, url: resolved.toString(), ruleFlowValues: exportRuleFlowValues(ruleFlow) }]
+    })
+  }
+  const labeled = collect(applyListRule(String(html || ''), 'a'), true)
+  if (labeled.length >= 3) return labeled.slice(0, 5000)
+  const structuralContainers = [
+    '.chapterlist', '.chapter-list', '.chapters', '.chapter-listing', '.bookchapter',
+    '.catalog', '.catalog-list', '.mulu', '#list', '#catalog', '#chapterlist'
+  ].flatMap(selector => applyListRule(String(html || ''), selector))
+  const structural = collect(structuralContainers.flatMap(container => applyListRule(container, 'a')), false)
+  return structural.length >= 3 ? structural.slice(0, 5000) : labeled.slice(0, 5000)
 }
 
 async function loadOnlineTocInternal(book, options = {}) {
@@ -4515,7 +4528,8 @@ async function loadOnlineChapterInternal(book, chapter, options = {}) {
     ))
     const pageContent = sanitizeReadableContent(rawPageContent, { chapterTitle: chapter.title, page })
     if (pageContent.text) contents.push(pageContent.text)
-    currentUrl = pickUrl(payload, rule, ['nextContentUrl', 'nextUrl'], { ...book, book, ...chapter, chapter, page, $: payload, ruleFlow, baseUrl: source.baseUrl }, currentUrl)
+    const nextContentUrl = pickUrl(payload, rule, ['nextContentUrl', 'nextUrl'], { ...book, book, ...chapter, chapter, page, $: payload, ruleFlow, baseUrl: source.baseUrl }, currentUrl)
+    currentUrl = /^https?:\/\//i.test(nextContentUrl) ? nextContentUrl : ''
   }
   const sanitizedContent = sanitizeReadableContent(uniqueStrings(contents).join('\n\n'), { chapterTitle: chapter.title })
   const content = sanitizedContent.text
@@ -4559,7 +4573,7 @@ async function searchSource(source, keyword, options = {}) {
   let activeSource = source
   const initialSpec = createSourceRequestSpec(activeSource, raw.searchUrl, context, activeSource.baseUrl)
   let html = await requestText(initialSpec)
-  let parsed = parseSearchResponse(activeSource, rule, keyword, html, ruleFlow)
+  let parsed = parseSearchResponse(activeSource, rule, keyword, html, ruleFlow, initialSpec.url)
   if (!parsed.results.length && initialSpec.method === 'POST' && !/^https?:\/\//i.test(String(raw.searchUrl || '').trim())) {
     const canonicalSource = await resolveCanonicalSearchSource(source)
     if (canonicalSource) {
@@ -4568,7 +4582,7 @@ async function searchSource(source, keyword, options = {}) {
         createSourceRequestSpec(activeSource, raw.searchUrl, context, activeSource.baseUrl)
       )
       html = await requestText(canonicalSpec)
-      parsed = parseSearchResponse(activeSource, rule, keyword, html, ruleFlow)
+      parsed = parseSearchResponse(activeSource, rule, keyword, html, ruleFlow, canonicalSpec.url)
       parsed.results.diagnostics.canonicalBaseUrl = activeSource.baseUrl
     }
   }
@@ -4671,7 +4685,7 @@ export async function hydrateSourceSearchResults(results = [], options = {}) {
   }
 }
 
-function parseSearchResponse(source, rule, keyword, html, ruleFlow = null) {
+function parseSearchResponse(source, rule, keyword, html, ruleFlow = null, responseUrl = '') {
   const payload = parseResponsePayload(html)
   const listRule = getFieldRule(rule, ['bookList', 'list', 'books'])
   const listContext = ruleFlow || createSourceRuleFlow(source)
@@ -4717,7 +4731,7 @@ function parseSearchResponse(source, rule, keyword, html, ruleFlow = null) {
     }
   })
   const results = mappedResults.filter(result => result.book.bookUrl)
-  if (!results.length) results.push(...buildSameOriginKeywordFallbackResults(source, keyword, html, listContext))
+  if (!results.length) results.push(...buildSameOriginKeywordFallbackResults(source, keyword, html, listContext, responseUrl))
   results.diagnostics = {
     ...buildSearchResponseDiagnostics(html, payload, listRule, list.length, results.length),
     missingTitleCount: mappedResults.filter(result => !hasUsableOnlineBookTitle(result.book.title)).length,
@@ -4727,7 +4741,7 @@ function parseSearchResponse(source, rule, keyword, html, ruleFlow = null) {
   return { results, payload, list }
 }
 
-function buildSameOriginKeywordFallbackResults(source, keyword, html, ruleFlow) {
+function buildSameOriginKeywordFallbackResults(source, keyword, html, ruleFlow, responseUrl = '') {
   const expected = cleanText(keyword).toLowerCase()
   if (expected.length < 2) return []
   let sourceOrigin = ''
@@ -4736,7 +4750,8 @@ function buildSameOriginKeywordFallbackResults(source, keyword, html, ruleFlow) 
   const createResult = (title, rawHref, metadataOrigin) => {
     const normalizedTitle = cleanText(title)
     if (normalizedTitle.length < 2 || normalizedTitle.length > 80 || !normalizedTitle.toLowerCase().includes(expected)) return null
-    if (!rawHref || /^(?:javascript:|#)/i.test(rawHref) || /(?:^|[/_-])(?:search|sousuo|category|sort|rank|login)(?:[./?_-]|$)/i.test(rawHref)) return null
+    const isDetailFallback = metadataOrigin === 'same_origin_detail_fallback'
+    if (!rawHref || /^(?:javascript:|#)/i.test(rawHref) || (!isDetailFallback && /(?:^|[/_-])(?:search|sousuo|category|sort|rank|login)(?:[./?_-]|$)/i.test(rawHref))) return null
     const bookUrl = resolveUrl(rawHref, source.baseUrl)
     let resolved
     try { resolved = new URL(bookUrl) } catch (error) { return null }
@@ -4782,12 +4797,20 @@ function buildSameOriginKeywordFallbackResults(source, keyword, html, ruleFlow) 
     'meta[property="og:novel:book_name"]@content',
     'meta[property="og:title"]@content',
     'meta[name="book_name"]@content',
-    'h1@text'
+    '.book-hd h1@text',
+    '.bookinfo h1@text',
+    '.book-title@text',
+    '.booktitle@text',
+    'h1@text',
+    'title@text'
   ])
-  const canonicalUrl = firstRuleValue([
+  let canonicalUrl = firstRuleValue([
     'meta[property="og:url"]@content',
     'link[rel="canonical"]@href'
   ])
+  if (!canonicalUrl && /\bclass=["'][^"']*(?:book-hd|bookinfo|book-info|book-layout|booktitle)[^"']*["']/i.test(String(html || ''))) {
+    canonicalUrl = responseUrl
+  }
   const detailResult = createResult(documentTitle, canonicalUrl, 'same_origin_detail_fallback')
   return detailResult ? [detailResult] : []
 }
@@ -4861,6 +4884,7 @@ function buildSearchResponseDiagnostics(html, payload, listRule, listCount, resu
       parked: /domain\s+(?:is\s+)?for\s+sale|buy\s+this\s+domain|域名出售|购买此域名/i.test(text)
         || ['domain-name', 'stencil-overall', 'EasyRegister', 'htmlprv_content_wrapper'].some(name => classCounts[name]),
       noResult: /无搜索结果|没有找到|搜索不到|暂无相关|no results?|not found/i.test(text)
+        || Array.isArray(payload) && payload.length === 0
         || !!(payload && typeof payload === 'object' && (Number(payload.totalNum) === 0 || Array.isArray(payload.data) && payload.data.length === 0))
     }
   }

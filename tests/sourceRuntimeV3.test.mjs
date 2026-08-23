@@ -41,6 +41,15 @@ assert.equal(applyRule('<div><b>A</b><span>B</span></div>', 'b@text&&span@text')
 assert.equal(applyRule(['A', 'B', 'C'], '@-1'), 'C')
 assert.equal(applyRule(['A', 'B', 'C'], '@!0'), 'C')
 assert.equal(applyRule({ data: { title: 'JSONPath' } }, '@json:$.data.title'), 'JSONPath')
+assert.deepEqual(applyRule([{ id: 1 }, { id: 2 }], '@json:$'), [{ id: 1 }, { id: 2 }])
+assert.deepEqual(
+  applyRule({ data: { rows: [{ id: 1 }, { id: 2 }] } }, '@json:$..rows[*]'),
+  [{ id: 1 }, { id: 2 }]
+)
+assert.deepEqual(
+  applyRule({ data: { rows: [{ meta: { title: 'A' } }, { meta: { title: 'B' } }] } }, '@json:$..rows[*].meta.title'),
+  ['A', 'B']
+)
 
 const restricted = normalizeSourceConfig({
   bookSourceName: '受限源',

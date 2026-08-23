@@ -33,6 +33,17 @@ globalThis.uni = {
       })
       return
     }
+    if (requestUrl.includes('routed-detail.example.com')) {
+      options.success({
+        statusCode: 200,
+        data: {
+          text: '<section class="book-hd"><h1>诡秘之主</h1></section>',
+          status_code: 200,
+          final_url: requestUrl
+        }
+      })
+      return
+    }
     options.success({
       statusCode: 200,
       data: {
@@ -71,7 +82,8 @@ assert.equal(result.results[0].metadataOrigin, 'same_origin_keyword_fallback')
 
 for (const [name, baseUrl] of [
   ['详情元数据降级', 'https://detail-fallback.example.com'],
-  ['跨域详情拒绝', 'https://external-detail.example.com']
+  ['跨域详情拒绝', 'https://external-detail.example.com'],
+  ['搜索跳转详情降级', 'https://routed-detail.example.com']
 ]) {
   await importSourcesFromAny(JSON.stringify({
     bookSourceName: name,
@@ -93,5 +105,11 @@ assert.equal(detailResult.results[0].book.bookUrl, 'https://detail-fallback.exam
 const externalSource = getSourceConfigs().find(item => item.name === '跨域详情拒绝')
 const externalResult = await searchSourceBooks(externalSource.id, '斗破苍穹', { allowDisabled: true, timeoutMs: 1000 })
 assert.equal(externalResult.count, 0)
+
+const routedSource = getSourceConfigs().find(item => item.name === '搜索跳转详情降级')
+const routedResult = await searchSourceBooks(routedSource.id, '诡秘之主', { allowDisabled: true, timeoutMs: 1000 })
+assert.equal(routedResult.count, 1)
+assert.equal(routedResult.results[0].metadataOrigin, 'same_origin_detail_fallback')
+assert.match(routedResult.results[0].book.bookUrl, /^https:\/\/routed-detail\.example\.com\/search\?q=/)
 
 console.log('sourceSearchKeywordFallback tests passed')
