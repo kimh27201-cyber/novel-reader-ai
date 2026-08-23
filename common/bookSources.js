@@ -4383,6 +4383,24 @@ export async function loadOnlineBookInfo(book, options = {}) {
   return runTrackedReadingStage(book, 'detail', () => loadOnlineBookInfoInternal(book, options))
 }
 
+function collectSameOriginChapterFallback(source, book, html, pageUrl, ruleFlow) {
+  let pageOrigin = ''
+  try { pageOrigin = new URL(pageUrl).origin } catch (error) { return [] }
+  const seen = new Set()
+  return applyListRule(String(html || ''), 'a').flatMap(anchor => {
+    const title = cleanText(anchor)
+    if (title.length < 2 || title.length > 100 || !/^(?:第.{1,30}[章回卷集部篇]|(?:chapter|chap\.?)\s*\d+|\d{1,6}[\s、.．_-])/i.test(title)) return []
+    const rawHref = String(firstValue(applyRule(anchor, '@href')) || '').trim()
+    if (!rawHref || /^(?:javascript:|#)/i.test(rawHref)) return []
+    const chapterUrl = resolveUrl(rawHref, pageUrl || source.baseUrl)
+    let resolved
+    try { resolved = new URL(chapterUrl) } catch (error) { return [] }
+    if (!/^https?:$/.test(resolved.protocol) || resolved.origin !== pageOrigin || seen.has(resolved.toString())) return []
+    seen.add(resolved.toString())
+    return [{ title, url: resolved.toString(), ruleFlowValues: exportRuleFlowValues(ruleFlow) }]
+  }).slice(0, 5000)
+}
+
 async function loadOnlineTocInternal(book, options = {}) {
   const source = getSourceConfig(book.sourceId)
   if (!source) throw new Error('书源不存在或已删除')
@@ -4401,6 +4419,8 @@ async function loadOnlineTocInternal(book, options = {}) {
   const listRule = getFieldRule(rule, ['chapterList', 'list', 'toc'])
   const ruleFlow = options.ruleFlow || createSourceRuleFlow(source, book)
   const chapters = []
+  const fallbackChapters = []
+  const seenFallbackChapters = new Set()
   const seenPages = new Set()
   const seenChapters = new Set()
   const maxPages = clampNumber(options.maxPages, 1, 10, 5)
@@ -4412,6 +4432,11 @@ async function loadOnlineTocInternal(book, options = {}) {
       const html = await requestText(createSourceRequestSpec(source, currentUrl, { ...book, page, ruleFlow }, source.baseUrl))
       const payload = parseResponsePayload(html)
       const list = applyListRule(payload, listRule, { ...book, book, page, $: payload, ruleFlow, baseUrl: source.baseUrl })
+      collectSameOriginChapterFallback(source, book, html, currentUrl, ruleFlow).forEach(chapter => {
+        if (seenFallbackChapters.has(chapter.url)) return
+        seenFallbackChapters.add(chapter.url)
+        fallbackChapters.push(chapter)
+      })
       list.forEach(item => {
         const index = chapters.length
         const chapterRuleFlow = createRuleFlowContext(source.sourceKey || source.id, exportRuleFlowValues(ruleFlow))
@@ -4433,9 +4458,24 @@ async function loadOnlineTocInternal(book, options = {}) {
       })
       currentUrl = pickUrl(payload, rule, ['nextTocUrl', 'nextUrl'], { ...book, book, page, $: payload, ruleFlow, baseUrl: source.baseUrl }, currentUrl)
     }
-    if (chapters.length) break
+    if (chapters.length || fallbackChapters.length >= 3) break
   }
 
+  if (chapters.length < 3 && fallbackChapters.length >= 3) {
+    chapters.splice(0, chapters.length, ...fallbackChapters.map((chapter, index) => {
+      const chapterRuleFlow = createRuleFlowContext(source.sourceKey || source.id, chapter.ruleFlowValues)
+      const cachedChapter = !!readStorage(chapterCacheKey(book.id, index), '')
+      return attachRuleFlowValues({
+        title: chapter.title,
+        url: chapter.url,
+        index,
+        isCached: cachedChapter,
+        loadStatus: cachedChapter ? 'cached' : 'idle',
+        errorMessage: '',
+        metadataOrigin: 'same_origin_chapter_fallback'
+      }, chapterRuleFlow)
+    }))
+  }
   if (!chapters.length) throw new SourceRuntimeError('TOC_EMPTY', '目录解析为空，请换一个书源', { stage: 'toc' })
   writeOnlineDataCache('toc', cacheKey, chapters)
   return chapters
@@ -4677,12 +4717,79 @@ function parseSearchResponse(source, rule, keyword, html, ruleFlow = null) {
     }
   })
   const results = mappedResults.filter(result => result.book.bookUrl)
+  if (!results.length) results.push(...buildSameOriginKeywordFallbackResults(source, keyword, html, listContext))
   results.diagnostics = {
     ...buildSearchResponseDiagnostics(html, payload, listRule, list.length, results.length),
     missingTitleCount: mappedResults.filter(result => !hasUsableOnlineBookTitle(result.book.title)).length,
-    missingBookUrlCount: mappedResults.filter(result => !result.book.bookUrl).length
+    missingBookUrlCount: mappedResults.filter(result => !result.book.bookUrl).length,
+    heuristicFallbackCount: results.filter(result => String(result.metadataOrigin || '').startsWith('same_origin_')).length
   }
   return { results, payload, list }
+}
+
+function buildSameOriginKeywordFallbackResults(source, keyword, html, ruleFlow) {
+  const expected = cleanText(keyword).toLowerCase()
+  if (expected.length < 2) return []
+  let sourceOrigin = ''
+  try { sourceOrigin = new URL(source.baseUrl).origin } catch (error) { return [] }
+  const seen = new Set()
+  const createResult = (title, rawHref, metadataOrigin) => {
+    const normalizedTitle = cleanText(title)
+    if (normalizedTitle.length < 2 || normalizedTitle.length > 80 || !normalizedTitle.toLowerCase().includes(expected)) return null
+    if (!rawHref || /^(?:javascript:|#)/i.test(rawHref) || /(?:^|[/_-])(?:search|sousuo|category|sort|rank|login)(?:[./?_-]|$)/i.test(rawHref)) return null
+    const bookUrl = resolveUrl(rawHref, source.baseUrl)
+    let resolved
+    try { resolved = new URL(bookUrl) } catch (error) { return null }
+    if (!/^https?:$/.test(resolved.protocol) || resolved.origin !== sourceOrigin || seen.has(resolved.toString())) return null
+    seen.add(resolved.toString())
+    const itemRuleFlow = createRuleFlowContext(source.sourceKey || source.id, exportRuleFlowValues(ruleFlow))
+    const book = attachRuleFlowValues(normalizeOnlineBookForShelf({
+      sourceId: source.id,
+      sourceName: source.name,
+      sourceGroup: source.group,
+      bookUrl: resolved.toString(),
+      title: normalizedTitle,
+      author: '未知作者',
+      kind: '在线书源',
+      metadataStatus: 'complete',
+      metadataOrigin
+    }, { preserveMissingTitle: true }), itemRuleFlow)
+    return {
+      type: 'online',
+      bookId: book.id,
+      title: book.title,
+      subtitle: `${book.author} · ${source.name}`,
+      snippet: book.kind,
+      sourceId: source.id,
+      sourceName: source.name,
+      metadataStatus: 'complete',
+      metadataOrigin,
+      book
+    }
+  }
+  const anchorResults = applyListRule(String(html || ''), 'a').flatMap(anchor => {
+    const title = cleanText(anchor)
+    const rawHref = String(firstValue(applyRule(anchor, '@href')) || '').trim()
+    const result = createResult(title, rawHref, 'same_origin_keyword_fallback')
+    return result ? [result] : []
+  }).slice(0, 3)
+  if (anchorResults.length) return anchorResults
+
+  const firstRuleValue = rules => rules
+    .map(item => String(firstValue(applyRule(html, item)) || '').trim())
+    .find(Boolean) || ''
+  const documentTitle = firstRuleValue([
+    'meta[property="og:novel:book_name"]@content',
+    'meta[property="og:title"]@content',
+    'meta[name="book_name"]@content',
+    'h1@text'
+  ])
+  const canonicalUrl = firstRuleValue([
+    'meta[property="og:url"]@content',
+    'link[rel="canonical"]@href'
+  ])
+  const detailResult = createResult(documentTitle, canonicalUrl, 'same_origin_detail_fallback')
+  return detailResult ? [detailResult] : []
 }
 
 async function resolveCanonicalSearchSource(source) {
