@@ -39,9 +39,19 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const statePath = path.resolve(root, args.state || 'artifacts/stage13/release-state.json')
 const runtimeFiles = [
   'common/bookSources.js',
+  'common/headerUtils.js',
   'common/jsRuleSandbox.js',
   'common/sourceAcceptanceCohort.js',
-  'common/sourceEngine.js'
+  'common/sourceAcceptanceSeeds.js',
+  'common/sourceContentSanitizer.js',
+  'common/sourceCookieJar.js',
+  'common/sourceEngine.js',
+  'common/sourceErrors.js',
+  'common/sourceMarket.js',
+  'common/sourceSession.js',
+  'common/sourceTransport.js',
+  'scripts/node_legacy_charset.mjs',
+  'scripts/source_import_benchmark.mjs'
 ]
 
 async function exists(filePath) {
