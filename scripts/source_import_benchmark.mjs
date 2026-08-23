@@ -391,7 +391,7 @@ function buildMarkdown(report) {
 
 let lockedManifest = null
 if (manifestInput) {
-  if (!args.referenceWindowId) throw new Error('窗口 B 必须通过 --referenceWindowId 指向窗口 A')
+  if (!args.referenceWindowId && !args.resume) throw new Error('窗口 B 必须通过 --referenceWindowId 指向窗口 A；同窗口断点恢复需同时提供 --resume')
   lockedManifest = JSON.parse(await readFile(manifestInput, 'utf8'))
   const verification = verifyLockedAcceptanceManifest(lockedManifest)
   if (!verification.valid) throw new Error(`固定清单校验失败：${verification.errorCode}`)
