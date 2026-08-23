@@ -16,10 +16,16 @@ assert.equal(state.phase, 'prequalification')
 const failed = runStage13ReleaseFlow(state, {
   type: 'prequalification_completed',
   now: '2026-08-24T01:00:00.000Z',
-  report: { metrics: { runtimeEligible: 20, flowRatePercent: 79 } }
+  report: {
+    manifestHash: 'manifest-prequalification',
+    samples: [{ id: 101 }, { id: 102 }],
+    metrics: { runtimeEligible: 20, flowRatePercent: 79 }
+  }
 })
 assert.equal(failed.phase, 'prequalification')
 assert.equal(failed.blockingReason, 'PREQUALIFICATION_GATE_FAILED')
+assert.equal(failed.manifestHash, 'manifest-prequalification')
+assert.deepEqual(failed.completedSourceIds, ['101', '102'])
 
 state = runStage13ReleaseFlow(state, {
   type: 'prequalification_completed',

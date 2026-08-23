@@ -72,12 +72,19 @@ export function runStage13ReleaseFlow(inputState = {}, event = {}) {
   }
   if (type === 'prequalification_completed') {
     const passed = reportGatePassed(event.report)
+    const manifestHash = String(event.report && event.report.manifestHash || event.manifestHash || state.manifestHash || '')
+    const completedSourceIds = Array.isArray(event.completedSourceIds)
+      ? event.completedSourceIds.map(String)
+      : Array.isArray(event.report && event.report.samples)
+        ? event.report.samples.map(sample => String(sample && sample.id || '')).filter(Boolean)
+        : state.completedSourceIds
     return withEvent(state, type, now, {
       phase: passed ? 'qualification_a' : 'prequalification',
       gateStatus: passed ? 'prequalified' : 'failed',
       blockingReason: passed ? '' : 'PREQUALIFICATION_GATE_FAILED',
-      completedSourceIds: Array.isArray(event.completedSourceIds) ? event.completedSourceIds.map(String) : state.completedSourceIds
-    }, { passed })
+      manifestHash,
+      completedSourceIds
+    }, { passed, manifestHash, completedCount: completedSourceIds.length })
   }
   if (type === 'window_a_completed') {
     const passed = reportGatePassed(event.report)
