@@ -20,6 +20,7 @@ STAGE6_FINAL_TITLE = "15.6 最终 Android 真机复测与按钮热修（2026-08-
 STAGE7_SECTION_TITLE = "16. 第七阶段真实书源质量、可读率与稳定交付（2026-08-13）"
 STAGE7_REPLAY_TITLE = "16.6 首窗口高频规则差异重放（2026-08-13）"
 STAGE7_REPLAY2_TITLE = "16.7 第二批规则重放与外部变化审计（2026-08-13）"
+STAGE12_SECTION_TITLE = "21. 第十二阶段 YCK 规则兼容与修复后双窗口验收（2026-08-13）"
 
 
 def set_east_asia_font(run, name="微软雅黑"):
@@ -639,6 +640,68 @@ def append_stage11_section(document):
     return True
 
 
+def append_stage12_section(document):
+    if any(paragraph.text.strip() == STAGE12_SECTION_TITLE for paragraph in document.paragraphs):
+        return False
+
+    document.add_page_break()
+    heading = document.add_heading(STAGE12_SECTION_TITLE, level=1)
+    for run in heading.runs:
+        set_east_asia_font(run)
+
+    document.add_heading("21.1 固定清单与双窗口门禁", level=2)
+    add_bullet(document, "新增 schema v4 锁定清单，固定 200 个 YCK ID、顺序、分层、sourceKey、公开配置 SHA-256、规范化 configHash、关键词、超时和同域名上限。")
+    add_bullet(document, "窗口 B 必须引用窗口 A；清单或顺序变化、哈希不一致、配置变化或间隔不足 24 小时均不能生成有效合并报告。CONFIG_CHANGED 不替换样本、不进入同配置分母。")
+    add_bullet(document, "双窗口门禁通过后才生成稳定源清单；只有 sourceKey + configHash 同时匹配才提升候选排序，不自动启用、不解除冷却、不改变用户开关。")
+
+    document.add_heading("21.2 高频 3.x 规则兼容", level=2)
+    add_bullet(document, "受控请求对象支持未加引号固定字段、单双引号和 method/body/data/charset/headers/header，仅允许 GET/POST；函数、表达式、非白名单字段与原型字段均拒绝。")
+    add_bullet(document, "选择器补齐负索引、范围、text.下一页、title/alt/data-* 属性链、eq/has/contains、特殊类名、相对 XPath 与链式 class/id/tag。")
+    add_bullet(document, "新增来源隔离的流程级 @put/@get，限制键数、单值和总大小；变量只在内存中随当前阅读对象传递，不写入书架或章节缓存。")
+    add_bullet(document, "安全宿主支持 J(value)、Base()、source.getKey() 和当前来源 Cookie 清理；eval、Function、任意 Java 类、文件系统、循环和动态执行继续阻止。")
+
+    document.add_heading("21.3 历史失败重放", level=2)
+    rows = [
+        ("完整阅读通过", "1", "ID 6543：斗破苍穹、4718 章、正文 8516 字符"),
+        ("请求模板推进", "1", "ID 5992 从模板拒绝推进至站点 HTTP 500"),
+        ("外部失败", "4", "HTTP 403、HTTP 500 与超时"),
+        ("页面/配置变化", "4", "不增加站点专用硬编码"),
+        ("访问壳或待复测", "2", "通用差异已修复，待联网重放"),
+    ]
+    table = document.add_table(rows=1, cols=3)
+    for index, value in enumerate(["结果", "数量", "说明"]):
+        table.rows[0].cells[index].text = value
+    for values in rows:
+        cells = table.add_row().cells
+        for index, value in enumerate(values):
+            cells[index].text = value
+    style_table(table)
+    add_body(document, "脱敏明细：docs/source-acceptance/stage12-rule-replay-2026-08-13.json；不保存正文、Cookie、Token、完整响应或完整书源 JSON。历史 stage7-window1 的 9/33（27.27%）永久保留为修复前基线，不纳入新的发布双窗口。")
+
+    document.add_heading("21.4 自动验证与当前阻断", level=2)
+    rows = [
+        ("前端测试", "115 / 115 passed", "全量 tests/*.test.mjs"),
+        ("后端 SQLite", "125 / 125 passed", "同步、权限和 TTS 契约正常"),
+        ("H5 生产构建", "未完成", "创建新输出目录被 EPERM 拒绝"),
+        ("资格窗口 A", "未执行", "外部执行审批额度耗尽"),
+        ("资格窗口 B", "未到条件", "只能在 A 完成至少 24 小时后运行"),
+        ("PR #1", "Draft", "双窗口门槛未通过"),
+    ]
+    table = document.add_table(rows=1, cols=3)
+    for index, value in enumerate(["项目", "结果", "说明"]):
+        table.rows[0].cells[index].text = value
+    for values in rows:
+        cells = table.add_row().cells
+        for index, value in enumerate(values):
+            cells[index].text = value
+    style_table(table)
+    add_bullet(document, "本阶段未删除、重导或批量启用现有 5330 个来源；Android 本地优先与后端可选架构不变。")
+    add_number(document, "权限恢复后执行正式 200 源窗口 A、H5/APK 构建和签名。")
+    add_number(document, "窗口 A 满 24 小时后执行 B；双窗口均达到严格分母不少于 20、完整阅读率不少于 80% 后才生成稳定排序清单。")
+    add_number(document, "最后完成 REA-AN00 无后端阅读闭环、恢复后端同步及五种 AI 声音回归，PR 才可转为可审阅。")
+    return True
+
+
 def main():
     document = Document(DOCX_PATH)
     if any(paragraph.text.strip() == SECTION_TITLE for paragraph in document.paragraphs):
@@ -710,10 +773,11 @@ def main():
         stage9_added = append_stage9_section(document)
         stage10_added = append_stage10_section(document)
         stage11_added = append_stage11_section(document)
+        stage12_added = append_stage12_section(document)
         if not any("缺少 LibreOffice/soffice" in paragraph.text for paragraph in document.paragraphs):
             add_bullet(document, "DOCX 渲染工具因环境缺少 LibreOffice/soffice 无法生成页面预览；已完成 ZIP、正文 XML、样式、关系和关键证据结构审计，未将结构审计表述为逐页视觉检查。")
             stage10_render_note_added = True
-        if stage4_updated or stage6_updated or stage8_updated or stage10_render_note_added or stage2_added or stage3_added or stage4_added or stage5_added or stage6_added or stage6_final_added or stage7_added or stage7_replay_added or stage7_replay2_added or stage8_added or stage9_added or stage10_added or stage11_added:
+        if stage4_updated or stage6_updated or stage8_updated or stage10_render_note_added or stage2_added or stage3_added or stage4_added or stage5_added or stage6_added or stage6_final_added or stage7_added or stage7_replay_added or stage7_replay2_added or stage8_added or stage9_added or stage10_added or stage11_added or stage12_added:
             saved_path = save_document(document)
             print(f"Updated: {saved_path}")
         else:
@@ -797,6 +861,7 @@ def main():
     append_stage9_section(document)
     append_stage10_section(document)
     append_stage11_section(document)
+    append_stage12_section(document)
     saved_path = save_document(document)
     print(f"Updated: {saved_path}")
 

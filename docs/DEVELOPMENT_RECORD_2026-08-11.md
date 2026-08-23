@@ -696,3 +696,57 @@ node scripts/combine_source_acceptance_windows.mjs docs/source-acceptance/yck-cu
 - 本阶段没有扩大安全脚本白名单，没有自动启用、删除或重导任何书源，也没有改变 Android 本地优先与后端可选架构。
 - 阶段七第二时间窗口最早仍为北京时间 2026-08-14 15:47；当前不能提前生成满足“间隔至少 24 小时”的有效复测数据，PR #1 继续保持 Draft。
 - 到时按冻结清单执行第二窗口并生成双窗口报告；若仍低于 80%，优先根据两窗口稳定频率处理前三类可复现规则差异，再复测搜索、详情、目录与正文闭环。
+
+## 二十一、第十二阶段：YCK 规则兼容与修复后双窗口验收（2026-08-13）
+
+### 21.1 固定清单与双窗口门禁
+
+- 新增 schema v4 锁定清单：固定 200 个 YCK ID、顺序、分层、`sourceKey`、公开配置 SHA-256、规范化 `configHash`、关键词、超时和同域名上限。
+- 窗口 B 必须读取窗口 A 清单；缺少 A 引用、清单哈希不一致、顺序变化或间隔不足 24 小时均拒绝合并。配置变化标记 `CONFIG_CHANGED`，不替换样本，也不进入同配置分母。
+- 双窗口门禁通过后才生成轻量稳定源清单。只有 `sourceKey + configHash` 同时匹配才提升候选排序；不自动启用、不解除冷却，也不改变用户开关。
+- 3 源真实烟雾验收已验证 YCK 分页、配置下载和报告写入：从 300 个候选锁定 3 个不同配置，schema、双哈希、规则族和响应指纹均完整；烟雾文件未作为正式证据保留。
+
+### 21.2 高频 3.x 规则兼容
+
+- 请求模板先按严格 JSON 解析，再由受预算的对象字面量解析器处理未加引号固定字段、单双引号和 `method/body/data/charset/headers/header`；只允许 GET/POST。函数调用、表达式、非白名单字段和 `__proto__/prototype/constructor` 均拒绝。
+- 选择器补齐负索引、`0:3` 范围、`text.下一页`、`@title/@alt/data-*` 属性链、`:eq/:has/:contains`、特殊类名、相对 XPath 及链式 `class/id/tag` 语义。
+- 新增来源隔离的流程级 `@put/@get`：最多 32 个键、单值 8192 字符、总量 65536 字符；变量通过不可枚举内存字段在搜索→详情→目录→正文间传递，不写入书架、章节缓存或持久存储。
+- 安全宿主上下文支持 `J(value)`、`Base()`、`source.getKey()` 和当前来源 Cookie 清理表达式。任意 Java 类、文件系统、浏览器全局、循环和动态执行继续返回安全拒绝。
+
+### 21.3 历史失败重放
+
+| 结果 | 数量 | 说明 |
+| --- | ---: | --- |
+| 完整阅读通过 | 1 | ID 6543：斗破苍穹、4718 章、正文 8516 字符 |
+| 请求模板已推进 | 1 | ID 5992 从模板拒绝推进到站点 HTTP 500 |
+| 外部失败 | 4 | HTTP 403 两个、HTTP 500 一个、超时一个 |
+| 页面/配置变化 | 4 | 返回结构与公开选择器不匹配，不做站点硬编码 |
+| 访问壳或待复测 | 2 | 7515 为加载壳；6438/7415 通用差异已修复但待联网复测 |
+
+- 脱敏明细见 `docs/source-acceptance/stage12-rule-replay-2026-08-13.json` 和同名 Markdown；保留历史 `stage7-window1` 9/33（27.27%）作为修复前基线，不纳入新的发布双窗口。
+- 每项新能力均有成功、越界拒绝和预算超限测试。没有开放 `eval`、`Function`、任意 Java 类、文件系统、验证码或付费绕过。
+
+### 21.4 自动验证与当前阻断
+
+| 项目 | 当前结果 | 说明 |
+| --- | ---: | --- |
+| 前端测试 | 115 / 115 passed | 全量 `tests/*.test.mjs` |
+| 后端 SQLite | 125 / 125 passed | 同步、权限和 TTS 契约未回归 |
+| H5 生产构建 | 未完成 | 编译启动后创建新输出目录被 EPERM 拒绝 |
+| 资格窗口 A | 未执行 | 外部执行审批额度耗尽；代码和 3 源烟雾已通过 |
+| 资格窗口 B | 未到条件 | 只能在 A 完成至少 24 小时后执行 |
+| PR #1 | Draft | 未达到双窗口门槛，不转为可审阅 |
+
+- 本阶段没有删除、重导或批量启用现有 5330 个来源；Android 本地优先和后端可选架构保持不变。
+- 权限恢复后依次执行：正式 200 源窗口 A并冻结清单；H5/APK 构建和签名；窗口 A 满 24 小时后运行 B；双窗口均达到严格分母 ≥20、完整阅读率 ≥80% 后生成稳定排序清单并完成 REA-AN00、同步和五种 AI 声音回归。
+
+```powershell
+# 资格窗口 A：从全目录分层、跨域锁定 200 个静态合格文字源
+node scripts\source_import_benchmark.mjs --cohort=current --limit=200 --flowLimit=200 --pages=1-57 --concurrency=3 --timeoutMs=12000 --windowId=stage12-qualification-a --manifestOutput=docs/source-acceptance/stage12-qualification-manifest.json --output=docs/source-acceptance/stage12-qualification-window-a.json
+
+# 至少 24 小时后的资格窗口 B：只复用 A 的清单，不重新选样
+node scripts\source_import_benchmark.mjs --cohort=current --limit=200 --flowLimit=200 --concurrency=3 --timeoutMs=12000 --windowId=stage12-qualification-b --referenceWindowId=stage12-qualification-a --manifest=docs/source-acceptance/stage12-qualification-manifest.json --output=docs/source-acceptance/stage12-qualification-window-b.json
+
+# 合并门禁；时间、清单、顺序或哈希不合格时命令直接失败
+node scripts\combine_source_acceptance_windows.mjs --inputs=docs/source-acceptance/stage12-qualification-window-a.json,docs/source-acceptance/stage12-qualification-window-b.json --output=docs/source-acceptance/stage12-qualification-combined.json --seedsOutput=docs/source-acceptance/stage12-stable-source-seeds.json
+```
