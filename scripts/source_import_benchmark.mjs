@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { copyFile, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -168,14 +168,14 @@ async function fetchText(url, options = {}) {
 
 async function writeJsonAtomic(filePath, value) {
   await mkdir(path.dirname(filePath), { recursive: true })
-  const tempPath = `${filePath}.${process.pid}.tmp`
+  const tempPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`
   await writeFile(tempPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
   await replaceAtomicFile(tempPath, filePath)
 }
 
 async function writeTextAtomic(filePath, value) {
   await mkdir(path.dirname(filePath), { recursive: true })
-  const tempPath = `${filePath}.${process.pid}.tmp`
+  const tempPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`
   await writeFile(tempPath, value, 'utf8')
   await replaceAtomicFile(tempPath, filePath)
 }

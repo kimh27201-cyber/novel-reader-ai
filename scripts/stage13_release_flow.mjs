@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { access, copyFile, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -55,7 +55,7 @@ async function exists(filePath) {
 
 async function atomicWrite(filePath, value) {
   await mkdir(path.dirname(filePath), { recursive: true })
-  const tempPath = `${filePath}.${process.pid}.tmp`
+  const tempPath = `${filePath}.${process.pid}.${randomUUID()}.tmp`
   await writeFile(tempPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
   try {
     await rename(tempPath, filePath)
