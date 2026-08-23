@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
+import { copyFile, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -170,14 +170,36 @@ async function writeJsonAtomic(filePath, value) {
   await mkdir(path.dirname(filePath), { recursive: true })
   const tempPath = `${filePath}.${process.pid}.tmp`
   await writeFile(tempPath, `${JSON.stringify(value, null, 2)}\n`, 'utf8')
-  await rename(tempPath, filePath)
+  await replaceAtomicFile(tempPath, filePath)
 }
 
 async function writeTextAtomic(filePath, value) {
   await mkdir(path.dirname(filePath), { recursive: true })
   const tempPath = `${filePath}.${process.pid}.tmp`
   await writeFile(tempPath, value, 'utf8')
-  await rename(tempPath, filePath)
+  await replaceAtomicFile(tempPath, filePath)
+}
+
+async function replaceAtomicFile(tempPath, filePath) {
+  let lastError = null
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      await rename(tempPath, filePath)
+      return
+    } catch (error) {
+      lastError = error
+      if (!['EPERM', 'EACCES', 'EEXIST'].includes(String(error && error.code || ''))) throw error
+      try {
+        await copyFile(tempPath, filePath)
+        await unlink(tempPath).catch(() => {})
+        return
+      } catch (copyError) {
+        lastError = copyError
+        await wait(100 * (attempt + 1))
+      }
+    }
+  }
+  throw lastError
 }
 
 async function readCheckpoint() {
