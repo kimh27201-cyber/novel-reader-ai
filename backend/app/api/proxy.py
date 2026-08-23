@@ -1,7 +1,7 @@
 import asyncio
 import time
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import quote, urlparse
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -22,6 +22,15 @@ BLOCKED_REQUEST_HEADERS = {
     "connection",
     "transfer-encoding",
     "accept-encoding",
+}
+REQUEST_BODY_ENCODINGS = {
+    "": "utf-8",
+    "auto": "utf-8",
+    "utf-8": "utf-8",
+    "utf8": "utf-8",
+    "gbk": "gbk",
+    "gb2312": "gbk",
+    "gb18030": "gb18030",
 }
 REQUEST_INTERVAL_SECONDS = 0.5
 _last_request_at: dict[str, float] = {}
@@ -59,17 +68,19 @@ async def proxy_fetch(
     _: User = Depends(get_current_user),
 ) -> ProxyFetchResponse:
     validate_proxy_request(payload)
-    await validate_proxy_target(payload.url)
+    request_url = encode_request_url(payload.url, payload.charset or "")
+    await validate_proxy_target(request_url)
     started_at = time.monotonic()
     await throttle_by_host(payload.url, payload.throttle_ms)
     request_headers = sanitize_headers(payload.headers)
+    request_body = encode_request_body(payload.body, payload.charset or "")
 
     try:
         response = await fetch(
             payload.method.upper(),
-            payload.url,
+            request_url,
             headers=request_headers,
-            content=payload.body.encode("utf-8") if payload.body is not None else None,
+            content=request_body,
             throttle_ms=0,
         )
     except UpstreamResponseTooLarge as exc:
@@ -112,12 +123,38 @@ def validate_proxy_request(payload: ProxyFetchRequest) -> None:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only http and https URLs can be proxied")
     if payload.method.upper() not in ALLOWED_METHODS:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unsupported method: {payload.method}")
-    body_size = len((payload.body or "").encode("utf-8"))
+    try:
+        body_size = len(encode_request_body(payload.body, payload.charset or "") or b"")
+    except (LookupError, UnicodeEncodeError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     if body_size > get_settings().proxy_max_request_bytes:
         raise HTTPException(
             status_code=status.HTTP_413_CONTENT_TOO_LARGE,
             detail="Proxy request body is too large",
         )
+
+
+def encode_request_body(body: str | None, charset: str = "") -> bytes | None:
+    if body is None:
+        return None
+    normalized = str(charset or "").strip().lower().replace("_", "-")
+    encoding = REQUEST_BODY_ENCODINGS.get(normalized)
+    if encoding is None:
+        raise ValueError(f"Unsupported request charset: {normalized}")
+    return body.encode(encoding)
+
+
+def encode_request_url(url: str, charset: str = "") -> str:
+    normalized = str(charset or "").strip().lower().replace("_", "-")
+    encoding = REQUEST_BODY_ENCODINGS.get(normalized)
+    if encoding is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Unsupported request charset: {normalized}")
+    if encoding == "utf-8" or str(url).isascii():
+        return str(url)
+    try:
+        return quote(str(url), safe=":/?&=#%+;,@", encoding=encoding, errors="strict")
+    except UnicodeEncodeError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Request URL encoding failed: {exc}") from exc
 
 
 async def validate_proxy_target(url: str) -> None:

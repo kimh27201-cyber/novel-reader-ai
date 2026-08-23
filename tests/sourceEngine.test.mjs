@@ -6,6 +6,7 @@ import {
   extractJsonPayload,
   extractRepositorySourceUrl,
   getRuntimeRequestUrl,
+  normalizeSourceConfig,
   parseRequestSpec,
   parseSourceJson,
   requestText,
@@ -117,6 +118,17 @@ const relaxedRequest = parseRequestSpec("https://example.com/search,{method:'POS
 assert.equal(relaxedRequest.method, 'POST')
 assert.equal(relaxedRequest.data, 'key=abc')
 assert.equal(relaxedRequest.charset, 'gbk')
+const gbkRequest = parseRequestSpec('https://example.com/search,{"method":"POST","body":"key={{key}}","charset":"gb2312"}', { key: '斗破苍穹' })
+assert.equal(gbkRequest.data, 'key=斗破苍穹')
+assert.equal(gbkRequest.charset, 'gb2312')
+const gbkGetRequest = parseRequestSpec('/search?word={{key}}, {"charset":"gbk"}', { key: '剑来' }, 'https://example.com')
+assert.equal(gbkGetRequest.url, 'https://example.com/search?word=剑来')
+const legacyCharsetSource = normalizeSourceConfig({
+  bookSourceName: 'GBK 源',
+  bookSourceUrl: 'https://legacy.example',
+  searchUrl: '/search,{"method":"POST","body":"key={{key}}","charset":"GBK"}'
+})
+assert.equal(legacyCharsetSource.antiCrawler.charset, 'gbk')
 const paramsRequest = parseRequestSpec('https://example.com/search,{"method":"GET","params":{"q":"{{key}}","page":"{{page}}"}}', { key: '剑来', page: 2 })
 assert.equal(paramsRequest.method, 'GET')
 assert.equal(new URL(paramsRequest.url).searchParams.get('q'), '剑来')

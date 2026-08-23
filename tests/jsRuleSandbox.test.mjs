@@ -14,6 +14,18 @@ assert.equal(executeJsRule("result.match(/\\('([^']+)'/)[1]", { result: "openBoo
 assert.equal(executeJsRule("result.match(/\\('(.*?)', '', ''\\)/)[1]", { result: "newWebView('/b/229093.html', '', '')" }), '/b/229093.html')
 assert.equal(executeJsRule("result.match(/not-found/)[1]", { result: 'safe empty result' }), '')
 assert.equal(
+  executeJsRule('@js:url="https://example.com"+result;url', { result: '/cover.jpg' }),
+  'https://example.com/cover.jpg'
+)
+assert.equal(
+  executeJsRule("var s=result;var a=s.indexOf('文案');if(a>-1)s=s.substring(a);s", { result: '广告文案正文' }),
+  '文案正文'
+)
+assert.throws(
+  () => executeJsRule('if(fetch>0)value="x";value', { fetch: 1, value: '' }),
+  error => error instanceof JsRuleSandboxError && error.code === 'UNSUPPORTED_JS_CAPABILITY'
+)
+assert.equal(
   executeJsRule('<js>var url = "https://example.com/search"; var post = JSON.stringify({method: "POST", body: "q=" + encodeURIComponent(key), headers: {"Content-Type": "application/x-www-form-urlencoded"}}); url + "," + post;</js>', { key: '剑来' }),
   `https://example.com/search,{"method":"POST","body":"q=${encodeURIComponent('剑来')}","headers":{"Content-Type":"application/x-www-form-urlencoded"}}`
 )
@@ -31,6 +43,10 @@ for (const rule of ['fetch("https://x")', 'java.ajax()', 'window.location', 'doc
 assert.throws(
   () => executeJsRule('result.trim()', { result: 'x' }, { timeoutMs: 0 }),
   error => error instanceof JsRuleSandboxError && error.code === 'JS_RULE_TIMEOUT'
+)
+assert.throws(
+  () => executeJsRule('value="x";value=value+value;value', {}, { maxOperations: 1 }),
+  error => error instanceof JsRuleSandboxError && error.code === 'JS_RULE_BUDGET_EXCEEDED'
 )
 
 const sandboxSource = readFileSync(new URL('../common/jsRuleSandbox.js', import.meta.url), 'utf8')

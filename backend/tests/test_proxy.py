@@ -100,6 +100,50 @@ def test_proxy_fetch_returns_timing_and_decode_diagnostics(monkeypatch):
     assert body["encoding"] == "utf-8"
 
 
+def test_proxy_encodes_declared_gbk_request_body(monkeypatch):
+    async def fake_validate_target(url):
+        assert url == "https://example.com/search"
+
+    async def fake_fetch(method, url, **kwargs):
+        assert method == "POST"
+        assert kwargs["content"] == "keyword=斗破苍穹".encode("gbk")
+        return httpx.Response(200, content=b"ok", request=httpx.Request(method, url))
+
+    monkeypatch.setattr(proxy, "validate_proxy_target", fake_validate_target)
+    monkeypatch.setattr(proxy, "fetch", fake_fetch)
+
+    response = client.post(
+        "/api/proxy/fetch",
+        headers=auth_headers(),
+        json={
+            "url": "https://example.com/search",
+            "method": "POST",
+            "body": "keyword=斗破苍穹",
+            "charset": "gb2312",
+            "throttle_ms": 0,
+        },
+    )
+
+    assert response.status_code == 200
+
+
+def test_proxy_rejects_unsupported_request_charset():
+    response = client.post(
+        "/api/proxy/fetch",
+        headers=auth_headers(),
+        json={"url": "https://example.com", "method": "POST", "body": "q=x", "charset": "utf-16"},
+    )
+
+    assert response.status_code == 400
+    assert "unsupported request charset" in response.json()["detail"].lower()
+
+
+def test_proxy_encodes_declared_gbk_query_url():
+    encoded = proxy.encode_request_url("https://example.com/search?q=斗破", "gbk")
+
+    assert encoded == "https://example.com/search?q=%B6%B7%C6%C6"
+
+
 def test_proxy_fetch_throttle_zero_skips_host_wait(monkeypatch):
     slept = []
 

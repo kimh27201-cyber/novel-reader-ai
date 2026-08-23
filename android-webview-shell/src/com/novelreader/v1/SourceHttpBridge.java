@@ -49,7 +49,7 @@ public final class SourceHttpBridge {
             result.put("native", true);
             result.put("version", 1);
             result.put("methods", new JSONArray().put("GET").put("POST"));
-            result.put("charsets", new JSONArray().put("utf-8").put("gbk").put("gb2312"));
+            result.put("charsets", new JSONArray().put("utf-8").put("gbk").put("gb2312").put("gb18030"));
             result.put("cookies", true);
             result.put("maxResponseBytes", ABSOLUTE_MAX_BYTES);
             result.put("maxRedirects", MAX_REDIRECTS);
@@ -103,7 +103,7 @@ public final class SourceHttpBridge {
         String sourceKey = request.optString("sourceKey", "anonymous");
         String body = request.optString("body", "");
         JSONObject requestedHeaders = request.optJSONObject("headers");
-        URL currentUrl = validateUrl(request.optString("url", ""));
+        URL currentUrl = validateUrl(encodeLegacyUrl(request.optString("url", ""), request.optString("charset", "")));
         URL previousUrl = null;
         Map<String, String> headers = jsonHeaders(requestedHeaders);
 
@@ -137,7 +137,13 @@ public final class SourceHttpBridge {
 
             if ("POST".equals(method)) {
                 connection.setDoOutput(true);
-                byte[] bytes = body.getBytes(Charset.forName("UTF-8"));
+                String requestCharset = resolveRequestCharset(request.optString("charset", ""));
+                String contentType = connection.getRequestProperty("Content-Type");
+                if (contentType != null && contentType.toLowerCase(Locale.US).contains("application/x-www-form-urlencoded")
+                    && !contentType.toLowerCase(Locale.US).contains("charset=")) {
+                    connection.setRequestProperty("Content-Type", contentType + "; charset=" + requestCharset);
+                }
+                byte[] bytes = body.getBytes(Charset.forName(requestCharset));
                 connection.setFixedLengthStreamingMode(bytes.length);
                 try (OutputStream output = connection.getOutputStream()) {
                     output.write(bytes);
@@ -289,6 +295,36 @@ public final class SourceHttpBridge {
         } catch (Exception ignored) {
             return "UTF-8";
         }
+    }
+
+    private String resolveRequestCharset(String requested) {
+        String candidate = requested == null ? "" : requested.trim().toLowerCase(Locale.US);
+        if ("gb18030".equals(candidate)) return "GB18030";
+        if ("gbk".equals(candidate) || "gb2312".equals(candidate)) return "GBK";
+        return "UTF-8";
+    }
+
+    private String encodeLegacyUrl(String value, String requestedCharset) throws Exception {
+        String charset = resolveRequestCharset(requestedCharset);
+        if ("UTF-8".equals(charset)) return value;
+        StringBuilder output = new StringBuilder();
+        for (int index = 0; index < value.length();) {
+            int codePoint = value.codePointAt(index);
+            String character = new String(Character.toChars(codePoint));
+            index += Character.charCount(codePoint);
+            if (codePoint <= 0x7f) {
+                output.append(character);
+                continue;
+            }
+            byte[] bytes = character.getBytes(Charset.forName(charset));
+            for (byte item : bytes) {
+                output.append('%');
+                String hex = Integer.toHexString(item & 0xff).toUpperCase(Locale.US);
+                if (hex.length() < 2) output.append('0');
+                output.append(hex);
+            }
+        }
+        return output.toString();
     }
 
     private boolean sameOrigin(URL left, URL right) {

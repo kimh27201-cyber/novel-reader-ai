@@ -190,6 +190,21 @@ function emptyIfNullish(value) {
   return value == null ? '' : value
 }
 
+function evaluateSimpleCondition(expression, context) {
+  const match = String(expression || '').trim().match(/^([A-Za-z_$][\w$]*)\s*(===|!==|==|!=|>=|<=|>|<)\s*([A-Za-z_$][\w$]*|-?\d+(?:\.\d+)?|"(?:\\.|[^"])*"|'(?:\\.|[^'])*')$/)
+  if (!match) failUnsupported('条件表达式')
+  const left = parseLiteral(match[1], context)
+  const right = parseLiteral(match[3], context)
+  if (match[2] === '===') return left === right
+  if (match[2] === '!==') return left !== right
+  if (match[2] === '==') return left == right
+  if (match[2] === '!=') return left != right
+  if (match[2] === '>=') return left >= right
+  if (match[2] === '<=') return left <= right
+  if (match[2] === '>') return left > right
+  return left < right
+}
+
 function evaluateExpression(expression, context, budget, depth = 0) {
   if (depth > budget.maxDepth) throw new JsRuleSandboxError('JS_RULE_BUDGET_EXCEEDED', 'JS 规则递归深度超限')
   budget.operations += 1
@@ -269,14 +284,30 @@ export function executeJsRule(rule, context = {}, options = {}) {
   const sandboxContext = { ...context }
   const statements = splitStatements(source)
   let result = ''
-  statements.forEach((statement, index) => {
+  statements.forEach((statement) => {
+    const conditional = statement.match(/^if\s*\(([^()]*)\)\s*([A-Za-z_$][\w$]*\s*=\s*(?!=)[\s\S]+)$/)
+    if (conditional) {
+      budget.operations += 1
+      if (budget.operations > budget.maxOperations) throw new JsRuleSandboxError('JS_RULE_BUDGET_EXCEEDED', 'JS 规则语句预算超限')
+      if (!evaluateSimpleCondition(conditional[1], sandboxContext)) return
+      const assignment = conditional[2].match(/^([A-Za-z_$][\w$]*)\s*=\s*(?!=)([\s\S]+)$/)
+      sandboxContext[assignment[1]] = evaluateExpression(assignment[2], sandboxContext, budget)
+      result = sandboxContext[assignment[1]]
+      return
+    }
     const declaration = statement.match(/^(?:var|let|const)\s+([A-Za-z_$][\w$]*)\s*=\s*([\s\S]+)$/)
     if (declaration) {
       sandboxContext[declaration[1]] = evaluateExpression(declaration[2], sandboxContext, budget)
       result = sandboxContext[declaration[1]]
       return
     }
-    if (index < statements.length - 1 && /^[A-Za-z_$][\w$]*\s*=/.test(statement)) failUnsupported('变量重新赋值')
+    const assignment = statement.match(/^([A-Za-z_$][\w$]*)\s*=\s*(?!=)([\s\S]+)$/)
+    if (assignment) {
+      if (FORBIDDEN_OBJECT_KEYS.has(assignment[1])) failUnsupported('对象原型字段')
+      sandboxContext[assignment[1]] = evaluateExpression(assignment[2], sandboxContext, budget)
+      result = sandboxContext[assignment[1]]
+      return
+    }
     result = evaluateExpression(statement, sandboxContext, budget)
   })
   if (Date.now() - startedAt > timeoutMs) throw new JsRuleSandboxError('JS_RULE_TIMEOUT', 'JS 规则执行超时')

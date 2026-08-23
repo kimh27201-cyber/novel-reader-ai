@@ -95,6 +95,7 @@ export function normalizeSourceConfig(input, defaults = {}) {
     need_login: '条件兼容（需登录）',
     unsupported: '不兼容（受限能力）'
   }
+  const inferredCharset = inferDeclaredSourceCharset(raw)
 
   return {
     id,
@@ -109,12 +110,23 @@ export function normalizeSourceConfig(input, defaults = {}) {
     respondTimeMs: Number(raw.respondTime || raw.respondTimeMs || defaults.respondTimeMs || 0),
     enabled: input.enabled !== undefined ? !!input.enabled : defaults.enabled !== undefined ? !!defaults.enabled : true,
     recommended: input.recommended !== undefined ? !!input.recommended : raw.recommended !== undefined ? !!raw.recommended : !!defaults.recommended,
+    antiCrawler: input.antiCrawler || defaults.antiCrawler || (inferredCharset ? { charset: inferredCharset } : undefined),
     raw,
     compatibilityLevel: incompatible ? 'unsupported' : levelInfo.level,
     compatibility: incompatible ? '不兼容（包含危险脚本能力）' : compatibilityLabels[levelInfo.level],
     importedAt: input.importedAt !== undefined ? input.importedAt : defaults.importedAt !== undefined ? defaults.importedAt : Date.now(),
     updatedAt: Date.now()
   }
+}
+
+export function inferDeclaredSourceCharset(raw = {}) {
+  const explicit = String(raw.charset || '').trim().toLowerCase()
+  if (['utf-8', 'gbk', 'gb2312', 'gb18030'].includes(explicit)) return explicit
+  const templates = [raw.searchUrl, raw.exploreUrl, raw.loginUrl]
+    .filter(value => typeof value === 'string')
+    .join('\n')
+  const match = templates.match(/["']?charset["']?\s*:\s*["']?(utf-?8|gbk|gb2312|gb18030)["']?/i)
+  return String(match && match[1] || '').toLowerCase()
 }
 
 export function detectSourceFormat(raw = {}) {
@@ -295,10 +307,11 @@ export function decodeHtml(value) {
     .replace(/&nbsp;/gi, ' ')
 }
 
-export function renderTemplate(template, context = {}) {
+export function renderTemplate(template, context = {}, options = {}) {
+  const encodeKey = typeof options.encodeKey === 'function' ? options.encodeKey : encodeURIComponent
   return String(template || '').replace(/\{\{\s*([^}]+?)\s*\}\}/g, (_, key) => {
     const name = key.trim()
-    if (name === 'key' || name === 'keyword') return encodeURIComponent(context.key || context.keyword || '')
+    if (name === 'key' || name === 'keyword') return encodeKey(context.key || context.keyword || '')
     if (name === 'page') return context.page || 1
     if (name.startsWith('$.')) {
       const value = readJsonPath(context.$ && typeof context.$ === 'object' ? context.$ : context, name)
@@ -337,6 +350,7 @@ export function resolveUrl(url, baseUrl) {
 export function parseRequestSpec(spec, context = {}, baseUrl = '') {
   const rawSpec = String(spec || '').trim()
   const requestContext = { ...context, baseUrl: context.baseUrl || baseUrl }
+  const legacyRequestTemplate = /["']?charset["']?\s*:\s*["']?(?:gbk|gb2312|gb18030)["']?/i.test(rawSpec)
   const safeScriptSpec = rawSpec.replace(
     /^((?:<js>|@js:)\s*)cookie\.removeCookie\(\s*(?:baseUrl|source\.getKey\(\))\s*\)\s*;?/i,
     '$1'
@@ -346,7 +360,9 @@ export function parseRequestSpec(spec, context = {}, baseUrl = '') {
       ...requestContext,
       result: requestContext.result == null ? (requestContext.key || '') : requestContext.result
     }))
-    : renderTemplate(rawSpec, requestContext)
+    : renderTemplate(rawSpec, requestContext, {
+      encodeKey: legacyRequestTemplate ? value => String(value || '') : encodeURIComponent
+    })
   const text = expandRuleFlowGets(renderedText, requestContext).value
   const match = text.match(/^([^,]+),\s*(\{[\s\S]*\})\s*$/)
   if (!match) {
@@ -390,8 +406,17 @@ export function parseRequestSpec(spec, context = {}, baseUrl = '') {
     throw new SourceRuntimeError('REQUEST_TEMPLATE_UNSUPPORTED', `暂不支持请求方法：${method}`, { stage: 'request' })
   }
   const header = normalizeHeaders(options.headers || options.header || {}, { channel: 'proxy', context: requestContext })
-  const data = renderTemplate(options.body == null ? options.data || '' : options.body, requestContext)
+  const requestCharset = String(options.charset || '').trim().toLowerCase()
+  const legacyBodyCharset = ['gbk', 'gb2312', 'gb18030'].includes(requestCharset)
+  const data = renderTemplate(options.body == null ? options.data || '' : options.body, requestContext, {
+    encodeKey: legacyBodyCharset ? value => String(value || '') : encodeURIComponent
+  })
   let requestUrl = resolveUrl(match[1], baseUrl)
+  if (legacyBodyCharset) {
+    const rawKey = String(requestContext.key || requestContext.keyword || '')
+    const encodedKey = encodeURIComponent(rawKey)
+    if (rawKey && encodedKey) requestUrl = requestUrl.split(encodedKey).join(rawKey)
+  }
   if (options.params != null) {
     if (!options.params || Array.isArray(options.params) || typeof options.params !== 'object') {
       throw new SourceRuntimeError('REQUEST_TEMPLATE_UNSUPPORTED', '书源请求 params 必须是对象', { stage: 'request' })
@@ -808,7 +833,7 @@ function selectSimpleHtml(html, selector) {
     return tagged
   }
 
-  const tagPattern = tag || '[a-zA-Z][\\w:-]*'
+  const tagPattern = tag ? escapeRegExp(tag) : '[a-zA-Z][\\w:-]*'
   const pattern = new RegExp(`<(${tagPattern})([^>]*)>`, 'gi')
   const matches = []
   let match
@@ -926,7 +951,7 @@ function extractSelectorPseudo(selector) {
 }
 
 function parseAttributeSelector(selector) {
-  const match = String(selector || '').match(/^\[\s*([\w:-]+)\s*(\*?=)\s*["']?([^"'\]]*)["']?\s*\]$/)
+  const match = String(selector || '').match(/^\[\s*([\w:-]+)\s*([*^$~|]?=)\s*["']?([^"'\]]*)["']?\s*\]$/)
   if (!match) return null
   return {
     name: match[1],
@@ -939,7 +964,16 @@ function matchesAttributeSelector(attrs, attr) {
   if (!attr || !attr.name) return true
   const value = extractAttr(`<x ${attrs}></x>`, attr.name)
   if (!value) return false
-  return attr.operator === '*=' ? value.includes(attr.value) : value === attr.value
+  if (attr.operator === '*=') return value.includes(attr.value)
+  if (attr.operator === '^=') return value.startsWith(attr.value)
+  if (attr.operator === '$=') return value.endsWith(attr.value)
+  if (attr.operator === '|=') return value === attr.value || value.startsWith(`${attr.value}-`)
+  if (attr.operator === '~=') {
+    const alternatives = /^[\w:-]+(?:\|[\w:-]+)*$/.test(attr.value) ? attr.value.split('|') : [attr.value]
+    const tokens = value.split(/\s+/).filter(Boolean)
+    return alternatives.some(expected => tokens.includes(expected) || value.includes(expected))
+  }
+  return value === attr.value
 }
 
 function applyAccessor(input, accessor) {
@@ -1169,6 +1203,7 @@ function isSelectorToken(token) {
   const value = String(token || '').trim()
   if (isAccessor(value)) return false
   return /^(class\.|id\.|tag\.|text\.|css:|xpath:|json:|\.?\/\/|#|\.)/i.test(value)
+    || value.length <= 512 && /^[a-zA-Z.#\[][\s\S]*(?:\s+|\s*>\s*|\s*\+\s*)[a-zA-Z.#\[][\s\S]*$/.test(value)
     || /^[a-zA-Z][\w:-]*(?:[#.\[:!][\s\S]*)?$/.test(value)
 }
 

@@ -3,6 +3,7 @@ import { normalizeHeaders } from './headerUtils.js'
 import { asSourceRuntimeError, SourceRuntimeError } from './sourceErrors.js'
 
 const DEFAULT_TIMEOUT_MS = 12000
+const MAX_REQUEST_BODY_BYTES = 512 * 1024
 let callbackSequence = 0
 
 function clamp(value, minimum, maximum, fallback) {
@@ -83,18 +84,71 @@ function nativeRequest(request) {
   })
 }
 
-function directRequest(request) {
+async function resolveDirectRequestBody(request) {
+  const method = String(request.method || 'GET').toUpperCase()
+  if (method !== 'POST') return undefined
+  const body = request.body == null ? '' : request.body
+  const charset = String(request.charset || '').trim().toLowerCase()
+  if (!charset || charset === 'auto' || /^utf-?8$/.test(charset)) return body
+  const encoder = typeof globalThis !== 'undefined' && globalThis.__NOVEL_READER_ENCODE_REQUEST_BODY__
+  if (typeof encoder !== 'function') return body
+  const encoded = await encoder(String(body), charset)
+  if (!(encoded instanceof Uint8Array) || encoded.byteLength > MAX_REQUEST_BODY_BYTES) {
+    throw new SourceRuntimeError('REQUEST_BODY_INVALID', '书源请求体编码结果无效或超过大小限制', { stage: 'request' })
+  }
+  return encoded
+}
+
+async function resolveDirectRequestUrl(request) {
+  const url = String(request.url || '')
+  const charset = String(request.charset || '').trim().toLowerCase()
+  if (!/[^\x00-\x7f]/.test(url) || !['gbk', 'gb2312', 'gb18030'].includes(charset)) return url
+  const encoder = typeof globalThis !== 'undefined' && globalThis.__NOVEL_READER_ENCODE_REQUEST_BODY__
+  if (typeof encoder !== 'function') return url
+  let output = ''
+  let segment = ''
+  const flush = async () => {
+    if (!segment) return
+    const encoded = await encoder(segment, charset)
+    if (!(encoded instanceof Uint8Array) || encoded.byteLength > 4096) {
+      throw new SourceRuntimeError('REQUEST_URL_INVALID', '书源 URL 编码结果无效或超过大小限制', { stage: 'request' })
+    }
+    output += [...encoded].map(byte => `%${byte.toString(16).toUpperCase().padStart(2, '0')}`).join('')
+    segment = ''
+  }
+  for (const char of url) {
+    if (char.codePointAt(0) > 0x7f) {
+      segment += char
+      continue
+    }
+    await flush()
+    output += char
+  }
+  await flush()
+  return output
+}
+
+async function directRequest(request) {
   const headers = normalizeHeaders(request.headers || {}, {
     channel: typeof window !== 'undefined' ? 'direct' : 'proxy'
   })
   const startedAt = Date.now()
+  const requestBody = await resolveDirectRequestBody(request)
+  const requestUrl = await resolveDirectRequestUrl(request)
+  if (typeof process !== 'undefined' && process.env && process.env.NOVEL_READER_TRANSPORT_TRACE === '1') {
+    let host = ''
+    try { host = new URL(requestUrl).host } catch (error) {}
+    const userAgentName = Object.keys(headers).find(name => name.toLowerCase() === 'user-agent')
+    process.stderr.write(`${JSON.stringify({ event: 'source-direct-request', host, method: request.method || 'GET', charset: request.charset || '', hasUserAgent: !!userAgentName, bodyBytes: requestBody instanceof Uint8Array ? requestBody.byteLength : String(requestBody || '').length })}\n`)
+  }
   if (typeof uni !== 'undefined' && uni.request) {
     return new Promise((resolve, reject) => {
       uni.request({
-        url: request.url,
+        url: requestUrl,
         method: request.method || 'GET',
         header: headers,
-        data: request.body || undefined,
+        data: requestBody,
+        charset: request.charset || '',
         timeout: request.timeoutMs || DEFAULT_TIMEOUT_MS,
         responseType: 'text',
         success: response => {
@@ -104,7 +158,7 @@ function directRequest(request) {
           resolve({
             ok,
             status,
-            finalUrl: request.url,
+            finalUrl: requestUrl,
             headers: response.header || {},
             text: typeof value === 'string' ? value : JSON.stringify(value || ''),
             charset: resolveResponseCharset(request.charset, response.header || {}),
@@ -121,10 +175,10 @@ function directRequest(request) {
   if (typeof fetch === 'undefined') return Promise.reject(new Error('当前环境不支持网络请求'))
   const controller = typeof AbortController !== 'undefined' ? new AbortController() : null
   const timer = controller ? setTimeout(() => controller.abort(), request.timeoutMs || DEFAULT_TIMEOUT_MS) : 0
-  return fetch(request.url, {
+  return fetch(requestUrl, {
     method: request.method || 'GET',
     headers,
-    body: String(request.method || 'GET').toUpperCase() === 'POST' ? request.body : undefined,
+    body: requestBody,
     signal: controller ? controller.signal : undefined,
     redirect: 'follow'
   }).then(async response => {
@@ -136,7 +190,7 @@ function directRequest(request) {
     return {
       ok,
       status,
-      finalUrl: response.url || request.url,
+      finalUrl: response.url || requestUrl,
       headers: responseHeaders,
       text,
       charset,

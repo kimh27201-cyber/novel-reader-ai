@@ -81,6 +81,10 @@ assert.match(javaSource, /TOO_MANY_REDIRECTS/)
 assert.match(javaSource, /ABSOLUTE_MAX_BYTES/)
 assert.match(javaSource, /removeHeaderIgnoreCase\(headers, "Authorization"\)/)
 assert.match(javaSource, /cookieKey\(sourceKey, currentUrl\)/)
+assert.match(javaSource, /resolveRequestCharset\(request\.optString\("charset", ""\)\)/)
+assert.match(javaSource, /body\.getBytes\(Charset\.forName\(requestCharset\)\)/)
+assert.match(javaSource, /"gb2312"\.equals\(candidate\)/)
+assert.match(javaSource, /encodeLegacyUrl\(request\.optString\("url", ""\), request\.optString\("charset", ""\)\)/)
 
 delete globalThis.uni
 console.log('sourceRuntimeV3 tests passed')

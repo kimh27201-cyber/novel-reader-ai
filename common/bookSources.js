@@ -81,12 +81,13 @@ const SOURCE_BOOTSTRAP_KEYS = new Set(['source-key-1489xuk', 'source-key-13zaxtq
 const STABLE_SOURCE_SEED_MAP = buildStableSourceSeedMap(STABLE_SOURCE_SEEDS)
 const HOUR_MS = 60 * 60 * 1000
 const DAY_MS = 24 * HOUR_MS
+export const DEFAULT_SOURCE_USER_AGENT = 'Mozilla/5.0 (Linux; Android 15; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36'
 export const SOURCE_ANTI_CRAWLER_DEFAULTS = {
   requestIntervalMs: 1500,
   retryCount: 0,
   retryIntervalMs: 800,
   charset: 'auto',
-  userAgent: '',
+  userAgent: DEFAULT_SOURCE_USER_AGENT,
   headersText: ''
 }
 export const CHAPTER_CACHE_DEFAULTS = {
@@ -765,7 +766,7 @@ function headersToText(headers = {}) {
 function normalizeSourceAntiCrawler(value = {}) {
   const raw = value && typeof value === 'object' ? value : {}
   const headersText = String(raw.headersText || headersToText(raw.headers) || '').slice(0, 2000)
-  const charset = ['auto', 'utf-8', 'gbk', 'gb2312'].includes(String(raw.charset || '').toLowerCase())
+  const charset = ['auto', 'utf-8', 'gbk', 'gb2312', 'gb18030'].includes(String(raw.charset || '').toLowerCase())
     ? String(raw.charset || '').toLowerCase()
     : SOURCE_ANTI_CRAWLER_DEFAULTS.charset
   return {
@@ -773,7 +774,7 @@ function normalizeSourceAntiCrawler(value = {}) {
     retryCount: clampNumber(raw.retryCount, 0, 3, SOURCE_ANTI_CRAWLER_DEFAULTS.retryCount),
     retryIntervalMs: clampNumber(raw.retryIntervalMs, 0, 10000, SOURCE_ANTI_CRAWLER_DEFAULTS.retryIntervalMs),
     charset,
-    userAgent: String(raw.userAgent || '').trim().slice(0, 240),
+    userAgent: String(raw.userAgent || SOURCE_ANTI_CRAWLER_DEFAULTS.userAgent).trim().slice(0, 240),
     headersText,
     headers: parseHeadersText(headersText)
   }
@@ -836,8 +837,8 @@ function createSourceRequestSpec(source, url, context = {}, baseUrl = '') {
     cookie: session && session.cookie || savedCookie,
     userAgent: session && session.userAgent || antiCrawler.userAgent,
     header: normalizeHeaders({
-      ...parseSourceHeaders(raw, requestContext),
       ...antiCrawlerHeaders,
+      ...parseSourceHeaders(raw, requestContext),
       ...sessionHeaders,
       ...(spec.header || {})
     }, { channel: 'proxy', context: requestContext })
@@ -4011,20 +4012,45 @@ async function runSingleSourceReadingFlow(sourceId, keyword, options = {}) {
     }
     throw lastError || new Error('无搜索结果')
   })
-  const first = search.results.find(item => item && item.type === 'online' && item.book)
-  if (!first) {
+  const candidates = search.results.filter(item => item && item.type === 'online' && item.book)
+  if (!candidates.length) {
     const error = new SourceRuntimeError('SEARCH_EMPTY', '搜索结果里没有可阅读书籍', { stage: 'search' })
     error.flowStages = stages
     throw error
   }
 
-  const info = await runStage('bookInfo', '详情', () => loadOnlineBookInfo(first.book))
-  const chapters = await runStage('toc', '目录', () => loadOnlineToc(info))
-  if (!chapters.length) {
-    const error = new SourceRuntimeError('TOC_EMPTY', '目录解析为空', { stage: 'toc' })
-    error.flowStages = stages
-    throw error
+  let selected
+  try {
+    selected = await selectReadableSearchCandidate(candidates, options)
+  } catch (error) {
+    const failure = classifySourceFailure(error, { stage: error && error.stage || 'bookInfo' })
+    const stageId = failure.stage === 'toc' ? 'toc' : 'bookInfo'
+    const title = stageId === 'toc' ? '目录' : '详情'
+    const message = friendlyErrorMessage(error, `${title}失败`)
+    stages.push({
+      id: stageId,
+      title,
+      status: 'failed',
+      message,
+      errorCode: failure.errorCode,
+      httpStatus: failure.status,
+      retryable: failure.retryable,
+      elapsedMs: Number(error && error.elapsedMs || 0)
+    })
+    const wrapped = new SourceRuntimeError(failure.errorCode, `${title}失败：${message}`, {
+      stage: failure.stage || stageId,
+      status: failure.status,
+      retryable: failure.retryable,
+      diagnostics: error && error.diagnostics,
+      cause: error
+    })
+    wrapped.flowStages = stages
+    wrapped.candidateAttempts = error && error.candidateAttempts || []
+    throw wrapped
   }
+  const { info, chapters } = selected
+  stages.push({ id: 'bookInfo', title: '详情', status: 'passed', message: '通过', elapsedMs: selected.detailElapsedMs })
+  stages.push({ id: 'toc', title: '目录', status: 'passed', message: '通过', elapsedMs: selected.tocElapsedMs })
 
   const chapterIndex = Math.max(0, Math.min(Number(options.chapterIndex || 0), chapters.length - 1))
   const loadedChapter = await runStage('content', '正文', () => loadOnlineChapter(info, chapters[chapterIndex]))
@@ -4058,6 +4084,56 @@ async function runSingleSourceReadingFlow(sourceId, keyword, options = {}) {
     stages,
     health
   }
+}
+
+async function selectReadableSearchCandidate(results = [], options = {}) {
+  const maximum = clampNumber(options.bookCandidateLimit, 1, 5, 3)
+  const minimumChapters = clampNumber(options.minimumChapters, 1, 100, 1)
+  const attempts = []
+  let lastError = null
+  let totalElapsedMs = 0
+  for (const item of results.slice(0, maximum)) {
+    const detailStartedAt = Date.now()
+    let info
+    try {
+      info = await loadOnlineBookInfo(item.book)
+    } catch (error) {
+      const failure = classifySourceFailure(error, { stage: 'bookInfo' })
+      const elapsedMs = Date.now() - detailStartedAt
+      totalElapsedMs += elapsedMs
+      attempts.push({ stage: 'bookInfo', status: 'failed', errorCode: failure.errorCode, elapsedMs })
+      lastError = error
+      continue
+    }
+    const detailElapsedMs = Date.now() - detailStartedAt
+    totalElapsedMs += detailElapsedMs
+    const tocStartedAt = Date.now()
+    try {
+      const chapters = await loadOnlineToc(info)
+      if (chapters.length < minimumChapters) {
+        throw new SourceRuntimeError(chapters.length ? 'TOC_TOO_SHORT' : 'TOC_EMPTY', `目录少于 ${minimumChapters} 章`, { stage: 'toc' })
+      }
+      const tocElapsedMs = Date.now() - tocStartedAt
+      attempts.push({ stage: 'toc', status: 'passed', chapterCount: chapters.length, elapsedMs: tocElapsedMs })
+      return { item, info, chapters, detailElapsedMs, tocElapsedMs, candidateAttempts: attempts }
+    } catch (error) {
+      const failure = classifySourceFailure(error, { stage: 'toc' })
+      const elapsedMs = Date.now() - tocStartedAt
+      totalElapsedMs += elapsedMs
+      attempts.push({ stage: 'toc', status: 'failed', errorCode: failure.errorCode, elapsedMs })
+      lastError = error
+    }
+  }
+  const failure = classifySourceFailure(lastError || new Error('没有可阅读的搜索结果'), { stage: 'toc' })
+  const error = new SourceRuntimeError(failure.errorCode, lastError && lastError.message || '没有可阅读的搜索结果', {
+    stage: failure.stage || 'toc',
+    status: failure.status,
+    retryable: failure.retryable,
+    cause: lastError
+  })
+  error.elapsedMs = totalElapsedMs
+  error.candidateAttempts = attempts
+  throw error
 }
 
 async function runSourceHealthFlow(sourceId, keyword, options = {}) {
@@ -4570,11 +4646,20 @@ async function searchSource(source, keyword, options = {}) {
 
   const ruleFlow = options.ruleFlow || createSourceRuleFlow(source)
   const context = { key: keyword, keyword, page: 1, rendered: false, ruleFlow, baseUrl: source.baseUrl }
-  let activeSource = source
-  const initialSpec = createSourceRequestSpec(activeSource, raw.searchUrl, context, activeSource.baseUrl)
+  const cacheKey = String(source && (source.sourceKey || source.id) || source.baseUrl)
+  const relativePostTemplate = !/^https?:\/\//i.test(String(raw.searchUrl || '').trim())
+    && /["']?(?:method)["']?\s*:\s*["']?post["']?|["']?(?:body|data)["']?\s*:/i.test(String(raw.searchUrl || ''))
+  if (relativePostTemplate && !canonicalSearchBaseCache.has(cacheKey)) {
+    await resolveCanonicalSearchSource(source)
+  }
+  const cachedCanonicalBaseUrl = canonicalSearchBaseCache.get(cacheKey) || ''
+  let activeSource = cachedCanonicalBaseUrl ? { ...source, baseUrl: cachedCanonicalBaseUrl } : source
+  const initialSpec = activeSource === source
+    ? createSourceRequestSpec(activeSource, raw.searchUrl, context, activeSource.baseUrl)
+    : stripCrossOriginSensitiveFields(createSourceRequestSpec(activeSource, raw.searchUrl, context, activeSource.baseUrl))
   let html = await requestText(initialSpec)
   let parsed = parseSearchResponse(activeSource, rule, keyword, html, ruleFlow, initialSpec.url)
-  if (!parsed.results.length && initialSpec.method === 'POST' && !/^https?:\/\//i.test(String(raw.searchUrl || '').trim())) {
+  if (!parsed.results.length && activeSource === source && initialSpec.method === 'POST' && !/^https?:\/\//i.test(String(raw.searchUrl || '').trim())) {
     const canonicalSource = await resolveCanonicalSearchSource(source)
     if (canonicalSource) {
       activeSource = canonicalSource
@@ -4819,8 +4904,10 @@ async function resolveCanonicalSearchSource(source) {
   const baseUrl = String(source && source.baseUrl || '').trim()
   if (!/^https?:\/\//i.test(baseUrl)) return null
   const cacheKey = String(source && (source.sourceKey || source.id) || baseUrl)
-  const cachedBaseUrl = canonicalSearchBaseCache.get(cacheKey)
-  if (cachedBaseUrl) return { ...source, baseUrl: cachedBaseUrl }
+  if (canonicalSearchBaseCache.has(cacheKey)) {
+    const cachedBaseUrl = canonicalSearchBaseCache.get(cacheKey)
+    return cachedBaseUrl ? { ...source, baseUrl: cachedBaseUrl } : null
+  }
   try {
     const response = await requestSourceResponse({
       url: baseUrl,
@@ -4836,7 +4923,10 @@ async function resolveCanonicalSearchSource(source) {
     }, { sourceKey: source.sourceKey || source.id, useBackend: false })
     const initial = new URL(baseUrl)
     const final = new URL(response.finalUrl || baseUrl)
-    if (initial.origin === final.origin) return null
+    if (initial.origin === final.origin) {
+      canonicalSearchBaseCache.set(cacheKey, '')
+      return null
+    }
     final.search = ''
     final.hash = ''
     const canonicalBaseUrl = final.toString()

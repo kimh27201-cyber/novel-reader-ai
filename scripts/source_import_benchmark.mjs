@@ -23,6 +23,7 @@ import {
 } from '../common/sourceAcceptanceCohort.js'
 import { parseSourceMarketItems } from '../common/sourceMarket.js'
 import { classifySourceFailure, SourceRuntimeError } from '../common/sourceErrors.js'
+import { installNodeLegacyRequestBodyEncoder } from './node_legacy_charset.mjs'
 
 const args = Object.fromEntries(process.argv.slice(2).map(value => {
   const [key, ...rest] = value.replace(/^--/, '').split('=')
@@ -131,6 +132,8 @@ globalThis.uni = {
   setStorageSync(key, value) { storage[key] = value },
   removeStorageSync(key) { delete storage[key] }
 }
+
+installNodeLegacyRequestBodyEncoder()
 
 function sha256(value) {
   return createHash('sha256').update(String(value || ''), 'utf8').digest('hex')
@@ -348,7 +351,13 @@ async function inspectCandidate(candidate) {
 async function runFlow(row) {
   const startedAt = Date.now()
   try {
-    const flow = await runSourceReadingFlow(row._source.id, keywords, { timeoutMs, limit: 5, allowDisabled: true })
+    const flow = await runSourceReadingFlow(row._source.id, keywords, {
+      timeoutMs,
+      limit: 5,
+      allowDisabled: true,
+      minimumChapters: 3,
+      bookCandidateLimit: 3
+    })
     if (!String(flow.book && flow.book.title || '').trim() || String(flow.book.title).trim() === '未命名小说') {
       throw new SourceRuntimeError('DETAIL_METADATA_EMPTY', '详情缺少书名', { stage: 'detail' })
     }

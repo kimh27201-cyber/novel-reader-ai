@@ -9,6 +9,9 @@ import {
   searchSourceBooks
 } from '../common/bookSources.js'
 import { classifySourceFailure } from '../common/sourceErrors.js'
+import { installNodeLegacyRequestBodyEncoder } from './node_legacy_charset.mjs'
+
+installNodeLegacyRequestBodyEncoder()
 
 const ids = process.argv.slice(2).filter(value => /^\d+$/.test(value))
 const traceStages = process.argv.includes('--trace')
@@ -120,7 +123,12 @@ for (const id of ids) {
       await traceSourceFlow(id, source)
       continue
     }
-    const flow = await runSourceReadingFlow(source.id, ['斗破苍穹', '剑来', '诡秘之主'], { timeoutMs: 10000, allowDisabled: true })
+    const flow = await runSourceReadingFlow(source.id, ['斗破苍穹', '剑来', '诡秘之主'], {
+      timeoutMs: 10000,
+      allowDisabled: true,
+      minimumChapters: 3,
+      bookCandidateLimit: 3
+    })
     process.stdout.write(`${JSON.stringify({ id, name: source.name, status: 'passed', keyword: flow.keyword, chapters: flow.chapters.length, contentLength: String(flow.chapter.content || '').length })}\n`)
   } catch (error) {
     const failedStage = Array.isArray(error && error.flowStages)

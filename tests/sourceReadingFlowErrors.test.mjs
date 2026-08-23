@@ -123,16 +123,14 @@ const movedResult = await testSourceSearch(movedPostSource.id, 'keyword', { fail
 assert.equal(movedResult.count, 1)
 assert.equal(movedResult.results[0].book.bookUrl, 'https://new-post.example/book/1')
 assert.deepEqual(movedRequests.map(item => [item.method, item.url]), [
-  ['POST', 'https://old-post.example/search'],
   ['GET', 'https://old-post.example'],
   ['POST', 'https://new-post.example/search']
 ])
-assert.equal(movedRequests[0].body, 'searchkey=keyword')
-assert.equal(movedRequests[2].body, 'searchkey=keyword')
+assert.equal(movedRequests[1].body, 'searchkey=keyword')
+assert.equal(movedRequests[0].headers.authorization, undefined)
+assert.equal(movedRequests[0].headers.cookie, undefined)
 assert.equal(movedRequests[1].headers.authorization, undefined)
 assert.equal(movedRequests[1].headers.cookie, undefined)
-assert.equal(movedRequests[2].headers.authorization, undefined)
-assert.equal(movedRequests[2].headers.cookie, undefined)
 
 delete globalThis.fetch
 delete globalThis.uni
