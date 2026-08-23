@@ -2,11 +2,14 @@ import {
   applyListRule,
   applyRule,
   cleanText,
+  createRuleFlowContext,
+  createSourceKey,
   detectSourceCompatibilityLevel,
   detectSourceFeatures,
   detectSourceFormat,
   detectSourceImportPayload,
   extractRepositorySourceUrl,
+  exportRuleFlowValues,
   hasUnsupportedRule,
   normalizeSourceConfig,
   parseRequestSpec,
@@ -18,16 +21,41 @@ import {
 } from './sourceEngine.js'
 import { friendlyErrorMessage } from './uiFeedback.js'
 import { normalizeHeaders } from './headerUtils.js'
+import { asSourceRuntimeError, classifySourceFailure, SourceRuntimeError } from './sourceErrors.js'
 import { clearSourceCookies, getSourceCookie } from './sourceCookieJar.js'
 import { buildSourceSessionHeaders, getActiveSourceSession } from './sourceSession.js'
+import { requestSourceText as requestSourceResponse } from './sourceTransport.js'
 import {
   clearImportLogs as clearStoredImportLogs,
   getImportLogs as getStoredImportLogs,
   saveImportLog
 } from './sourceImportLog.js'
+import {
+  assessReadableContentQuality,
+  CONTENT_SANITIZER_VERSION,
+  sanitizeReadableContent
+} from './sourceContentSanitizer.js'
+import { finishPerformanceSpan, startPerformanceSpan } from './performanceMetrics.js'
+import { buildStableSourceSeedMap, STABLE_SOURCE_SEEDS } from './sourceAcceptanceSeeds.js'
+
+export { assessReadableContentQuality, CONTENT_SANITIZER_VERSION, sanitizeReadableContent } from './sourceContentSanitizer.js'
+
+const canonicalSearchBaseCache = new Map()
+const sourceRuntimeHashCache = new WeakMap()
 
 const USER_SOURCES_KEY = 'sources:user'
+const SOURCE_SCHEMA_VERSION_KEY = 'sources:schema-version'
+const SOURCE_SCHEMA_VERSION = 4
+const NATIVE_SOURCE_MANIFEST_KEY = 'sources:user:native-manifest:v1'
+const NATIVE_SOURCE_CHUNK_PREFIX = 'sources:user:native-chunk:v1'
+const NATIVE_SOURCE_CHUNK_SIZE = 25
+// 分片仍通过批量桥读取，但限制单次返回体，避免 5000+ 源的全部原始 JSON
+// 与解析后对象同时驻留，造成 WebView 瞬时内存峰值。
+const NATIVE_SOURCE_READ_BATCH_SIZE = 16
 const SOURCE_SETTINGS_KEY = 'sources:settings'
+const SOURCE_REVISION_KEY = 'sources:revision:v1'
+const SOURCE_INDEX_CACHE_KEY = 'sources:index-cache:v2'
+const SOURCE_DISCOVERY_CACHE_KEY = 'sources:discovery-cache:v1'
 const IMPORT_HISTORY_KEY = 'sources:import-history'
 const ONLINE_SEARCH_SETTINGS_KEY = 'sources:online-search-settings'
 const ONLINE_BOOKS_KEY = 'sources:online-books'
@@ -36,21 +64,30 @@ const CHAPTER_CACHE_SETTINGS_KEY = 'sources:chapter-cache-settings'
 const CHAPTER_CACHE_META_KEY = 'sources:chapter-cache-meta'
 const ONLINE_DATA_CACHE_SETTINGS_KEY = 'sources:online-data-cache-settings'
 const ONLINE_DATA_CACHE_KEY = 'sources:online-data-cache'
-export const ONLINE_SOURCE_SEARCH_LIMIT = 3
-export const ONLINE_SOURCE_TIMEOUT_MS = 5000
+export const ONLINE_SOURCE_SEARCH_LIMIT = 20
+export const ONLINE_SOURCE_TIMEOUT_MS = 6000
 export const ONLINE_SOURCE_TEST_TIMEOUT_MAX_MS = 30000
 export const ONLINE_SEARCH_DEFAULTS = {
-  concurrency: 3,
+  concurrency: 4,
   timeoutMs: ONLINE_SOURCE_TIMEOUT_MS,
   resultLimit: 80,
-  sourceLimit: ONLINE_SOURCE_SEARCH_LIMIT
+  sourceLimit: ONLINE_SOURCE_SEARCH_LIMIT,
+  autoWarmup: true,
+  mergeBackend: true
 }
+const SOURCE_RUNTIME_STAGES = ['search', 'explore', 'detail', 'toc', 'content']
+// 仅用于首次可用池冷启动；一旦真实检测失败，仍按 runtimeV2 冷却，不会强行继续请求。
+const SOURCE_BOOTSTRAP_KEYS = new Set(['source-key-1489xuk', 'source-key-13zaxtq'])
+const STABLE_SOURCE_SEED_MAP = buildStableSourceSeedMap(STABLE_SOURCE_SEEDS)
+const HOUR_MS = 60 * 60 * 1000
+const DAY_MS = 24 * HOUR_MS
+export const DEFAULT_SOURCE_USER_AGENT = 'Mozilla/5.0 (Linux; Android 15; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Mobile Safari/537.36'
 export const SOURCE_ANTI_CRAWLER_DEFAULTS = {
   requestIntervalMs: 1500,
   retryCount: 0,
   retryIntervalMs: 800,
   charset: 'auto',
-  userAgent: '',
+  userAgent: DEFAULT_SOURCE_USER_AGENT,
   headersText: ''
 }
 export const CHAPTER_CACHE_DEFAULTS = {
@@ -65,8 +102,47 @@ export const ONLINE_DATA_CACHE_DEFAULTS = {
   maxEntries: 80
 }
 const chapterCacheKey = (bookId, chapterIndex) => `sources:chapter:${bookId}:${chapterIndex}`
+const ONLINE_BOOK_PLACEHOLDER_TITLE = '未命名小说'
 
 const memoryStore = {}
+let userSourcesCache = null
+let userSourcesCacheManifest = ''
+let sourceSettingsCache = null
+let sourceSnapshotCache = null
+let sourceSnapshotVersion = 1
+let sourceIndexCache = null
+let sourceIndexJob = null
+let sourceDiscoveryPrecomputeHandle = null
+let sourceDiscoveryPrecomputeMode = ''
+let pendingSourceRuntimeWriteTimer = null
+let pendingSourceRuntimeDirty = false
+
+function cancelSourceDiscoveryPrecompute() {
+  if (sourceDiscoveryPrecomputeHandle == null) return
+  if (sourceDiscoveryPrecomputeMode === 'idle' && typeof globalThis.cancelIdleCallback === 'function') {
+    globalThis.cancelIdleCallback(sourceDiscoveryPrecomputeHandle)
+  } else {
+    clearTimeout(sourceDiscoveryPrecomputeHandle)
+  }
+  sourceDiscoveryPrecomputeHandle = null
+  sourceDiscoveryPrecomputeMode = ''
+}
+
+export function cancelPendingSourceDiscoveryCache() {
+  const pending = sourceDiscoveryPrecomputeHandle != null
+  cancelSourceDiscoveryPrecompute()
+  return pending
+}
+
+function clearSourceCaches(reason = 'changed') {
+  sourceSnapshotVersion += 1
+  sourceSnapshotCache = null
+  sourceIndexCache = null
+  if (sourceIndexJob) sourceIndexJob.cancelled = true
+  sourceIndexJob = null
+  cancelSourceDiscoveryPrecompute()
+  return { version: sourceSnapshotVersion, reason }
+}
 
 function readStorage(key, fallback) {
   try {
@@ -108,6 +184,88 @@ function removeStorage(key) {
   delete memoryStore[key]
 }
 
+function nativeSourceStorage() {
+  const bridge = typeof globalThis !== 'undefined' && globalThis.NovelReaderSourceStorage
+  return bridge
+    && typeof bridge.writeChapter === 'function'
+    && typeof bridge.readChapter === 'function'
+    && typeof bridge.removeChapter === 'function'
+    ? bridge
+    : null
+}
+
+function nativeChunkKey(generation, index) {
+  return `${NATIVE_SOURCE_CHUNK_PREFIX}:${generation}:${index}`
+}
+
+function readNativeUserSources() {
+  const bridge = nativeSourceStorage()
+  if (!bridge) return null
+  const manifestText = String(bridge.readChapter(NATIVE_SOURCE_MANIFEST_KEY) || '')
+  if (!manifestText) return null
+  if (Array.isArray(userSourcesCache) && userSourcesCacheManifest === manifestText) return userSourcesCache
+  try {
+    const manifest = JSON.parse(manifestText)
+    const chunkCount = Number(manifest.chunkCount || 0)
+    if (!manifest.generation || chunkCount < 0 || chunkCount > 10000) throw new Error('invalid source manifest')
+    const sources = []
+    const chunkKeys = Array.from({ length: chunkCount }, (_, index) => nativeChunkKey(manifest.generation, index))
+    for (let start = 0; start < chunkKeys.length; start += NATIVE_SOURCE_READ_BATCH_SIZE) {
+      const keys = chunkKeys.slice(start, start + NATIVE_SOURCE_READ_BATCH_SIZE)
+      let batch = null
+      if (typeof bridge.readChapters === 'function') {
+        try {
+          batch = JSON.parse(String(bridge.readChapters(JSON.stringify(keys)) || '{}'))
+        } catch (error) {}
+      }
+      keys.forEach((key, offset) => {
+        const index = start + offset
+        const chunkText = String(batch && batch[key] != null ? batch[key] : bridge.readChapter(key) || '')
+        if (!chunkText) throw new Error(`missing source chunk ${index}`)
+        const chunk = JSON.parse(chunkText)
+        if (!Array.isArray(chunk)) throw new Error(`invalid source chunk ${index}`)
+        sources.push(...chunk)
+      })
+    }
+    if (Number(manifest.total || 0) !== sources.length) throw new Error('source manifest count mismatch')
+    userSourcesCache = sources
+    userSourcesCacheManifest = manifestText
+    return sources
+  } catch (error) {
+    return null
+  }
+}
+
+function writeNativeUserSources(sources) {
+  const bridge = nativeSourceStorage()
+  if (!bridge) return false
+  let previous = null
+  try {
+    previous = JSON.parse(String(bridge.readChapter(NATIVE_SOURCE_MANIFEST_KEY) || 'null'))
+  } catch (error) {}
+  const generation = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
+  const chunks = []
+  for (let index = 0; index < sources.length; index += NATIVE_SOURCE_CHUNK_SIZE) {
+    chunks.push(sources.slice(index, index + NATIVE_SOURCE_CHUNK_SIZE))
+  }
+  chunks.forEach((chunk, index) => {
+    if (!bridge.writeChapter(nativeChunkKey(generation, index), JSON.stringify(chunk))) {
+      throw new Error(`本机书源分片写入失败：${index + 1}/${chunks.length}`)
+    }
+  })
+  const manifest = { version: 1, generation, chunkCount: chunks.length, total: sources.length, updatedAt: Date.now() }
+  if (!bridge.writeChapter(NATIVE_SOURCE_MANIFEST_KEY, JSON.stringify(manifest))) {
+    throw new Error('本机书源索引写入失败')
+  }
+  if (previous && previous.generation && previous.generation !== generation) {
+    const oldCount = Math.max(0, Math.min(10000, Number(previous.chunkCount || 0)))
+    for (let index = 0; index < oldCount; index += 1) bridge.removeChapter(nativeChunkKey(previous.generation, index))
+  }
+  userSourcesCache = sources
+  userSourcesCacheManifest = JSON.stringify(manifest)
+  return true
+}
+
 function normalizeRuleObject(rule) {
   if (!rule) return {}
   if (typeof rule === 'object') return rule
@@ -135,12 +293,110 @@ function pickUrl(input, rule, names, context, baseUrl) {
   return resolveUrl(firstValue(applyRule(input, getFieldRule(rule, names), context)), baseUrl)
 }
 
+function isOptionalMetadataRuleError(error) {
+  return ['UNSUPPORTED_JS_CAPABILITY', 'JS_RULE_BUDGET_EXCEEDED', 'JS_RULE_TIMEOUT', 'JS_RULE_RESULT_TOO_LARGE']
+    .includes(String(error && (error.code || error.errorCode) || ''))
+}
+
+function pickOptionalText(input, rule, names, context) {
+  try {
+    return pickText(input, rule, names, context)
+  } catch (error) {
+    if (isOptionalMetadataRuleError(error)) return ''
+    throw error
+  }
+}
+
+function pickOptionalUrl(input, rule, names, context, baseUrl) {
+  try {
+    return pickUrl(input, rule, names, context, baseUrl)
+  } catch (error) {
+    if (isOptionalMetadataRuleError(error)) return ''
+    throw error
+  }
+}
+
+function getAttachedRuleFlowValues(value) {
+  return value && value.__sourceRuleVars && typeof value.__sourceRuleVars === 'object'
+    ? value.__sourceRuleVars
+    : {}
+}
+
+function createSourceRuleFlow(source, ...values) {
+  const initial = Object.assign({}, ...values.map(getAttachedRuleFlowValues))
+  return createRuleFlowContext(source && (source.sourceKey || source.id) || '', initial)
+}
+
+function attachRuleFlowValues(value, ruleFlow) {
+  if (!value || typeof value !== 'object') return value
+  Object.defineProperty(value, '__sourceRuleVars', {
+    configurable: true,
+    enumerable: false,
+    writable: true,
+    value: exportRuleFlowValues(ruleFlow)
+  })
+  return value
+}
+
+function deriveBookUrlRuleFromTitle(rule) {
+  const text = String(rule || '').trim()
+  if (!text) return ''
+  const declarative = text.split('@js:')[0].trim()
+  if (!declarative || /^(?:<js>|@js:)/i.test(declarative)) return ''
+  if (/@(?:text|textNodes|ownText|html)$/i.test(declarative)) {
+    return declarative.replace(/@(?:text|textNodes|ownText|html)$/i, '@href')
+  }
+  if (/(?:^|@)a(?:[.#\[:][^@]*)?$/i.test(declarative)) return `${declarative}@href`
+  return ''
+}
+
 function getUserSources() {
-  return readStorage(USER_SOURCES_KEY, [])
+  const nativeSources = readNativeUserSources()
+  const stored = nativeSources == null ? readStorage(USER_SOURCES_KEY, []) : nativeSources
+  const sources = Array.isArray(stored) ? stored : []
+  let changed = Number(readStorage(SOURCE_SCHEMA_VERSION_KEY, 0)) < SOURCE_SCHEMA_VERSION
+  const migrated = sources.map(source => {
+    if (source && source.sourceKey) return source
+    changed = true
+    return { ...source, sourceKey: createSourceKey(source && (source.raw || source) || {}) }
+  })
+  if (changed) {
+    writeUserSources(migrated)
+    writeStorage(SOURCE_SCHEMA_VERSION_KEY, SOURCE_SCHEMA_VERSION)
+  }
+  return migrated
 }
 
 function writeUserSources(sources) {
-  writeStorage(USER_SOURCES_KEY, sources)
+  const list = Array.isArray(sources) ? sources : []
+  if (writeNativeUserSources(list)) removeStorage(USER_SOURCES_KEY)
+  else {
+    writeStorage(USER_SOURCES_KEY, list)
+    userSourcesCache = null
+    userSourcesCacheManifest = ''
+  }
+  writeStorage(SOURCE_SCHEMA_VERSION_KEY, SOURCE_SCHEMA_VERSION)
+  writeStorage(SOURCE_REVISION_KEY, Date.now())
+  removeStorage(SOURCE_INDEX_CACHE_KEY)
+  removeStorage(SOURCE_DISCOVERY_CACHE_KEY)
+  clearSourceCaches('sources-written')
+}
+
+export function getSourceStorageCapabilities() {
+  return {
+    native: !!nativeSourceStorage(),
+    mode: nativeSourceStorage() ? 'native-chunks' : 'web-storage',
+    recommendedBulkLimit: nativeSourceStorage() ? 10000 : 500
+  }
+}
+
+export function persistSourceConfigs(sources) {
+  writeUserSources(sources)
+  return getUserSources()
+}
+
+export function getStoredSourceConfigs() {
+  return getUserSources().slice()
 }
 
 function uniqueStrings(values = []) {
@@ -155,11 +411,49 @@ function uniqueStrings(values = []) {
 }
 
 function getSourceSettings() {
-  return readStorage(SOURCE_SETTINGS_KEY, {})
+  if (sourceSettingsCache) return sourceSettingsCache
+  const value = readStorage(SOURCE_SETTINGS_KEY, {})
+  sourceSettingsCache = value && typeof value === 'object' ? value : {}
+  return sourceSettingsCache
 }
 
 function writeSourceSettings(settings) {
+  if (pendingSourceRuntimeWriteTimer) clearTimeout(pendingSourceRuntimeWriteTimer)
+  pendingSourceRuntimeWriteTimer = null
+  pendingSourceRuntimeDirty = false
+  sourceSettingsCache = settings && typeof settings === 'object' ? settings : {}
   writeStorage(SOURCE_SETTINGS_KEY, settings)
+  removeStorage(SOURCE_INDEX_CACHE_KEY)
+  removeStorage(SOURCE_DISCOVERY_CACHE_KEY)
+  clearSourceCaches('settings-written')
+}
+
+function writeSourceSettingsDeferred(settings, sourceId = '') {
+  sourceSettingsCache = settings && typeof settings === 'object' ? settings : {}
+  if (sourceId && sourceSnapshotCache && sourceSnapshotCache.byId.has(sourceId)) {
+    const current = sourceSnapshotCache.byId.get(sourceId)
+    const merged = mergeSourceWithSettings(current, sourceSettingsCache[sourceId] || {})
+    const index = sourceSnapshotCache.indexById.get(sourceId)
+    if (Number.isInteger(index)) sourceSnapshotCache.sources[index] = merged
+    sourceSnapshotCache.byId.set(sourceId, merged)
+    sourceIndexCache = null
+  }
+  pendingSourceRuntimeDirty = true
+  if (pendingSourceRuntimeWriteTimer) return
+  pendingSourceRuntimeWriteTimer = setTimeout(() => flushPendingSourceRuntimeWrites(), 250)
+  if (pendingSourceRuntimeWriteTimer && typeof pendingSourceRuntimeWriteTimer.unref === 'function') {
+    pendingSourceRuntimeWriteTimer.unref()
+  }
+}
+
+export function flushPendingSourceRuntimeWrites() {
+  if (pendingSourceRuntimeWriteTimer) clearTimeout(pendingSourceRuntimeWriteTimer)
+  pendingSourceRuntimeWriteTimer = null
+  if (!pendingSourceRuntimeDirty) return false
+  pendingSourceRuntimeDirty = false
+  writeStorage(SOURCE_SETTINGS_KEY, sourceSettingsCache || {})
+  clearSourceCaches('runtime-flushed')
+  return true
 }
 
 function normalizeSourceTest(value) {
@@ -170,8 +464,227 @@ function normalizeSourceTest(value) {
     testedAt: Number(value.testedAt || 0),
     keyword: String(value.keyword || ''),
     count: Number(value.count || 0),
-    message: String(value.message || '')
+    message: String(value.message || ''),
+    errorCode: String(value.errorCode || ''),
+    failedStage: String(value.failedStage || ''),
+    httpStatus: Number(value.httpStatus || 0),
+    retryable: value.retryable === true,
+    diagnostics: value.diagnostics && typeof value.diagnostics === 'object' ? value.diagnostics : null
   }
+}
+
+function normalizeSourceExploreTest(value) {
+  if (!value || typeof value !== 'object') return { status: 'untested' }
+  const status = value.status === 'passed' || value.status === 'failed' ? value.status : 'untested'
+  return {
+    status,
+    testedAt: Number(value.testedAt || 0),
+    entryTitle: String(value.entryTitle || ''),
+    count: Number(value.count || 0),
+    message: String(value.message || ''),
+    errorCode: String(value.errorCode || ''),
+    httpStatus: Number(value.httpStatus || 0),
+    retryable: value.retryable === true
+  }
+}
+
+export function hashSourceRuntimeConfig(source = {}) {
+  if (source && typeof source === 'object' && sourceRuntimeHashCache.has(source)) return sourceRuntimeHashCache.get(source)
+  const raw = source.raw || source || {}
+  const identity = [
+    source.sourceKey || '',
+    raw.bookSourceName || source.name || '',
+    raw.bookSourceUrl || source.baseUrl || '',
+    raw.searchUrl || '',
+    raw.exploreUrl || '',
+    raw.ruleSearch || {},
+    raw.ruleBookInfo || {},
+    raw.ruleToc || {},
+    raw.ruleContent || {}
+  ]
+  const text = stableStringify(identity)
+  let hash = 2166136261
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  const value = `v2-${(hash >>> 0).toString(16)}`
+  if (source && typeof source === 'object') sourceRuntimeHashCache.set(source, value)
+  return value
+}
+
+function defaultRuntimeStage(configHash) {
+  return {
+    status: 'untested',
+    checkedAt: 0,
+    lastSuccessAt: 0,
+    lastFailureAt: 0,
+    resultCount: 0,
+    latencyMs: 0,
+    errorCode: '',
+    httpStatus: 0,
+    consecutiveFailures: 0,
+    cooldownUntil: 0,
+    configHash
+  }
+}
+
+function legacyRuntimeStage(source, stage, configHash) {
+  const base = defaultRuntimeStage(configHash)
+  if (stage === 'search') {
+    const legacy = normalizeSourceTest(source.lastTest)
+    if (legacy.status === 'untested') return base
+    return {
+      ...base,
+      status: legacy.status === 'passed' ? 'passed' : 'cooldown',
+      checkedAt: legacy.testedAt,
+      lastSuccessAt: legacy.status === 'passed' ? legacy.testedAt : 0,
+      lastFailureAt: legacy.status === 'failed' ? legacy.testedAt : 0,
+      resultCount: legacy.count,
+      errorCode: legacy.errorCode,
+      httpStatus: legacy.httpStatus,
+      consecutiveFailures: legacy.status === 'failed' ? 1 : 0,
+      cooldownUntil: legacy.status === 'failed' ? legacy.testedAt + sourceRuntimeCooldownMs(legacy.errorCode, 1) : 0
+    }
+  }
+  if (stage === 'explore') {
+    const legacy = normalizeSourceExploreTest(source.exploreTest)
+    if (legacy.status === 'untested') return base
+    return {
+      ...base,
+      status: legacy.status === 'passed' ? 'passed' : 'cooldown',
+      checkedAt: legacy.testedAt,
+      lastSuccessAt: legacy.status === 'passed' ? legacy.testedAt : 0,
+      lastFailureAt: legacy.status === 'failed' ? legacy.testedAt : 0,
+      resultCount: legacy.count,
+      errorCode: legacy.errorCode,
+      httpStatus: legacy.httpStatus,
+      consecutiveFailures: legacy.status === 'failed' ? 1 : 0,
+      cooldownUntil: legacy.status === 'failed' ? legacy.testedAt + sourceRuntimeCooldownMs(legacy.errorCode, 1) : 0
+    }
+  }
+  const healthStageId = stage === 'detail' ? 'bookInfo' : stage
+  const health = normalizeSourceHealth(source.health)
+  const legacy = health.stages.find(item => item.id === healthStageId)
+  if (!legacy) return base
+  return {
+    ...base,
+    status: legacy.status === 'passed' ? 'passed' : 'cooldown',
+    checkedAt: health.checkedAt,
+    lastSuccessAt: legacy.status === 'passed' ? health.checkedAt : 0,
+    lastFailureAt: legacy.status === 'failed' ? health.checkedAt : 0,
+    latencyMs: legacy.elapsedMs,
+    errorCode: legacy.errorCode,
+    httpStatus: legacy.httpStatus,
+    consecutiveFailures: legacy.status === 'failed' ? 1 : 0,
+    cooldownUntil: legacy.status === 'failed' ? health.checkedAt + sourceRuntimeCooldownMs(legacy.errorCode, 1) : 0
+  }
+}
+
+function normalizeRuntimeStage(value, fallback, configHash) {
+  if (!value || typeof value !== 'object' || value.configHash !== configHash) return fallback
+  const allowed = ['untested', 'probing', 'passed', 'cooldown', 'blocked']
+  return {
+    status: allowed.includes(value.status) ? value.status : fallback.status,
+    checkedAt: Number(value.checkedAt || 0),
+    lastSuccessAt: Number(value.lastSuccessAt || 0),
+    lastFailureAt: Number(value.lastFailureAt || 0),
+    resultCount: Number(value.resultCount || 0),
+    latencyMs: Number(value.latencyMs || 0),
+    errorCode: String(value.errorCode || ''),
+    httpStatus: Number(value.httpStatus || 0),
+    consecutiveFailures: Number(value.consecutiveFailures || 0),
+    cooldownUntil: Number(value.cooldownUntil || 0),
+    configHash
+  }
+}
+
+export function normalizeSourceRuntimeV2(source = {}, options = {}) {
+  const stored = source.runtimeV2 && typeof source.runtimeV2 === 'object' ? source.runtimeV2 : {}
+  const legacySearch = normalizeSourceTest(source.lastTest)
+  const legacyExplore = normalizeSourceExploreTest(source.exploreTest)
+  const legacyHealth = normalizeSourceHealth(source.health)
+  const needsConfigHash = options.forceHash === true || !!stored.configHash ||
+    legacySearch.status !== 'untested' || legacyExplore.status !== 'untested' || legacyHealth.checkedAt > 0
+  const configHash = needsConfigHash ? hashSourceRuntimeConfig(source) : ''
+  const runtime = { version: 2, configHash }
+  if (!needsConfigHash) {
+    SOURCE_RUNTIME_STAGES.forEach(stage => { runtime[stage] = defaultRuntimeStage('') })
+    return runtime
+  }
+  SOURCE_RUNTIME_STAGES.forEach(stage => {
+    runtime[stage] = normalizeRuntimeStage(stored[stage], legacyRuntimeStage(source, stage, configHash), configHash)
+  })
+  return runtime
+}
+
+function sourceRuntimeCooldownMs(errorCode, consecutiveFailures = 1) {
+  const code = String(errorCode || '').toUpperCase()
+  if (/LOGIN|CAPTCHA|VERIFY|PAID|COOKIE_REQUIRED/.test(code)) return -1
+  if (/DNS/.test(code)) return 6 * HOUR_MS
+  if (/HTTP_FORBIDDEN|HTTP_RATE_LIMIT|HTTP_403|HTTP_429/.test(code)) return 12 * HOUR_MS
+  if (/HTTP_SERVER|HTTP_5\d\d/.test(code)) return HOUR_MS
+  if (/HTTP_NOT_FOUND|HTTP_404|HTTP_410|PARSE_EMPTY|RULE_EMPTY|SEARCH_EMPTY|SEARCH_RESULT_INCOMPLETE|DETAIL_EMPTY|DETAIL_METADATA_EMPTY|TOC_EMPTY|CONTENT_EMPTY|CONTENT_NOISE/.test(code)) return 7 * DAY_MS
+  if (/TIMEOUT|NETWORK|SITE_UNREACHABLE|CONNECTION/.test(code)) {
+    if (consecutiveFailures >= 3) return 12 * HOUR_MS
+    if (consecutiveFailures >= 2) return 2 * HOUR_MS
+    return 30 * 60 * 1000
+  }
+  if (/UNSUPPORTED|SCRIPT_BLOCKED|SECURITY/.test(code)) return -1
+  return 30 * 60 * 1000
+}
+
+export function writeSourceRuntimeStageResult(sourceId, stage, result = {}) {
+  if (!sourceId || !SOURCE_RUNTIME_STAGES.includes(stage)) return null
+  const source = getSourceConfig(sourceId)
+  if (!source) return null
+  const runtime = normalizeSourceRuntimeV2(source, { forceHash: true })
+  const previous = runtime[stage]
+  const now = Date.now()
+  const explicitStatus = String(result.status || '')
+  let next
+  if (explicitStatus === 'probing') {
+    next = { ...previous, status: 'probing', checkedAt: now, configHash: runtime.configHash }
+  } else if (explicitStatus === 'passed' || result.ok === true) {
+    next = {
+      ...previous,
+      status: 'passed',
+      checkedAt: now,
+      lastSuccessAt: now,
+      resultCount: Number(result.resultCount || result.count || 0),
+      latencyMs: Number(result.latencyMs || 0),
+      errorCode: '',
+      httpStatus: Number(result.httpStatus || 0),
+      consecutiveFailures: 0,
+      cooldownUntil: 0,
+      configHash: runtime.configHash
+    }
+  } else {
+    const failureCount = previous.consecutiveFailures + 1
+    const errorCode = String(result.errorCode || 'NETWORK_ERROR')
+    const cooldownMs = sourceRuntimeCooldownMs(errorCode, failureCount)
+    next = {
+      ...previous,
+      status: cooldownMs < 0 ? 'blocked' : 'cooldown',
+      checkedAt: now,
+      lastFailureAt: now,
+      resultCount: Number(result.resultCount || result.count || 0),
+      latencyMs: Number(result.latencyMs || 0),
+      errorCode,
+      httpStatus: Number(result.httpStatus || 0),
+      consecutiveFailures: failureCount,
+      cooldownUntil: cooldownMs < 0 ? 0 : now + cooldownMs,
+      configHash: runtime.configHash
+    }
+  }
+  const settings = getSourceSettings()
+  settings[sourceId] = {
+    ...(settings[sourceId] || {}),
+    runtimeV2: { ...runtime, [stage]: next },
+    updatedAt: Date.now()
+  }
+  writeSourceSettingsDeferred(settings, sourceId)
+  return next
 }
 
 function writeSourceTestResult(sourceId, result) {
@@ -183,11 +696,36 @@ function writeSourceTestResult(sourceId, result) {
       testedAt: Date.now(),
       keyword: result.keyword || '',
       count: Number(result.count || 0),
-      message: result.message || ''
+      message: result.message || '',
+      errorCode: result.errorCode || '',
+      failedStage: result.failedStage || '',
+      httpStatus: Number(result.httpStatus || 0),
+      retryable: result.retryable === true,
+      diagnostics: result.diagnostics && typeof result.diagnostics === 'object' ? result.diagnostics : null
     },
     updatedAt: Date.now()
   }
-  writeSourceSettings(settings)
+  writeSourceSettingsDeferred(settings, sourceId)
+}
+
+function writeSourceExploreTestResult(sourceId, result) {
+  if (!sourceId) return
+  const settings = getSourceSettings()
+  settings[sourceId] = {
+    ...(settings[sourceId] || {}),
+    exploreTest: {
+      status: result.status,
+      testedAt: Date.now(),
+      entryTitle: result.entryTitle || '',
+      count: Number(result.count || 0),
+      message: result.message || '',
+      errorCode: result.errorCode || '',
+      httpStatus: Number(result.httpStatus || 0),
+      retryable: result.retryable === true
+    },
+    updatedAt: Date.now()
+  }
+  writeSourceSettingsDeferred(settings, sourceId)
 }
 
 function hasNonEmptyField(raw = {}, names = []) {
@@ -228,7 +766,7 @@ function headersToText(headers = {}) {
 function normalizeSourceAntiCrawler(value = {}) {
   const raw = value && typeof value === 'object' ? value : {}
   const headersText = String(raw.headersText || headersToText(raw.headers) || '').slice(0, 2000)
-  const charset = ['auto', 'utf-8', 'gbk', 'gb2312'].includes(String(raw.charset || '').toLowerCase())
+  const charset = ['auto', 'utf-8', 'gbk', 'gb2312', 'gb18030'].includes(String(raw.charset || '').toLowerCase())
     ? String(raw.charset || '').toLowerCase()
     : SOURCE_ANTI_CRAWLER_DEFAULTS.charset
   return {
@@ -236,7 +774,7 @@ function normalizeSourceAntiCrawler(value = {}) {
     retryCount: clampNumber(raw.retryCount, 0, 3, SOURCE_ANTI_CRAWLER_DEFAULTS.retryCount),
     retryIntervalMs: clampNumber(raw.retryIntervalMs, 0, 10000, SOURCE_ANTI_CRAWLER_DEFAULTS.retryIntervalMs),
     charset,
-    userAgent: String(raw.userAgent || '').trim().slice(0, 240),
+    userAgent: String(raw.userAgent || SOURCE_ANTI_CRAWLER_DEFAULTS.userAgent).trim().slice(0, 240),
     headersText,
     headers: parseHeadersText(headersText)
   }
@@ -272,6 +810,8 @@ function createSourceRequestSpec(source, url, context = {}, baseUrl = '') {
   const raw = source && (source.raw || source) || {}
   const requestContext = {
     baseUrl: source && source.baseUrl || raw.bookSourceUrl || raw.sourceUrl || raw.baseUrl || baseUrl,
+    sourceKey: source && (source.sourceKey || source.id) || '',
+    clearSourceCookie: () => clearSourceCookies(source && source.id),
     ...context
   }
   const spec = parseRequestSpec(url, requestContext, baseUrl || requestContext.baseUrl)
@@ -297,8 +837,8 @@ function createSourceRequestSpec(source, url, context = {}, baseUrl = '') {
     cookie: session && session.cookie || savedCookie,
     userAgent: session && session.userAgent || antiCrawler.userAgent,
     header: normalizeHeaders({
-      ...parseSourceHeaders(raw, requestContext),
       ...antiCrawlerHeaders,
+      ...parseSourceHeaders(raw, requestContext),
       ...sessionHeaders,
       ...(spec.header || {})
     }, { channel: 'proxy', context: requestContext })
@@ -306,25 +846,369 @@ function createSourceRequestSpec(source, url, context = {}, baseUrl = '') {
 }
 
 export function getSourceConfigs() {
-  const settings = getSourceSettings()
-  return getUserSources().map(source => {
-    const saved = settings[source.id] || {}
-    return {
-      ...source,
-      name: saved.name || source.name,
-      group: saved.group || source.group,
-      enabled: saved.enabled !== undefined ? saved.enabled : source.enabled,
-      updatedAt: saved.updatedAt || source.updatedAt,
-      lastTest: saved.lastTest || source.lastTest || '',
-      health: saved.health || source.health || null,
-      quality: saved.quality || source.quality || null,
-      antiCrawler: normalizeSourceAntiCrawler(saved.antiCrawler || source.antiCrawler)
-    }
-  })
+  return getSourceSnapshot().sources.slice()
 }
 
 export function getSourceConfig(sourceId) {
-  return getSourceConfigs().find(source => source.id === sourceId)
+  return getSourceSnapshot().byId.get(sourceId)
+}
+
+export function invalidateSourceSnapshot(reason = 'manual') {
+  return clearSourceCaches(reason)
+}
+
+export function getSourceSnapshot(options = {}) {
+  if (!sourceSnapshotCache || options.force === true) {
+    const span = startPerformanceSpan('source.snapshot')
+    const settings = getSourceSettings()
+    const startedAt = Date.now()
+    const sources = getUserSources().map(source => mergeSourceWithSettings(source, settings[source.id] || {}))
+    sourceSnapshotCache = {
+      version: sourceSnapshotVersion,
+      createdAt: Date.now(),
+      buildMs: Date.now() - startedAt,
+      sources,
+      byId: new Map(sources.map(source => [source.id, source])),
+      indexById: new Map(sources.map((source, index) => [source.id, index]))
+    }
+    finishPerformanceSpan(span, { sourceCount: sources.length, status: 'built' })
+  }
+  return sourceSnapshotCache
+}
+
+function sourceIndexSummary(source) {
+  const raw = source.raw || source
+  const compatible = source.compatibilityLevel !== 'unsupported' && !hasUnsupportedRule(raw)
+  const runtime = normalizeSourceRuntimeV2(source).search
+  return {
+    id: source.id,
+    name: source.name,
+    group: source.group || '未分组',
+    baseUrl: source.baseUrl || '',
+    enabled: source.enabled !== false,
+    compatibility: source.compatibility || '',
+    compatible,
+    searchable: compatible && !!raw.searchUrl && !!raw.ruleSearch,
+    stableAccepted: matchesStableSourceSeed(source),
+    runtimeStatus: runtime.status === 'cooldown' ? 'failed' : runtime.status,
+    runtimeState: runtime.status,
+    resultCount: Number(runtime.resultCount || 0),
+    errorCode: String(runtime.errorCode || '').slice(0, 80),
+    httpStatus: Number(runtime.httpStatus || 0),
+    checkedAt: Number(runtime.checkedAt || 0),
+    cooldownUntil: Number(runtime.cooldownUntil || 0),
+    updatedAt: Number(source.updatedAt || 0)
+  }
+}
+
+export function buildSourceLibraryDiagnostics(summaries = []) {
+  const rows = Array.isArray(summaries) ? summaries : []
+  const counts = {
+    total: rows.length,
+    verified: 0,
+    untested: 0,
+    probing: 0,
+    cooldown: 0,
+    blocked: 0,
+    retryReady: 0,
+    failed: 0,
+    incompatible: 0,
+    stable: 0
+  }
+  const errors = new Map()
+  let lastCheckedAt = 0
+  rows.forEach(item => {
+    const state = String(item.runtimeState || item.runtimeStatus || 'untested')
+    if (state === 'passed') counts.verified += 1
+    else if (state === 'probing') {
+      counts.probing += 1
+      counts.untested += 1
+    } else if (state === 'cooldown') {
+      counts.cooldown += 1
+      if (Number(item.cooldownUntil || 0) <= Date.now()) counts.retryReady += 1
+    }
+    else if (state === 'blocked') counts.blocked += 1
+    else counts.untested += 1
+    if (!item.compatible) counts.incompatible += 1
+    if (item.stableAccepted) counts.stable += 1
+    const errorCode = String(item.errorCode || '').trim().toUpperCase()
+    if (errorCode) {
+      counts.failed += 1
+      const key = `${errorCode}:${Number(item.httpStatus || 0)}`
+      const previous = errors.get(key) || { code: errorCode, httpStatus: Number(item.httpStatus || 0), count: 0, retryReady: 0 }
+      previous.count += 1
+      if (state === 'cooldown' && Number(item.cooldownUntil || 0) <= Date.now()) previous.retryReady += 1
+      errors.set(key, previous)
+    }
+    lastCheckedAt = Math.max(lastCheckedAt, Number(item.checkedAt || 0))
+  })
+  return {
+    counts,
+    lastCheckedAt,
+    topErrors: Array.from(errors.values())
+      .sort((a, b) => b.count - a.count || a.code.localeCompare(b.code))
+      .slice(0, 6)
+  }
+}
+
+function currentSourceRevision() {
+  const bridge = nativeSourceStorage()
+  if (bridge) {
+    try {
+      const manifest = String(bridge.readChapter(NATIVE_SOURCE_MANIFEST_KEY) || '')
+      if (manifest) return `native:${manifest}`
+    } catch (error) {}
+  }
+  return `web:${Number(readStorage(SOURCE_REVISION_KEY, 0) || 0)}`
+}
+
+function buildSourceIndexCache(summaries, revision, elapsedMs = 0, status = 'built') {
+  const groups = new Map()
+  summaries.forEach(item => groups.set(item.group, Number(groups.get(item.group) || 0) + 1))
+  return {
+    version: sourceSnapshotVersion,
+    revision,
+    summaries,
+    byId: new Map(summaries.map(item => [item.id, item])),
+    groups,
+    cooldownSummaries: summaries.filter(item => item.runtimeState === 'cooldown'),
+    stats: {
+      total: summaries.length,
+      enabled: summaries.filter(item => item.enabled).length,
+      incompatible: summaries.filter(item => !item.compatible).length,
+      searchable: summaries.filter(item => item.searchable).length
+    },
+    diagnostics: buildSourceLibraryDiagnostics(summaries),
+    report: {
+      cancelled: false,
+      cached: status === 'cached',
+      version: sourceSnapshotVersion,
+      count: summaries.length,
+      groupCount: groups.size,
+      elapsedMs
+    }
+  }
+}
+
+function getSourceLibraryDiagnosticsAt(index, now = Date.now()) {
+  const diagnostics = index && index.diagnostics || buildSourceLibraryDiagnostics([])
+  const topErrors = diagnostics.topErrors.map(item => ({ ...item, retryReady: 0 }))
+  const errors = new Map(topErrors.map(item => [`${item.code}:${Number(item.httpStatus || 0)}`, item]))
+  let retryReady = 0
+  ;(index && index.cooldownSummaries || []).forEach(item => {
+    if (Number(item.cooldownUntil || 0) > now) return
+    retryReady += 1
+    const key = `${String(item.errorCode || '').toUpperCase()}:${Number(item.httpStatus || 0)}`
+    if (errors.has(key)) errors.get(key).retryReady += 1
+  })
+  return {
+    ...diagnostics,
+    counts: { ...diagnostics.counts, retryReady },
+    topErrors
+  }
+}
+
+function restorePersistedSourceIndex() {
+  const revision = currentSourceRevision()
+  const cached = readStorage(SOURCE_INDEX_CACHE_KEY, null)
+  if (!cached || cached.revision !== revision || !Array.isArray(cached.summaries)) return null
+  if (cached.summaries.length > 10000) return null
+  sourceIndexCache = buildSourceIndexCache(cached.summaries, revision, 0, 'cached')
+  return sourceIndexCache
+}
+
+function persistSourceIndex(index) {
+  if (!index || !Array.isArray(index.summaries)) return
+  writeStorage(SOURCE_INDEX_CACHE_KEY, {
+    schemaVersion: 1,
+    revision: index.revision || currentSourceRevision(),
+    createdAt: Date.now(),
+    summaries: index.summaries
+  })
+}
+
+function hasCurrentSourceDiscoveryCache(revision = currentSourceRevision()) {
+  const cached = readStorage(SOURCE_DISCOVERY_CACHE_KEY, null)
+  return !!(cached && cached.revision === revision && cached.result && Array.isArray(cached.result.catalog))
+}
+
+export function prepareSourceDiscoveryCache(options = {}) {
+  const revision = currentSourceRevision()
+  if (hasCurrentSourceDiscoveryCache(revision)) {
+    return { cached: true, scheduled: false, revision }
+  }
+  const sources = Array.isArray(options.sources)
+    ? options.sources
+    : sourceSnapshotCache && sourceSnapshotCache.sources
+  if (!Array.isArray(sources) || !sources.length) {
+    return { cached: false, scheduled: false, revision, reason: 'snapshot-unavailable' }
+  }
+  if (options.immediate === true) {
+    cancelSourceDiscoveryPrecompute()
+    const result = getSourceDiscoverySnapshot({ sources })
+    return { cached: false, scheduled: false, revision, count: result.catalog.length, ready: true }
+  }
+  if (sourceDiscoveryPrecomputeHandle != null) {
+    return { cached: false, scheduled: true, revision }
+  }
+  const version = sourceSnapshotVersion
+  const run = () => {
+    sourceDiscoveryPrecomputeHandle = null
+    sourceDiscoveryPrecomputeMode = ''
+    if (version !== sourceSnapshotVersion || hasCurrentSourceDiscoveryCache(revision)) return
+    getSourceDiscoverySnapshot({ sources })
+  }
+  if (typeof globalThis.requestIdleCallback === 'function') {
+    sourceDiscoveryPrecomputeMode = 'idle'
+    sourceDiscoveryPrecomputeHandle = globalThis.requestIdleCallback(run, { timeout: 1200 })
+  } else {
+    sourceDiscoveryPrecomputeMode = 'timer'
+    sourceDiscoveryPrecomputeHandle = setTimeout(run, Math.max(32, Number(options.delayMs || 120)))
+    if (sourceDiscoveryPrecomputeHandle && typeof sourceDiscoveryPrecomputeHandle.unref === 'function') {
+      sourceDiscoveryPrecomputeHandle.unref()
+    }
+  }
+  return { cached: false, scheduled: true, revision }
+}
+
+export async function prepareSourceIndexes(options = {}) {
+  if (sourceIndexCache) {
+    prepareSourceDiscoveryCache()
+    return sourceIndexCache.report
+  }
+  const persisted = restorePersistedSourceIndex()
+  if (persisted) {
+    prepareSourceDiscoveryCache()
+    return persisted.report
+  }
+  const snapshot = getSourceSnapshot()
+  if (sourceIndexCache && sourceIndexCache.version === snapshot.version) return sourceIndexCache.report
+  if (sourceIndexJob && sourceIndexJob.version === snapshot.version) return sourceIndexJob.promise
+  const job = { version: snapshot.version, cancelled: false, promise: null }
+  const batchSize = Math.max(10, Math.min(200, Number(options.batchSize || 100)))
+  job.promise = (async () => {
+    const span = startPerformanceSpan('source.index')
+    const startedAt = Date.now()
+    const summaries = []
+    const groups = new Map()
+    for (let index = 0; index < snapshot.sources.length; index += batchSize) {
+      if (job.cancelled || snapshot.version !== sourceSnapshotVersion) return { cancelled: true, version: snapshot.version }
+      snapshot.sources.slice(index, index + batchSize).forEach(source => {
+        const summary = sourceIndexSummary(source)
+        summaries.push(summary)
+        groups.set(summary.group, Number(groups.get(summary.group) || 0) + 1)
+      })
+      if (index + batchSize < snapshot.sources.length) await new Promise(resolve => setTimeout(resolve, 0))
+    }
+    sourceIndexCache = buildSourceIndexCache(summaries, currentSourceRevision(), Date.now() - startedAt)
+    sourceIndexCache.version = snapshot.version
+    sourceIndexCache.report.version = snapshot.version
+    persistSourceIndex(sourceIndexCache)
+    prepareSourceDiscoveryCache({ sources: snapshot.sources })
+    finishPerformanceSpan(span, { sourceCount: summaries.length, count: groups.size, status: 'built' })
+    return sourceIndexCache.report
+  })().finally(() => {
+    if (sourceIndexJob === job) sourceIndexJob = null
+  })
+  sourceIndexJob = job
+  return job.promise
+}
+
+function ensureSynchronousSourceIndex() {
+  if (sourceIndexCache) return sourceIndexCache
+  const persisted = restorePersistedSourceIndex()
+  if (persisted) return persisted
+  const snapshot = getSourceSnapshot()
+  const summaries = snapshot.sources.map(sourceIndexSummary)
+  sourceIndexCache = buildSourceIndexCache(summaries, currentSourceRevision())
+  sourceIndexCache.version = snapshot.version
+  sourceIndexCache.report.version = snapshot.version
+  persistSourceIndex(sourceIndexCache)
+  prepareSourceDiscoveryCache({ sources: snapshot.sources })
+  return sourceIndexCache
+}
+
+export function getSourceLibraryPage(query = {}) {
+  const span = startPerformanceSpan('source.library-page')
+  const index = ensureSynchronousSourceIndex()
+  const keyword = String(query.keyword || '').trim().toLowerCase()
+  const group = String(query.group || query.sourceGroupFilter || '全部分组')
+  const filter = String(query.filter || query.sourceFilter || 'all')
+  const errorCode = String(query.errorCode || '').trim().toUpperCase()
+  const now = Number(query.now || Date.now())
+  const sort = String(query.sort || 'manual')
+  const offset = Math.max(0, Number(query.offset || 0))
+  const limit = Math.max(1, Math.min(100, Number(query.limit || 30)))
+  const filtered = index.summaries.filter(item => {
+    if (group !== '全部分组' && item.group !== group) return false
+    if (filter === 'enabled' && !item.enabled) return false
+    if (filter === 'disabled' && item.enabled) return false
+    if (filter === 'incompatible' && item.compatible) return false
+    if (filter === 'verified' && item.runtimeState !== 'passed') return false
+    if (filter === 'untested' && !['untested', 'probing'].includes(item.runtimeState || 'untested')) return false
+    if (filter === 'cooldown' && item.runtimeState !== 'cooldown') return false
+    if (filter === 'blocked' && item.runtimeState !== 'blocked') return false
+    if (filter === 'retryReady' && !(item.runtimeState === 'cooldown' && Number(item.cooldownUntil || 0) <= now)) return false
+    if (errorCode && String(item.errorCode || '').toUpperCase() !== errorCode) return false
+    if (!keyword) return true
+    return [item.name, item.group, item.baseUrl, item.compatibility, item.id].some(value => String(value || '').toLowerCase().includes(keyword))
+  })
+  if (sort === 'name') filtered.sort((a, b) => a.name.localeCompare(b.name, 'zh-Hans-CN'))
+  else if (sort === 'group') filtered.sort((a, b) => a.group.localeCompare(b.group, 'zh-Hans-CN') || a.name.localeCompare(b.name, 'zh-Hans-CN'))
+  else if (sort === 'updated') filtered.sort((a, b) => b.updatedAt - a.updatedAt)
+  else if (sort === 'enabled') filtered.sort((a, b) => Number(b.enabled) - Number(a.enabled))
+  const result = {
+    version: index.version,
+    total: filtered.length,
+    offset,
+    limit,
+    rows: filtered.slice(offset, offset + limit),
+    groups: ['全部分组', ...Array.from(index.groups.keys()).sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'))],
+    groupStats: Array.from(index.groups.entries()).map(([group, count]) => ({ group, count })).sort((a, b) => a.group.localeCompare(b.group, 'zh-Hans-CN')),
+    stats: index.stats,
+    diagnostics: getSourceLibraryDiagnosticsAt(index, now)
+  }
+  finishPerformanceSpan(span, { sourceCount: index.summaries.length, count: result.rows.length, status: 'ready' })
+  return result
+}
+
+export function selectSourceRetryCandidates(summaries = [], options = {}) {
+  const now = Number(options.now || Date.now())
+  const errorCode = String(options.errorCode || '').trim().toUpperCase()
+  const group = String(options.group || '').trim()
+  const limit = Math.max(1, Math.min(30, Number(options.limit || 20)))
+  return (Array.isArray(summaries) ? summaries : [])
+    .filter(item => item.enabled && item.compatible && item.searchable)
+    .filter(item => item.runtimeState === 'cooldown' && Number(item.cooldownUntil || 0) <= now)
+    .filter(item => !errorCode || String(item.errorCode || '').toUpperCase() === errorCode)
+    .filter(item => !group || group === '全部分组' || item.group === group)
+    .sort((a, b) => Number(a.cooldownUntil || 0) - Number(b.cooldownUntil || 0) || Number(a.checkedAt || 0) - Number(b.checkedAt || 0) || a.id.localeCompare(b.id))
+    .slice(0, limit)
+}
+
+
+export function getSourceRetryCandidates(options = {}) {
+  const index = ensureSynchronousSourceIndex()
+  return selectSourceRetryCandidates(index.cooldownSummaries, options)
+}
+
+function mergeSourceWithSettings(source, saved = {}) {
+  const merged = {
+    ...source,
+    name: saved.name || source.name,
+    group: saved.group || source.group,
+    enabled: saved.enabled !== undefined ? saved.enabled : source.enabled,
+    updatedAt: saved.updatedAt || source.updatedAt,
+    lastTest: saved.lastTest || source.lastTest || '',
+    exploreTest: saved.exploreTest || source.exploreTest || null,
+    health: saved.health || source.health || null,
+    quality: saved.quality || source.quality || null,
+    acceptanceWindows: Array.isArray(saved.acceptanceWindows) ? saved.acceptanceWindows : (source.acceptanceWindows || []),
+    runtimeV2: saved.runtimeV2 || source.runtimeV2 || null,
+    antiCrawler: normalizeSourceAntiCrawler(saved.antiCrawler || source.antiCrawler)
+  }
+  merged.runtimeV2 = normalizeSourceRuntimeV2(merged)
+  return merged
 }
 
 export function setSourceEnabled(sourceId, enabled) {
@@ -397,9 +1281,10 @@ export function getSourceDiagnostics(source) {
   })
   const compatible = !hasUnsupportedRule(raw) && levelInfo.environmentSupported
   const lastTest = normalizeSourceTest(source && source.lastTest)
+  const exploreTest = normalizeSourceExploreTest(source && source.exploreTest)
   const health = normalizeSourceHealth(source && source.health)
-  const networkStatus = compatible ? lastTest.status : 'incompatible'
-  const searchable = compatible && networkStatus === 'passed'
+  const runtimeV2 = normalizeSourceRuntimeV2(source || {})
+  const now = Date.now()
   const featureFlags = source && source.features || detectSourceFeatures(raw)
   const formatVersion = source && source.formatVersion || detectSourceFormat(raw)
   const ruleSearch = normalizeRuleObject(raw.ruleSearch)
@@ -413,20 +1298,32 @@ export function getSourceDiagnostics(source) {
     content: compatible && !!Object.keys(ruleContent).length,
     explore: !!(raw.exploreUrl || raw.ruleExplore)
   }
+  const searchRuntime = runtimeV2.search
+  const exploreRuntime = runtimeV2.explore
+  const searchCooling = searchRuntime.status === 'cooldown' && searchRuntime.cooldownUntil > now
+  const exploreCooling = exploreRuntime.status === 'cooldown' && exploreRuntime.cooldownUntil > now
+  const networkStatus = compatible ? lastTest.status : 'incompatible'
+  const exploreStatus = compatible ? exploreTest.status : 'incompatible'
+  const searchable = compatible && ruleSummary.search && searchRuntime.status !== 'blocked' && !searchCooling
+  const verifiedSearchable = searchable && searchRuntime.status === 'passed' && searchRuntime.resultCount > 0
   const statusTitle = !compatible
     ? '规则不兼容'
-    : lastTest.status === 'passed'
-      ? '已通过网络测试'
-      : lastTest.status === 'failed'
-        ? '网络测试失败'
-        : '规则兼容，待网络测试'
+    : searchRuntime.status === 'blocked'
+      ? '需要人工处理'
+      : searchCooling
+        ? '临时冷却中'
+        : searchRuntime.status === 'passed' && searchRuntime.resultCount > 0
+          ? '已进入可用池'
+          : '规则兼容，可智能检测'
   const statusDesc = !compatible
     ? (reasons.length ? reasons.join('、') : '包含 H5 暂不支持的复杂规则')
-    : lastTest.status === 'passed'
-      ? `发现页会使用它，最近返回 ${lastTest.count || 0} 条结果。`
-      : lastTest.status === 'failed'
-        ? `${lastTest.message || '网络是否可用以单源测试为准'}，发现页会跳过它。`
-        : '网络是否可用以单源测试为准，测试通过后发现页会使用它。'
+    : searchRuntime.status === 'blocked'
+      ? '该来源需要登录、验证码或包含越界规则，只允许人工处理。'
+      : searchCooling
+        ? `${lastTest.message || searchRuntime.errorCode || '最近检测失败'}，冷却结束后会自动重新进入候选池。`
+        : searchRuntime.status === 'passed' && searchRuntime.resultCount > 0
+          ? `最近返回 ${searchRuntime.resultCount} 条结果，搜索时优先使用。`
+          : '无需手动逐个测试，联网搜索或 Wi-Fi 空闲时会自动检测。'
   return {
     id: source && source.id || '',
     name: source && source.name || raw.bookSourceName || '未命名书源',
@@ -440,7 +1337,11 @@ export function getSourceDiagnostics(source) {
     imported: !!(source && source.importedAt),
     compatible,
     searchable,
+    verifiedSearchable,
+    searchCooling,
+    exploreCooling,
     networkStatus,
+    exploreStatus,
     compatibilityLevel: levelInfo.level,
     environmentSupported: levelInfo.environmentSupported,
     nextAction: levelInfo.nextAction,
@@ -448,7 +1349,9 @@ export function getSourceDiagnostics(source) {
     statusTitle,
     statusDesc,
     lastTest,
+    exploreTest,
     health,
+    runtimeV2,
     reasons: compatible ? [] : (reasons.length ? reasons : ['包含 H5 暂不支持的复杂规则']),
     ruleSummary
   }
@@ -625,7 +1528,9 @@ export function getOnlineSearchSettings() {
     concurrency: clampNumber(raw.concurrency, 1, 10, ONLINE_SEARCH_DEFAULTS.concurrency),
     timeoutMs: clampNumber(raw.timeoutMs, 3000, 15000, ONLINE_SEARCH_DEFAULTS.timeoutMs),
     resultLimit: clampNumber(raw.resultLimit, 20, 120, ONLINE_SEARCH_DEFAULTS.resultLimit),
-    sourceLimit: clampNumber(raw.sourceLimit, 1, 10, 10)
+    sourceLimit: clampNumber(raw.sourceLimit, 10, 30, ONLINE_SEARCH_DEFAULTS.sourceLimit),
+    autoWarmup: raw.autoWarmup !== false,
+    mergeBackend: raw.mergeBackend !== false
   }
 }
 
@@ -638,7 +1543,9 @@ export function saveOnlineSearchSettings(settings = {}) {
     concurrency: clampNumber(next.concurrency, 1, 10, ONLINE_SEARCH_DEFAULTS.concurrency),
     timeoutMs: clampNumber(next.timeoutMs, 3000, 15000, ONLINE_SEARCH_DEFAULTS.timeoutMs),
     resultLimit: clampNumber(next.resultLimit, 20, 120, ONLINE_SEARCH_DEFAULTS.resultLimit),
-    sourceLimit: clampNumber(next.sourceLimit, 1, 10, 10)
+    sourceLimit: clampNumber(next.sourceLimit, 10, 30, ONLINE_SEARCH_DEFAULTS.sourceLimit),
+    autoWarmup: next.autoWarmup !== false,
+    mergeBackend: next.mergeBackend !== false
   }
   writeStorage(ONLINE_SEARCH_SETTINGS_KEY, normalized)
   return normalized
@@ -682,11 +1589,32 @@ function chapterCacheMetaKey(bookId, chapterIndex) {
 }
 
 function readOnlineChapterCache(bookId, chapterIndex) {
-  return readStorage(chapterCacheKey(bookId, chapterIndex), '')
+  const storageKey = chapterCacheKey(bookId, chapterIndex)
+  const cached = String(readStorage(storageKey, '') || '')
+  if (!cached) return ''
+  const key = chapterCacheMetaKey(bookId, chapterIndex)
+  const meta = getChapterCacheMeta()
+  const current = meta[key] && typeof meta[key] === 'object' ? meta[key] : {}
+  if (Number(current.sanitizerVersion || 0) >= CONTENT_SANITIZER_VERSION) return cached
+  const sanitized = sanitizeReadableContent(cached, { chapterTitle: current.chapterTitle })
+  if (sanitized.text !== cached) writeStorage(storageKey, sanitized.text)
+  meta[key] = {
+    ...current,
+    bookId,
+    chapterIndex: Number(chapterIndex || 0),
+    chars: sanitized.cleanedChars,
+    rawChars: sanitized.rawChars,
+    cleanedChars: sanitized.cleanedChars,
+    sanitizerVersion: CONTENT_SANITIZER_VERSION,
+    cachedAt: Number(current.cachedAt || Date.now())
+  }
+  writeChapterCacheMeta(meta)
+  return sanitized.text
 }
 
 function writeOnlineChapterCache(book, chapter, content, protectedKeys = []) {
-  const text = String(content || '')
+  const sanitized = sanitizeReadableContent(content, { chapterTitle: chapter && chapter.title })
+  const text = sanitized.text
   if (!book || !book.id || !chapter || !text) return ''
   const index = Number(chapter.index || 0)
   writeStorage(chapterCacheKey(book.id, index), text)
@@ -698,6 +1626,9 @@ function writeOnlineChapterCache(book, chapter, content, protectedKeys = []) {
     chapterIndex: index,
     chapterTitle: chapter.title || `第 ${index + 1} 章`,
     chars: text.length,
+    rawChars: sanitized.rawChars,
+    cleanedChars: sanitized.cleanedChars,
+    sanitizerVersion: CONTENT_SANITIZER_VERSION,
     cachedAt: Date.now()
   }
   writeChapterCacheMeta(meta)
@@ -908,6 +1839,7 @@ export async function preloadOnlineChapters(book, startIndex = 0, options = {}) 
 }
 
 function normalizeSourceQuality(value = {}) {
+  value = value && typeof value === 'object' ? value : {}
   const searchCount = Number(value.searchCount || 0)
   const successCount = Number(value.successCount || 0)
   const failCount = Number(value.failCount || 0)
@@ -943,6 +1875,7 @@ function normalizeSourceHealth(value = {}) {
       checkedAt: 0,
       elapsedMs: 0,
       failedStage: '',
+      errorCode: '',
       message: '',
       stages: [],
       stageCount: 0,
@@ -955,6 +1888,9 @@ function normalizeSourceHealth(value = {}) {
     title: String(stage.title || stage.id || ''),
     status: stage.status === 'failed' ? 'failed' : stage.status === 'skipped' ? 'skipped' : 'passed',
     message: String(stage.message || ''),
+    errorCode: String(stage.errorCode || ''),
+    httpStatus: Number(stage.httpStatus || 0),
+    retryable: stage.retryable === true,
     elapsedMs: Number(stage.elapsedMs || 0)
   })).filter(stage => stage.id) : []
   const passed = stages.filter(stage => stage.status === 'passed').length
@@ -972,6 +1908,7 @@ function normalizeSourceHealth(value = {}) {
     passed,
     failed,
     failedStage: String(value.failedStage || ((stages.find(stage => stage.status === 'failed') || {}).id || '')),
+    errorCode: String(value.errorCode || ((stages.find(stage => stage.status === 'failed') || {}).errorCode || '')),
     message: String(value.message || ''),
     stages
   }
@@ -999,8 +1936,32 @@ function writeSourceHealthResult(sourceId, health) {
     health: normalized,
     updatedAt: Date.now()
   }
-  writeSourceSettings(settings)
+  writeSourceSettingsDeferred(settings, sourceId)
   return normalized
+}
+
+export function recordSourceAcceptanceWindow(sourceId, result = {}) {
+  if (!sourceId || !result.windowId) return []
+  const settings = getSourceSettings()
+  const current = Array.isArray((settings[sourceId] || {}).acceptanceWindows)
+    ? settings[sourceId].acceptanceWindows.slice()
+    : []
+  const normalized = {
+    windowId: String(result.windowId).slice(0, 80),
+    status: result.status === 'passed' ? 'passed' : 'failed',
+    checkedAt: Number(result.checkedAt || Date.now()),
+    errorCode: result.status === 'passed' ? '' : String(result.errorCode || '')
+  }
+  const next = current.filter(item => item && item.windowId !== normalized.windowId)
+  next.push(normalized)
+  next.sort((left, right) => Number(right.checkedAt || 0) - Number(left.checkedAt || 0))
+  settings[sourceId] = {
+    ...(settings[sourceId] || {}),
+    acceptanceWindows: next.slice(0, 4),
+    updatedAt: Date.now()
+  }
+  writeSourceSettings(settings)
+  return settings[sourceId].acceptanceWindows
 }
 
 function writeSourceQualityResult(sourceId, result = {}) {
@@ -1024,7 +1985,7 @@ function writeSourceQualityResult(sourceId, result = {}) {
     quality: next,
     updatedAt: Date.now()
   }
-  writeSourceSettings(settings)
+  writeSourceSettingsDeferred(settings, sourceId)
   return next
 }
 
@@ -1194,6 +2155,8 @@ export function analyzeBookSourceCompatibility(source) {
   const ruleExplore = normalizeRuleObject(raw.ruleExplore)
   const name = String(raw.bookSourceName || raw.name || source && source.name || '').trim()
   const baseUrl = String(raw.bookSourceUrl || raw.sourceUrl || source && source.baseUrl || '').trim()
+  const sourceType = Number(raw.bookSourceType || 0)
+  const supportedSourceType = sourceType === 0
   const unsupportedReasons = []
   const stageUnsupported = {
     search: hasStageUnsupportedRule({ searchUrl: raw.searchUrl, ruleSearch: raw.ruleSearch }),
@@ -1210,6 +2173,12 @@ export function analyzeBookSourceCompatibility(source) {
       reason: stageUnsupported[stage]
     })
   })
+  if (!supportedSourceType) {
+    unsupportedReasons.push({
+      stage: 'import',
+      reason: `书源类型 ${sourceType} 已保存，但当前阶段仅运行文字小说（bookSourceType=0）`
+    })
+  }
 
   const hasSearchRule = !!(raw.searchUrl && Object.keys(ruleSearch).length)
   const hasExploreUrl = !!(raw.exploreUrl || raw.ruleExploreUrl || raw.explore)
@@ -1223,22 +2192,54 @@ export function analyzeBookSourceCompatibility(source) {
   const tocReadable = hasTocRule && !stageUnsupported.toc
   const contentReadable = hasContentRule && !stageUnsupported.content
   const diagnosticExploreOnly = hasExploreUrl && !stageUnsupported.explore
-  const importable = !!(name && baseUrl && (searchable || discoverable || diagnosticExploreOnly))
+  const identityValid = !!(name && baseUrl)
+  const importable = identityValid
 
   let level = 'compatible'
-  if (!importable) level = 'importUnsupported'
+  if (!identityValid) level = 'importUnsupported'
   else if (stageUnsupported.search || stageUnsupported.explore || stageUnsupported.detail || stageUnsupported.toc) level = 'h5Unsupported'
   else if (stageUnsupported.content || features.cookie || features.login || features.webView) level = 'partialCompatible'
 
   const compatible = level === 'compatible'
   const reasons = uniqueStrings(unsupportedReasons.map(item => item.reason))
-  if (!importable && !reasons.length) {
-    reasons.push('Missing required fields or no currently usable search/explore/detail/toc/content rule')
+  if (!identityValid && !reasons.length) {
+    reasons.push('Missing required fields：缺少书源名称或基础地址')
     unsupportedReasons.push({
       stage: 'import',
-      reason: 'Missing required fields or no currently usable search/explore/detail/toc/content rule'
+      reason: 'Missing required fields：缺少书源名称或基础地址'
     })
   }
+
+  let status = 'ready'
+  let errorCode = ''
+  if (!identityValid) {
+    status = 'invalid'
+    errorCode = 'INVALID_IDENTITY'
+  } else if (!supportedSourceType) {
+    status = 'blocked'
+    errorCode = 'SOURCE_TYPE_UNSUPPORTED'
+  } else if (source && source.compatibilityLevel === 'unsupported' || hasUnsupportedRule(raw)) {
+    status = 'blocked'
+    errorCode = 'SCRIPT_UNSUPPORTED'
+    if (!reasons.length) reasons.push('包含未映射的高风险脚本或宿主能力')
+  } else if (features.login) {
+    status = 'needs_login'
+    errorCode = 'LOGIN_REQUIRED'
+  } else if (
+    stageUnsupported.content
+    || (stageUnsupported.search && !discoverable)
+    || (stageUnsupported.explore && !searchable)
+  ) {
+    status = 'blocked'
+    errorCode = 'SCRIPT_UNSUPPORTED'
+  } else if (!searchable && !discoverable || !tocReadable || !contentReadable || unsupportedReasons.length) {
+    status = 'partial'
+    errorCode = 'PARTIAL_CAPABILITY'
+  }
+
+  const androidSupported = supportedSourceType && (status === 'ready' || status === 'partial' || status === 'needs_login')
+  const h5Supported = status === 'ready' && !features.cookie && !features.webView && !features.login
+  const backendSupported = status === 'ready' && !features.webView && !unsupportedReasons.length
 
   return {
     importable,
@@ -1262,7 +2263,14 @@ export function analyzeBookSourceCompatibility(source) {
       bookInfo: !!Object.keys(ruleBookInfo).length,
       toc: !!Object.keys(ruleToc).length,
       content: !!Object.keys(ruleContent).length
-    }
+    },
+    sourceType,
+    supportedSourceType,
+    status,
+    errorCode,
+    android_supported: androidSupported,
+    h5_supported: h5Supported,
+    backend_supported: backendSupported
   }
 }
 
@@ -1271,13 +2279,13 @@ function hasStageUnsupportedRule(value) {
   const text = typeof value === 'string' ? value : JSON.stringify(value)
   if (!text || text === '{}') return ''
   const checks = [
-    { pattern: /@js:/i, reason: 'rule uses @js, current safe H5 parser will not execute third-party JS' },
-    { pattern: /java\.ajax/i, reason: 'JS rule calls java.ajax, H5 engine cannot execute Android/Legado runtime APIs' },
-    { pattern: /org\.jsoup/i, reason: 'JS rule depends on org.jsoup, H5 engine cannot execute Android/Legado runtime APIs' },
-    { pattern: /\bjava\./i, reason: 'JS rule depends on java.*, H5 engine cannot execute Android/Legado runtime APIs' },
-    { pattern: /webview/i, reason: 'rule requires WebView-rendered execution' },
-    { pattern: /\beval\s*\(|\bFunction\s*\(/i, reason: 'rule uses dynamic JavaScript execution' },
-    { pattern: /CryptoJS|base64 dynamic decode/i, reason: 'rule appears to require dynamic decode or crypto logic' }
+    { pattern: /java\.ajax/i, reason: '规则调用 java.ajax，当前版本未映射该异步宿主 API' },
+    { pattern: /org\.jsoup/i, reason: '规则依赖 org.jsoup，当前版本仅支持 CSS/XPath/JSONPath 解析' },
+    { pattern: /\bjava\./i, reason: '规则依赖未列入白名单的 java.* 能力' },
+    { pattern: /webview/i, reason: '规则需要 WebView 渲染通道' },
+    { pattern: /\beval\s*\(|\bFunction\s*\(/i, reason: '规则使用动态 JavaScript 执行' },
+    { pattern: /@js:[\s\S]*\.(?:map|filter|reduce)\s*\(/i, reason: 'JS 规则使用当前白名单未开放的数组回调' },
+    { pattern: /CryptoJS|base64 dynamic decode/i, reason: '规则需要当前未支持的动态解码或加密逻辑' }
   ]
   const found = checks.find(item => item.pattern.test(text))
   return found ? found.reason : ''
@@ -1285,24 +2293,32 @@ function hasStageUnsupportedRule(value) {
 
 export function buildImportPreview(sources = [], existingSources = getUserSources(), options = {}) {
   const existing = Array.isArray(existingSources) ? existingSources : []
-  const existingIds = new Set(existing.map(source => source.id))
-  const seenIds = new Set()
+  const existingByKey = new Map(existing.map(source => [source.sourceKey || createSourceKey(source.raw || source), source]))
+  const resolvedByKey = new Map(existingByKey)
   const duplicateStrategy = options.duplicateStrategy === 'skip' ? 'skip' : 'overwrite'
   const rows = (Array.isArray(sources) ? sources : []).map(source => {
     const compatibility = analyzeBookSourceCompatibility(source)
-    const duplicate = existingIds.has(source.id) || seenIds.has(source.id)
-    seenIds.add(source.id)
-    const unsupported = !compatibility.importable
+    const sourceKey = source.sourceKey || createSourceKey(source.raw || source)
+    const existingSource = resolvedByKey.get(sourceKey)
+    const duplicate = !!existingSource
+    const invalid = compatibility.status === 'invalid'
+    const unsupported = compatibility.status !== 'ready'
     const compatible = compatibility.compatible
-    const action = unsupported
-      ? 'incompatible'
+    const action = invalid
+      ? 'invalid'
       : duplicate
         ? (duplicateStrategy === 'skip' ? 'skip' : 'overwrite')
         : 'import'
-    return {
+    const row = {
       ...source,
+      id: existingSource ? existingSource.id : source.id,
+      sourceKey,
+      enabled: compatibility.status === 'ready' || (!options.enableReadyOnly && compatibility.status === 'partial')
+        ? source.enabled !== false
+        : false,
       action,
       duplicate,
+      invalid,
       unsupported,
       compatible,
       compatibilityStatus: compatibility.level,
@@ -1320,6 +2336,13 @@ export function buildImportPreview(sources = [], existingSources = getUserSource
       requiresCookie: compatibility.requiresCookie,
       requiresLogin: compatibility.requiresLogin,
       requiresWebView: compatibility.requiresWebView,
+      status: compatibility.status,
+      errorCode: compatibility.errorCode,
+      android_supported: compatibility.android_supported,
+      h5_supported: compatibility.h5_supported,
+      backend_supported: compatibility.backend_supported,
+      sourceType: compatibility.sourceType,
+      supportedSourceType: compatibility.supportedSourceType,
       format: source.formatVersion || detectSourceFormat(source.raw || source),
       source: source.sourceMeta && source.sourceMeta.source || '',
       sourceUrl: source.sourceMeta && source.sourceMeta.sourceUrl || '',
@@ -1327,6 +2350,8 @@ export function buildImportPreview(sources = [], existingSources = getUserSource
       comment: source.comment || (source.raw && (source.raw.bookSourceComment || source.raw.sourceComment)) || '',
       weight: Number(source.weight || source.raw && (source.raw.weight || source.raw.customOrder) || 0)
     }
+    resolvedByKey.set(sourceKey, row)
+    return row
   })
   return summarizeImportPreviewRows(rows)
 }
@@ -1339,7 +2364,8 @@ function summarizeImportPreviewRows(rows = []) {
     updated: rows.filter(source => source.action === 'overwrite').length,
     skipped: rows.filter(source => source.action === 'skip').length,
     failed: 0,
-    incompatible: rows.filter(source => source.action === 'incompatible' || source.compatibleLevel === 'h5Unsupported' || source.compatibleLevel === 'importUnsupported').length,
+    incompatible: rows.filter(source => source.status === 'blocked' || source.status === 'invalid').length,
+    unsupported: rows.filter(source => source.status !== 'ready' && source.status !== 'invalid').length,
     partialCompatible: rows.filter(source => source.compatibleLevel === 'partialCompatible').length,
     groups: Array.from(new Set(groups)),
     sources: rows
@@ -1349,7 +2375,8 @@ function summarizeImportPreviewRows(rows = []) {
 export function applyImportPreview(preview, options = {}) {
   const rows = Array.isArray(preview && preview.sources) ? preview.sources : []
   const duplicateStrategy = options.duplicateStrategy === 'skip' ? 'skip' : 'overwrite'
-  const current = getUserSources()
+  const deferred = options.deferPersistence === true
+  const current = Array.isArray(options.currentSources) ? options.currentSources : getUserSources()
   const nextById = new Map(current.map(source => [source.id, source]))
   const skippedIds = new Set()
   const appliedIds = new Set()
@@ -1360,7 +2387,7 @@ export function applyImportPreview(preview, options = {}) {
 
   rows.forEach(row => {
     const exists = nextById.has(row.id)
-    if (row.unsupported === true || row.action === 'incompatible') {
+    if (row.action === 'invalid' || row.status === 'invalid') {
       skipped += 1
       skippedIds.add(row.id)
       historyRows.push(buildImportHistoryItem(row, 'unsupported', options))
@@ -1383,16 +2410,28 @@ export function applyImportPreview(preview, options = {}) {
     }
   })
 
-  const appliedRows = rows
-    .filter(row => appliedIds.has(row.id) && !skippedIds.has(row.id))
-    .map(row => nextById.get(row.id))
+  const appliedRows = Array.from(appliedIds)
+    .filter(id => !skippedIds.has(id))
+    .map(id => nextById.get(id))
+    .filter(Boolean)
   const untouchedRows = current.filter(source => !appliedIds.has(source.id))
-  writeUserSources([...appliedRows, ...untouchedRows])
-  const visibleCheck = verifyImportedSourcesVisible(appliedRows)
-  recordImportHistory(historyRows.map(item => ({
-    ...item,
-    visible: visibleCheck.items.some(visibleItem => visibleItem.id === item.id && visibleItem.visible)
-  })))
+  const nextSources = [...appliedRows, ...untouchedRows]
+  if (!deferred) writeUserSources(nextSources)
+  const visibleCheck = deferred
+    ? {
+        total: appliedRows.length,
+        visible: 0,
+        hidden: appliedRows.length,
+        deferred: true,
+        items: appliedRows.map(source => ({ id: source.id, name: source.name, visible: false, enabled: !!source.enabled, reason: '等待批量提交' }))
+      }
+    : verifyImportedSourcesVisible(appliedRows)
+  if (!deferred) {
+    recordImportHistory(historyRows.map(item => ({
+      ...item,
+      visible: visibleCheck.items.some(visibleItem => visibleItem.id === item.id && visibleItem.visible)
+    })))
+  }
 
   const result = {
     total: rows.length,
@@ -1400,15 +2439,17 @@ export function applyImportPreview(preview, options = {}) {
     updated,
     skipped,
     failed: 0,
-    incompatible: rows.filter(source => source.action === 'incompatible' || source.compatibleLevel === 'h5Unsupported' || source.compatibleLevel === 'importUnsupported').length,
+    incompatible: rows.filter(source => source.status === 'blocked' || source.status === 'invalid').length,
+    unsupported: rows.filter(source => source.status !== 'ready' && source.status !== 'invalid').length,
     partialCompatible: rows.filter(source => source.compatibleLevel === 'partialCompatible').length,
     actualWritten: imported + updated,
     visible: visibleCheck.visible,
     visibleCheck,
     importedSources: appliedRows,
-    sources: rows
+    sources: rows,
+    nextSources
   }
-  result.importLog = recordImportLog(buildImportLog(preview, rows, result, options))
+  if (!deferred) result.importLog = recordImportLog(buildImportLog(preview, rows, result, options))
   return result
 }
 
@@ -1527,7 +2568,7 @@ function buildImportLogItem(row = {}, result = {}) {
   const h5Unsupported = row.compatibleLevel === 'h5Unsupported' || row.compatibleLevel === 'partialCompatible'
   let status = 'success'
   let itemReason = saved ? '导入成功，已保存到本地书源列表' : ''
-  if (row.action === 'incompatible' || row.unsupported === true) {
+  if (row.action === 'invalid' || row.status === 'invalid') {
     status = 'blocked'
     itemReason = reason || '书源缺少必要字段或需要当前版本不支持的特殊能力'
   } else if (row.action === 'skip' && row.duplicate) {
@@ -1596,6 +2637,7 @@ function stripImportPreviewFields(source) {
     action,
     duplicate,
     unsupported,
+    invalid,
     compatible,
     compatibilityStatus,
     importable,
@@ -1623,16 +2665,6 @@ export function importSourcesFromJson(text) {
 
 export function previewSourcesImport(text) {
   return buildImportPreview(normalizeBookSources(text, { source: 'text' }), getUserSources())
-  const sources = parseSourceJson(text)
-  const currentIds = new Set(getUserSources().map(source => source.id))
-  const groups = sources.map(source => source.group || source.raw.bookSourceGroup || '用户导入')
-  return {
-    imported: sources.filter(source => !currentIds.has(source.id)).length,
-    updated: sources.filter(source => currentIds.has(source.id)).length,
-    incompatible: sources.filter(source => hasUnsupportedRule(source.raw)).length,
-    groups: Array.from(new Set(groups)),
-    sources
-  }
 }
 
 export async function previewSourcesFromAny(input) {
@@ -1644,12 +2676,6 @@ export async function previewSourcesFromAny(input) {
     ...buildImportPreview(normalizeBookSources(resolved.rawSources, resolved.sourceMeta), getUserSources()),
     sourceUrl: resolved.sourceUrl
   }
-  const payload = detectSourceImportPayload(input)
-  if (payload.type === 'json') return previewSourcesImport(payload.value)
-  if (payload.type === 'import-link' || payload.type === 'json-url' || payload.type === 'repository-page' || payload.type === 'url') {
-    return previewSourcesFromUrl(payload.value)
-  }
-  throw new Error('没有识别到可预览的书源 JSON 或 URL')
 }
 
 export async function previewSourcesFromUrl(url) {
@@ -1666,20 +2692,6 @@ export async function previewSourcesFromUrl(url) {
 export function importSourcesWithStats(text, options = {}) {
   const preview = buildImportPreview(normalizeBookSources(text, { source: options.source || 'text' }), getUserSources(), options)
   return applyImportPreview(preview, options)
-  const sources = parseSourceJson(text)
-  const current = getUserSources()
-  const currentIds = new Set(current.map(source => source.id))
-  const next = [
-    ...sources,
-    ...current.filter(source => !sources.some(item => item.id === source.id))
-  ]
-  writeUserSources(next)
-  return {
-    imported: sources.filter(source => !currentIds.has(source.id)).length,
-    updated: sources.filter(source => currentIds.has(source.id)).length,
-    incompatible: sources.filter(source => hasUnsupportedRule(source.raw)).length,
-    sources
-  }
 }
 
 export async function importSourcesFromUrl(url) {
@@ -1746,12 +2758,23 @@ export async function importSourcesFromAny(input) {
   }
   const preview = buildImportPreview(normalizeBookSources(resolved.rawSources, resolved.sourceMeta), getUserSources())
   return applyImportPreview(preview)
-  const payload = detectSourceImportPayload(input)
-  if (payload.type === 'json') return importSourcesWithStats(payload.value)
-  if (payload.type === 'import-link' || payload.type === 'json-url' || payload.type === 'repository-page' || payload.type === 'url') {
-    return importSourcesFromUrlWithStats(payload.value)
+}
+
+export const resolveSourceImport = resolveImportInput
+
+export function previewSourceImport(resolution, options = {}) {
+  if (!resolution || resolution.action === 'navigate') {
+    throw new Error('书源仓库列表页需要先选择单个书源')
   }
-  throw new Error('没有识别到可导入的书源 JSON 或 URL')
+  return buildImportPreview(
+    normalizeBookSources(resolution.rawSources, resolution.sourceMeta || {}),
+    getUserSources(),
+    options
+  )
+}
+
+export function applySourceImport(preview, options = {}) {
+  return applyImportPreview(preview, options)
 }
 
 export function saveOnlineBookDraft(book) {
@@ -1784,19 +2807,325 @@ export function deleteOnlineBookFromShelf(bookId) {
   return next.length !== current.length
 }
 
+function sourceHost(source) {
+  try {
+    return new URL(String(source.baseUrl || (source.raw && source.raw.bookSourceUrl) || '')).hostname.toLowerCase()
+  } catch (error) {
+    return String(source.baseUrl || source.id || '')
+  }
+}
+
+function diversifySources(items = []) {
+  const queues = new Map()
+  items.forEach(item => {
+    const host = sourceHost(item.source)
+    if (!queues.has(host)) queues.set(host, [])
+    queues.get(host).push(item)
+  })
+  const output = []
+  while (queues.size) {
+    Array.from(queues.entries()).forEach(([host, queue]) => {
+      const item = queue.shift()
+      if (item) output.push(item)
+      if (!queue.length) queues.delete(host)
+    })
+  }
+  return output
+}
+
+export function selectDiverseSourceCandidates(candidates = [], limit = ONLINE_SOURCE_SEARCH_LIMIT, perHostLimit = 2) {
+  const maximum = Math.max(0, Number(limit || 0))
+  const hostMaximum = Math.max(1, Number(perHostLimit || 2))
+  const hostCounts = new Map()
+  const output = []
+  for (const source of Array.isArray(candidates) ? candidates : []) {
+    if (!source || output.length >= maximum) break
+    const host = sourceHost(source)
+    const count = Number(hostCounts.get(host) || 0)
+    if (count >= hostMaximum) continue
+    hostCounts.set(host, count + 1)
+    output.push(source)
+  }
+  return output
+}
+
+function sourceCandidateScore(item) {
+  const quality = normalizeSourceQuality(item.source.quality)
+  const speed = Math.max(0, 20 - Math.round(Number(item.runtime.latencyMs || quality.averageElapsedMs || 0) / 300))
+  const bootstrap = SOURCE_BOOTSTRAP_KEYS.has(item.source.sourceKey) ? 100000 : 0
+  const stable = matchesStableSourceSeed(item.source) ? 200000 : 0
+  return stable + bootstrap + (item.tier * 1000) + (quality.qualityScore * 5) + speed + Number(item.source.weight || 0) / 1000
+}
+
+export function matchesStableSourceSeed(source, seeds = null) {
+  if (!source) return false
+  const map = seeds == null ? STABLE_SOURCE_SEED_MAP : buildStableSourceSeedMap(seeds)
+  if (!map.size) return false
+  return map.has(`${String(source.sourceKey || '')}\n${hashSourceRuntimeConfig(source)}`)
+}
+
+export function buildSourceCandidatePool(sources = getSourceConfigs(), context = {}) {
+  const now = Number(context.now || Date.now())
+  const excluded = new Set(Array.isArray(context.excludeSourceIds) ? context.excludeSourceIds : [])
+  const pool = {
+    verified: [],
+    untested: [],
+    retryable: [],
+    cooling: [],
+    blocked: [],
+    candidates: [],
+    counts: { total: 0, verified: 0, untested: 0, retryable: 0, cooling: 0, blocked: 0 }
+  }
+  ;(Array.isArray(sources) ? sources : getSourceConfigs()).forEach(source => {
+    if (!source || excluded.has(source.id)) return
+    pool.counts.total += 1
+    const raw = source.raw || source
+    const textSource = Number(raw.bookSourceType || 0) === 0
+    const runtimeV2 = normalizeSourceRuntimeV2(source)
+    const runtime = runtimeV2.search
+    const storedStatus = String(source.status || '')
+    const statusEligible = storedStatus
+      ? storedStatus === 'ready' || storedStatus === 'partial'
+      : getSourceDiagnostics(source).compatible
+    const searchRulePresent = hasNonEmptyField(raw, ['searchUrl']) && hasNonEmptyField(raw, ['ruleSearch'])
+    const searchRuleSafe = !hasStageUnsupportedRule({ searchUrl: raw.searchUrl, ruleSearch: raw.ruleSearch })
+    if (!source.enabled || !textSource || !statusEligible || !searchRulePresent || !searchRuleSafe || runtime.status === 'blocked') {
+      pool.blocked.push(source)
+      pool.counts.blocked += 1
+      return
+    }
+    if (runtime.status === 'cooldown' && runtime.cooldownUntil > now) {
+      pool.cooling.push(source)
+      pool.counts.cooling += 1
+      return
+    }
+    const health = normalizeSourceHealth(source.health)
+    const stableWindowPasses = new Set((source.acceptanceWindows || [])
+      .filter(item => item && item.status === 'passed')
+      .map(item => item.windowId)).size
+    const healthFresh = health.status === 'passed' && health.checkedAt >= now - (7 * DAY_MS)
+    const searchFresh = runtime.status === 'passed' && runtime.resultCount > 0 && runtime.lastSuccessAt >= now - (72 * HOUR_MS)
+    const item = {
+      source,
+      diagnostics: { runtimeV2, health },
+      runtime,
+      tier: stableWindowPasses >= 2 ? 6 : healthFresh ? 5 : searchFresh ? 4 : runtime.status === 'passed' ? 3 : runtime.status === 'cooldown' ? 1 : 2
+    }
+    if (healthFresh || searchFresh) {
+      pool.verified.push(item)
+      pool.counts.verified += 1
+    } else if (runtime.status === 'cooldown') {
+      pool.retryable.push(item)
+      pool.counts.retryable += 1
+    } else {
+      pool.untested.push(item)
+      pool.counts.untested += 1
+    }
+  })
+  const sortItems = items => diversifySources(items.sort((left, right) => sourceCandidateScore(right) - sourceCandidateScore(left)))
+  pool.verified = sortItems(pool.verified)
+  pool.untested = sortItems(pool.untested)
+  pool.retryable = sortItems(pool.retryable)
+  const ordered = [
+    ...pool.verified.slice(0, 6),
+    ...pool.untested,
+    ...pool.retryable,
+    ...pool.verified.slice(6)
+  ]
+  pool.candidates = ordered.map(item => item.source)
+  return pool
+}
+
+export function getSourcePoolStats(sources = getSourceConfigs()) {
+  const pool = buildSourceCandidatePool(sources)
+  return {
+    ...pool.counts,
+    available: pool.candidates.length,
+    checkedAt: Date.now()
+  }
+}
+
 export function pickOnlineSearchSources(sources = getSourceConfigs(), limit = ONLINE_SOURCE_SEARCH_LIMIT) {
-  return (Array.isArray(sources) ? sources : getSourceConfigs())
-    .filter(source => source.enabled && getSourceDiagnostics(source).searchable)
-    .slice(0, limit)
+  return buildSourceCandidatePool(Array.isArray(sources) ? sources : getSourceConfigs()).candidates.slice(0, limit)
 }
 
 export function getOnlineExploreEntries(options = {}) {
   const sources = options.sources || getSourceConfigs()
   const limit = Number(options.limit || 0)
   const entries = sources
-    .filter(source => source.enabled && getSourceDiagnostics(source).compatible)
+    .filter(source => {
+      const raw = source.raw || source
+      const storedStatus = String(source.status || '')
+      const statusEligible = storedStatus
+        ? storedStatus === 'ready' || storedStatus === 'partial'
+        : getSourceDiagnostics(source).compatible
+      const runtime = normalizeSourceRuntimeV2(source).explore
+      const cooling = runtime.status === 'cooldown' && runtime.cooldownUntil > Date.now()
+      const ruleSafe = !hasStageUnsupportedRule({
+        exploreUrl: raw.exploreUrl || raw.ruleExploreUrl || raw.explore,
+        ruleExplore: raw.ruleExplore
+      })
+      return source.enabled && statusEligible && ruleSafe && runtime.status !== 'blocked' && !cooling
+    })
     .flatMap(source => parseSourceExploreUrl(source))
   return limit > 0 ? entries.slice(0, limit) : entries
+}
+
+function normalizeExploreCatalogTitle(title, kind = 'category') {
+  const text = cleanText(title).replace(/[\s·|丨]/g, '')
+  const mappings = [
+    [/玄幻|奇幻/, '玄幻'], [/都市|现实|生活/, '都市'], [/历史|架空/, '历史'],
+    [/仙侠|修真/, '仙侠'], [/武侠/, '武侠'], [/科幻|末世/, '科幻'],
+    [/网游|游戏|电竞/, '网游'], [/言情|女生|女频/, '言情'], [/悬疑|灵异|惊悚/, '悬疑'],
+    [/军事|战争/, '军事'], [/完本|完结/, '完本'], [/最新|新书|更新/, '最新'],
+    [/热搜|热门|人气|畅销/, '热门'], [/收藏/, '收藏'], [/推荐/, '推荐']
+  ]
+  const matched = mappings.find(([pattern]) => pattern.test(text))
+  if (matched) return matched[1]
+  const stripped = text.replace(/小说|分类|频道|书库|榜单|排行榜|排行|总榜|榜$/g, '')
+  return stripped || (kind === 'rank' ? '排行' : kind === 'latest' ? '最新' : '其他')
+}
+
+function exploreProviderScore(entry, sourceMap) {
+  const source = sourceMap.get(entry.sourceId)
+  if (!source) return 0
+  const runtimeV2 = normalizeSourceRuntimeV2(source)
+  const health = normalizeSourceHealth(source.health)
+  const quality = normalizeSourceQuality(source.quality)
+  const fullReading = health.status === 'passed' ? 10000 : 0
+  const explored = runtimeV2.explore.status === 'passed' ? 5000 : 0
+  const speed = Math.max(0, 1000 - Number(runtimeV2.explore.latencyMs || quality.averageElapsedMs || 1000))
+  return fullReading + explored + (quality.qualityScore * 20) + speed + Number(source.weight || 0)
+}
+
+export function buildExploreCatalog(sources = getSourceConfigs(), preparedEntries = null) {
+  const sourceList = Array.isArray(sources) ? sources : getSourceConfigs()
+  const sourceMap = new Map(sourceList.map(source => [source.id, source]))
+  const entries = Array.isArray(preparedEntries) ? preparedEntries : getOnlineExploreEntries({ sources: sourceList })
+  const groups = new Map()
+  entries.forEach(entry => {
+    const title = normalizeExploreCatalogTitle(entry.title, entry.kind)
+    const key = `${entry.kind}:${title}`
+    if (!groups.has(key)) {
+      groups.set(key, {
+        id: `catalog:${key}`,
+        key,
+        title,
+        kind: entry.kind,
+        providers: [],
+        providerCount: 0
+      })
+    }
+    const group = groups.get(key)
+    if (!group.providers.some(item => item.sourceId === entry.sourceId)) group.providers.push(entry)
+  })
+  return Array.from(groups.values()).map(group => {
+    group.providers.sort((left, right) => exploreProviderScore(right, sourceMap) - exploreProviderScore(left, sourceMap))
+    group.providerCount = group.providers.length
+    group.sourceId = group.providers[0] && group.providers[0].sourceId || ''
+    group.sourceName = group.providers[0] && group.providers[0].sourceName || ''
+    return group
+  }).sort((left, right) => {
+    const kindOrder = { category: 0, rank: 1, latest: 2 }
+    const leftOrder = kindOrder[left.kind] === undefined ? 9 : kindOrder[left.kind]
+    const rightOrder = kindOrder[right.kind] === undefined ? 9 : kindOrder[right.kind]
+    return leftOrder - rightOrder || right.providerCount - left.providerCount || left.title.localeCompare(right.title)
+  })
+}
+
+export function getSourceDiscoverySnapshot(options = {}) {
+  const span = startPerformanceSpan('source.discovery')
+  const revision = currentSourceRevision()
+  if (options.preferCache === true) {
+    const cached = readStorage(SOURCE_DISCOVERY_CACHE_KEY, null)
+    if (cached && cached.revision === revision && cached.result && Array.isArray(cached.result.catalog)) {
+      finishPerformanceSpan(span, { sourceCount: Number(cached.sourceCount || 0), count: cached.result.catalog.length, status: 'cached' })
+      return cached.result
+    }
+    if (!Array.isArray(options.sources) || !options.sources.length) {
+      const empty = {
+        version: sourceSnapshotVersion,
+        candidates: [],
+        counts: { total: 0, verified: 0, untested: 0, retryable: 0, cooling: 0, blocked: 0, available: 0 },
+        entries: [],
+        catalog: []
+      }
+      finishPerformanceSpan(span, { sourceCount: 0, count: 0, status: 'empty-cache' })
+      return empty
+    }
+  }
+  const snapshot = Array.isArray(options.sources) ? null : getSourceSnapshot()
+  const sources = Array.isArray(options.sources) ? options.sources : snapshot.sources
+  const pool = buildSourceCandidatePool(sources)
+  const candidates = pool.candidates
+    .slice(0, Math.max(20, Math.min(40, Number(options.candidateLimit || 30))))
+    .map(sourceIndexSummary)
+  const entries = getOnlineExploreEntries({ sources })
+  const catalog = buildExploreCatalog(sources, entries).filter(entry => {
+    if (entry.kind === 'category') return true
+    if (entry.kind === 'rank') return true
+    return entry.kind === 'latest'
+  }).slice(0, Math.max(30, Math.min(80, Number(options.catalogLimit || 48))))
+  const retainedEntries = []
+  const retainedKeys = new Set()
+  catalog.forEach(item => item.providers.slice(0, 3).forEach(provider => {
+    const key = `${provider.sourceId}:${provider.url}:${provider.title}`
+    if (retainedKeys.has(key)) return
+    retainedKeys.add(key)
+    retainedEntries.push(provider)
+  }))
+  const result = {
+    version: snapshot ? snapshot.version : sourceSnapshotVersion,
+    candidates,
+    counts: { ...pool.counts, available: pool.candidates.length },
+    entries: retainedEntries.slice(0, 120),
+    catalog
+  }
+  writeStorage(SOURCE_DISCOVERY_CACHE_KEY, {
+    schemaVersion: 1,
+    revision,
+    sourceCount: sources.length,
+    createdAt: Date.now(),
+    result
+  })
+  finishPerformanceSpan(span, { sourceCount: sources.length, count: catalog.length, status: 'ready' })
+  return result
+}
+
+export async function openExploreCatalogEntry(category, options = {}) {
+  const providers = Array.isArray(category && category.providers) ? category.providers.slice(0, 3) : []
+  const attempts = []
+  for (let index = 0; index < providers.length; index += 2) {
+    const batch = providers.slice(index, index + 2)
+    const results = await Promise.all(batch.map(async provider => {
+      try {
+        const books = await exploreOnlineBooks(provider, options)
+        if (!books.length) {
+          writeSourceExploreTestResult(provider.sourceId, {
+            status: 'failed', entryTitle: provider.title, count: 0,
+            message: '分类页面没有解析出图书', errorCode: 'PARSE_EMPTY'
+          })
+          writeSourceRuntimeStageResult(provider.sourceId, 'explore', {
+            status: 'failed', errorCode: 'PARSE_EMPTY', resultCount: 0
+          })
+          throw new SourceRuntimeError('PARSE_EMPTY', '分类页面没有解析出图书', { stage: 'explore' })
+        }
+        attempts.push({ sourceId: provider.sourceId, sourceName: provider.sourceName, status: 'passed', count: books.length, errorCode: '' })
+        return { provider, books }
+      } catch (error) {
+        const failure = classifySourceFailure(error, { stage: 'explore' })
+        attempts.push({ sourceId: provider.sourceId, sourceName: provider.sourceName, status: 'failed', count: 0, errorCode: failure.errorCode })
+        return null
+      }
+    }))
+    const winner = results.find(item => item && item.books.length)
+    if (winner) {
+      return { categoryKey: category.key, provider: winner.provider, results: winner.books, attempts }
+    }
+  }
+  const error = new SourceRuntimeError('EXPLORE_PROVIDERS_FAILED', '已尝试多个发现来源，暂时都不可用', { stage: 'explore', retryable: true })
+  error.attempts = attempts
+  throw error
 }
 
 export function getSourceExploreEntries(sourceOrId) {
@@ -1804,10 +3133,6 @@ export function getSourceExploreEntries(sourceOrId) {
   if (!source) {
     return createUnavailableExploreResult('', '', '未找到该书源', 'source_missing')
   }
-  if (!source.enabled) {
-    return createUnavailableExploreResult(source.id, source.name, '请先启用该书源', 'source_disabled', source)
-  }
-
   const raw = source.raw || source
   if (!raw.exploreUrl && !raw.ruleExploreUrl && !raw.explore) {
     return createUnavailableExploreResult(source.id, source.name, '该书源没有发现页配置，仅支持书名搜索', 'no_explore_url', source)
@@ -1821,6 +3146,10 @@ export function getSourceExploreEntries(sourceOrId) {
   const capability = hasExploreCapability(source)
   if (!capability.available) {
     return createUnavailableExploreResult(source.id, source.name, capability.reason, capability.reasonCode, source)
+  }
+
+  if (!source.enabled) {
+    return createUnavailableExploreResult(source.id, source.name, '请先启用该书源', 'source_disabled', source)
   }
 
   const groups = []
@@ -1853,7 +3182,9 @@ function withTimeout(promise, ms, sourceName) {
       if (timer) clearTimeout(timer)
     }),
     new Promise((_, reject) => {
-      timer = setTimeout(() => reject(new Error(`${sourceName || '书源'}响应超时`)), ms)
+      timer = setTimeout(() => reject(new SourceRuntimeError('TIMEOUT', `${sourceName || '书源'}响应超时`, {
+        retryable: true
+      })), ms)
     })
   ])
 }
@@ -1880,7 +3211,37 @@ export async function exploreOnlineBooks(entry, options = {}) {
   if (!entry || !entry.sourceId || !entry.url) return []
   const source = getSourceConfig(entry.sourceId)
   const timeoutMs = getSourceTimeoutBudget(source, options.timeoutMs || ONLINE_SOURCE_TIMEOUT_MS)
-  return withTimeout(exploreSourceEntry(entry, options), timeoutMs, entry.sourceName)
+  const startedAt = Date.now()
+  writeSourceRuntimeStageResult(entry.sourceId, 'explore', { status: 'probing' })
+  try {
+    const results = await withTimeout(exploreSourceEntry(entry, options), timeoutMs, entry.sourceName)
+    writeSourceExploreTestResult(entry.sourceId, {
+      status: 'passed',
+      entryTitle: entry.title,
+      count: results.length
+    })
+    writeSourceRuntimeStageResult(entry.sourceId, 'explore', {
+      status: 'passed', resultCount: results.length,
+      latencyMs: Date.now() - startedAt, httpStatus: 200
+    })
+    return results
+  } catch (error) {
+    const runtimeError = asSourceRuntimeError(error, { stage: 'explore' })
+    const failure = classifySourceFailure(runtimeError, { stage: 'explore' })
+    writeSourceExploreTestResult(entry.sourceId, {
+      status: 'failed',
+      entryTitle: entry.title,
+      message: friendlyErrorMessage(runtimeError, '发现入口打开失败'),
+      errorCode: failure.errorCode,
+      httpStatus: failure.status,
+      retryable: failure.retryable
+    })
+    writeSourceRuntimeStageResult(entry.sourceId, 'explore', {
+      status: 'failed', errorCode: failure.errorCode, httpStatus: failure.status,
+      latencyMs: Date.now() - startedAt
+    })
+    throw runtimeError
+  }
 }
 
 export async function loadSourceExploreBooks(sourceOrId, entry, options = {}) {
@@ -1911,99 +3272,134 @@ export async function loadSourceExploreBooks(sourceOrId, entry, options = {}) {
   }
 }
 
-async function legacySearchOnlineBooks(keyword, options = {}) {
+export async function runAdaptiveSourceSearch(keyword, options = {}) {
   const word = String(keyword || '').trim()
-  if (!word) return []
-
-  const limit = options.limit || ONLINE_SOURCE_SEARCH_LIMIT
-  const timeoutMs = options.timeoutMs || ONLINE_SOURCE_TIMEOUT_MS
-  const sources = pickOnlineSearchSources(getSourceConfigs(), limit)
-  const searches = sources.map(source => withTimeout(searchSource(source, word), getSourceTimeoutBudget(source, timeoutMs), source.name).catch(error => {
-    return [{
-      type: 'source-error',
-      sourceId: source.id,
-      title: source.name,
-      subtitle: '书源不可用',
-      snippet: friendlyErrorMessage(error, '搜索失败')
-    }]
-  }))
-  const groups = await Promise.all(searches)
-  return groups.flat().slice(0, 80)
-}
-
-export async function searchOnlineBooks(keyword, options = {}) {
-  const word = String(keyword || '').trim()
-  if (!word) return []
+  if (!word) return {
+    keyword: '', results: [], attempted: 0, succeeded: 0, empty: 0, failed: 0,
+    attemptedSourceIds: [], errorsByCode: {}, hasMore: false, elapsedMs: 0,
+    poolStats: getSourcePoolStats(options.sources || getSourceConfigs())
+  }
 
   const searchOptions = normalizeOnlineSearchOptions(options)
-  const sources = pickOnlineSearchSources(options.sources || getSourceConfigs(), searchOptions.sourceLimit)
+  const allSources = options.sources || getSourceConfigs()
+  const pool = buildSourceCandidatePool(allSources, { excludeSourceIds: options.excludeSourceIds })
+  const selected = selectDiverseSourceCandidates(pool.candidates, searchOptions.sourceLimit, 2)
+  const startedAt = Date.now()
+  const deadline = startedAt + clampNumber(options.roundTimeoutMs, 10000, 30000, 20000)
+  const report = {
+    keyword: word,
+    results: [],
+    attempted: 0,
+    succeeded: 0,
+    empty: 0,
+    failed: 0,
+    attemptedSourceIds: [],
+    sourceNames: [],
+    errorsByCode: {},
+    completeResultCount: 0,
+    incompleteResultCount: 0,
+    metadataFailureCount: 0,
+    hasMore: pool.candidates.length > selected.length,
+    elapsedMs: 0,
+    poolStats: { ...pool.counts, available: pool.candidates.length }
+  }
   const cacheKey = onlineDataCacheKey('search', {
     word,
-    sourceIds: sources.map(source => source.id),
+    sourceIds: selected.map(source => source.id),
     resultLimit: searchOptions.resultLimit
   })
   const cached = readOnlineDataCache('search', cacheKey, options)
-  if (cached) return cached
-
+  if (cached) {
+    report.results = cached
+    report.elapsedMs = Date.now() - startedAt
+    if (typeof options.onResults === 'function') options.onResults(cached.slice(), { ...report, cached: true })
+    return { ...report, cached: true }
+  }
+  const groups = []
   let done = 0
-  const startedAt = Date.now()
-  const groups = await runConcurrent(sources, searchOptions.concurrency, async source => {
-    const sourceStartedAt = Date.now()
-    try {
-      const results = await withTimeout(searchSource(source, word), getSourceTimeoutBudget(source, searchOptions.timeoutMs), source.name)
-      const elapsedMs = Date.now() - sourceStartedAt
-      const quality = writeSourceQualityResult(source.id, {
-        status: 'success',
-        count: results.length,
-        elapsedMs
-      })
-      done += 1
-      emitSearchProgress(options.onProgress, {
-        done,
-        total: sources.length,
-        source,
-        status: 'success',
-        count: results.length,
-        elapsedMs,
-        startedAt,
-        qualityScore: quality.qualityScore
-      })
-      return results.map(item => decorateSearchResult(item, quality))
-    } catch (error) {
-      const elapsedMs = Date.now() - sourceStartedAt
-      const message = friendlyErrorMessage(error, '搜索失败')
-      const quality = writeSourceQualityResult(source.id, {
-        status: 'failed',
-        count: 0,
-        elapsedMs,
-        message
-      })
-      done += 1
-      emitSearchProgress(options.onProgress, {
-        done,
-        total: sources.length,
-        source,
-        status: 'failed',
-        count: 0,
-        elapsedMs,
-        startedAt,
-        message,
-        qualityScore: quality.qualityScore
-      })
-      return [{
-        type: 'source-error',
-        sourceId: source.id,
-        sourceName: source.name,
-        title: source.name,
-        subtitle: '书源不可用',
-        snippet: message,
-        sourceQualityScore: quality.qualityScore
-      }]
+  const batches = []
+  if (selected.length) {
+    batches.push(selected.slice(0, Math.min(6, selected.length)))
+    for (let index = batches[0].length; index < selected.length; index += 5) {
+      batches.push(selected.slice(index, index + 5))
     }
-  })
-  const results = dedupeOnlineSearchResults(groups.flat()).slice(0, searchOptions.resultLimit)
-  writeOnlineDataCache('search', cacheKey, results)
-  return results
+  }
+  for (const batch of batches) {
+    if (Date.now() >= deadline || (options.signal && options.signal.cancelled)) {
+      report.hasMore = true
+      break
+    }
+    const batchGroups = await runConcurrent(batch, searchOptions.concurrency, async source => {
+      const sourceStartedAt = Date.now()
+      report.attempted += 1
+      report.attemptedSourceIds.push(source.id)
+      report.sourceNames.push(source.name)
+      writeSourceRuntimeStageResult(source.id, 'search', { status: 'probing' })
+      try {
+        const remainingMs = Math.max(500, Math.min(searchOptions.timeoutMs, deadline - Date.now()))
+        const sourceResults = await withTimeout(searchSource(source, word), remainingMs, source.name)
+        const metadataReport = sourceResults.metadataReport || {}
+        report.incompleteResultCount += Number(metadataReport.incompleteResultCount || 0)
+        report.metadataFailureCount += Number(metadataReport.metadataFailureCount || 0)
+        if (!sourceResults.length) throw createEmptySearchError(sourceResults.diagnostics || {})
+        const elapsedMs = Date.now() - sourceStartedAt
+        const quality = writeSourceQualityResult(source.id, {
+          status: 'success', count: sourceResults.length, elapsedMs
+        })
+        writeSourceRuntimeStageResult(source.id, 'search', {
+          status: 'passed', resultCount: sourceResults.length, latencyMs: elapsedMs, httpStatus: 200
+        })
+        writeSourceTestResult(source.id, { status: 'passed', keyword: word, count: sourceResults.length })
+        report.succeeded += 1
+        report.completeResultCount += sourceResults.length
+        done += 1
+        emitSearchProgress(options.onProgress, {
+          done, total: selected.length, source,
+          status: 'success',
+          count: sourceResults.length, elapsedMs, startedAt, qualityScore: quality.qualityScore
+        })
+        return sourceResults.map(item => decorateSearchResult(item, quality))
+      } catch (error) {
+        const elapsedMs = Date.now() - sourceStartedAt
+        const failure = classifySourceFailure(error, { stage: 'search' })
+        const message = friendlyErrorMessage(error, '搜索失败')
+        const quality = writeSourceQualityResult(source.id, {
+          status: 'failed', count: 0, elapsedMs, message
+        })
+        writeSourceRuntimeStageResult(source.id, 'search', {
+          status: 'failed', errorCode: failure.errorCode,
+          httpStatus: failure.status, latencyMs: elapsedMs
+        })
+        writeSourceTestResult(source.id, {
+          status: 'failed', keyword: word, count: 0, message,
+          errorCode: failure.errorCode, failedStage: failure.stage,
+          httpStatus: failure.status, retryable: failure.retryable
+        })
+        if (failure.errorCode === 'SEARCH_EMPTY') report.empty += 1
+        else report.failed += 1
+        report.errorsByCode[failure.errorCode] = Number(report.errorsByCode[failure.errorCode] || 0) + 1
+        done += 1
+        emitSearchProgress(options.onProgress, {
+          done, total: selected.length, source, status: 'failed', count: 0,
+          elapsedMs, startedAt, message, qualityScore: quality.qualityScore
+        })
+        return []
+      }
+    })
+    groups.push(...batchGroups)
+    report.results = dedupeOnlineSearchResults(groups.flat()).slice(0, searchOptions.resultLimit)
+    if (typeof options.onResults === 'function') options.onResults(report.results.slice(), { ...report })
+  }
+  report.elapsedMs = Date.now() - startedAt
+  report.hasMore = report.hasMore || report.attempted < selected.length
+  writeOnlineDataCache('search', cacheKey, report.results)
+  flushPendingSourceRuntimeWrites()
+  return report
+}
+
+export async function searchOnlineBooks(keyword, options = {}) {
+  const report = await runAdaptiveSourceSearch(keyword, options)
+  return report.results
 }
 
 function normalizeOnlineSearchOptions(options = {}) {
@@ -2013,7 +3409,7 @@ function normalizeOnlineSearchOptions(options = {}) {
     concurrency: clampNumber(options.concurrency, 1, 10, saved.concurrency),
     timeoutMs: clampNumber(options.timeoutMs, 3000, 15000, saved.timeoutMs),
     resultLimit: clampNumber(options.resultLimit, 20, 120, legacyLimit || saved.resultLimit),
-    sourceLimit: clampNumber(options.sourceLimit || legacyLimit, 1, 10, saved.sourceLimit)
+    sourceLimit: clampNumber(options.sourceLimit || legacyLimit, 1, 30, saved.sourceLimit)
   }
 }
 
@@ -2070,20 +3466,23 @@ function dedupeOnlineSearchResults(results = []) {
       return
     }
     if (!seen.has(key)) {
-      const next = { ...item, duplicateCount: 1 }
+      const next = { ...item, duplicateCount: 1, alternateSources: [] }
       seen.set(key, next)
       output.push(next)
       return
     }
     const current = seen.get(key)
     const duplicateCount = Number(current.duplicateCount || 1) + 1
+    const alternatives = Array.isArray(current.alternateSources) ? current.alternateSources : []
+    alternatives.push(item)
     const currentScore = Number(current.sourceQualityScore || 0)
     const nextScore = Number(item.sourceQualityScore || 0)
     if (nextScore > currentScore) {
-      Object.assign(current, item, { duplicateCount })
+      Object.assign(current, item, { duplicateCount, alternateSources: alternatives })
       return
     }
     current.duplicateCount = duplicateCount
+    current.alternateSources = alternatives
   })
   return output
 }
@@ -2165,8 +3564,8 @@ function getExploreRuleCompatibility(source) {
   const raw = source && (source.raw || source) || {}
   const exploreUrl = raw.exploreUrl || raw.ruleExploreUrl || raw.explore || ''
   const ruleExplore = raw.ruleExplore || {}
-  if (/@js:/i.test(String(exploreUrl || '')) || /@js:/i.test(JSON.stringify(ruleExplore || {}))) {
-    return { compatible: false, reason: '该书源发现页依赖 @js，当前 H5 引擎暂不支持执行第三方 JS', reasonCode: 'complex_explore_rule' }
+  if (/@js:[\s\S]*\.(?:map|filter|reduce)\s*\(/i.test(String(exploreUrl || ''))) {
+    return { compatible: false, reason: '该书源发现页的 JS 超出当前安全白名单', reasonCode: 'complex_explore_rule' }
   }
   if (hasUnsupportedRule({ exploreUrl, ruleExplore }) || /webview/i.test(JSON.stringify({ exploreUrl, ruleExplore }))) {
     return { compatible: false, reason: '该书源的发现入口包含复杂 JS 或 WebView 规则', reasonCode: 'complex_explore_rule' }
@@ -2195,7 +3594,7 @@ export function hasExploreCapability(sourceOrId) {
 function hasSourceSearchFallback(source) {
   const raw = source && (source.raw || source) || {}
   const ruleSearch = normalizeRuleObject(raw.ruleSearch)
-  return !!(source.enabled && raw.searchUrl && Object.keys(ruleSearch).length && !hasUnsupportedRule({
+  return !!(raw.searchUrl && Object.keys(ruleSearch).length && !hasUnsupportedRule({
     searchUrl: raw.searchUrl,
     ruleSearch
   }))
@@ -2334,20 +3733,23 @@ async function exploreSourceEntry(entry, options = {}) {
     throw error
   }
 
-  const results = list.map(item => {
+  const parsedResults = list.map(item => {
     const context = { key: entry.title, keyword: entry.title, page, $: item }
+    const rawTitle = pickText(item, rule, ['name', 'bookName', 'title'], context)
     const book = normalizeOnlineBookForShelf({
       sourceId: source.id,
       sourceName: source.name,
       sourceGroup: source.group,
       bookUrl: pickUrl(item, rule, ['bookUrl', 'url', 'link'], context, source.baseUrl),
-      title: pickText(item, rule, ['name', 'bookName', 'title'], context),
-      author: pickText(item, rule, ['author', 'bookAuthor'], context) || 'Unknown',
-      kind: pickText(item, rule, ['kind', 'category', 'type'], context) || entry.title || 'Explore',
-      latestChapter: pickText(item, rule, ['latestChapter', 'lastChapter', 'last'], context),
-      intro: pickText(item, rule, ['intro', 'description', 'desc'], context),
-      coverUrl: pickUrl(item, rule, ['coverUrl', 'cover', 'image'], context, source.baseUrl)
-    })
+      title: rawTitle,
+      author: pickOptionalText(item, rule, ['author', 'bookAuthor'], context) || 'Unknown',
+      kind: pickOptionalText(item, rule, ['kind', 'category', 'type'], context) || entry.title || 'Explore',
+      latestChapter: pickOptionalText(item, rule, ['latestChapter', 'lastChapter', 'last'], context),
+      intro: pickOptionalText(item, rule, ['intro', 'description', 'desc'], context),
+      coverUrl: pickOptionalUrl(item, rule, ['coverUrl', 'cover', 'image'], context, source.baseUrl),
+      metadataStatus: rawTitle ? 'complete' : 'needs_detail',
+      metadataOrigin: 'explore'
+    }, { preserveMissingTitle: true })
 
     return {
       type: 'online',
@@ -2358,10 +3760,20 @@ async function exploreSourceEntry(entry, options = {}) {
       sourceId: source.id,
       sourceName: source.name,
       exploreTitle: entry.title,
+      metadataStatus: rawTitle ? 'complete' : 'needs_detail',
       book
     }
-  }).filter(result => result.book.bookUrl && result.book.title).slice(0, options.limit || 80)
+  }).filter(result => result.book.bookUrl)
+  const hydrated = await hydrateSourceSearchResults(parsedResults, {
+    maxItems: 3,
+    concurrency: 2,
+    timeoutMs: Math.min(4000, Number(options.timeoutMs || 4000))
+  })
+  const results = hydrated.results.slice(0, options.limit || 80)
   diagnostics.parsedCount = results.length
+  diagnostics.completeResultCount = hydrated.completeResultCount
+  diagnostics.incompleteResultCount = hydrated.incompleteResultCount
+  diagnostics.metadataFailureCount = hydrated.metadataFailureCount
   if (!results.length) {
     diagnostics.failedStage = 'empty_result'
     diagnostics.errorMessage = '分类页请求成功，但没有解析出图书。可能原因：分类规则与搜索规则不同、目标页面结构变化、需要 Cookie / Referer / User-Agent，或该书源依赖 JS / WebView。'
@@ -2383,39 +3795,72 @@ export async function testSourceSearch(sourceId, keyword, options = {}) {
     throw new Error('当前书源已停用，请先启用后测试')
   }
   const timeoutMs = options.timeoutMs || ONLINE_SOURCE_TIMEOUT_MS
+  const startedAt = Date.now()
+  writeSourceRuntimeStageResult(source.id, 'search', { status: 'probing' })
   let results
   try {
     results = await withTimeout(searchSource(source, word), getSourceTimeoutBudget(source, timeoutMs, {
       respectSourceRespondTime: true
     }), source.name)
   } catch (error) {
+    const failure = classifySourceFailure(error, { stage: 'search' })
     writeSourceTestResult(source.id, {
       status: 'failed',
       keyword: word,
-      message: friendlyErrorMessage(error, '网络请求失败')
+      message: friendlyErrorMessage(error, '网络请求失败'),
+      errorCode: failure.errorCode,
+      failedStage: failure.stage,
+      httpStatus: failure.status,
+      retryable: failure.retryable
     })
-    throw error
+    writeSourceRuntimeStageResult(source.id, 'search', {
+      status: 'failed', errorCode: failure.errorCode, httpStatus: failure.status,
+      latencyMs: Date.now() - startedAt
+    })
+    throw asSourceRuntimeError(error, { stage: 'search' })
   }
-  if (options.failOnEmpty && !results.length) {
-    const error = new Error('无搜索结果')
+  if (!results.length) {
+    const searchDiagnostics = results && results.diagnostics || {}
+    const error = createEmptySearchError(searchDiagnostics)
     writeSourceTestResult(source.id, {
       status: 'failed',
       keyword: word,
       count: 0,
-      message: error.message
+      message: error.message,
+      errorCode: error.code,
+      failedStage: error.stage,
+      diagnostics: searchDiagnostics
     })
-    throw error
+    writeSourceRuntimeStageResult(source.id, 'search', {
+      status: 'failed', errorCode: error.code, latencyMs: Date.now() - startedAt
+    })
+    if (options.failOnEmpty) throw error
+    return {
+      sourceId,
+      keyword: word,
+      count: 0,
+      results: [],
+      completeResultCount: 0,
+      incompleteResultCount: Number(searchDiagnostics.incompleteResultCount || 0),
+      metadataFailureCount: Number(searchDiagnostics.metadataFailureCount || 0)
+    }
   }
   writeSourceTestResult(source.id, {
     status: 'passed',
     keyword: word,
     count: results.length
   })
+  writeSourceRuntimeStageResult(source.id, 'search', {
+    status: 'passed', resultCount: results.length, latencyMs: Date.now() - startedAt, httpStatus: 200
+  })
   return {
     sourceId,
     keyword: word,
     count: results.length,
-    results: results.slice(0, options.limit || 5)
+    results: results.slice(0, options.limit || 5),
+    completeResultCount: results.length,
+    incompleteResultCount: Number(results.diagnostics && results.diagnostics.incompleteResultCount || 0),
+    metadataFailureCount: Number(results.diagnostics && results.diagnostics.metadataFailureCount || 0)
   }
 }
 
@@ -2432,25 +3877,103 @@ export async function searchSourceBooks(sourceId, keyword, options = {}) {
   }
 
   const timeoutMs = options.timeoutMs || ONLINE_SOURCE_TIMEOUT_MS
-  const results = await withTimeout(searchSource(source, word), getSourceTimeoutBudget(source, timeoutMs, {
-    respectSourceRespondTime: true
-  }), source.name)
+  const startedAt = Date.now()
+  writeSourceRuntimeStageResult(source.id, 'search', { status: 'probing' })
+  let results
+  try {
+    results = await withTimeout(searchSource(source, word), getSourceTimeoutBudget(source, timeoutMs, {
+      respectSourceRespondTime: true
+    }), source.name)
+  } catch (error) {
+    const failure = classifySourceFailure(error, { stage: 'search' })
+    writeSourceRuntimeStageResult(source.id, 'search', {
+      status: 'failed', errorCode: failure.errorCode, httpStatus: failure.status,
+      latencyMs: Date.now() - startedAt
+    })
+    writeSourceTestResult(source.id, {
+      status: 'failed', keyword: word, count: 0,
+      message: friendlyErrorMessage(error, '搜索失败'), errorCode: failure.errorCode,
+      failedStage: failure.stage, httpStatus: failure.status, retryable: failure.retryable
+    })
+    throw asSourceRuntimeError(error, { stage: 'search' })
+  }
   const limit = Number(options.limit || 0)
   const filtered = limit > 0 ? results.slice(0, limit) : results
-  if (options.failOnEmpty && !filtered.length) {
-    throw new Error('无搜索结果')
+  if (!filtered.length) {
+    const searchDiagnostics = results && results.diagnostics || {}
+    const error = createEmptySearchError(searchDiagnostics)
+    writeSourceRuntimeStageResult(source.id, 'search', {
+      status: 'failed', errorCode: error.code, latencyMs: Date.now() - startedAt
+    })
+    writeSourceTestResult(source.id, {
+      status: 'failed', keyword: word, count: 0,
+      message: error.message, errorCode: error.code, failedStage: error.stage,
+      diagnostics: searchDiagnostics
+    })
+    if (options.failOnEmpty) throw error
+    return {
+      sourceId,
+      sourceName: source.name,
+      keyword: word,
+      count: 0,
+      results: [],
+      completeResultCount: 0,
+      incompleteResultCount: Number(searchDiagnostics.incompleteResultCount || 0),
+      metadataFailureCount: Number(searchDiagnostics.metadataFailureCount || 0)
+    }
   }
+  writeSourceRuntimeStageResult(source.id, 'search', {
+    status: 'passed', resultCount: filtered.length, latencyMs: Date.now() - startedAt, httpStatus: 200
+  })
+  writeSourceTestResult(source.id, { status: 'passed', keyword: word, count: filtered.length })
   return {
     sourceId,
     sourceName: source.name,
     keyword: word,
     count: filtered.length,
-    results: filtered
+    results: filtered,
+    completeResultCount: filtered.length,
+    incompleteResultCount: Number(results.diagnostics && results.diagnostics.incompleteResultCount || 0),
+    metadataFailureCount: Number(results.diagnostics && results.diagnostics.metadataFailureCount || 0)
   }
 }
 
 export async function runSourceReadingFlow(sourceId, keyword, options = {}) {
+  const keywords = (Array.isArray(keyword) ? keyword : [keyword])
+    .map(item => String(item || '').trim())
+    .filter(Boolean)
+  if (!keywords.length) throw new Error('请输入至少一个验收关键词')
+  const keywordAttempts = []
+  let lastError
+  for (const candidate of keywords) {
+    try {
+      const flow = await runSingleSourceReadingFlow(sourceId, candidate, options)
+      return { ...flow, keywordAttempts: [...keywordAttempts, { keyword: candidate, status: 'passed', errorCode: '' }] }
+    } catch (error) {
+      lastError = error
+      const failure = classifySourceFailure(error)
+      const flowStages = Array.isArray(error && error.flowStages) ? error.flowStages : []
+      if (flowStages.length) {
+        writeSourceHealthResult(sourceId, {
+          status: 'failed', keyword: candidate, checkedAt: Date.now(),
+          failedStage: failure.stage, errorCode: failure.errorCode,
+          message: friendlyErrorMessage(error, '完整阅读链路失败'), stages: flowStages
+        })
+      }
+      keywordAttempts.push({ keyword: candidate, status: 'failed', errorCode: failure.errorCode })
+      if (!['SEARCH_EMPTY', 'PARSE_EMPTY', 'DETAIL_EMPTY', 'TOC_EMPTY', 'CONTENT_EMPTY'].includes(failure.errorCode)) break
+    }
+  }
+  if (lastError) {
+    lastError.keywordAttempts = keywordAttempts
+    throw lastError
+  }
+  throw new Error('无可用验收关键词')
+}
+
+async function runSingleSourceReadingFlow(sourceId, keyword, options = {}) {
   const stages = []
+  const keywords = [String(keyword || '').trim()].filter(Boolean)
   const runStage = async (id, title, action) => {
     const startedAt = Date.now()
     try {
@@ -2458,33 +3981,76 @@ export async function runSourceReadingFlow(sourceId, keyword, options = {}) {
       stages.push({ id, title, status: 'passed', message: '通过', elapsedMs: Date.now() - startedAt })
       return result
     } catch (error) {
+      const failure = classifySourceFailure(error, { stage: id })
       const message = friendlyErrorMessage(error, `${title}失败`)
-      stages.push({ id, title, status: 'failed', message, elapsedMs: Date.now() - startedAt })
-      const wrapped = new Error(`${title}失败：${message}`)
+      stages.push({ id, title, status: 'failed', message, errorCode: failure.errorCode, httpStatus: failure.status, retryable: failure.retryable, elapsedMs: Date.now() - startedAt })
+      const wrapped = new SourceRuntimeError(failure.errorCode, `${title}失败：${message}`, {
+        stage: failure.stage || id,
+        status: failure.status,
+        retryable: failure.retryable,
+        diagnostics: error && error.diagnostics,
+        cause: error
+      })
       wrapped.flowStages = stages
       throw wrapped
     }
   }
 
-  const search = await runStage('search', '搜索', () => testSourceSearch(sourceId, keyword, {
-    timeoutMs: options.timeoutMs,
-    limit: options.limit || 5,
-    failOnEmpty: true
-  }))
-  const first = search.results.find(item => item && item.type === 'online' && item.book)
-  if (!first) {
-    const error = new Error('搜索结果里没有可阅读书籍')
+  const search = await runStage('search', '搜索', async () => {
+    let lastError
+    for (const candidate of keywords) {
+      try {
+        return await testSourceSearch(sourceId, candidate, {
+          timeoutMs: options.timeoutMs,
+          limit: options.limit || 5,
+          failOnEmpty: true,
+          allowDisabled: options.allowDisabled === true
+        })
+      } catch (error) {
+        lastError = error
+      }
+    }
+    throw lastError || new Error('无搜索结果')
+  })
+  const candidates = search.results.filter(item => item && item.type === 'online' && item.book)
+  if (!candidates.length) {
+    const error = new SourceRuntimeError('SEARCH_EMPTY', '搜索结果里没有可阅读书籍', { stage: 'search' })
     error.flowStages = stages
     throw error
   }
 
-  const info = await runStage('bookInfo', '详情', () => loadOnlineBookInfo(first.book))
-  const chapters = await runStage('toc', '目录', () => loadOnlineToc(info))
-  if (!chapters.length) {
-    const error = new Error('目录解析为空')
-    error.flowStages = stages
-    throw error
+  let selected
+  try {
+    selected = await selectReadableSearchCandidate(candidates, options)
+  } catch (error) {
+    const failure = classifySourceFailure(error, { stage: error && error.stage || 'bookInfo' })
+    const stageId = failure.stage === 'toc' ? 'toc' : 'bookInfo'
+    const title = stageId === 'toc' ? '目录' : '详情'
+    const message = friendlyErrorMessage(error, `${title}失败`)
+    stages.push({
+      id: stageId,
+      title,
+      status: 'failed',
+      message,
+      errorCode: failure.errorCode,
+      httpStatus: failure.status,
+      retryable: failure.retryable,
+      elapsedMs: Number(error && error.elapsedMs || 0)
+    })
+    const wrapped = new SourceRuntimeError(failure.errorCode, `${title}失败：${message}`, {
+      stage: failure.stage || stageId,
+      status: failure.status,
+      retryable: failure.retryable,
+      diagnostics: error && error.diagnostics,
+      cause: error
+    })
+    wrapped.flowStages = stages
+    wrapped.candidateAttempts = error && error.candidateAttempts || []
+    throw wrapped
   }
+  const { info, chapters } = selected
+  stages.push({ id: 'bookInfo', title: '详情', status: 'passed', message: '通过', elapsedMs: selected.detailElapsedMs })
+  stages.push({ id: 'toc', title: '目录', status: 'passed', message: '通过', elapsedMs: selected.tocElapsedMs })
 
   const chapterIndex = Math.max(0, Math.min(Number(options.chapterIndex || 0), chapters.length - 1))
   const loadedChapter = await runStage('content', '正文', () => loadOnlineChapter(info, chapters[chapterIndex]))
@@ -2502,6 +4068,11 @@ export async function runSourceReadingFlow(sourceId, keyword, options = {}) {
     latestChapter: info.latestChapter || loadedChapter.title,
     chapters: shelfChapters
   })))
+  const health = writeSourceHealthResult(sourceId, {
+    status: 'passed', score: calculateHealthScore(stages), keyword: search.keyword,
+    checkedAt: Date.now(), elapsedMs: stages.reduce((sum, stage) => sum + Number(stage.elapsedMs || 0), 0),
+    message: `完整阅读链路通过：${shelfBook.title}`, stages
+  })
 
   return {
     sourceId,
@@ -2510,8 +4081,59 @@ export async function runSourceReadingFlow(sourceId, keyword, options = {}) {
     book: shelfBook,
     chapters: shelfBook.chapters,
     chapter: loadedChapter,
-    stages
+    stages,
+    health
   }
+}
+
+async function selectReadableSearchCandidate(results = [], options = {}) {
+  const maximum = clampNumber(options.bookCandidateLimit, 1, 5, 3)
+  const minimumChapters = clampNumber(options.minimumChapters, 1, 100, 1)
+  const attempts = []
+  let lastError = null
+  let totalElapsedMs = 0
+  for (const item of results.slice(0, maximum)) {
+    const detailStartedAt = Date.now()
+    let info
+    try {
+      info = await loadOnlineBookInfo(item.book)
+    } catch (error) {
+      const failure = classifySourceFailure(error, { stage: 'bookInfo' })
+      const elapsedMs = Date.now() - detailStartedAt
+      totalElapsedMs += elapsedMs
+      attempts.push({ stage: 'bookInfo', status: 'failed', errorCode: failure.errorCode, elapsedMs })
+      lastError = error
+      continue
+    }
+    const detailElapsedMs = Date.now() - detailStartedAt
+    totalElapsedMs += detailElapsedMs
+    const tocStartedAt = Date.now()
+    try {
+      const chapters = await loadOnlineToc(info)
+      if (chapters.length < minimumChapters) {
+        throw new SourceRuntimeError(chapters.length ? 'TOC_TOO_SHORT' : 'TOC_EMPTY', `目录少于 ${minimumChapters} 章`, { stage: 'toc' })
+      }
+      const tocElapsedMs = Date.now() - tocStartedAt
+      attempts.push({ stage: 'toc', status: 'passed', chapterCount: chapters.length, elapsedMs: tocElapsedMs })
+      return { item, info, chapters, detailElapsedMs, tocElapsedMs, candidateAttempts: attempts }
+    } catch (error) {
+      const failure = classifySourceFailure(error, { stage: 'toc' })
+      const elapsedMs = Date.now() - tocStartedAt
+      totalElapsedMs += elapsedMs
+      attempts.push({ stage: 'toc', status: 'failed', errorCode: failure.errorCode, elapsedMs })
+      lastError = error
+    }
+  }
+  const failure = classifySourceFailure(lastError || new Error('没有可阅读的搜索结果'), { stage: 'toc' })
+  const error = new SourceRuntimeError(failure.errorCode, lastError && lastError.message || '没有可阅读的搜索结果', {
+    stage: failure.stage || 'toc',
+    status: failure.status,
+    retryable: failure.retryable,
+    cause: lastError
+  })
+  error.elapsedMs = totalElapsedMs
+  error.candidateAttempts = attempts
+  throw error
 }
 
 async function runSourceHealthFlow(sourceId, keyword, options = {}) {
@@ -2523,9 +4145,16 @@ async function runSourceHealthFlow(sourceId, keyword, options = {}) {
       stages.push({ id, title, status: 'passed', message: '通过', elapsedMs: Date.now() - startedAt })
       return result
     } catch (error) {
+      const failure = classifySourceFailure(error, { stage: id })
       const message = friendlyErrorMessage(error, `${title}失败`)
-      stages.push({ id, title, status: 'failed', message, elapsedMs: Date.now() - startedAt })
-      const wrapped = new Error(`${title}失败：${message}`)
+      stages.push({ id, title, status: 'failed', message, errorCode: failure.errorCode, httpStatus: failure.status, retryable: failure.retryable, elapsedMs: Date.now() - startedAt })
+      const wrapped = new SourceRuntimeError(failure.errorCode, `${title}失败：${message}`, {
+        stage: failure.stage || id,
+        status: failure.status,
+        retryable: failure.retryable,
+        diagnostics: error && error.diagnostics,
+        cause: error
+      })
       wrapped.flowStages = stages
       throw wrapped
     }
@@ -2538,14 +4167,14 @@ async function runSourceHealthFlow(sourceId, keyword, options = {}) {
   }))
   const first = search.results.find(item => item && item.type === 'online' && item.book)
   if (!first) {
-    const error = new Error('搜索结果里没有可阅读书籍')
+    const error = new SourceRuntimeError('SEARCH_EMPTY', '搜索结果里没有可阅读书籍', { stage: 'search' })
     error.flowStages = stages
     throw error
   }
   const info = await runStage('bookInfo', '详情', () => loadOnlineBookInfo(first.book))
   const chapters = await runStage('toc', '目录', () => loadOnlineToc(info))
   if (!chapters.length) {
-    const error = new Error('目录解析为空')
+    const error = new SourceRuntimeError('TOC_EMPTY', '目录解析为空', { stage: 'toc' })
     error.flowStages = stages
     throw error
   }
@@ -2571,6 +4200,9 @@ export async function runSourceHealthCheck(sourceId, keyword, options = {}) {
       title: stage.title,
       status: stage.status,
       message: stage.message,
+      errorCode: stage.errorCode || '',
+      httpStatus: Number(stage.httpStatus || 0),
+      retryable: stage.retryable === true,
       elapsedMs: Number(stage.elapsedMs || 0)
     }))
     const health = writeSourceHealthResult(sourceId, {
@@ -2594,6 +4226,9 @@ export async function runSourceHealthCheck(sourceId, keyword, options = {}) {
       title: stage.title,
       status: stage.status,
       message: stage.message,
+      errorCode: stage.errorCode || '',
+      httpStatus: Number(stage.httpStatus || 0),
+      retryable: stage.retryable === true,
       elapsedMs: Number(stage.elapsedMs || 0)
     })) : []
     const health = writeSourceHealthResult(sourceId, {
@@ -2603,6 +4238,7 @@ export async function runSourceHealthCheck(sourceId, keyword, options = {}) {
       checkedAt: Date.now(),
       elapsedMs: Date.now() - startedAt,
       failedStage: (stages.find(stage => stage.status === 'failed') || {}).id || '',
+      errorCode: (stages.find(stage => stage.status === 'failed') || {}).errorCode || classifySourceFailure(error).errorCode,
       message: friendlyErrorMessage(error, '全链路健康检测失败'),
       stages
     })
@@ -2663,12 +4299,16 @@ export async function batchTestSources(options = {}) {
 
   const sourceIds = Array.isArray(options.sourceIds) ? new Set(options.sourceIds) : null
   const group = String(options.group || '').trim()
-  const selected = getSourceConfigs().filter(source => {
+  const eligible = getSourceConfigs().filter(source => {
     if (sourceIds && !sourceIds.has(source.id)) return false
     if (group && source.group !== group) return false
     return sourceIds ? true : source.enabled
   })
+  const maxSources = Math.max(1, Math.min(30, Number(options.maxSources || 20)))
+  const selected = eligible.slice(0, maxSources)
   const summary = {
+    available: eligible.length,
+    limited: eligible.length > selected.length,
     total: selected.length,
     tested: 0,
     passed: 0,
@@ -2678,6 +4318,10 @@ export async function batchTestSources(options = {}) {
   }
 
   for (let index = 0; index < selected.length; index += 1) {
+    if (typeof options.shouldCancel === 'function' && options.shouldCancel()) {
+      summary.cancelled = true
+      break
+    }
     const source = selected[index]
     const diagnostics = getSourceDiagnostics(source)
     let item
@@ -2717,12 +4361,14 @@ export async function batchTestSources(options = {}) {
           message: `返回 ${result.count} 条结果`
         }
       } catch (error) {
+        const failure = classifySourceFailure(error, { stage: 'search' })
         summary.failed += 1
         item = {
           sourceId: source.id,
           name: source.name,
           group: source.group,
           status: 'failed',
+          errorCode: failure.errorCode,
           count: 0,
           message: friendlyErrorMessage(error, '书源测试失败')
         }
@@ -2745,7 +4391,32 @@ export async function batchTestSources(options = {}) {
   return summary
 }
 
-export async function loadOnlineBookInfo(book, options = {}) {
+async function runTrackedReadingStage(book, stage, action) {
+  const sourceId = book && book.sourceId
+  const startedAt = Date.now()
+  if (sourceId) writeSourceRuntimeStageResult(sourceId, stage, { status: 'probing' })
+  try {
+    const result = await action()
+    const resultCount = Array.isArray(result) ? result.length : stage === 'content' ? cleanText(result && result.content).length : 1
+    if (sourceId) {
+      writeSourceRuntimeStageResult(sourceId, stage, {
+        status: 'passed', resultCount, latencyMs: Date.now() - startedAt, httpStatus: 200
+      })
+    }
+    return result
+  } catch (error) {
+    const failure = classifySourceFailure(error, { stage })
+    if (sourceId) {
+      writeSourceRuntimeStageResult(sourceId, stage, {
+        status: 'failed', errorCode: failure.errorCode, httpStatus: failure.status,
+        latencyMs: Date.now() - startedAt
+      })
+    }
+    throw asSourceRuntimeError(error, { stage })
+  }
+}
+
+async function loadOnlineBookInfoInternal(book, options = {}) {
   const source = getSourceConfig(book.sourceId)
   if (!source) throw new Error('书源不存在或已删除')
   const rule = normalizeRuleObject(source.raw.ruleBookInfo)
@@ -2761,23 +4432,65 @@ export async function loadOnlineBookInfo(book, options = {}) {
 
   const html = await requestText(createSourceRequestSpec(source, book.bookUrl, {}, source.baseUrl))
   const payload = parseResponsePayload(html)
-  const context = { ...book, $: payload }
-  const next = {
-    ...book,
+  const ruleFlow = options.ruleFlow || createSourceRuleFlow(source, book)
+  const context = { ...book, book, $: payload, ruleFlow, baseUrl: source.baseUrl }
+  if (rule.init) applyRule(payload, rule.init, context)
+  const parsedFields = {
     title: pickText(payload, rule, ['name', 'bookName', 'title'], context) || book.title,
     author: pickText(payload, rule, ['author', 'bookAuthor'], context) || book.author,
     intro: pickText(payload, rule, ['intro', 'description', 'desc'], context) || book.intro,
     kind: pickText(payload, rule, ['kind', 'category', 'type'], context) || book.kind,
     latestChapter: pickText(payload, rule, ['latestChapter', 'lastChapter', 'last'], context) || book.latestChapter,
-    coverUrl: pickUrl(payload, rule, ['coverUrl', 'cover', 'image'], context, source.baseUrl) || book.coverUrl,
-    tocUrl: pickUrl(payload, rule, ['tocUrl', 'chapterUrl', 'catalogUrl'], context, book.bookUrl) || book.tocUrl || book.bookUrl
+    coverUrl: pickUrl(payload, rule, ['coverUrl', 'cover', 'image'], context, source.baseUrl) || book.coverUrl
   }
-  const normalized = normalizeOnlineBookForShelf(next)
+  const resolvedBook = { ...book, ...parsedFields }
+  const resolvedContext = { ...resolvedBook, book: resolvedBook, $: payload, ruleFlow, baseUrl: source.baseUrl }
+  const parsedTocUrl = pickUrl(payload, rule, ['tocUrl', 'chapterUrl', 'catalogUrl'], resolvedContext, book.bookUrl)
+  const fallbackTocUrl = /^https?:\/\//i.test(String(book.tocUrl || '')) ? book.tocUrl : book.bookUrl
+  const next = {
+    ...book,
+    ...parsedFields,
+    tocUrl: /^https?:\/\//i.test(parsedTocUrl) ? parsedTocUrl : fallbackTocUrl
+  }
+  const normalized = attachRuleFlowValues(normalizeOnlineBookForShelf(next), ruleFlow)
   writeOnlineDataCache('detail', cacheKey, normalized)
   return normalized
 }
 
-export async function loadOnlineToc(book, options = {}) {
+export async function loadOnlineBookInfo(book, options = {}) {
+  return runTrackedReadingStage(book, 'detail', () => loadOnlineBookInfoInternal(book, options))
+}
+
+function collectSameOriginChapterFallback(source, book, html, pageUrl, ruleFlow) {
+  let pageOrigin = ''
+  try { pageOrigin = new URL(pageUrl).origin } catch (error) { return [] }
+  const collect = (anchors, requireChapterLabel) => {
+    const seen = new Set()
+    return anchors.flatMap(anchor => {
+      const title = cleanText(anchor)
+      const chapterLabel = /^(?:第.{1,30}[章回卷集部篇]|(?:chapter|chap\.?)\s*\d+|\d{1,6}[\s、.．_-])/i.test(title)
+      if (title.length < 2 || title.length > 100 || (requireChapterLabel && !chapterLabel) || /^(?:上一页|下一页|上一章|下一章|返回|首页|目录)$/i.test(title)) return []
+      const rawHref = String(firstValue(applyRule(anchor, '@href')) || '').trim()
+      if (!rawHref || /^(?:javascript:|#)/i.test(rawHref) || /(?:^|[/_-])(?:search|category|sort|rank|login)(?:[./?_-]|$)/i.test(rawHref)) return []
+      const chapterUrl = resolveUrl(rawHref, pageUrl || source.baseUrl)
+      let resolved
+      try { resolved = new URL(chapterUrl) } catch (error) { return [] }
+      if (!/^https?:$/.test(resolved.protocol) || resolved.origin !== pageOrigin || seen.has(resolved.toString())) return []
+      seen.add(resolved.toString())
+      return [{ title, url: resolved.toString(), ruleFlowValues: exportRuleFlowValues(ruleFlow) }]
+    })
+  }
+  const labeled = collect(applyListRule(String(html || ''), 'a'), true)
+  if (labeled.length >= 3) return labeled.slice(0, 5000)
+  const structuralContainers = [
+    '.chapterlist', '.chapter-list', '.chapters', '.chapter-listing', '.bookchapter',
+    '.catalog', '.catalog-list', '.mulu', '#list', '#catalog', '#chapterlist'
+  ].flatMap(selector => applyListRule(String(html || ''), selector))
+  const structural = collect(structuralContainers.flatMap(container => applyListRule(container, 'a')), false)
+  return structural.length >= 3 ? structural.slice(0, 5000) : labeled.slice(0, 5000)
+}
+
+async function loadOnlineTocInternal(book, options = {}) {
   const source = getSourceConfig(book.sourceId)
   if (!source) throw new Error('书源不存在或已删除')
   const rule = normalizeRuleObject(source.raw.ruleToc)
@@ -2792,30 +4505,76 @@ export async function loadOnlineToc(book, options = {}) {
   const cached = readOnlineDataCache('toc', cacheKey, options)
   if (cached) return cached
 
-  const html = await requestText(createSourceRequestSpec(source, tocUrl, book, source.baseUrl))
-  const payload = parseResponsePayload(html)
   const listRule = getFieldRule(rule, ['chapterList', 'list', 'toc'])
-  const list = applyListRule(payload, listRule, { ...book, $: payload })
-  const chapters = list.map((item, index) => {
-    const context = { ...book, index, $: item }
-    const title = pickText(item, rule, ['chapterName', 'name', 'title'], context) || `第 ${index + 1} 章`
-    const url = pickUrl(item, rule, ['chapterUrl', 'url', 'link'], context, tocUrl)
-    return {
-      title,
-      url,
-      index,
-      isCached: !!readStorage(chapterCacheKey(book.id, index), ''),
-      loadStatus: readStorage(chapterCacheKey(book.id, index), '') ? 'cached' : 'idle',
-      errorMessage: ''
+  const ruleFlow = options.ruleFlow || createSourceRuleFlow(source, book)
+  const chapters = []
+  const fallbackChapters = []
+  const seenFallbackChapters = new Set()
+  const seenPages = new Set()
+  const seenChapters = new Set()
+  const maxPages = clampNumber(options.maxPages, 1, 10, 5)
+  const routeCandidates = uniqueStrings([tocUrl, book.bookUrl])
+  for (const routeUrl of routeCandidates) {
+    let currentUrl = routeUrl
+    for (let page = 1; currentUrl && page <= maxPages && !seenPages.has(currentUrl); page += 1) {
+      seenPages.add(currentUrl)
+      const html = await requestText(createSourceRequestSpec(source, currentUrl, { ...book, page, ruleFlow }, source.baseUrl))
+      const payload = parseResponsePayload(html)
+      const list = applyListRule(payload, listRule, { ...book, book, page, $: payload, ruleFlow, baseUrl: source.baseUrl })
+      collectSameOriginChapterFallback(source, book, html, currentUrl, ruleFlow).forEach(chapter => {
+        if (seenFallbackChapters.has(chapter.url)) return
+        seenFallbackChapters.add(chapter.url)
+        fallbackChapters.push(chapter)
+      })
+      list.forEach(item => {
+        const index = chapters.length
+        const chapterRuleFlow = createRuleFlowContext(source.sourceKey || source.id, exportRuleFlowValues(ruleFlow))
+        const context = { ...book, book, index, page, $: item, ruleFlow: chapterRuleFlow, baseUrl: source.baseUrl }
+        const title = pickText(item, rule, ['chapterName', 'name', 'title'], context) || `第 ${index + 1} 章`
+        const url = pickUrl(item, rule, ['chapterUrl', 'url', 'link'], context, currentUrl)
+        const key = `${title}\n${url}`
+        if (!title || !url || seenChapters.has(key)) return
+        seenChapters.add(key)
+        const cachedChapter = !!readStorage(chapterCacheKey(book.id, index), '')
+        chapters.push(attachRuleFlowValues({
+          title,
+          url,
+          index,
+          isCached: cachedChapter,
+          loadStatus: cachedChapter ? 'cached' : 'idle',
+          errorMessage: ''
+        }, chapterRuleFlow))
+      })
+      currentUrl = pickUrl(payload, rule, ['nextTocUrl', 'nextUrl'], { ...book, book, page, $: payload, ruleFlow, baseUrl: source.baseUrl }, currentUrl)
     }
-  }).filter(chapter => chapter.title && chapter.url)
+    if (chapters.length || fallbackChapters.length >= 3) break
+  }
 
-  if (!chapters.length) throw new Error('目录解析为空，请换一个书源')
+  if (chapters.length < 3 && fallbackChapters.length >= 3) {
+    chapters.splice(0, chapters.length, ...fallbackChapters.map((chapter, index) => {
+      const chapterRuleFlow = createRuleFlowContext(source.sourceKey || source.id, chapter.ruleFlowValues)
+      const cachedChapter = !!readStorage(chapterCacheKey(book.id, index), '')
+      return attachRuleFlowValues({
+        title: chapter.title,
+        url: chapter.url,
+        index,
+        isCached: cachedChapter,
+        loadStatus: cachedChapter ? 'cached' : 'idle',
+        errorMessage: '',
+        metadataOrigin: 'same_origin_chapter_fallback'
+      }, chapterRuleFlow)
+    }))
+  }
+  if (!chapters.length) throw new SourceRuntimeError('TOC_EMPTY', '目录解析为空，请换一个书源', { stage: 'toc' })
   writeOnlineDataCache('toc', cacheKey, chapters)
   return chapters
 }
 
-export async function loadOnlineChapter(book, chapter, options = {}) {
+export async function loadOnlineToc(book, options = {}) {
+  return runTrackedReadingStage(book, 'toc', () => loadOnlineTocInternal(book, options))
+}
+
+async function loadOnlineChapterInternal(book, chapter, options = {}) {
   const cached = readOnlineChapterCache(book.id, chapter.index)
   if (cached) return { ...chapter, content: cached, isCached: true, loadStatus: 'cached', errorMessage: '' }
 
@@ -2829,15 +4588,44 @@ export async function loadOnlineChapter(book, chapter, options = {}) {
   const rule = normalizeRuleObject(source.raw.ruleContent)
   if (!Object.keys(rule).length) throw new Error('这个书源没有正文规则')
 
-  const html = await requestText(createSourceRequestSpec(source, chapter.url, { ...book, ...chapter }, source.baseUrl))
-  const payload = parseResponsePayload(html)
-  const content = pickText(payload, rule, ['content', 'text'], { ...book, ...chapter, $: payload })
-  if (!content) throw new Error('正文解析为空，请换一个书源')
+  const contents = []
+  const ruleFlow = options.ruleFlow || createSourceRuleFlow(source, book, chapter)
+  const seenPages = new Set()
+  const maxPages = clampNumber(options.maxPages, 1, 10, 5)
+  let currentUrl = chapter.url
+  for (let page = 1; currentUrl && page <= maxPages && !seenPages.has(currentUrl); page += 1) {
+    seenPages.add(currentUrl)
+    const html = await requestText(createSourceRequestSpec(source, currentUrl, { ...book, ...chapter, page, ruleFlow }, source.baseUrl))
+    const payload = parseResponsePayload(html)
+    const rawPageContent = firstValue(applyRule(
+      payload,
+      getFieldRule(rule, ['content', 'text']),
+      { ...book, book, ...chapter, chapter, page, $: payload, ruleFlow, baseUrl: source.baseUrl }
+    ))
+    const pageContent = sanitizeReadableContent(rawPageContent, { chapterTitle: chapter.title, page })
+    if (pageContent.text) contents.push(pageContent.text)
+    const nextContentUrl = pickUrl(payload, rule, ['nextContentUrl', 'nextUrl'], { ...book, book, ...chapter, chapter, page, $: payload, ruleFlow, baseUrl: source.baseUrl }, currentUrl)
+    currentUrl = /^https?:\/\//i.test(nextContentUrl) ? nextContentUrl : ''
+  }
+  const sanitizedContent = sanitizeReadableContent(uniqueStrings(contents).join('\n\n'), { chapterTitle: chapter.title })
+  const content = sanitizedContent.text
+  const contentQuality = assessReadableContentQuality(sanitizedContent)
+  if (!content) throw new SourceRuntimeError('CONTENT_EMPTY', '正文解析为空，请换一个书源', { stage: 'content' })
+  if (!contentQuality.readable) {
+    throw new SourceRuntimeError('CONTENT_NOISE', '正文噪声过多，请切换备用书源', {
+      stage: 'content',
+      diagnostics: {
+        rawChars: contentQuality.rawChars,
+        cleanedChars: contentQuality.cleanedChars,
+        removedRatio: contentQuality.removedRatio
+      }
+    })
+  }
 
   const protectedKeys = Array.isArray(options.protectedCacheKeys) ? options.protectedCacheKeys : []
   writeOnlineChapterCache(book, chapter, content, protectedKeys)
   const persisted = !!readOnlineChapterCache(book.id, chapter.index)
-  const loaded = { ...chapter, content, isCached: persisted, loadStatus: 'loaded', errorMessage: '' }
+  const loaded = { ...chapter, content, contentQuality, isCached: persisted, loadStatus: 'loaded', errorMessage: '' }
   const savedBook = persisted ? (updateOnlineBookChapterCache(book, loaded) || book) : book
   if (options.autoPreload) {
     await preloadOnlineChapters(savedBook, chapter.index, {
@@ -2847,30 +4635,173 @@ export async function loadOnlineChapter(book, chapter, options = {}) {
   return loaded
 }
 
-async function searchSource(source, keyword) {
+export async function loadOnlineChapter(book, chapter, options = {}) {
+  return runTrackedReadingStage(book, 'content', () => loadOnlineChapterInternal(book, chapter, options))
+}
+
+async function searchSource(source, keyword, options = {}) {
   const raw = source.raw || {}
   const rule = normalizeRuleObject(raw.ruleSearch)
   if (!raw.searchUrl || !Object.keys(rule).length) return []
 
-  const html = await requestText(createSourceRequestSpec(source, raw.searchUrl, { key: keyword, keyword, page: 1, rendered: false }, source.baseUrl))
+  const ruleFlow = options.ruleFlow || createSourceRuleFlow(source)
+  const context = { key: keyword, keyword, page: 1, rendered: false, ruleFlow, baseUrl: source.baseUrl }
+  const cacheKey = String(source && (source.sourceKey || source.id) || source.baseUrl)
+  const relativePostTemplate = !/^https?:\/\//i.test(String(raw.searchUrl || '').trim())
+    && /["']?(?:method)["']?\s*:\s*["']?post["']?|["']?(?:body|data)["']?\s*:/i.test(String(raw.searchUrl || ''))
+  if (relativePostTemplate && !canonicalSearchBaseCache.has(cacheKey)) {
+    await resolveCanonicalSearchSource(source)
+  }
+  const cachedCanonicalBaseUrl = canonicalSearchBaseCache.get(cacheKey) || ''
+  let activeSource = cachedCanonicalBaseUrl ? { ...source, baseUrl: cachedCanonicalBaseUrl } : source
+  const initialSpec = activeSource === source
+    ? createSourceRequestSpec(activeSource, raw.searchUrl, context, activeSource.baseUrl)
+    : stripCrossOriginSensitiveFields(createSourceRequestSpec(activeSource, raw.searchUrl, context, activeSource.baseUrl))
+  let html = await requestText(initialSpec)
+  let parsed = parseSearchResponse(activeSource, rule, keyword, html, ruleFlow, initialSpec.url)
+  if (!parsed.results.length && activeSource === source && initialSpec.method === 'POST' && !/^https?:\/\//i.test(String(raw.searchUrl || '').trim())) {
+    const canonicalSource = await resolveCanonicalSearchSource(source)
+    if (canonicalSource) {
+      activeSource = canonicalSource
+      const canonicalSpec = stripCrossOriginSensitiveFields(
+        createSourceRequestSpec(activeSource, raw.searchUrl, context, activeSource.baseUrl)
+      )
+      html = await requestText(canonicalSpec)
+      parsed = parseSearchResponse(activeSource, rule, keyword, html, ruleFlow, canonicalSpec.url)
+      parsed.results.diagnostics.canonicalBaseUrl = activeSource.baseUrl
+    }
+  }
+  const hydrated = await hydrateSourceSearchResults(parsed.results, {
+    maxItems: 3,
+    concurrency: 2,
+    timeoutMs: 4000
+  })
+  const results = hydrated.results
+  results.diagnostics = {
+    ...(parsed.results.diagnostics || {}),
+    completeResultCount: hydrated.completeResultCount,
+    incompleteResultCount: hydrated.incompleteResultCount,
+    metadataFailureCount: hydrated.metadataFailureCount
+  }
+  results.metadataReport = hydrated
+  return results
+}
+
+function hasUsableOnlineBookTitle(value) {
+  const title = cleanText(value)
+  return !!title && title !== ONLINE_BOOK_PLACEHOLDER_TITLE
+}
+
+function withHydratedSearchMetadata(item, book) {
+  const source = getSourceConfig(book && book.sourceId)
+  const normalized = attachRuleFlowValues(
+    { ...book, metadataStatus: 'complete', metadataOrigin: 'detail' },
+    createSourceRuleFlow(source, book)
+  )
+  return {
+    ...item,
+    bookId: normalized.id,
+    title: normalized.title,
+    subtitle: `${normalized.author} · ${normalized.sourceName}`,
+    snippet: normalized.latestChapter || normalized.kind || '在线书源结果',
+    metadataStatus: 'complete',
+    book: normalized
+  }
+}
+
+export async function hydrateSourceSearchResults(results = [], options = {}) {
+  const rows = Array.isArray(results) ? results : []
+  const incomplete = []
+  let invalidCount = 0
+  rows.forEach((item, index) => {
+    const book = item && item.book || {}
+    if (!book.bookUrl) {
+      invalidCount += 1
+      return
+    }
+    if (!hasUsableOnlineBookTitle(item.title || book.title)) incomplete.push({ item, index })
+  })
+  const maximum = clampNumber(options.maxItems, 0, 10, 3)
+  const selected = incomplete.slice(0, maximum)
+  const hydratedRows = await runConcurrent(selected, clampNumber(options.concurrency, 1, 4, 2), async row => {
+    try {
+      const loaded = await withTimeout(
+        loadOnlineBookInfoInternal(row.item.book, { bypassCache: options.bypassCache === true }),
+        clampNumber(options.timeoutMs, 1000, 8000, 4000),
+        row.item.sourceName
+      )
+      if (!hasUsableOnlineBookTitle(loaded && loaded.title)) {
+        throw new SourceRuntimeError('DETAIL_METADATA_EMPTY', '详情缺少书名', { stage: 'detail' })
+      }
+      return { index: row.index, item: withHydratedSearchMetadata(row.item, loaded), errorCode: '' }
+    } catch (error) {
+      return { index: row.index, item: null, errorCode: classifySourceFailure(error, { stage: 'detail' }).errorCode }
+    }
+  })
+  const hydratedMap = new Map(hydratedRows.map(row => [row.index, row]))
+  const output = []
+  rows.forEach((item, index) => {
+    const book = item && item.book || {}
+    if (!book.bookUrl) return
+    if (hasUsableOnlineBookTitle(item.title || book.title)) {
+      const source = getSourceConfig(book.sourceId)
+      const completeBook = attachRuleFlowValues(
+        { ...book, metadataStatus: 'complete' },
+        createSourceRuleFlow(source, book)
+      )
+      output.push({ ...item, metadataStatus: 'complete', book: completeBook })
+      return
+    }
+    const hydrated = hydratedMap.get(index)
+    if (hydrated && hydrated.item) output.push(hydrated.item)
+  })
+  const metadataFailureCount = invalidCount + incomplete.length - hydratedRows.filter(row => row.item).length
+  return {
+    results: output,
+    completeResultCount: output.length,
+    incompleteResultCount: incomplete.length,
+    metadataFailureCount,
+    invalidResultCount: invalidCount,
+    attemptedDetailCount: selected.length,
+    errorsByCode: hydratedRows.reduce((counts, row) => {
+      if (row.errorCode) counts[row.errorCode] = Number(counts[row.errorCode] || 0) + 1
+      return counts
+    }, {})
+  }
+}
+
+function parseSearchResponse(source, rule, keyword, html, ruleFlow = null, responseUrl = '') {
   const payload = parseResponsePayload(html)
   const listRule = getFieldRule(rule, ['bookList', 'list', 'books'])
-  const list = applyListRule(payload, listRule, { key: keyword, keyword, page: 1, $: payload })
+  const listContext = ruleFlow || createSourceRuleFlow(source)
+  const list = applyListRule(payload, listRule, { key: keyword, keyword, page: 1, $: payload, ruleFlow: listContext, baseUrl: source.baseUrl })
 
-  return list.map(item => {
-    const context = { key: keyword, keyword, $: item }
-    const book = normalizeOnlineBookForShelf({
+  const mappedResults = list.map(item => {
+    const itemRuleFlow = createRuleFlowContext(source.sourceKey || source.id, exportRuleFlowValues(listContext))
+    const context = { key: keyword, keyword, $: item, ruleFlow: itemRuleFlow, baseUrl: source.baseUrl }
+    const titleRule = getFieldRule(rule, ['name', 'bookName', 'title'])
+    const rawTitle = cleanText(firstValue(applyRule(item, titleRule, context)))
+    const parsedFields = {
+      title: rawTitle,
+      author: pickOptionalText(item, rule, ['author', 'bookAuthor'], context) || '未知作者',
+      kind: pickOptionalText(item, rule, ['kind', 'category', 'type'], context) || '在线书源',
+      latestChapter: pickOptionalText(item, rule, ['latestChapter', 'lastChapter', 'last'], context),
+      intro: pickOptionalText(item, rule, ['intro', 'description', 'desc'], context),
+      coverUrl: pickOptionalUrl(item, rule, ['coverUrl', 'cover', 'image'], context, source.baseUrl)
+    }
+    const parsedBook = { ...parsedFields, name: rawTitle }
+    const resolvedContext = { ...context, ...parsedFields, book: parsedBook }
+    const explicitBookUrlRule = getFieldRule(rule, ['bookUrl', 'url', 'link'])
+    const bookUrlRule = explicitBookUrlRule || deriveBookUrlRuleFromTitle(titleRule)
+    const book = attachRuleFlowValues(normalizeOnlineBookForShelf({
       sourceId: source.id,
       sourceName: source.name,
       sourceGroup: source.group,
-      bookUrl: pickUrl(item, rule, ['bookUrl', 'url', 'link'], context, source.baseUrl),
-      title: pickText(item, rule, ['name', 'bookName', 'title'], context),
-      author: pickText(item, rule, ['author', 'bookAuthor'], context) || '未知作者',
-      kind: pickText(item, rule, ['kind', 'category', 'type'], context) || '在线书源',
-      latestChapter: pickText(item, rule, ['latestChapter', 'lastChapter', 'last'], context),
-      intro: pickText(item, rule, ['intro', 'description', 'desc'], context),
-      coverUrl: pickUrl(item, rule, ['coverUrl', 'cover', 'image'], context, source.baseUrl)
-    })
+      bookUrl: resolveUrl(firstValue(applyRule(item, bookUrlRule, resolvedContext)), source.baseUrl),
+      ...parsedFields,
+      metadataStatus: rawTitle ? 'complete' : 'needs_detail',
+      metadataOrigin: 'search'
+    }, { preserveMissingTitle: true }), itemRuleFlow)
 
     return {
       type: 'online',
@@ -2880,13 +4811,207 @@ async function searchSource(source, keyword) {
       snippet: book.latestChapter || book.kind || '在线书源结果',
       sourceId: source.id,
       sourceName: source.name,
+      metadataStatus: rawTitle ? 'complete' : 'needs_detail',
       book
     }
-  }).filter(result => result.book.bookUrl && result.book.title)
+  })
+  const results = mappedResults.filter(result => result.book.bookUrl)
+  if (!results.length) results.push(...buildSameOriginKeywordFallbackResults(source, keyword, html, listContext, responseUrl))
+  results.diagnostics = {
+    ...buildSearchResponseDiagnostics(html, payload, listRule, list.length, results.length),
+    missingTitleCount: mappedResults.filter(result => !hasUsableOnlineBookTitle(result.book.title)).length,
+    missingBookUrlCount: mappedResults.filter(result => !result.book.bookUrl).length,
+    heuristicFallbackCount: results.filter(result => String(result.metadataOrigin || '').startsWith('same_origin_')).length
+  }
+  return { results, payload, list }
 }
 
-function normalizeOnlineBookForShelf(book) {
+function buildSameOriginKeywordFallbackResults(source, keyword, html, ruleFlow, responseUrl = '') {
+  const expected = cleanText(keyword).toLowerCase()
+  if (expected.length < 2) return []
+  let sourceOrigin = ''
+  try { sourceOrigin = new URL(source.baseUrl).origin } catch (error) { return [] }
+  const seen = new Set()
+  const createResult = (title, rawHref, metadataOrigin) => {
+    const normalizedTitle = cleanText(title)
+    if (normalizedTitle.length < 2 || normalizedTitle.length > 80 || !normalizedTitle.toLowerCase().includes(expected)) return null
+    const isDetailFallback = metadataOrigin === 'same_origin_detail_fallback'
+    if (!rawHref || /^(?:javascript:|#)/i.test(rawHref) || (!isDetailFallback && /(?:^|[/_-])(?:search|sousuo|category|sort|rank|login)(?:[./?_-]|$)/i.test(rawHref))) return null
+    const bookUrl = resolveUrl(rawHref, source.baseUrl)
+    let resolved
+    try { resolved = new URL(bookUrl) } catch (error) { return null }
+    if (!/^https?:$/.test(resolved.protocol) || resolved.origin !== sourceOrigin || seen.has(resolved.toString())) return null
+    seen.add(resolved.toString())
+    const itemRuleFlow = createRuleFlowContext(source.sourceKey || source.id, exportRuleFlowValues(ruleFlow))
+    const book = attachRuleFlowValues(normalizeOnlineBookForShelf({
+      sourceId: source.id,
+      sourceName: source.name,
+      sourceGroup: source.group,
+      bookUrl: resolved.toString(),
+      title: normalizedTitle,
+      author: '未知作者',
+      kind: '在线书源',
+      metadataStatus: 'complete',
+      metadataOrigin
+    }, { preserveMissingTitle: true }), itemRuleFlow)
+    return {
+      type: 'online',
+      bookId: book.id,
+      title: book.title,
+      subtitle: `${book.author} · ${source.name}`,
+      snippet: book.kind,
+      sourceId: source.id,
+      sourceName: source.name,
+      metadataStatus: 'complete',
+      metadataOrigin,
+      book
+    }
+  }
+  const anchorResults = applyListRule(String(html || ''), 'a').flatMap(anchor => {
+    const title = cleanText(anchor)
+    const rawHref = String(firstValue(applyRule(anchor, '@href')) || '').trim()
+    const result = createResult(title, rawHref, 'same_origin_keyword_fallback')
+    return result ? [result] : []
+  }).slice(0, 3)
+  if (anchorResults.length) return anchorResults
+
+  const firstRuleValue = rules => rules
+    .map(item => String(firstValue(applyRule(html, item)) || '').trim())
+    .find(Boolean) || ''
+  const documentTitle = firstRuleValue([
+    'meta[property="og:novel:book_name"]@content',
+    'meta[property="og:title"]@content',
+    'meta[name="book_name"]@content',
+    '.book-hd h1@text',
+    '.bookinfo h1@text',
+    '.book-title@text',
+    '.booktitle@text',
+    'h1@text',
+    'title@text'
+  ])
+  let canonicalUrl = firstRuleValue([
+    'meta[property="og:url"]@content',
+    'link[rel="canonical"]@href'
+  ])
+  if (!canonicalUrl && /\bclass=["'][^"']*(?:book-hd|bookinfo|book-info|book-layout|booktitle)[^"']*["']/i.test(String(html || ''))) {
+    canonicalUrl = responseUrl
+  }
+  const detailResult = createResult(documentTitle, canonicalUrl, 'same_origin_detail_fallback')
+  return detailResult ? [detailResult] : []
+}
+
+async function resolveCanonicalSearchSource(source) {
+  const baseUrl = String(source && source.baseUrl || '').trim()
+  if (!/^https?:\/\//i.test(baseUrl)) return null
+  const cacheKey = String(source && (source.sourceKey || source.id) || baseUrl)
+  if (canonicalSearchBaseCache.has(cacheKey)) {
+    const cachedBaseUrl = canonicalSearchBaseCache.get(cacheKey)
+    return cachedBaseUrl ? { ...source, baseUrl: cachedBaseUrl } : null
+  }
+  try {
+    const response = await requestSourceResponse({
+      url: baseUrl,
+      method: 'GET',
+      headers: { Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8' },
+      charset: '',
+      cookie: '',
+      userAgent: 'Mozilla/5.0 NovelReader/3.x',
+      referer: '',
+      timeoutMs: 8000,
+      maxBytes: 256 * 1024,
+      sourceKey: source.sourceKey || source.id
+    }, { sourceKey: source.sourceKey || source.id, useBackend: false })
+    const initial = new URL(baseUrl)
+    const final = new URL(response.finalUrl || baseUrl)
+    if (initial.origin === final.origin) {
+      canonicalSearchBaseCache.set(cacheKey, '')
+      return null
+    }
+    final.search = ''
+    final.hash = ''
+    const canonicalBaseUrl = final.toString()
+    canonicalSearchBaseCache.set(cacheKey, canonicalBaseUrl)
+    return { ...source, baseUrl: canonicalBaseUrl }
+  } catch (error) {
+    return null
+  }
+}
+
+function stripCrossOriginSensitiveFields(spec = {}) {
+  const header = Object.fromEntries(Object.entries(spec.header || {}).filter(([name]) => {
+    return !/^(?:cookie|authorization|proxy-authorization)$/i.test(String(name || '').trim())
+  }))
+  return { ...spec, header, cookie: '' }
+}
+
+function buildSearchResponseDiagnostics(html, payload, listRule, listCount, resultCount) {
+  const text = String(html || '')
+  const lower = text.toLowerCase()
+  const classCounts = {}
+  for (const match of text.matchAll(/\bclass=["']([^"']+)["']/gi)) {
+    String(match[1] || '').split(/\s+/).filter(Boolean).slice(0, 12).forEach(name => {
+      if (/^[\w-]{1,48}$/.test(name)) classCounts[name] = (classCounts[name] || 0) + 1
+    })
+  }
+  let hash = 2166136261
+  for (let index = 0; index < text.length; index += 1) {
+    hash ^= text.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return {
+    responseLength: text.length,
+    responseFingerprint: (hash >>> 0).toString(16).padStart(8, '0'),
+    payloadType: Array.isArray(payload) ? 'array' : payload && typeof payload === 'object' ? 'object' : 'text',
+    topLevelKeys: payload && typeof payload === 'object' && !Array.isArray(payload) ? Object.keys(payload).slice(0, 20) : [],
+    classNames: Object.entries(classCounts).sort((left, right) => right[1] - left[1]).slice(0, 20).map(entry => entry[0]),
+    ruleKind: String(listRule || '').trim().startsWith('$.') ? 'jsonpath' : /xpath:|^\/\//i.test(String(listRule || '').trim()) ? 'xpath' : 'css',
+    listCount: Number(listCount || 0),
+    resultCount: Number(resultCount || 0),
+    markers: {
+      captcha: /captcha|recaptcha|turnstile|验证码|人机验证/i.test(text),
+      login: /请先登录|必须登录|登录后(?:才能|可)|login\s*(?:required|form)/i.test(text),
+      blocked: /cloudflare|access denied|访问过于频繁|请求被拒绝|安全验证/i.test(lower),
+      parked: /domain\s+(?:is\s+)?for\s+sale|buy\s+this\s+domain|域名出售|购买此域名/i.test(text)
+        || ['domain-name', 'stencil-overall', 'EasyRegister', 'htmlprv_content_wrapper'].some(name => classCounts[name]),
+      noResult: /无搜索结果|没有找到|搜索不到|暂无相关|no results?|not found/i.test(text)
+        || Array.isArray(payload) && payload.length === 0
+        || !!(payload && typeof payload === 'object' && (Number(payload.totalNum) === 0 || Array.isArray(payload.data) && payload.data.length === 0))
+    }
+  }
+}
+
+function createEmptySearchError(diagnostics = {}) {
+  const markers = diagnostics.markers || {}
+  let code = 'PARSE_EMPTY'
+  let message = '搜索响应已返回，但规则没有解析出有效图书'
+  if (Number(diagnostics.metadataFailureCount || 0) > 0 && Number(diagnostics.completeResultCount || 0) === 0) {
+    code = 'SEARCH_RESULT_INCOMPLETE'
+    message = '搜索结果信息不完整，详情也未能补齐书名'
+  } else if (markers.captcha) {
+    code = 'CAPTCHA_REQUIRED'
+    message = '搜索页面要求验证码或人机验证'
+  } else if (markers.login) {
+    code = 'LOGIN_REQUIRED'
+    message = '搜索页面要求登录'
+  } else if (markers.blocked) {
+    code = 'HTTP_BLOCKED'
+    message = '搜索页面返回了访问限制内容'
+  } else if (markers.parked) {
+    code = 'SITE_UNREACHABLE'
+    message = '书源域名已停放或出售，原站点不可用'
+  } else if (markers.noResult) {
+    code = 'SEARCH_EMPTY'
+    message = '站点返回无搜索结果'
+  } else if (!diagnostics.responseLength) {
+    code = 'PARSE_EMPTY'
+    message = '搜索响应为空'
+  }
+  return new SourceRuntimeError(code, message, { stage: 'search', diagnostics })
+}
+
+function normalizeOnlineBookForShelf(book, options = {}) {
   const id = book.id || createOnlineBookId(book.sourceId, book.bookUrl)
+  const title = cleanText(book.title)
   return {
     id,
     source: 'online',
@@ -2895,7 +5020,7 @@ function normalizeOnlineBookForShelf(book) {
     sourceGroup: book.sourceGroup || '',
     bookUrl: book.bookUrl,
     tocUrl: book.tocUrl || book.bookUrl,
-    title: cleanText(book.title) || '未命名小说',
+    title: title || (options.preserveMissingTitle ? '' : ONLINE_BOOK_PLACEHOLDER_TITLE),
     author: cleanText(book.author) || '未知作者',
     category: cleanText(book.kind || book.category) || '在线书源',
     kind: cleanText(book.kind) || '在线书源',
@@ -2905,6 +5030,8 @@ function normalizeOnlineBookForShelf(book) {
     coverUrl: book.coverUrl || '',
     coverColor: '#506f89',
     accent: '#31584f',
+    metadataStatus: book.metadataStatus || (title ? 'complete' : 'needs_detail'),
+    metadataOrigin: book.metadataOrigin || '',
     chapters: (book.chapters || []).map((chapter, index) => {
       const content = chapter.content || ''
       const errorMessage = cleanText(chapter.errorMessage)

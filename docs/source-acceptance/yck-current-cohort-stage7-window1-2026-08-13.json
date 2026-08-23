@@ -1,0 +1,6620 @@
+{
+  "schemaVersion": 3,
+  "capturedAt": "2026-08-13T07:47:19.021Z",
+  "windowId": "stage7-window1-2026-08-13",
+  "cohortKind": "currentCohort",
+  "repository": "https://www.yckceo.com/yuedu/shuyuan/index.html",
+  "pages": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12,
+    13,
+    14,
+    15,
+    16,
+    17,
+    18,
+    19,
+    20,
+    21,
+    22,
+    23,
+    24,
+    25,
+    26,
+    27,
+    28,
+    29,
+    30,
+    31,
+    32,
+    33,
+    34,
+    35,
+    36,
+    37,
+    38,
+    39,
+    40,
+    41,
+    42,
+    43,
+    44,
+    45,
+    46,
+    47,
+    48,
+    49,
+    50,
+    51,
+    52,
+    53,
+    54,
+    55,
+    56,
+    57
+  ],
+  "marketPageFailures": [
+    {
+      "page": 3,
+      "layer": "middle",
+      "errorCode": "TIMEOUT"
+    },
+    {
+      "page": 7,
+      "layer": "middle",
+      "errorCode": "TIMEOUT"
+    },
+    {
+      "page": 13,
+      "layer": "middle",
+      "errorCode": "TIMEOUT"
+    },
+    {
+      "page": 14,
+      "layer": "middle",
+      "errorCode": "TIMEOUT"
+    },
+    {
+      "page": 35,
+      "layer": "middle",
+      "errorCode": "NETWORK_ERROR"
+    },
+    {
+      "page": 33,
+      "layer": "middle",
+      "errorCode": "NETWORK_ERROR"
+    },
+    {
+      "page": 37,
+      "layer": "middle",
+      "errorCode": "NETWORK_ERROR"
+    },
+    {
+      "page": 36,
+      "layer": "middle",
+      "errorCode": "NETWORK_ERROR"
+    },
+    {
+      "page": 34,
+      "layer": "middle",
+      "errorCode": "NETWORK_ERROR"
+    },
+    {
+      "page": 28,
+      "layer": "middle",
+      "errorCode": "NETWORK_ERROR"
+    },
+    {
+      "page": 39,
+      "layer": "middle",
+      "errorCode": "NETWORK_ERROR"
+    },
+    {
+      "page": 40,
+      "layer": "middle",
+      "errorCode": "NETWORK_ERROR"
+    },
+    {
+      "page": 42,
+      "layer": "middle",
+      "errorCode": "NETWORK_ERROR"
+    },
+    {
+      "page": 38,
+      "layer": "middle",
+      "errorCode": "NETWORK_ERROR"
+    },
+    {
+      "page": 41,
+      "layer": "middle",
+      "errorCode": "NETWORK_ERROR"
+    },
+    {
+      "page": 43,
+      "layer": "middle",
+      "errorCode": "NETWORK_ERROR"
+    },
+    {
+      "page": 44,
+      "layer": "middle",
+      "errorCode": "NETWORK_ERROR"
+    },
+    {
+      "page": 46,
+      "layer": "middle",
+      "errorCode": "NETWORK_ERROR"
+    },
+    {
+      "page": 48,
+      "layer": "middle",
+      "errorCode": "NETWORK_ERROR"
+    },
+    {
+      "page": 45,
+      "layer": "middle",
+      "errorCode": "NETWORK_ERROR"
+    },
+    {
+      "page": 47,
+      "layer": "middle",
+      "errorCode": "NETWORK_ERROR"
+    },
+    {
+      "page": 50,
+      "layer": "middle",
+      "errorCode": "NETWORK_ERROR"
+    },
+    {
+      "page": 49,
+      "layer": "middle",
+      "errorCode": "NETWORK_ERROR"
+    },
+    {
+      "page": 52,
+      "layer": "middle",
+      "errorCode": "NETWORK_ERROR"
+    },
+    {
+      "page": 51,
+      "layer": "middle",
+      "errorCode": "NETWORK_ERROR"
+    },
+    {
+      "page": 53,
+      "layer": "middle",
+      "errorCode": "NETWORK_ERROR"
+    },
+    {
+      "page": 54,
+      "layer": "middle",
+      "errorCode": "NETWORK_ERROR"
+    },
+    {
+      "page": 57,
+      "layer": "older",
+      "errorCode": "NETWORK_ERROR"
+    },
+    {
+      "page": 56,
+      "layer": "middle",
+      "errorCode": "NETWORK_ERROR"
+    },
+    {
+      "page": 55,
+      "layer": "middle",
+      "errorCode": "NETWORK_ERROR"
+    }
+  ],
+  "fixed200": null,
+  "currentCohort": {
+    "locked": true,
+    "sampleCount": 120,
+    "hostCount": 110,
+    "maxPerHost": 2,
+    "blockSize": 20,
+    "blocks": [
+      [
+        {
+          "id": "7624",
+          "sourceKey": "source-key-17gjht1",
+          "sha256": "d8c23d171ca74271d1b1270e716b79f43be166263868f0bc1c4e7cbc9055b11d"
+        },
+        {
+          "id": "7549",
+          "sourceKey": "source-key-vketg9",
+          "sha256": "da1622caaff46c87a26b04a7af4eaad6bf4ddafcb31e7c5655ab09936ad60780"
+        },
+        {
+          "id": "7619",
+          "sourceKey": "source-key-1rbh9g5",
+          "sha256": "a5340abb6a1a4ac207e2d06dd6dbfdbac2b066bba239b758156a04d5030a4a21"
+        },
+        {
+          "id": "7543",
+          "sourceKey": "source-key-skfkrc",
+          "sha256": "07bee8df8834c6063a222ef6f794fd8cfaa43df6cb1315ad6592b69b6f1bcae9"
+        },
+        {
+          "id": "7596",
+          "sourceKey": "source-key-13zaxtq",
+          "sha256": "6856da567c44c7dd0009c6535ec852bd435e6739b7c633ee4d0ff887be8a3827"
+        },
+        {
+          "id": "7515",
+          "sourceKey": "source-key-1exgmbn",
+          "sha256": "b985bcf5c2b8ddb04c9131d3827504ecf02d7379d3985f4342cf83fafe87b3c5"
+        },
+        {
+          "id": "7583",
+          "sourceKey": "source-key-1g8x1x2",
+          "sha256": "4f8aed8a17158f4a4108844d9d18de9af37ceb61e5219a1778f981d8043f4b60"
+        },
+        {
+          "id": "7497",
+          "sourceKey": "source-key-1uh7uni",
+          "sha256": "6391891efaea8cd8bcb67115ee3eaee4104a90321cec5ca85216e6ccc197f157"
+        },
+        {
+          "id": "7562",
+          "sourceKey": "source-key-1stdeek",
+          "sha256": "5f41e330376bd319a26c99012a37013c49d3f8cfc55a3c2963fabf11897d4240"
+        },
+        {
+          "id": "7415",
+          "sourceKey": "source-key-1dvqj6u",
+          "sha256": "c0eed0b8614eac3a1b8f565a9e5ebb18f675143eff750d32e985725162b37f97"
+        },
+        {
+          "id": "7406",
+          "sourceKey": "source-key-144flv7",
+          "sha256": "abcac613997c143f333a1241390c83cf24e8cd20703ad19b3463241f4c01a727"
+        },
+        {
+          "id": "7400",
+          "sourceKey": "source-key-1rhcawn",
+          "sha256": "90d0e8fc0874ceba825d648f761ddb92710efc2a3c03e3cd8968e90fd618a841"
+        },
+        {
+          "id": "7390",
+          "sourceKey": "source-key-38135o",
+          "sha256": "1254af3ff34bd07c26de5c6cb4fd6ce27885e44c043838514879697e87133e3d"
+        },
+        {
+          "id": "7388",
+          "sourceKey": "source-key-1p332ag",
+          "sha256": "60eb8ce3911e8d378f86d86926dba4eb200fbe3d14cb41f28c51e06d27015fc4"
+        },
+        {
+          "id": "7382",
+          "sourceKey": "source-key-1aa60lp",
+          "sha256": "d9e46db1de81c9614e2993c09ffe740893368fc53c8f0348fa69ae3873bbd524"
+        },
+        {
+          "id": "7259",
+          "sourceKey": "source-key-f7ajjt",
+          "sha256": "2ed26bb6fdfa63d071c2b2efbd3a2cc483da44d16865b0f7c09c2389d4729f2f"
+        },
+        {
+          "id": "6979",
+          "sourceKey": "source-key-1pwjcau",
+          "sha256": "4e226435e7803aba2e17eb7f446daafd1cc23c8602db70b1c802a2bed5f8b1c8"
+        },
+        {
+          "id": "7319",
+          "sourceKey": "source-key-1dwr59",
+          "sha256": "f62472388e083aa5a19a4281805be6c7b6855be7d4c2e51ce7f31f8d2fad93a3"
+        },
+        {
+          "id": "7298",
+          "sourceKey": "source-key-1t5iw7j",
+          "sha256": "7a1ca5b7861378f5e763610d041c23cefdf2501b357b2d58ecd353dac741c34b"
+        },
+        {
+          "id": "7285",
+          "sourceKey": "source-key-ik8svv",
+          "sha256": "ad6daaa3d0e58c77ff2fa45ee1ad856421b9a994e43041a0dc43a4b06a683e90"
+        }
+      ],
+      [
+        {
+          "id": "7279",
+          "sourceKey": "source-key-1p332ag",
+          "sha256": "8b570738e2fd1c7a14c3bffd4b77cb520459421b93dce7afb9890f9aeea2dd0d"
+        },
+        {
+          "id": "6931",
+          "sourceKey": "source-key-8mgabm",
+          "sha256": "25bc88871fa6e50eaa57ba5f9e22636c582917f3195ce0659affa37fa69ea420"
+        },
+        {
+          "id": "6928",
+          "sourceKey": "source-key-14g5xf1",
+          "sha256": "d7cd846fba70e08c644fe5487681bb8631cfb34ebd46251874fd89cafa670523"
+        },
+        {
+          "id": "6917",
+          "sourceKey": "source-key-18r3pww",
+          "sha256": "a6983008d8be5d245e4afeced0d18bb4678ba216bbd53cc975e5d02b9a9b2d3b"
+        },
+        {
+          "id": "6906",
+          "sourceKey": "source-key-v1eoqs",
+          "sha256": "0a4ea9fefbf85496c44195128e118541b65d703326fb8b4c9bd300036b698690"
+        },
+        {
+          "id": "6897",
+          "sourceKey": "source-key-m4ezwf",
+          "sha256": "ff57ecce2cca34e5e7c31055ebc87f6241d42e58c359ee90802b8f7cb47ed5a4"
+        },
+        {
+          "id": "6896",
+          "sourceKey": "source-key-nra5an",
+          "sha256": "f7e8edb2ab9ca47f548e94451bb44e154a4dadc50c818db802149153d71246d2"
+        },
+        {
+          "id": "6890",
+          "sourceKey": "source-key-n55img",
+          "sha256": "e26b8db86fb1e17464583bbb1988a9e71e78e8c87922f4a300b20bbb5a891ed5"
+        },
+        {
+          "id": "6875",
+          "sourceKey": "source-key-1sxkg28",
+          "sha256": "41e8d2447f964087c955e9684f2cd36fa88f7008b34ee3f632dfe1d5ad2be14d"
+        },
+        {
+          "id": "6834",
+          "sourceKey": "source-key-f7ajjt",
+          "sha256": "6338eba2fc37653739b987fadf04e3eeddffbaedeb2caafd2c0ef59950779c87"
+        },
+        {
+          "id": "6813",
+          "sourceKey": "source-key-4touj4",
+          "sha256": "51643b495fffe55a40465a8d050ed1edbff863cea24747912d434d0ea1e1b901"
+        },
+        {
+          "id": "6808",
+          "sourceKey": "source-key-3ccjib",
+          "sha256": "237d90206d6acebc09440dbb2c6b522b437ea430785606e845276783f26a0bd6"
+        },
+        {
+          "id": "6792",
+          "sourceKey": "source-key-19nxc2j",
+          "sha256": "9edd19c58b8673cdfb623a51f635fd10bb117e3113352c12eee56a300a8cd6d8"
+        },
+        {
+          "id": "6785",
+          "sourceKey": "source-key-nyws8e",
+          "sha256": "c20bf227ef36d5c4c569b37d08eb6b23738e86a00024daa55bbfac79f2c41a06"
+        },
+        {
+          "id": "6775",
+          "sourceKey": "source-key-1n9qacb",
+          "sha256": "bf14b1edad7c78c67aaac7a73d5f36af6823907cad0697fc0d585ecd6daafcff"
+        },
+        {
+          "id": "6774",
+          "sourceKey": "source-key-mdf2bo",
+          "sha256": "38e505392fe1d45e73a148705643af5d126348c8e85ddeb07b572ef8d6c5315e"
+        },
+        {
+          "id": "6772",
+          "sourceKey": "source-key-12ujt7k",
+          "sha256": "2c0a520f31caba4960c90e4a039c722a4c32ef7af5b0d286fe0ccc61b7791838"
+        },
+        {
+          "id": "6771",
+          "sourceKey": "source-key-1vayfo5",
+          "sha256": "c634ec839047fff77ab43e65a36bc1a0b04c16ce20a510634d28a9d39faaa5aa"
+        },
+        {
+          "id": "6763",
+          "sourceKey": "source-key-lbluhk",
+          "sha256": "4f15fcea24a30b4cb9d0bae2561a5f6bd81f7726454eef524f142ee21563d830"
+        },
+        {
+          "id": "6754",
+          "sourceKey": "source-key-1gkrq91",
+          "sha256": "c603adc92a936d578532ce83e64ca34b7c9ce89d656474847f021c2d1b610007"
+        }
+      ],
+      [
+        {
+          "id": "6752",
+          "sourceKey": "source-key-12wi4iw",
+          "sha256": "b0380eab73e1fde0e99c4afe3c071a4598a97df204c4a5d813f434367bff9c39"
+        },
+        {
+          "id": "6750",
+          "sourceKey": "source-key-rw259f",
+          "sha256": "3cd6ed04e0c6dc7f64f9d99ce584c0d43b18f63f939b33378fb4c86c5ac99761"
+        },
+        {
+          "id": "6689",
+          "sourceKey": "source-key-1dzy6pc",
+          "sha256": "f12792ca2ae353360d89a9b4eb9df6290e8e5f2c9cc5e83307b3892863327efd"
+        },
+        {
+          "id": "6736",
+          "sourceKey": "source-key-zmwsos",
+          "sha256": "20a6b31df025b3ccff9ef7e61beebc9ee5968349430092daf652ac673e2e99ec"
+        },
+        {
+          "id": "6715",
+          "sourceKey": "source-key-16bygdy",
+          "sha256": "a07485c8f5ad36cfedc055885c91d8288d72f797848d6e40b298826245ce386f"
+        },
+        {
+          "id": "6714",
+          "sourceKey": "source-key-jfs1dj",
+          "sha256": "6904e9dc214b2170a378db46044109e25eb7b417899b6ee2f5747c11b8fc09ed"
+        },
+        {
+          "id": "6713",
+          "sourceKey": "source-key-8kn43r",
+          "sha256": "74fd3efd97cc6109d178bae0af03e438e35aaf1113be74f73f21107402ce972f"
+        },
+        {
+          "id": "6705",
+          "sourceKey": "source-key-fgtd4",
+          "sha256": "981b4bcc968f46f5f892fecb21fa908f8ef27edd83f1567dc1b4e39e5b9b573c"
+        },
+        {
+          "id": "6697",
+          "sourceKey": "source-key-1mtx1rr",
+          "sha256": "d31ac3dd7270dff738b51306a63fa9aa7f6343eea953f58c9dcf4caf7a37e335"
+        },
+        {
+          "id": "6687",
+          "sourceKey": "source-key-1by1i7g",
+          "sha256": "971667e8e4ddfad84bfc738843a1ece8127eb61a39ad9b8772187f1af45043b2"
+        },
+        {
+          "id": "6678",
+          "sourceKey": "source-key-170eih3",
+          "sha256": "092415036f9411fb93a5fa056deae1fcd5c9b70f7843ce3bbbb33fd77f00299b"
+        },
+        {
+          "id": "6656",
+          "sourceKey": "source-key-obswfz",
+          "sha256": "53057c7c259bf19339a9d047f7c83e2fa3b3f79d2e84083e32c1f0dbb5e8d62b"
+        },
+        {
+          "id": "6645",
+          "sourceKey": "source-key-1h3mhqg",
+          "sha256": "ad1c1027beb8299eaa53d00b3380072a50ef75e567178489ebfcd3537fe2138a"
+        },
+        {
+          "id": "6619",
+          "sourceKey": "source-key-1mn2lir",
+          "sha256": "766565b54072db673d3f550093102985dcc58c1b95839ecb298697a5d5d91052"
+        },
+        {
+          "id": "6618",
+          "sourceKey": "source-key-1oqfbzu",
+          "sha256": "e06616e246504858a86a37a3e63e5a6e06d0be0dab7d74f52806827576e2af25"
+        },
+        {
+          "id": "6612",
+          "sourceKey": "source-key-v6jfgj",
+          "sha256": "8032939ed6d3a67521747e2a16f112216095429e9756a5c5d335ca42c2de666a"
+        },
+        {
+          "id": "6597",
+          "sourceKey": "source-key-166dzos",
+          "sha256": "228eec5a31142a9b1881a0ff363d2930d9332aa4d6d45df15d7a5542b3c641ff"
+        },
+        {
+          "id": "6491",
+          "sourceKey": "source-key-1kp6uis",
+          "sha256": "281d4b9e73b19281eb34753b17b259cb384c6bdc5e67168326ac7c5e66c1f60d"
+        },
+        {
+          "id": "6557",
+          "sourceKey": "source-key-1rbh9g5",
+          "sha256": "da7490d51efc2d945b4a5ad6d9b47c31b44a1cca6f5bf2f7c76c1a5461cf664e"
+        },
+        {
+          "id": "6543",
+          "sourceKey": "source-key-id69jy",
+          "sha256": "9afc8a2ee4abe339fb5c443b2931a601dbc558059025ea8efd26ed841b10420a"
+        }
+      ],
+      [
+        {
+          "id": "6540",
+          "sourceKey": "source-key-1n4dbuy",
+          "sha256": "b2769453cb54b6023199b75f23a211eea32151bf45ad6dc7c5869d7a16b7aa56"
+        },
+        {
+          "id": "6535",
+          "sourceKey": "source-key-dg3lu1",
+          "sha256": "3a30f00fdab39aed000db35c20b33926d9de689b133d7492271b6d60f6de22ec"
+        },
+        {
+          "id": "6534",
+          "sourceKey": "source-key-7d9jr1",
+          "sha256": "bd5927952b29dda94f355c9926f83c752e817277a6f47663467891ad5e5f5af6"
+        },
+        {
+          "id": "6530",
+          "sourceKey": "source-key-1nd8x71",
+          "sha256": "214c975d95e766c8e3f15c2ec921d4755cb11fb187fcd3cbc1c673cd70db9a69"
+        },
+        {
+          "id": "6507",
+          "sourceKey": "source-key-zhgv96",
+          "sha256": "75bf6bac46fb430bb33dae4d94ab635deb3a579d63810f7618a44f6f25fa1d68"
+        },
+        {
+          "id": "6506",
+          "sourceKey": "source-key-ld7sa6",
+          "sha256": "6f7fde0d5304e5db70f11d862505a0ea35e054293dec775b42966cbec4a471a7"
+        },
+        {
+          "id": "6500",
+          "sourceKey": "source-key-10eb7ef",
+          "sha256": "4922620a835b04459c41c378f1dc97a88e222a276475156c7cc229cc7175832e"
+        },
+        {
+          "id": "6488",
+          "sourceKey": "source-key-obswfz",
+          "sha256": "5e4e2de32e94b3ba116f797d4c462f7c46f43cd5d01d7427c61554531207afca"
+        },
+        {
+          "id": "6453",
+          "sourceKey": "source-key-2yflxy",
+          "sha256": "db73423058c074bc554cd796c3f6e19432a264c5b837a86c496e71f90584acaf"
+        },
+        {
+          "id": "6438",
+          "sourceKey": "source-key-1egad4d",
+          "sha256": "e25a028dc2698ebf1fc72388f949a4e2cbabb2c30be1e07288dcdc4036e846cc"
+        },
+        {
+          "id": "6429",
+          "sourceKey": "source-key-7an2ng",
+          "sha256": "bc1a185bdc8102cf38f4d7c65f1e049d96630322e2dcabd1eb0195e9d82aad51"
+        },
+        {
+          "id": "6392",
+          "sourceKey": "source-key-1atct1",
+          "sha256": "e5e4144c198b3175608ad16873caf86a1266a91c286ac0eba2ee6847287148f1"
+        },
+        {
+          "id": "6336",
+          "sourceKey": "source-key-130apms",
+          "sha256": "963ad5d74c2ceb8d5a2375f9ae18b7a0530d82cb02e1916d57d54296c397ee41"
+        },
+        {
+          "id": "6326",
+          "sourceKey": "source-key-oibk9l",
+          "sha256": "d481ce8b065f5e11f278497f84c765438b25b72ba6c042dd52bcba7ccf2bf2dd"
+        },
+        {
+          "id": "6322",
+          "sourceKey": "source-key-xups45",
+          "sha256": "591bc789971a16233b55755e03a5d51d83a21fc5b7dafbc34e34ee507746f4a2"
+        },
+        {
+          "id": "6311",
+          "sourceKey": "source-key-wq96kb",
+          "sha256": "17273d0fa726b96fe9db8d41dd19d7725ae154837855bd7e5e653f7f5711e9cd"
+        },
+        {
+          "id": "6306",
+          "sourceKey": "source-key-1wwbafp",
+          "sha256": "9410e0435aa1b685ad9dca75be09a8d5243af930714abcf56e6600024e89539f"
+        },
+        {
+          "id": "6305",
+          "sourceKey": "source-key-j4jqlk",
+          "sha256": "1693abb1670397f428d4489510dd130db3d72f9d1b5a00de91d9205dc2ad26c3"
+        },
+        {
+          "id": "6293",
+          "sourceKey": "source-key-1ecnsd5",
+          "sha256": "c4b35d295ead85e3e3e5b542ba29e8c8e945840be591413a96047a1936f1b9f0"
+        },
+        {
+          "id": "6281",
+          "sourceKey": "source-key-x3cm1r",
+          "sha256": "f46acb26edd00216079e3d90567019dc0fdb25fb85c8f5bfe5cf54d49732679e"
+        }
+      ],
+      [
+        {
+          "id": "6265",
+          "sourceKey": "source-key-1a9ifj9",
+          "sha256": "10091358f4d818731fec92f4bf1d2d57f6d8f986c319661e9a175d6bbb694feb"
+        },
+        {
+          "id": "6248",
+          "sourceKey": "source-key-o3k28b",
+          "sha256": "4f737fc0f19c8a0287adfa72e23742b08ac9842e5b499a0a5beb4180342dd389"
+        },
+        {
+          "id": "6247",
+          "sourceKey": "source-key-14ubgs2",
+          "sha256": "4b1a2a823a24fbb2468aa33ff62e62e3c60390e45a83c39e0625e01aa83d9659"
+        },
+        {
+          "id": "6235",
+          "sourceKey": "source-key-17jqui5",
+          "sha256": "1b502daf30a03f92188d835f0dcc2a96ce8651045eb1796ebf1f37b319e625d3"
+        },
+        {
+          "id": "6240",
+          "sourceKey": "source-key-1gxei5h",
+          "sha256": "9cb47c7f783d536652b54ada12fbd16dd49a24c5f07801ddf32a91f52964404b"
+        },
+        {
+          "id": "6238",
+          "sourceKey": "source-key-95r12u",
+          "sha256": "d6f80ece85aa09603b362ec7e2c04f8529769aa5f3665b5a154ef72c99a71e85"
+        },
+        {
+          "id": "6187",
+          "sourceKey": "source-key-1olwhim",
+          "sha256": "10f77b1e8189d78884a2e6c27f71655fc57f6c27332f29ebd6d92e5fd44a1d8a"
+        },
+        {
+          "id": "5999",
+          "sourceKey": "source-key-19gk5j8",
+          "sha256": "8cb62a5ad38d9b31e03c83da4469dfd038814fef855bf6a06cbbb0d0706e6110"
+        },
+        {
+          "id": "5998",
+          "sourceKey": "source-key-17kd4bf",
+          "sha256": "587c78bf274180b217e95c6ff2ae075adab6d95dc7dc75af99e4a2cffd3152e1"
+        },
+        {
+          "id": "3963",
+          "sourceKey": "source-key-pfcqjf",
+          "sha256": "a585a8ae10d96cac075c3799115102407b40b99a46715ddd12d7a80b5c68c27a"
+        },
+        {
+          "id": "5992",
+          "sourceKey": "source-key-16v4xt2",
+          "sha256": "d32d3187167af7f0671f98106743205e0b5715354a28f723ce8b873c12b365a4"
+        },
+        {
+          "id": "5985",
+          "sourceKey": "source-key-1pgz42y",
+          "sha256": "632519c9734a1f9fca3f7064e06fe56ab1584a0ea020ff1c3b21950167990f60"
+        },
+        {
+          "id": "5957",
+          "sourceKey": "source-key-s9nb8w",
+          "sha256": "18efdfd0fca283ac849e9f43aae8b6a3680c8994d47e087bdd749805d970dea7"
+        },
+        {
+          "id": "5950",
+          "sourceKey": "source-key-tcmz7d",
+          "sha256": "6213c8739ef0c56a9045f6249133146ff6ca392c92888363060a13ba50c545d9"
+        },
+        {
+          "id": "5939",
+          "sourceKey": "source-key-65qy3v",
+          "sha256": "67891e7ff6c895c77ec4b0393f1af6860f90e77137178f17562cab3d1c45115c"
+        },
+        {
+          "id": "5934",
+          "sourceKey": "source-key-vlsphc",
+          "sha256": "6a03a35337c3a033dbfd4cc2c1df5e14a744d9a99ac3dc6e01e958bf497e2861"
+        },
+        {
+          "id": "5928",
+          "sourceKey": "source-key-7siudu",
+          "sha256": "04ec7f9b85840ba782f3c92cbd2fa9d99ca5e309d1e15b53503b08504d82467c"
+        },
+        {
+          "id": "5912",
+          "sourceKey": "source-key-hsc17i",
+          "sha256": "d2530dcb40348396ab4c12ebb6087b4d1b246d15046a753b6dfd429716f2cd63"
+        },
+        {
+          "id": "5918",
+          "sourceKey": "source-key-13hlyxu",
+          "sha256": "17af84161e5e09dab92ab7383a7c96fc0d601c8f88a2dd57b47fab7c017d51a3"
+        },
+        {
+          "id": "5915",
+          "sourceKey": "source-key-1jc0qsf",
+          "sha256": "347b00a7bb463ff704da0611087c600600911a4a7bd57ff309bf219b4290f46c"
+        }
+      ],
+      [
+        {
+          "id": "5911",
+          "sourceKey": "source-key-9e2m0d",
+          "sha256": "f97a98dc95611e389ee7f38cbd5617785f80168b077edb07c9c549e22f5a0fd0"
+        },
+        {
+          "id": "5899",
+          "sourceKey": "source-key-x0c6vz",
+          "sha256": "e9039eaabbe786e68db30788b16ed95b2bff6bbd688087d04874593728f650ba"
+        },
+        {
+          "id": "5897",
+          "sourceKey": "source-key-1h9iiuz",
+          "sha256": "c383e5a7407980ee61be89849e4146fcb4133612646d08d5be75c8b2ebf383d9"
+        },
+        {
+          "id": "5895",
+          "sourceKey": "source-key-1x1va8h",
+          "sha256": "b3f03f92e0a3e276984ac1dcb6a6f82e622f2c2e325cf615af11b86dfea07b3d"
+        },
+        {
+          "id": "5893",
+          "sourceKey": "source-key-1b651bn",
+          "sha256": "4b6d28f3781ab6deb07372f206df55fda9e80e02fe638cea7e057398f8fc44b3"
+        },
+        {
+          "id": "5892",
+          "sourceKey": "source-key-1ecnsd5",
+          "sha256": "8f845fce14de607535dfea668223a979745bd9142e1333e691cfdaf02d183608"
+        },
+        {
+          "id": "5890",
+          "sourceKey": "source-key-1jq67p6",
+          "sha256": "7fb93c68d7829b28eaf458cf27d8f2cd0850c6f20a43892c575d5aac31d57f98"
+        },
+        {
+          "id": "5889",
+          "sourceKey": "source-key-1s1ud2r",
+          "sha256": "f03186cc092cf54109be2d966c656fdad8c2817dbb930e0388a1fc8f3497d55e"
+        },
+        {
+          "id": "5852",
+          "sourceKey": "source-key-121fajr",
+          "sha256": "4b59d43dcfc328544f10c258386822aea4ab4022837f374f3b3693b25677718d"
+        },
+        {
+          "id": "5848",
+          "sourceKey": "source-key-ttmwwv",
+          "sha256": "c030083eaa55d57ed8aa6a453d9fc8aeb9d82eaa80e78e8cc18c9d3f0ab073ec"
+        },
+        {
+          "id": "5846",
+          "sourceKey": "source-key-tey2z1",
+          "sha256": "b7d4f69d7bc87797c0ac765591b0236f784a1354b38ceee9209fd5034a7e80ef"
+        },
+        {
+          "id": "5845",
+          "sourceKey": "source-key-uakng7",
+          "sha256": "9203c3da565a50989c8ca78a6eb049d3cd30dcae5893716cdd88dd04f11ecc6a"
+        },
+        {
+          "id": "5843",
+          "sourceKey": "source-key-13x55lz",
+          "sha256": "a0427b6e4a4c615c3ea9fdd5d853c42fb737dc3c21fcc1425f94c6e96c6c1d4f"
+        },
+        {
+          "id": "5825",
+          "sourceKey": "source-key-1p705wc",
+          "sha256": "cdd13680021aa272cddfa174cc6b7ca8ce66357a9e47009b69336fab03575fc0"
+        },
+        {
+          "id": "5823",
+          "sourceKey": "source-key-supc5y",
+          "sha256": "942dab540d3868b7fdf920ae135c240a105a4ce336527d9510a0c7f5ff719432"
+        },
+        {
+          "id": "5816",
+          "sourceKey": "source-key-wv1avc",
+          "sha256": "fbe9dfe28de77b246dfc99e8032e500501f3c405f7f16287f7b0676b38b25824"
+        },
+        {
+          "id": "5815",
+          "sourceKey": "source-key-ryup94",
+          "sha256": "2b6ca32693fd6a88d44cba07823fffdebcd369fac9287586bbf5272d90a02468"
+        },
+        {
+          "id": "5814",
+          "sourceKey": "source-key-74qjqz",
+          "sha256": "564eb1adc925c743870131e749bff1204da7150b3d7e552d979df5ab7cfbf96b"
+        },
+        {
+          "id": "5813",
+          "sourceKey": "source-key-15nmg7j",
+          "sha256": "85fe7375257d819dd8affa5b209d3f6d0b6e30681693fb61a27a4a71adf5f0d5"
+        },
+        {
+          "id": "5802",
+          "sourceKey": "source-key-quv9t3",
+          "sha256": "ebe852a3b1c69a8d27ede5c2530e21cbae212a3f9e99b2013d17550496bdcfe5"
+        }
+      ]
+    ]
+  },
+  "metrics": {
+    "target": 120,
+    "candidateCount": 2700,
+    "validTextJson": 120,
+    "importable": 120,
+    "importRatePercent": 100,
+    "status": {
+      "ready": 120
+    },
+    "staticEligible": 120,
+    "runtimeEligible": 33,
+    "runtimeExcluded": 87,
+    "runtimeExclusions": {
+      "TIMEOUT": 13,
+      "HTTP_BLOCKED": 34,
+      "NETWORK_ERROR": 25,
+      "HTTP_SERVER_ERROR": 3,
+      "HTTP_NOT_FOUND": 11,
+      "CAPTCHA_REQUIRED": 1
+    },
+    "flowErrors": {
+      "TIMEOUT": 13,
+      "PASSED": 9,
+      "HTTP_BLOCKED": 34,
+      "NETWORK_ERROR": 25,
+      "PARSE_EMPTY": 19,
+      "TOC_EMPTY": 1,
+      "HTTP_SERVER_ERROR": 3,
+      "HTTP_NOT_FOUND": 11,
+      "CAPTCHA_REQUIRED": 1,
+      "CONTENT_EMPTY": 1,
+      "SEARCH_RESULT_INCOMPLETE": 1,
+      "SEARCH_EMPTY": 1,
+      "REQUEST_TEMPLATE_UNSUPPORTED": 1
+    },
+    "flowTested": 120,
+    "flowPassed": 9,
+    "flowRatePercent": 27.27,
+    "metadataFailures": 1,
+    "contentQuality": {
+      "passedSamples": 27,
+      "noiseFailures": 0,
+      "shortFailures": 0
+    },
+    "gate": {
+      "minimumDenominator": 20,
+      "minimumRatePercent": 80,
+      "denominatorPassed": true,
+      "ratePassed": false
+    }
+  },
+  "samples": [
+    {
+      "id": "7624",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "d8c23d171ca74271d1b1270e716b79f43be166263868f0bc1c4e7cbc9055b11d",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1427,
+      "status": "ready",
+      "sourceKey": "source-key-17gjht1",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 12014,
+        "errorCode": "TIMEOUT",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "7549",
+      "layer": "middle",
+      "page": 2,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "da1622caaff46c87a26b04a7af4eaad6bf4ddafcb31e7c5655ab09936ad60780",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 2042,
+      "status": "ready",
+      "sourceKey": "source-key-vketg9",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "passed",
+        "keyword": "斗破苍穹",
+        "elapsedMs": 9401,
+        "errorCode": "",
+        "metadata": {
+          "titlePresent": true,
+          "authorPresent": true
+        },
+        "contentQuality": [
+          {
+            "index": 0,
+            "cleanedChars": 3133,
+            "status": "passed",
+            "removedRatio": 0
+          },
+          {
+            "index": 93,
+            "cleanedChars": 2590,
+            "status": "passed",
+            "removedRatio": 0
+          },
+          {
+            "index": 186,
+            "cleanedChars": 3043,
+            "status": "passed",
+            "removedRatio": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "7619",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "a5340abb6a1a4ac207e2d06dd6dbfdbac2b066bba239b758156a04d5030a4a21",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 314,
+      "status": "ready",
+      "sourceKey": "source-key-1rbh9g5",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 2939,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "7543",
+      "layer": "middle",
+      "page": 2,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "07bee8df8834c6063a222ef6f794fd8cfaa43df6cb1315ad6592b69b6f1bcae9",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1424,
+      "status": "ready",
+      "sourceKey": "source-key-skfkrc",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 5042,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "7596",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "6856da567c44c7dd0009c6535ec852bd435e6739b7c633ee4d0ff887be8a3827",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1108,
+      "status": "ready",
+      "sourceKey": "source-key-13zaxtq",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "passed",
+        "keyword": "斗破苍穹",
+        "elapsedMs": 19279,
+        "errorCode": "",
+        "metadata": {
+          "titlePresent": true,
+          "authorPresent": true
+        },
+        "contentQuality": [
+          {
+            "index": 0,
+            "cleanedChars": 1056,
+            "status": "passed",
+            "removedRatio": 0
+          },
+          {
+            "index": 957,
+            "cleanedChars": 3060,
+            "status": "passed",
+            "removedRatio": 0
+          },
+          {
+            "index": 1913,
+            "cleanedChars": 3043,
+            "status": "passed",
+            "removedRatio": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "7515",
+      "layer": "middle",
+      "page": 2,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "b985bcf5c2b8ddb04c9131d3827504ecf02d7379d3985f4342cf83fafe87b3c5",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 2878,
+      "status": "ready",
+      "sourceKey": "source-key-1exgmbn",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 5106,
+        "errorCode": "PARSE_EMPTY",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": false,
+        "diagnostics": {
+          "responseLength": 2192,
+          "responseFingerprint": "781ea203",
+          "payloadType": "text",
+          "topLevelKeys": [],
+          "classNames": [
+            "center_div",
+            "loading_block",
+            "loading_logo",
+            "loading_bar",
+            "rred",
+            "loading_onclick",
+            "hiddenDiv"
+          ],
+          "ruleKind": "css",
+          "listCount": 0,
+          "resultCount": 0,
+          "markers": {
+            "captcha": false,
+            "login": false,
+            "blocked": false,
+            "parked": false,
+            "noResult": false
+          },
+          "missingTitleCount": 0,
+          "missingBookUrlCount": 0,
+          "completeResultCount": 0,
+          "incompleteResultCount": 0,
+          "metadataFailureCount": 0
+        }
+      }
+    },
+    {
+      "id": "7583",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "4f8aed8a17158f4a4108844d9d18de9af37ceb61e5219a1778f981d8043f4b60",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1678,
+      "status": "ready",
+      "sourceKey": "source-key-1g8x1x2",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": false,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 12015,
+        "errorCode": "TIMEOUT",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "7497",
+      "layer": "middle",
+      "page": 2,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "6391891efaea8cd8bcb67115ee3eaee4104a90321cec5ca85216e6ccc197f157",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 2304,
+      "status": "ready",
+      "sourceKey": "source-key-1uh7uni",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 4160,
+        "errorCode": "PARSE_EMPTY",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": false,
+        "diagnostics": {
+          "responseLength": 6860,
+          "responseFingerprint": "d3b417dd",
+          "payloadType": "object",
+          "topLevelKeys": [
+            "code",
+            "data"
+          ],
+          "classNames": [],
+          "ruleKind": "jsonpath",
+          "listCount": 20,
+          "resultCount": 0,
+          "markers": {
+            "captcha": false,
+            "login": false,
+            "blocked": false,
+            "parked": false,
+            "noResult": false
+          },
+          "missingTitleCount": 0,
+          "missingBookUrlCount": 20,
+          "completeResultCount": 0,
+          "incompleteResultCount": 0,
+          "metadataFailureCount": 0
+        }
+      }
+    },
+    {
+      "id": "7562",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "5f41e330376bd319a26c99012a37013c49d3f8cfc55a3c2963fabf11897d4240",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 2315,
+      "status": "ready",
+      "sourceKey": "source-key-1stdeek",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 12001,
+        "errorCode": "TIMEOUT",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "7415",
+      "layer": "middle",
+      "page": 2,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "c0eed0b8614eac3a1b8f565a9e5ebb18f675143eff750d32e985725162b37f97",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1538,
+      "status": "ready",
+      "sourceKey": "source-key-1dvqj6u",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 4179,
+        "errorCode": "PARSE_EMPTY",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": false,
+        "diagnostics": {
+          "responseLength": 6661,
+          "responseFingerprint": "d3fb661b",
+          "payloadType": "text",
+          "topLevelKeys": [],
+          "classNames": [
+            "nav",
+            "STYLE1",
+            "txt-share-link",
+            "hot-tag",
+            "container",
+            "leftshad",
+            "rightshad",
+            "globalMain",
+            "crumb",
+            "crumbleft",
+            "crumbot",
+            "crumbotm",
+            "searchResult",
+            "mainNextPage"
+          ],
+          "ruleKind": "css",
+          "listCount": 0,
+          "resultCount": 0,
+          "markers": {
+            "captcha": false,
+            "login": false,
+            "blocked": false,
+            "parked": false,
+            "noResult": false
+          },
+          "missingTitleCount": 0,
+          "missingBookUrlCount": 0,
+          "completeResultCount": 0,
+          "incompleteResultCount": 0,
+          "metadataFailureCount": 0
+        }
+      }
+    },
+    {
+      "id": "7406",
+      "layer": "middle",
+      "page": 2,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "abcac613997c143f333a1241390c83cf24e8cd20703ad19b3463241f4c01a727",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1263,
+      "status": "ready",
+      "sourceKey": "source-key-144flv7",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 13941,
+        "errorCode": "TOC_EMPTY",
+        "failedStage": "toc",
+        "httpStatus": 0,
+        "retryable": false
+      }
+    },
+    {
+      "id": "7400",
+      "layer": "middle",
+      "page": 2,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "90d0e8fc0874ceba825d648f761ddb92710efc2a3c03e3cd8968e90fd618a841",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1806,
+      "status": "ready",
+      "sourceKey": "source-key-1rhcawn",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 12007,
+        "errorCode": "TIMEOUT",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "7390",
+      "layer": "middle",
+      "page": 2,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "1254af3ff34bd07c26de5c6cb4fd6ce27885e44c043838514879697e87133e3d",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1222,
+      "status": "ready",
+      "sourceKey": "source-key-38135o",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 1846,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "7388",
+      "layer": "middle",
+      "page": 2,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "60eb8ce3911e8d378f86d86926dba4eb200fbe3d14cb41f28c51e06d27015fc4",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1378,
+      "status": "ready",
+      "sourceKey": "source-key-1p332ag",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 832,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "7382",
+      "layer": "middle",
+      "page": 2,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "d9e46db1de81c9614e2993c09ffe740893368fc53c8f0348fa69ae3873bbd524",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1190,
+      "status": "ready",
+      "sourceKey": "source-key-1aa60lp",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 730,
+        "errorCode": "HTTP_SERVER_ERROR",
+        "failedStage": "search",
+        "httpStatus": 521,
+        "retryable": true
+      }
+    },
+    {
+      "id": "7259",
+      "layer": "middle",
+      "page": 2,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "2ed26bb6fdfa63d071c2b2efbd3a2cc483da44d16865b0f7c09c2389d4729f2f",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1720,
+      "status": "ready",
+      "sourceKey": "source-key-f7ajjt",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 10300,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "6979",
+      "layer": "middle",
+      "page": 2,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "4e226435e7803aba2e17eb7f446daafd1cc23c8602db70b1c802a2bed5f8b1c8",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1106,
+      "status": "ready",
+      "sourceKey": "source-key-1pwjcau",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 412,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "7319",
+      "layer": "middle",
+      "page": 2,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "f62472388e083aa5a19a4281805be6c7b6855be7d4c2e51ce7f31f8d2fad93a3",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1174,
+      "status": "ready",
+      "sourceKey": "source-key-1dwr59",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 3770,
+        "errorCode": "HTTP_NOT_FOUND",
+        "failedStage": "toc",
+        "httpStatus": 404,
+        "retryable": false
+      }
+    },
+    {
+      "id": "7298",
+      "layer": "middle",
+      "page": 2,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "7a1ca5b7861378f5e763610d041c23cefdf2501b357b2d58ecd353dac741c34b",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 970,
+      "status": "ready",
+      "sourceKey": "source-key-1t5iw7j",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "passed",
+        "keyword": "斗破苍穹",
+        "elapsedMs": 7719,
+        "errorCode": "",
+        "metadata": {
+          "titlePresent": true,
+          "authorPresent": true
+        },
+        "contentQuality": [
+          {
+            "index": 0,
+            "cleanedChars": 587,
+            "status": "passed",
+            "removedRatio": 0
+          },
+          {
+            "index": 499,
+            "cleanedChars": 926,
+            "status": "passed",
+            "removedRatio": 0
+          },
+          {
+            "index": 998,
+            "cleanedChars": 703,
+            "status": "passed",
+            "removedRatio": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "7285",
+      "layer": "middle",
+      "page": 2,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "ad6daaa3d0e58c77ff2fa45ee1ad856421b9a994e43041a0dc43a4b06a683e90",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1007,
+      "status": "ready",
+      "sourceKey": "source-key-ik8svv",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 514,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "7279",
+      "layer": "middle",
+      "page": 2,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "8b570738e2fd1c7a14c3bffd4b77cb520459421b93dce7afb9890f9aeea2dd0d",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 927,
+      "status": "ready",
+      "sourceKey": "source-key-1p332ag",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 705,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "6931",
+      "layer": "middle",
+      "page": 4,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "25bc88871fa6e50eaa57ba5f9e22636c582917f3195ce0659affa37fa69ea420",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1185,
+      "status": "ready",
+      "sourceKey": "source-key-8mgabm",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 3253,
+        "errorCode": "PARSE_EMPTY",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": false,
+        "diagnostics": {
+          "responseLength": 23073,
+          "responseFingerprint": "7d87e2dd",
+          "payloadType": "text",
+          "topLevelKeys": [],
+          "classNames": [
+            "s1",
+            "s2",
+            "s3",
+            "s4",
+            "s5",
+            "txt-list",
+            "txt-list-row5",
+            "topbar",
+            "topbar-con",
+            "topbar-sethome",
+            "topbar-addfavorite",
+            "topbar-right",
+            "header",
+            "logo",
+            "search-form",
+            "input-text",
+            "input-key",
+            "btn-tosearch",
+            "m-user",
+            "nav"
+          ],
+          "ruleKind": "css",
+          "listCount": 0,
+          "resultCount": 0,
+          "markers": {
+            "captcha": false,
+            "login": false,
+            "blocked": false,
+            "parked": false,
+            "noResult": false
+          },
+          "missingTitleCount": 0,
+          "missingBookUrlCount": 0,
+          "completeResultCount": 0,
+          "incompleteResultCount": 0,
+          "metadataFailureCount": 0
+        }
+      }
+    },
+    {
+      "id": "6928",
+      "layer": "middle",
+      "page": 4,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "d7cd846fba70e08c644fe5487681bb8631cfb34ebd46251874fd89cafa670523",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 872,
+      "status": "ready",
+      "sourceKey": "source-key-14g5xf1",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "passed",
+        "keyword": "斗破苍穹",
+        "elapsedMs": 9281,
+        "errorCode": "",
+        "metadata": {
+          "titlePresent": true,
+          "authorPresent": true
+        },
+        "contentQuality": [
+          {
+            "index": 0,
+            "cleanedChars": 587,
+            "status": "passed",
+            "removedRatio": 0
+          },
+          {
+            "index": 831,
+            "cleanedChars": 860,
+            "status": "passed",
+            "removedRatio": 0
+          },
+          {
+            "index": 1662,
+            "cleanedChars": 1355,
+            "status": "passed",
+            "removedRatio": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "6917",
+      "layer": "middle",
+      "page": 4,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "a6983008d8be5d245e4afeced0d18bb4678ba216bbd53cc975e5d02b9a9b2d3b",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1491,
+      "status": "ready",
+      "sourceKey": "source-key-18r3pww",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 400,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "6906",
+      "layer": "middle",
+      "page": 4,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "0a4ea9fefbf85496c44195128e118541b65d703326fb8b4c9bd300036b698690",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1498,
+      "status": "ready",
+      "sourceKey": "source-key-v1eoqs",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 560,
+        "errorCode": "HTTP_NOT_FOUND",
+        "failedStage": "search",
+        "httpStatus": 404,
+        "retryable": false
+      }
+    },
+    {
+      "id": "6897",
+      "layer": "middle",
+      "page": 4,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "ff57ecce2cca34e5e7c31055ebc87f6241d42e58c359ee90802b8f7cb47ed5a4",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1488,
+      "status": "ready",
+      "sourceKey": "source-key-m4ezwf",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 1445,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "6896",
+      "layer": "middle",
+      "page": 4,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "f7e8edb2ab9ca47f548e94451bb44e154a4dadc50c818db802149153d71246d2",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1643,
+      "status": "ready",
+      "sourceKey": "source-key-nra5an",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 536,
+        "errorCode": "CAPTCHA_REQUIRED",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": false,
+        "diagnostics": {
+          "responseLength": 2800,
+          "responseFingerprint": "ddb4a306",
+          "payloadType": "text",
+          "topLevelKeys": [],
+          "classNames": [
+            "form-container"
+          ],
+          "ruleKind": "css",
+          "listCount": 0,
+          "resultCount": 0,
+          "markers": {
+            "captcha": true,
+            "login": false,
+            "blocked": false,
+            "parked": false,
+            "noResult": false
+          },
+          "missingTitleCount": 0,
+          "missingBookUrlCount": 0,
+          "completeResultCount": 0,
+          "incompleteResultCount": 0,
+          "metadataFailureCount": 0
+        }
+      }
+    },
+    {
+      "id": "6890",
+      "layer": "middle",
+      "page": 4,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "e26b8db86fb1e17464583bbb1988a9e71e78e8c87922f4a300b20bbb5a891ed5",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 894,
+      "status": "ready",
+      "sourceKey": "source-key-n55img",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 629,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "6875",
+      "layer": "middle",
+      "page": 4,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "41e8d2447f964087c955e9684f2cd36fa88f7008b34ee3f632dfe1d5ad2be14d",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 836,
+      "status": "ready",
+      "sourceKey": "source-key-1sxkg28",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 1790,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "bookInfo",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "6834",
+      "layer": "middle",
+      "page": 4,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "6338eba2fc37653739b987fadf04e3eeddffbaedeb2caafd2c0ef59950779c87",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1084,
+      "status": "ready",
+      "sourceKey": "source-key-f7ajjt",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 10263,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "6813",
+      "layer": "middle",
+      "page": 4,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "51643b495fffe55a40465a8d050ed1edbff863cea24747912d434d0ea1e1b901",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1010,
+      "status": "ready",
+      "sourceKey": "source-key-4touj4",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 2607,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "6808",
+      "layer": "middle",
+      "page": 4,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "237d90206d6acebc09440dbb2c6b522b437ea430785606e845276783f26a0bd6",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 947,
+      "status": "ready",
+      "sourceKey": "source-key-3ccjib",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 3267,
+        "errorCode": "PARSE_EMPTY",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": false,
+        "diagnostics": {
+          "responseLength": 2186,
+          "responseFingerprint": "7c781d1d",
+          "payloadType": "text",
+          "topLevelKeys": [],
+          "classNames": [
+            "header",
+            "logo",
+            "glogo",
+            "ghf",
+            "gjilu",
+            "menu",
+            "container",
+            "item",
+            "itemtxt",
+            "page",
+            "footer"
+          ],
+          "ruleKind": "css",
+          "listCount": 1,
+          "resultCount": 0,
+          "markers": {
+            "captcha": false,
+            "login": false,
+            "blocked": false,
+            "parked": false,
+            "noResult": false
+          },
+          "missingTitleCount": 0,
+          "missingBookUrlCount": 1,
+          "completeResultCount": 0,
+          "incompleteResultCount": 0,
+          "metadataFailureCount": 0
+        }
+      }
+    },
+    {
+      "id": "6792",
+      "layer": "middle",
+      "page": 4,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "9edd19c58b8673cdfb623a51f635fd10bb117e3113352c12eee56a300a8cd6d8",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 939,
+      "status": "ready",
+      "sourceKey": "source-key-19nxc2j",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 512,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "6785",
+      "layer": "middle",
+      "page": 4,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "c20bf227ef36d5c4c569b37d08eb6b23738e86a00024daa55bbfac79f2c41a06",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1130,
+      "status": "ready",
+      "sourceKey": "source-key-nyws8e",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 12003,
+        "errorCode": "TIMEOUT",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "6775",
+      "layer": "middle",
+      "page": 4,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "bf14b1edad7c78c67aaac7a73d5f36af6823907cad0697fc0d585ecd6daafcff",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 994,
+      "status": "ready",
+      "sourceKey": "source-key-1n9qacb",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "passed",
+        "keyword": "剑来",
+        "elapsedMs": 12246,
+        "errorCode": "",
+        "metadata": {
+          "titlePresent": true,
+          "authorPresent": true
+        },
+        "contentQuality": [
+          {
+            "index": 0,
+            "cleanedChars": 2989,
+            "status": "passed",
+            "removedRatio": 0
+          },
+          {
+            "index": 651,
+            "cleanedChars": 7672,
+            "status": "passed",
+            "removedRatio": 0
+          },
+          {
+            "index": 1301,
+            "cleanedChars": 1820,
+            "status": "passed",
+            "removedRatio": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "6774",
+      "layer": "middle",
+      "page": 4,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "38e505392fe1d45e73a148705643af5d126348c8e85ddeb07b572ef8d6c5315e",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 993,
+      "status": "ready",
+      "sourceKey": "source-key-mdf2bo",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 1821,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "6772",
+      "layer": "middle",
+      "page": 4,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "2c0a520f31caba4960c90e4a039c722a4c32ef7af5b0d286fe0ccc61b7791838",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 748,
+      "status": "ready",
+      "sourceKey": "source-key-12ujt7k",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 3217,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "6771",
+      "layer": "middle",
+      "page": 4,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "c634ec839047fff77ab43e65a36bc1a0b04c16ce20a510634d28a9d39faaa5aa",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 748,
+      "status": "ready",
+      "sourceKey": "source-key-1vayfo5",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 926,
+        "errorCode": "HTTP_NOT_FOUND",
+        "failedStage": "search",
+        "httpStatus": 404,
+        "retryable": false
+      }
+    },
+    {
+      "id": "6763",
+      "layer": "middle",
+      "page": 4,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "4f15fcea24a30b4cb9d0bae2561a5f6bd81f7726454eef524f142ee21563d830",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 923,
+      "status": "ready",
+      "sourceKey": "source-key-lbluhk",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 5642,
+        "errorCode": "PARSE_EMPTY",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": false,
+        "diagnostics": {
+          "responseLength": 709,
+          "responseFingerprint": "8a76d57c",
+          "payloadType": "text",
+          "topLevelKeys": [],
+          "classNames": [],
+          "ruleKind": "xpath",
+          "listCount": 0,
+          "resultCount": 0,
+          "markers": {
+            "captcha": false,
+            "login": false,
+            "blocked": false,
+            "parked": false,
+            "noResult": false
+          },
+          "missingTitleCount": 0,
+          "missingBookUrlCount": 0,
+          "completeResultCount": 0,
+          "incompleteResultCount": 0,
+          "metadataFailureCount": 0
+        }
+      }
+    },
+    {
+      "id": "6754",
+      "layer": "middle",
+      "page": 4,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "c603adc92a936d578532ce83e64ca34b7c9ce89d656474847f021c2d1b610007",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1229,
+      "status": "ready",
+      "sourceKey": "source-key-1gkrq91",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 40603,
+        "errorCode": "TIMEOUT",
+        "failedStage": "content",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "6752",
+      "layer": "middle",
+      "page": 4,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "b0380eab73e1fde0e99c4afe3c071a4598a97df204c4a5d813f434367bff9c39",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 653,
+      "status": "ready",
+      "sourceKey": "source-key-12wi4iw",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 6014,
+        "errorCode": "PARSE_EMPTY",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": false,
+        "diagnostics": {
+          "responseLength": 10745,
+          "responseFingerprint": "37994dc3",
+          "payloadType": "text",
+          "topLevelKeys": [],
+          "classNames": [
+            "wap_box",
+            "header",
+            "back",
+            "home",
+            "toptitle",
+            "searchtips",
+            "wap_searchyfw",
+            "textone",
+            "text2",
+            "texttwo",
+            "footeryfw",
+            "p1",
+            "p2"
+          ],
+          "ruleKind": "css",
+          "listCount": 0,
+          "resultCount": 0,
+          "markers": {
+            "captcha": false,
+            "login": false,
+            "blocked": false,
+            "parked": false,
+            "noResult": false
+          },
+          "missingTitleCount": 0,
+          "missingBookUrlCount": 0,
+          "completeResultCount": 0,
+          "incompleteResultCount": 0,
+          "metadataFailureCount": 0
+        }
+      }
+    },
+    {
+      "id": "6750",
+      "layer": "middle",
+      "page": 4,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "3cd6ed04e0c6dc7f64f9d99ce584c0d43b18f63f939b33378fb4c86c5ac99761",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 662,
+      "status": "ready",
+      "sourceKey": "source-key-rw259f",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 3362,
+        "errorCode": "HTTP_NOT_FOUND",
+        "failedStage": "search",
+        "httpStatus": 404,
+        "retryable": false
+      }
+    },
+    {
+      "id": "6689",
+      "layer": "middle",
+      "page": 4,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "f12792ca2ae353360d89a9b4eb9df6290e8e5f2c9cc5e83307b3892863327efd",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 686,
+      "status": "ready",
+      "sourceKey": "source-key-1dzy6pc",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 2544,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "6736",
+      "layer": "middle",
+      "page": 4,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "20a6b31df025b3ccff9ef7e61beebc9ee5968349430092daf652ac673e2e99ec",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 591,
+      "status": "ready",
+      "sourceKey": "source-key-zmwsos",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 3218,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "6715",
+      "layer": "middle",
+      "page": 4,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "a07485c8f5ad36cfedc055885c91d8288d72f797848d6e40b298826245ce386f",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 505,
+      "status": "ready",
+      "sourceKey": "source-key-16bygdy",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 1696,
+        "errorCode": "HTTP_NOT_FOUND",
+        "failedStage": "search",
+        "httpStatus": 404,
+        "retryable": false
+      }
+    },
+    {
+      "id": "6714",
+      "layer": "middle",
+      "page": 4,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "6904e9dc214b2170a378db46044109e25eb7b417899b6ee2f5747c11b8fc09ed",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 460,
+      "status": "ready",
+      "sourceKey": "source-key-jfs1dj",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 166,
+        "errorCode": "HTTP_SERVER_ERROR",
+        "failedStage": "search",
+        "httpStatus": 503,
+        "retryable": true
+      }
+    },
+    {
+      "id": "6713",
+      "layer": "middle",
+      "page": 4,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "74fd3efd97cc6109d178bae0af03e438e35aaf1113be74f73f21107402ce972f",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 236,
+      "status": "ready",
+      "sourceKey": "source-key-8kn43r",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 5142,
+        "errorCode": "PARSE_EMPTY",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": false,
+        "diagnostics": {
+          "responseLength": 9181,
+          "responseFingerprint": "9b1f6559",
+          "payloadType": "text",
+          "topLevelKeys": [],
+          "classNames": [
+            "listpage",
+            "top",
+            "nav",
+            "nav_global",
+            "curr",
+            "list_content",
+            "position",
+            "box"
+          ],
+          "ruleKind": "css",
+          "listCount": 0,
+          "resultCount": 0,
+          "markers": {
+            "captcha": false,
+            "login": false,
+            "blocked": false,
+            "parked": false,
+            "noResult": false
+          },
+          "missingTitleCount": 0,
+          "missingBookUrlCount": 0,
+          "completeResultCount": 0,
+          "incompleteResultCount": 0,
+          "metadataFailureCount": 0
+        }
+      }
+    },
+    {
+      "id": "6705",
+      "layer": "middle",
+      "page": 4,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "981b4bcc968f46f5f892fecb21fa908f8ef27edd83f1567dc1b4e39e5b9b573c",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 826,
+      "status": "ready",
+      "sourceKey": "source-key-fgtd4",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 938,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "6697",
+      "layer": "middle",
+      "page": 4,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "d31ac3dd7270dff738b51306a63fa9aa7f6343eea953f58c9dcf4caf7a37e335",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 801,
+      "status": "ready",
+      "sourceKey": "source-key-1mtx1rr",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 480,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "6687",
+      "layer": "middle",
+      "page": 4,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "971667e8e4ddfad84bfc738843a1ece8127eb61a39ad9b8772187f1af45043b2",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 722,
+      "status": "ready",
+      "sourceKey": "source-key-1by1i7g",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 599,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "6678",
+      "layer": "middle",
+      "page": 4,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "092415036f9411fb93a5fa056deae1fcd5c9b70f7843ce3bbbb33fd77f00299b",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 512,
+      "status": "ready",
+      "sourceKey": "source-key-170eih3",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 2635,
+        "errorCode": "HTTP_NOT_FOUND",
+        "failedStage": "search",
+        "httpStatus": 404,
+        "retryable": false
+      }
+    },
+    {
+      "id": "6656",
+      "layer": "middle",
+      "page": 4,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "53057c7c259bf19339a9d047f7c83e2fa3b3f79d2e84083e32c1f0dbb5e8d62b",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 380,
+      "status": "ready",
+      "sourceKey": "source-key-obswfz",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 1797,
+        "errorCode": "HTTP_NOT_FOUND",
+        "failedStage": "search",
+        "httpStatus": 404,
+        "retryable": false
+      }
+    },
+    {
+      "id": "6645",
+      "layer": "middle",
+      "page": 4,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "ad1c1027beb8299eaa53d00b3380072a50ef75e567178489ebfcd3537fe2138a",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 201,
+      "status": "ready",
+      "sourceKey": "source-key-1h3mhqg",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 3208,
+        "errorCode": "PARSE_EMPTY",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": false,
+        "diagnostics": {
+          "responseLength": 22987,
+          "responseFingerprint": "0773ae58",
+          "payloadType": "text",
+          "topLevelKeys": [],
+          "classNames": [
+            "s1",
+            "s2",
+            "s3",
+            "s4",
+            "s5",
+            "txt-list",
+            "txt-list-row5",
+            "topbar",
+            "topbar-con",
+            "topbar-sethome",
+            "topbar-addfavorite",
+            "topbar-right",
+            "header",
+            "logo",
+            "search-form",
+            "input-text",
+            "input-key",
+            "btn-tosearch",
+            "m-user",
+            "nav"
+          ],
+          "ruleKind": "css",
+          "listCount": 0,
+          "resultCount": 0,
+          "markers": {
+            "captcha": false,
+            "login": false,
+            "blocked": false,
+            "parked": false,
+            "noResult": false
+          },
+          "missingTitleCount": 0,
+          "missingBookUrlCount": 0,
+          "completeResultCount": 0,
+          "incompleteResultCount": 0,
+          "metadataFailureCount": 0
+        }
+      }
+    },
+    {
+      "id": "6619",
+      "layer": "middle",
+      "page": 5,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "766565b54072db673d3f550093102985dcc58c1b95839ecb298697a5d5d91052",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 261,
+      "status": "ready",
+      "sourceKey": "source-key-1mn2lir",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 1965,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "6618",
+      "layer": "middle",
+      "page": 5,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "e06616e246504858a86a37a3e63e5a6e06d0be0dab7d74f52806827576e2af25",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 261,
+      "status": "ready",
+      "sourceKey": "source-key-1oqfbzu",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 3467,
+        "errorCode": "PARSE_EMPTY",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": false,
+        "diagnostics": {
+          "responseLength": 969,
+          "responseFingerprint": "15b641d8",
+          "payloadType": "text",
+          "topLevelKeys": [],
+          "classNames": [
+            "tableborder",
+            "header"
+          ],
+          "ruleKind": "css",
+          "listCount": 0,
+          "resultCount": 0,
+          "markers": {
+            "captcha": false,
+            "login": false,
+            "blocked": false,
+            "parked": false,
+            "noResult": false
+          },
+          "missingTitleCount": 0,
+          "missingBookUrlCount": 0,
+          "completeResultCount": 0,
+          "incompleteResultCount": 0,
+          "metadataFailureCount": 0
+        }
+      }
+    },
+    {
+      "id": "6612",
+      "layer": "middle",
+      "page": 5,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "8032939ed6d3a67521747e2a16f112216095429e9756a5c5d335ca42c2de666a",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 261,
+      "status": "ready",
+      "sourceKey": "source-key-v6jfgj",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": false,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 5010,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "6597",
+      "layer": "middle",
+      "page": 5,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "228eec5a31142a9b1881a0ff363d2930d9332aa4d6d45df15d7a5542b3c641ff",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 235,
+      "status": "ready",
+      "sourceKey": "source-key-166dzos",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 2196,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "6491",
+      "layer": "middle",
+      "page": 5,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "281d4b9e73b19281eb34753b17b259cb384c6bdc5e67168326ac7c5e66c1f60d",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 208,
+      "status": "ready",
+      "sourceKey": "source-key-1kp6uis",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 11508,
+        "errorCode": "TIMEOUT",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "6557",
+      "layer": "middle",
+      "page": 5,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "da7490d51efc2d945b4a5ad6d9b47c31b44a1cca6f5bf2f7c76c1a5461cf664e",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 241,
+      "status": "ready",
+      "sourceKey": "source-key-1rbh9g5",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 567,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "6543",
+      "layer": "middle",
+      "page": 5,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "9afc8a2ee4abe339fb5c443b2931a601dbc558059025ea8efd26ed841b10420a",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 386,
+      "status": "ready",
+      "sourceKey": "source-key-id69jy",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 18286,
+        "errorCode": "CONTENT_EMPTY",
+        "failedStage": "content",
+        "httpStatus": 0,
+        "retryable": false
+      }
+    },
+    {
+      "id": "6540",
+      "layer": "middle",
+      "page": 5,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "b2769453cb54b6023199b75f23a211eea32151bf45ad6dc7c5869d7a16b7aa56",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 386,
+      "status": "ready",
+      "sourceKey": "source-key-1n4dbuy",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 877,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "6535",
+      "layer": "middle",
+      "page": 5,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "3a30f00fdab39aed000db35c20b33926d9de689b133d7492271b6d60f6de22ec",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 191,
+      "status": "ready",
+      "sourceKey": "source-key-dg3lu1",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 11506,
+        "errorCode": "TIMEOUT",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "6534",
+      "layer": "middle",
+      "page": 5,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "bd5927952b29dda94f355c9926f83c752e817277a6f47663467891ad5e5f5af6",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 244,
+      "status": "ready",
+      "sourceKey": "source-key-7d9jr1",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 12008,
+        "errorCode": "TIMEOUT",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "6530",
+      "layer": "middle",
+      "page": 5,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "214c975d95e766c8e3f15c2ec921d4755cb11fb187fcd3cbc1c673cd70db9a69",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 243,
+      "status": "ready",
+      "sourceKey": "source-key-1nd8x71",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 2006,
+        "errorCode": "HTTP_NOT_FOUND",
+        "failedStage": "search",
+        "httpStatus": 404,
+        "retryable": false
+      }
+    },
+    {
+      "id": "6507",
+      "layer": "middle",
+      "page": 5,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "75bf6bac46fb430bb33dae4d94ab635deb3a579d63810f7618a44f6f25fa1d68",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 244,
+      "status": "ready",
+      "sourceKey": "source-key-zhgv96",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 10150,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "6506",
+      "layer": "middle",
+      "page": 5,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "6f7fde0d5304e5db70f11d862505a0ea35e054293dec775b42966cbec4a471a7",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 246,
+      "status": "ready",
+      "sourceKey": "source-key-ld7sa6",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "passed",
+        "keyword": "斗破苍穹",
+        "elapsedMs": 7818,
+        "errorCode": "",
+        "metadata": {
+          "titlePresent": true,
+          "authorPresent": true
+        },
+        "contentQuality": [
+          {
+            "index": 0,
+            "cleanedChars": 2160,
+            "status": "passed",
+            "removedRatio": 0
+          },
+          {
+            "index": 304,
+            "cleanedChars": 2415,
+            "status": "passed",
+            "removedRatio": 0
+          },
+          {
+            "index": 608,
+            "cleanedChars": 2183,
+            "status": "passed",
+            "removedRatio": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "6500",
+      "layer": "middle",
+      "page": 5,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "4922620a835b04459c41c378f1dc97a88e222a276475156c7cc229cc7175832e",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 294,
+      "status": "ready",
+      "sourceKey": "source-key-10eb7ef",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 12002,
+        "errorCode": "TIMEOUT",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "6488",
+      "layer": "middle",
+      "page": 5,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "5e4e2de32e94b3ba116f797d4c462f7c46f43cd5d01d7427c61554531207afca",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 286,
+      "status": "ready",
+      "sourceKey": "source-key-obswfz",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 934,
+        "errorCode": "HTTP_NOT_FOUND",
+        "failedStage": "search",
+        "httpStatus": 404,
+        "retryable": false
+      }
+    },
+    {
+      "id": "6453",
+      "layer": "middle",
+      "page": 5,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "db73423058c074bc554cd796c3f6e19432a264c5b837a86c496e71f90584acaf",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 226,
+      "status": "ready",
+      "sourceKey": "source-key-2yflxy",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 421,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "6438",
+      "layer": "middle",
+      "page": 5,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "e25a028dc2698ebf1fc72388f949a4e2cbabb2c30be1e07288dcdc4036e846cc",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 196,
+      "status": "ready",
+      "sourceKey": "source-key-1egad4d",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 3675,
+        "errorCode": "SEARCH_RESULT_INCOMPLETE",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": false,
+        "diagnostics": {
+          "responseLength": 4432,
+          "responseFingerprint": "d84dc1b6",
+          "payloadType": "text",
+          "topLevelKeys": [],
+          "classNames": [
+            "fa",
+            "fa-lg",
+            "container",
+            "s_gray",
+            "zh_click",
+            "head",
+            "header_right",
+            "fa-home",
+            "fa-pencil-square",
+            "fa-tags",
+            "fa-book",
+            "fa-coffee",
+            "fa-history",
+            "navigation",
+            "side_commend",
+            "title",
+            "fa-search",
+            "flex",
+            "searchresult",
+            "img_span"
+          ],
+          "ruleKind": "css",
+          "listCount": 1,
+          "resultCount": 1,
+          "markers": {
+            "captcha": false,
+            "login": false,
+            "blocked": false,
+            "parked": false,
+            "noResult": false
+          },
+          "missingTitleCount": 1,
+          "missingBookUrlCount": 0,
+          "completeResultCount": 0,
+          "incompleteResultCount": 1,
+          "metadataFailureCount": 1
+        }
+      }
+    },
+    {
+      "id": "6429",
+      "layer": "middle",
+      "page": 5,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "bc1a185bdc8102cf38f4d7c65f1e049d96630322e2dcabd1eb0195e9d82aad51",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 268,
+      "status": "ready",
+      "sourceKey": "source-key-7an2ng",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 423,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "6392",
+      "layer": "middle",
+      "page": 5,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "e5e4144c198b3175608ad16873caf86a1266a91c286ac0eba2ee6847287148f1",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 251,
+      "status": "ready",
+      "sourceKey": "source-key-1atct1",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 12003,
+        "errorCode": "TIMEOUT",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "6336",
+      "layer": "middle",
+      "page": 6,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "963ad5d74c2ceb8d5a2375f9ae18b7a0530d82cb02e1916d57d54296c397ee41",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 243,
+      "status": "ready",
+      "sourceKey": "source-key-130apms",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 742,
+        "errorCode": "HTTP_NOT_FOUND",
+        "failedStage": "search",
+        "httpStatus": 404,
+        "retryable": false
+      }
+    },
+    {
+      "id": "6326",
+      "layer": "middle",
+      "page": 6,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "d481ce8b065f5e11f278497f84c765438b25b72ba6c042dd52bcba7ccf2bf2dd",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 227,
+      "status": "ready",
+      "sourceKey": "source-key-oibk9l",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 2695,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "6322",
+      "layer": "middle",
+      "page": 6,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "591bc789971a16233b55755e03a5d51d83a21fc5b7dafbc34e34ee507746f4a2",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 260,
+      "status": "ready",
+      "sourceKey": "source-key-xups45",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 1321,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "6311",
+      "layer": "middle",
+      "page": 6,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "17273d0fa726b96fe9db8d41dd19d7725ae154837855bd7e5e653f7f5711e9cd",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 203,
+      "status": "ready",
+      "sourceKey": "source-key-wq96kb",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 3064,
+        "errorCode": "PARSE_EMPTY",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": false,
+        "diagnostics": {
+          "responseLength": 10596,
+          "responseFingerprint": "5f71a4b7",
+          "payloadType": "text",
+          "topLevelKeys": [],
+          "classNames": [
+            "flex",
+            "flex-item",
+            "v-list-item",
+            "v-cover",
+            "v-cover-img",
+            "v-info",
+            "flexcol-justify",
+            "v-content",
+            "v-title",
+            "v-intro",
+            "v-other",
+            "flex-v-end",
+            "v-author",
+            "v-words",
+            "v-group",
+            "border-1px",
+            "base-label",
+            "z_loading1",
+            "header_wrap",
+            "header"
+          ],
+          "ruleKind": "css",
+          "listCount": 6,
+          "resultCount": 0,
+          "markers": {
+            "captcha": false,
+            "login": false,
+            "blocked": false,
+            "parked": false,
+            "noResult": false
+          },
+          "missingTitleCount": 1,
+          "missingBookUrlCount": 6,
+          "completeResultCount": 0,
+          "incompleteResultCount": 0,
+          "metadataFailureCount": 0
+        }
+      }
+    },
+    {
+      "id": "6306",
+      "layer": "middle",
+      "page": 6,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "9410e0435aa1b685ad9dca75be09a8d5243af930714abcf56e6600024e89539f",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 224,
+      "status": "ready",
+      "sourceKey": "source-key-1wwbafp",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 3073,
+        "errorCode": "PARSE_EMPTY",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": false,
+        "diagnostics": {
+          "responseLength": 45117,
+          "responseFingerprint": "877a310b",
+          "payloadType": "text",
+          "topLevelKeys": [],
+          "classNames": [
+            "flex",
+            "justify-center",
+            "items-center",
+            "mt-5",
+            "text-xs",
+            "text-gray1",
+            "text-center",
+            "go-top",
+            "opacity-60",
+            "rounded-full",
+            "fixed",
+            "bottom-10",
+            "right-10",
+            "bg-danger",
+            "go-top-icon",
+            "opacity-50",
+            "grid",
+            "grid-cols-12",
+            "col-span-3",
+            "logo"
+          ],
+          "ruleKind": "css",
+          "listCount": 0,
+          "resultCount": 0,
+          "markers": {
+            "captcha": false,
+            "login": false,
+            "blocked": false,
+            "parked": false,
+            "noResult": false
+          },
+          "missingTitleCount": 0,
+          "missingBookUrlCount": 0,
+          "completeResultCount": 0,
+          "incompleteResultCount": 0,
+          "metadataFailureCount": 0
+        }
+      }
+    },
+    {
+      "id": "6305",
+      "layer": "middle",
+      "page": 6,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "1693abb1670397f428d4489510dd130db3d72f9d1b5a00de91d9205dc2ad26c3",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 235,
+      "status": "ready",
+      "sourceKey": "source-key-j4jqlk",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 3680,
+        "errorCode": "PARSE_EMPTY",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": false,
+        "diagnostics": {
+          "responseLength": 28064,
+          "responseFingerprint": "0cc8c0ba",
+          "payloadType": "object",
+          "topLevelKeys": [
+            "code",
+            "msg",
+            "data"
+          ],
+          "classNames": [],
+          "ruleKind": "jsonpath",
+          "listCount": 24,
+          "resultCount": 0,
+          "markers": {
+            "captcha": false,
+            "login": false,
+            "blocked": false,
+            "parked": false,
+            "noResult": false
+          },
+          "missingTitleCount": 24,
+          "missingBookUrlCount": 24,
+          "completeResultCount": 0,
+          "incompleteResultCount": 0,
+          "metadataFailureCount": 0
+        }
+      }
+    },
+    {
+      "id": "6293",
+      "layer": "middle",
+      "page": 6,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "c4b35d295ead85e3e3e5b542ba29e8c8e945840be591413a96047a1936f1b9f0",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 234,
+      "status": "ready",
+      "sourceKey": "source-key-1ecnsd5",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 1323,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "6281",
+      "layer": "middle",
+      "page": 6,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "f46acb26edd00216079e3d90567019dc0fdb25fb85c8f5bfe5cf54d49732679e",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 220,
+      "status": "ready",
+      "sourceKey": "source-key-x3cm1r",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 453,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "6265",
+      "layer": "middle",
+      "page": 6,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "10091358f4d818731fec92f4bf1d2d57f6d8f986c319661e9a175d6bbb694feb",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 267,
+      "status": "ready",
+      "sourceKey": "source-key-1a9ifj9",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 1328,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "6248",
+      "layer": "middle",
+      "page": 6,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "4f737fc0f19c8a0287adfa72e23742b08ac9842e5b499a0a5beb4180342dd389",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 246,
+      "status": "ready",
+      "sourceKey": "source-key-o3k28b",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 5020,
+        "errorCode": "PARSE_EMPTY",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": false,
+        "diagnostics": {
+          "responseLength": 39421,
+          "responseFingerprint": "b85e67f6",
+          "payloadType": "text",
+          "topLevelKeys": [],
+          "classNames": [
+            "result-card",
+            "btn-fav",
+            "book-cover",
+            "book-info",
+            "book-title",
+            "book-meta",
+            "author",
+            "badge",
+            "book-intro",
+            "latest",
+            "badge-ongoing",
+            "sort-link",
+            "badge-done",
+            "nav-text",
+            "notice",
+            "sep",
+            "header",
+            "header-inner",
+            "logo",
+            "search-form"
+          ],
+          "ruleKind": "css",
+          "listCount": 0,
+          "resultCount": 0,
+          "markers": {
+            "captcha": false,
+            "login": false,
+            "blocked": false,
+            "parked": false,
+            "noResult": false
+          },
+          "missingTitleCount": 0,
+          "missingBookUrlCount": 0,
+          "completeResultCount": 0,
+          "incompleteResultCount": 0,
+          "metadataFailureCount": 0
+        }
+      }
+    },
+    {
+      "id": "6247",
+      "layer": "middle",
+      "page": 6,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "4b1a2a823a24fbb2468aa33ff62e62e3c60390e45a83c39e0625e01aa83d9659",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 252,
+      "status": "ready",
+      "sourceKey": "source-key-14ubgs2",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 3210,
+        "errorCode": "PARSE_EMPTY",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": false,
+        "diagnostics": {
+          "responseLength": 22987,
+          "responseFingerprint": "0773ae58",
+          "payloadType": "text",
+          "topLevelKeys": [],
+          "classNames": [
+            "s1",
+            "s2",
+            "s3",
+            "s4",
+            "s5",
+            "txt-list",
+            "txt-list-row5",
+            "topbar",
+            "topbar-con",
+            "topbar-sethome",
+            "topbar-addfavorite",
+            "topbar-right",
+            "header",
+            "logo",
+            "search-form",
+            "input-text",
+            "input-key",
+            "btn-tosearch",
+            "m-user",
+            "nav"
+          ],
+          "ruleKind": "css",
+          "listCount": 0,
+          "resultCount": 0,
+          "markers": {
+            "captcha": false,
+            "login": false,
+            "blocked": false,
+            "parked": false,
+            "noResult": false
+          },
+          "missingTitleCount": 0,
+          "missingBookUrlCount": 0,
+          "completeResultCount": 0,
+          "incompleteResultCount": 0,
+          "metadataFailureCount": 0
+        }
+      }
+    },
+    {
+      "id": "6235",
+      "layer": "middle",
+      "page": 6,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "1b502daf30a03f92188d835f0dcc2a96ce8651045eb1796ebf1f37b319e625d3",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 218,
+      "status": "ready",
+      "sourceKey": "source-key-17jqui5",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 895,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "6240",
+      "layer": "middle",
+      "page": 6,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "9cb47c7f783d536652b54ada12fbd16dd49a24c5f07801ddf32a91f52964404b",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 216,
+      "status": "ready",
+      "sourceKey": "source-key-1gxei5h",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 3054,
+        "errorCode": "SEARCH_EMPTY",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": false,
+        "diagnostics": {
+          "responseLength": 13623,
+          "responseFingerprint": "3fae9ba5",
+          "payloadType": "text",
+          "topLevelKeys": [],
+          "classNames": [
+            "button",
+            "fold",
+            "unfold",
+            "img80",
+            "container",
+            "button-small",
+            "bg-main",
+            "text-center",
+            "layout",
+            "height-big",
+            "text-gray",
+            "row",
+            "nav",
+            "nav-inline",
+            "margin-top",
+            "icon-desc",
+            "bg",
+            "border-bottom",
+            "nav-menu",
+            "text-right"
+          ],
+          "ruleKind": "css",
+          "listCount": 0,
+          "resultCount": 0,
+          "markers": {
+            "captcha": false,
+            "login": false,
+            "blocked": false,
+            "parked": false,
+            "noResult": true
+          },
+          "missingTitleCount": 0,
+          "missingBookUrlCount": 0,
+          "completeResultCount": 0,
+          "incompleteResultCount": 0,
+          "metadataFailureCount": 0
+        }
+      }
+    },
+    {
+      "id": "6238",
+      "layer": "middle",
+      "page": 6,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "d6f80ece85aa09603b362ec7e2c04f8529769aa5f3665b5a154ef72c99a71e85",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 215,
+      "status": "ready",
+      "sourceKey": "source-key-95r12u",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 3272,
+        "errorCode": "PARSE_EMPTY",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": false,
+        "diagnostics": {
+          "responseLength": 2522,
+          "responseFingerprint": "ad8e6df7",
+          "payloadType": "text",
+          "topLevelKeys": [],
+          "classNames": [
+            "header",
+            "header_auto",
+            "logo",
+            "bookcase",
+            "writer",
+            "search",
+            "clearfix",
+            "form-search",
+            "text",
+            "botton",
+            "nav",
+            "main",
+            "main_content",
+            "main_left",
+            "text-error",
+            "list",
+            "foot",
+            "copyright"
+          ],
+          "ruleKind": "css",
+          "listCount": 0,
+          "resultCount": 0,
+          "markers": {
+            "captcha": false,
+            "login": false,
+            "blocked": false,
+            "parked": false,
+            "noResult": false
+          },
+          "missingTitleCount": 0,
+          "missingBookUrlCount": 0,
+          "completeResultCount": 0,
+          "incompleteResultCount": 0,
+          "metadataFailureCount": 0
+        }
+      }
+    },
+    {
+      "id": "6187",
+      "layer": "middle",
+      "page": 6,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "10f77b1e8189d78884a2e6c27f71655fc57f6c27332f29ebd6d92e5fd44a1d8a",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 228,
+      "status": "ready",
+      "sourceKey": "source-key-1olwhim",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 12008,
+        "errorCode": "TIMEOUT",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "5999",
+      "layer": "middle",
+      "page": 8,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "8cb62a5ad38d9b31e03c83da4469dfd038814fef855bf6a06cbbb0d0706e6110",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 269,
+      "status": "ready",
+      "sourceKey": "source-key-19gk5j8",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 399,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "5998",
+      "layer": "middle",
+      "page": 8,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "587c78bf274180b217e95c6ff2ae075adab6d95dc7dc75af99e4a2cffd3152e1",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 267,
+      "status": "ready",
+      "sourceKey": "source-key-17kd4bf",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 10012,
+        "errorCode": "PARSE_EMPTY",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": false,
+        "diagnostics": {
+          "responseLength": 5313,
+          "responseFingerprint": "70e6817d",
+          "payloadType": "text",
+          "topLevelKeys": [],
+          "classNames": [
+            "rec-focus-book",
+            "book-img",
+            "book-info",
+            "operate",
+            "novel_search",
+            "search-form",
+            "input-text",
+            "input-key",
+            "btn-tosearch",
+            "wrap-box",
+            "wrap-title",
+            "novel_so",
+            "header",
+            "bookname",
+            "sort_list",
+            "rec-focus",
+            "footer"
+          ],
+          "ruleKind": "css",
+          "listCount": 0,
+          "resultCount": 0,
+          "markers": {
+            "captcha": false,
+            "login": false,
+            "blocked": false,
+            "parked": false,
+            "noResult": false
+          },
+          "missingTitleCount": 0,
+          "missingBookUrlCount": 0,
+          "canonicalBaseUrl": "https://s.seexs.org/",
+          "completeResultCount": 0,
+          "incompleteResultCount": 0,
+          "metadataFailureCount": 0
+        }
+      }
+    },
+    {
+      "id": "3963",
+      "layer": "middle",
+      "page": 8,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "a585a8ae10d96cac075c3799115102407b40b99a46715ddd12d7a80b5c68c27a",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 262,
+      "status": "ready",
+      "sourceKey": "source-key-pfcqjf",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 643,
+        "errorCode": "HTTP_SERVER_ERROR",
+        "failedStage": "search",
+        "httpStatus": 521,
+        "retryable": true
+      }
+    },
+    {
+      "id": "5992",
+      "layer": "middle",
+      "page": 8,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "d32d3187167af7f0671f98106743205e0b5715354a28f723ce8b873c12b365a4",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 309,
+      "status": "ready",
+      "sourceKey": "source-key-16v4xt2",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 0,
+        "errorCode": "REQUEST_TEMPLATE_UNSUPPORTED",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": false
+      }
+    },
+    {
+      "id": "5985",
+      "layer": "middle",
+      "page": 8,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "632519c9734a1f9fca3f7064e06fe56ab1584a0ea020ff1c3b21950167990f60",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 275,
+      "status": "ready",
+      "sourceKey": "source-key-1pgz42y",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 362,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "5957",
+      "layer": "middle",
+      "page": 8,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "18efdfd0fca283ac849e9f43aae8b6a3680c8994d47e087bdd749805d970dea7",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 260,
+      "status": "ready",
+      "sourceKey": "source-key-s9nb8w",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 1558,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "5950",
+      "layer": "middle",
+      "page": 8,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "6213c8739ef0c56a9045f6249133146ff6ca392c92888363060a13ba50c545d9",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 251,
+      "status": "ready",
+      "sourceKey": "source-key-tcmz7d",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 727,
+        "errorCode": "HTTP_NOT_FOUND",
+        "failedStage": "search",
+        "httpStatus": 404,
+        "retryable": false
+      }
+    },
+    {
+      "id": "5939",
+      "layer": "middle",
+      "page": 8,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "67891e7ff6c895c77ec4b0393f1af6860f90e77137178f17562cab3d1c45115c",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 801,
+      "status": "ready",
+      "sourceKey": "source-key-65qy3v",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 12007,
+        "errorCode": "TIMEOUT",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "5934",
+      "layer": "middle",
+      "page": 8,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "6a03a35337c3a033dbfd4cc2c1df5e14a744d9a99ac3dc6e01e958bf497e2861",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 559,
+      "status": "ready",
+      "sourceKey": "source-key-vlsphc",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 2233,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "5928",
+      "layer": "middle",
+      "page": 8,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "04ec7f9b85840ba782f3c92cbd2fa9d99ca5e309d1e15b53503b08504d82467c",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 223,
+      "status": "ready",
+      "sourceKey": "source-key-7siudu",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 2997,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "5912",
+      "layer": "middle",
+      "page": 8,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "d2530dcb40348396ab4c12ebb6087b4d1b246d15046a753b6dfd429716f2cd63",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 252,
+      "status": "ready",
+      "sourceKey": "source-key-hsc17i",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 707,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "5918",
+      "layer": "middle",
+      "page": 8,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "17af84161e5e09dab92ab7383a7c96fc0d601c8f88a2dd57b47fab7c017d51a3",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 217,
+      "status": "ready",
+      "sourceKey": "source-key-13hlyxu",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 770,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "5915",
+      "layer": "middle",
+      "page": 8,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "347b00a7bb463ff704da0611087c600600911a4a7bd57ff309bf219b4290f46c",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 221,
+      "status": "ready",
+      "sourceKey": "source-key-1jc0qsf",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 4724,
+        "errorCode": "PARSE_EMPTY",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": false,
+        "diagnostics": {
+          "responseLength": 3685,
+          "responseFingerprint": "f97de255",
+          "payloadType": "text",
+          "topLevelKeys": [],
+          "classNames": [
+            "icon",
+            "left",
+            "right",
+            "title",
+            "error",
+            "desc",
+            "button"
+          ],
+          "ruleKind": "css",
+          "listCount": 0,
+          "resultCount": 0,
+          "markers": {
+            "captcha": false,
+            "login": false,
+            "blocked": false,
+            "parked": false,
+            "noResult": false
+          },
+          "missingTitleCount": 0,
+          "missingBookUrlCount": 0,
+          "completeResultCount": 0,
+          "incompleteResultCount": 0,
+          "metadataFailureCount": 0
+        }
+      }
+    },
+    {
+      "id": "5911",
+      "layer": "middle",
+      "page": 8,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "f97a98dc95611e389ee7f38cbd5617785f80168b077edb07c9c549e22f5a0fd0",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 231,
+      "status": "ready",
+      "sourceKey": "source-key-9e2m0d",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 1353,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": false,
+        "diagnostics": {
+          "responseLength": 12569,
+          "responseFingerprint": "6d38c738",
+          "payloadType": "text",
+          "topLevelKeys": [],
+          "classNames": [
+            "grid-item",
+            "cover",
+            "container",
+            "logo-box",
+            "logo",
+            "logo-icon",
+            "search",
+            "form",
+            "input",
+            "submit",
+            "cur",
+            "tips",
+            "grid",
+            "words",
+            "page"
+          ],
+          "ruleKind": "css",
+          "listCount": 0,
+          "resultCount": 0,
+          "markers": {
+            "captcha": false,
+            "login": false,
+            "blocked": true,
+            "parked": false,
+            "noResult": false
+          },
+          "missingTitleCount": 0,
+          "missingBookUrlCount": 0,
+          "completeResultCount": 0,
+          "incompleteResultCount": 0,
+          "metadataFailureCount": 0
+        }
+      }
+    },
+    {
+      "id": "5899",
+      "layer": "middle",
+      "page": 8,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "e9039eaabbe786e68db30788b16ed95b2bff6bbd688087d04874593728f650ba",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 604,
+      "status": "ready",
+      "sourceKey": "source-key-x0c6vz",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 1281,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "5897",
+      "layer": "middle",
+      "page": 8,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "c383e5a7407980ee61be89849e4146fcb4133612646d08d5be75c8b2ebf383d9",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 245,
+      "status": "ready",
+      "sourceKey": "source-key-1h9iiuz",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "passed",
+        "keyword": "斗破苍穹",
+        "elapsedMs": 9861,
+        "errorCode": "",
+        "metadata": {
+          "titlePresent": true,
+          "authorPresent": true
+        },
+        "contentQuality": [
+          {
+            "index": 0,
+            "cleanedChars": 2022,
+            "status": "passed",
+            "removedRatio": 0
+          },
+          {
+            "index": 11,
+            "cleanedChars": 559,
+            "status": "passed",
+            "removedRatio": 0
+          },
+          {
+            "index": 21,
+            "cleanedChars": 54,
+            "status": "passed",
+            "removedRatio": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "5895",
+      "layer": "middle",
+      "page": 8,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "b3f03f92e0a3e276984ac1dcb6a6f82e622f2c2e325cf615af11b86dfea07b3d",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 251,
+      "status": "ready",
+      "sourceKey": "source-key-1x1va8h",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 3537,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "5893",
+      "layer": "middle",
+      "page": 8,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "4b6d28f3781ab6deb07372f206df55fda9e80e02fe638cea7e057398f8fc44b3",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 251,
+      "status": "ready",
+      "sourceKey": "source-key-1b651bn",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "passed",
+        "keyword": "斗破苍穹",
+        "elapsedMs": 10767,
+        "errorCode": "",
+        "metadata": {
+          "titlePresent": true,
+          "authorPresent": true
+        },
+        "contentQuality": [
+          {
+            "index": 0,
+            "cleanedChars": 930,
+            "status": "passed",
+            "removedRatio": 0
+          },
+          {
+            "index": 25,
+            "cleanedChars": 903,
+            "status": "passed",
+            "removedRatio": 0
+          },
+          {
+            "index": 49,
+            "cleanedChars": 988,
+            "status": "passed",
+            "removedRatio": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "5892",
+      "layer": "middle",
+      "page": 8,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "8f845fce14de607535dfea668223a979745bd9142e1333e691cfdaf02d183608",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 247,
+      "status": "ready",
+      "sourceKey": "source-key-1ecnsd5",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 1226,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "5890",
+      "layer": "middle",
+      "page": 8,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "7fb93c68d7829b28eaf458cf27d8f2cd0850c6f20a43892c575d5aac31d57f98",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 320,
+      "status": "ready",
+      "sourceKey": "source-key-1jq67p6",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 2330,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "5889",
+      "layer": "middle",
+      "page": 8,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "f03186cc092cf54109be2d966c656fdad8c2817dbb930e0388a1fc8f3497d55e",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 319,
+      "status": "ready",
+      "sourceKey": "source-key-1s1ud2r",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 966,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "5852",
+      "layer": "middle",
+      "page": 9,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "4b59d43dcfc328544f10c258386822aea4ab4022837f374f3b3693b25677718d",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 974,
+      "status": "ready",
+      "sourceKey": "source-key-121fajr",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 10191,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "5848",
+      "layer": "middle",
+      "page": 9,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "c030083eaa55d57ed8aa6a453d9fc8aeb9d82eaa80e78e8cc18c9d3f0ab073ec",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 990,
+      "status": "ready",
+      "sourceKey": "source-key-ttmwwv",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 1709,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "5846",
+      "layer": "middle",
+      "page": 9,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "b7d4f69d7bc87797c0ac765591b0236f784a1354b38ceee9209fd5034a7e80ef",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 997,
+      "status": "ready",
+      "sourceKey": "source-key-tey2z1",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 2539,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "5845",
+      "layer": "middle",
+      "page": 9,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "9203c3da565a50989c8ca78a6eb049d3cd30dcae5893716cdd88dd04f11ecc6a",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 990,
+      "status": "ready",
+      "sourceKey": "source-key-uakng7",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 4166,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "5843",
+      "layer": "middle",
+      "page": 9,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "a0427b6e4a4c615c3ea9fdd5d853c42fb737dc3c21fcc1425f94c6e96c6c1d4f",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1107,
+      "status": "ready",
+      "sourceKey": "source-key-13x55lz",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 859,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "5825",
+      "layer": "middle",
+      "page": 9,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "cdd13680021aa272cddfa174cc6b7ca8ce66357a9e47009b69336fab03575fc0",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1174,
+      "status": "ready",
+      "sourceKey": "source-key-1p705wc",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 10077,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "5823",
+      "layer": "middle",
+      "page": 9,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "942dab540d3868b7fdf920ae135c240a105a4ce336527d9510a0c7f5ff719432",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1603,
+      "status": "ready",
+      "sourceKey": "source-key-supc5y",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "passed",
+        "keyword": "斗破苍穹",
+        "elapsedMs": 12248,
+        "errorCode": "",
+        "metadata": {
+          "titlePresent": true,
+          "authorPresent": true
+        },
+        "contentQuality": [
+          {
+            "index": 0,
+            "cleanedChars": 3419,
+            "status": "passed",
+            "removedRatio": 0
+          },
+          {
+            "index": 823,
+            "cleanedChars": 3019,
+            "status": "passed",
+            "removedRatio": 0
+          },
+          {
+            "index": 1645,
+            "cleanedChars": 2483,
+            "status": "passed",
+            "removedRatio": 0
+          }
+        ]
+      }
+    },
+    {
+      "id": "5816",
+      "layer": "middle",
+      "page": 9,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "fbe9dfe28de77b246dfc99e8032e500501f3c405f7f16287f7b0676b38b25824",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 4672,
+      "status": "ready",
+      "sourceKey": "source-key-wv1avc",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 1247,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "5815",
+      "layer": "middle",
+      "page": 9,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "2b6ca32693fd6a88d44cba07823fffdebcd369fac9287586bbf5272d90a02468",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 5521,
+      "status": "ready",
+      "sourceKey": "source-key-ryup94",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 581,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "5814",
+      "layer": "middle",
+      "page": 9,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "564eb1adc925c743870131e749bff1204da7150b3d7e552d979df5ab7cfbf96b",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1233,
+      "status": "ready",
+      "sourceKey": "source-key-74qjqz",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 1973,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": false,
+        "diagnostics": {
+          "responseLength": 1438,
+          "responseFingerprint": "0ab38d1b",
+          "payloadType": "text",
+          "topLevelKeys": [],
+          "classNames": [
+            "hide-callback",
+            "timeout",
+            "timeout-img",
+            "timeout-title",
+            "timeout-button",
+            "timeout-feedback",
+            "timeout-feedback-icon",
+            "timeout-feedback-title"
+          ],
+          "ruleKind": "css",
+          "listCount": 0,
+          "resultCount": 0,
+          "markers": {
+            "captcha": false,
+            "login": false,
+            "blocked": true,
+            "parked": false,
+            "noResult": false
+          },
+          "missingTitleCount": 0,
+          "missingBookUrlCount": 0,
+          "completeResultCount": 0,
+          "incompleteResultCount": 0,
+          "metadataFailureCount": 0
+        }
+      }
+    },
+    {
+      "id": "5813",
+      "layer": "middle",
+      "page": 9,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "85fe7375257d819dd8affa5b209d3f6d0b6e30681693fb61a27a4a71adf5f0d5",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1164,
+      "status": "ready",
+      "sourceKey": "source-key-15nmg7j",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 4482,
+        "errorCode": "PARSE_EMPTY",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": false,
+        "diagnostics": {
+          "responseLength": 9348,
+          "responseFingerprint": "b5ead9d6",
+          "payloadType": "text",
+          "topLevelKeys": [],
+          "classNames": [
+            "small",
+            "wrap",
+            "showBox",
+            "tabBox",
+            "orgNum",
+            "showTab",
+            "downButtonb",
+            "mt20",
+            "header",
+            "nav",
+            "bdcs-search-form",
+            "bdcs-search-form-input",
+            "bdcs-search-form-submit",
+            "position",
+            "homelink",
+            "sidebar",
+            "lside",
+            "side-box",
+            "ph",
+            "show"
+          ],
+          "ruleKind": "css",
+          "listCount": 0,
+          "resultCount": 0,
+          "markers": {
+            "captcha": false,
+            "login": false,
+            "blocked": false,
+            "parked": false,
+            "noResult": false
+          },
+          "missingTitleCount": 0,
+          "missingBookUrlCount": 0,
+          "completeResultCount": 0,
+          "incompleteResultCount": 0,
+          "metadataFailureCount": 0
+        }
+      }
+    },
+    {
+      "id": "5802",
+      "layer": "middle",
+      "page": 9,
+      "capturedAt": "2026-08-13T07:47:19.021Z",
+      "sha256": "ebe852a3b1c69a8d27ede5c2530e21cbae212a3f9e99b2013d17550496bdcfe5",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 991,
+      "status": "ready",
+      "sourceKey": "source-key-quv9t3",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 10578,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    }
+  ]
+}

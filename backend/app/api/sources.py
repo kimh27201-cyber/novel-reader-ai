@@ -13,6 +13,8 @@ from app.schemas.sources import (
     SourceContentRequest,
     SourceContentResponse,
     SourceImportRequest,
+    SourceImportItem,
+    SourceImportPreviewResponse,
     SourceImportResponse,
     SourceRead,
     SourceSessionDeleteResponse,
@@ -31,6 +33,7 @@ from app.services.source_parser import (
     load_content,
     load_toc,
     parse_source_json,
+    classify_source,
     search_source,
 )
 from app.services.session_crypto import decrypt_session_value
@@ -47,6 +50,7 @@ from app.services.source_service import (
     source_to_parser_dict,
     update_source as update_source_service,
 )
+from app.models.models import make_source_identity_hash
 
 
 router = APIRouter(prefix="/api/sources", tags=["sources"])
@@ -106,8 +110,65 @@ def import_sources(
     except SourceParseError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
-    imported = save_source_configs(configs, db, current_user)
-    return SourceImportResponse(imported_count=len(imported), sources=imported)
+    existing_hashes = {
+        row.identity_hash
+        for row in db.query(BookSource).filter(BookSource.user_id == current_user.id).all()
+    }
+    selected: list[dict] = []
+    items: list[SourceImportItem] = []
+    updated_count = 0
+    skipped_count = 0
+    unsupported_count = 0
+    for config in configs:
+        classification = config["classification"]
+        identity_hash = make_source_identity_hash(config["name"], config["base_url"])
+        exists = identity_hash in existing_hashes
+        if classification["status"] != "ready":
+            unsupported_count += 1
+        if exists and payload.duplicate_strategy == "skip":
+            skipped_count += 1
+            action = "skipped"
+        else:
+            selected.append(config)
+            action = "updated" if exists else "imported"
+            if exists:
+                updated_count += 1
+            existing_hashes.add(identity_hash)
+        items.append(SourceImportItem(**classification, action=action))
+
+    imported = save_source_configs(selected, db, current_user) if selected else []
+    return SourceImportResponse(
+        imported_count=len(imported),
+        updated_count=updated_count,
+        skipped_count=skipped_count,
+        unsupported_count=unsupported_count,
+        sources=imported,
+        items=items,
+    )
+
+
+@router.post("/import/preview", response_model=SourceImportPreviewResponse)
+def preview_import_sources(
+    payload: SourceImportRequest,
+    current_user: User = Depends(get_current_user),
+) -> SourceImportPreviewResponse:
+    del current_user
+    try:
+        configs = parse_source_json(payload.content)
+    except SourceParseError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    items = [
+        SourceImportItem(**config["classification"], action="imported")
+        for config in configs
+    ]
+    return SourceImportPreviewResponse(
+        total_count=len(items),
+        ready_count=sum(item.status == "ready" for item in items),
+        unsupported_count=sum(item.status not in {"ready", "invalid"} for item in items),
+        invalid_count=sum(item.status == "invalid" for item in items),
+        items=items,
+    )
 
 
 @router.post("/import-demo", response_model=SourceImportResponse, status_code=status.HTTP_201_CREATED)

@@ -1,5 +1,5 @@
-export const TAB_VISUAL_SETTLE_MS = 160
-export const TAB_REDUCED_SETTLE_MS = 16
+export const TAB_VISUAL_SETTLE_MS = 0
+export const TAB_REDUCED_SETTLE_MS = 0
 export const TAB_NAVIGATION_TIMEOUT_MS = 220
 
 export const TAB_PAGE_PATHS = [

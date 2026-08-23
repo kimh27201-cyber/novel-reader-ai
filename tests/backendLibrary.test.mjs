@@ -18,6 +18,7 @@ import {
   toBackendChapterPayload,
   toReadingHistoryPayload
 } from '../common/backendLibrary.js'
+import { cacheBackendBooks, setActiveBackendAccount } from '../common/backendOfflineLibrary.js'
 
 function testBackendIds() {
   assert.equal(toBackendBookId(42), 'backend:42')
@@ -205,6 +206,68 @@ async function testListBackendBooksAcceptsWrappedBackendResponse() {
   assert.deepEqual(calls, [7])
 }
 
+async function testListBackendBooksLoadsEveryChapterPage() {
+  const offsets = []
+  const makeChapter = index => ({
+    id: index + 1,
+    chapter_index: index,
+    title: `Chapter ${index + 1}`,
+    url: `https://example.com/${index + 1}`,
+    content: '',
+    is_cached: false
+  })
+  const books = await listBackendBooks({
+    getToken: () => 'token',
+    listBooks: async () => [{
+      id: 7,
+      title: 'Long Book',
+      author: 'Author',
+      cover_url: '',
+      description: '',
+      book_url: 'https://book',
+      toc_url: '',
+      source_id: 1
+    }],
+    listChapters: async (bookId, params) => {
+      assert.equal(bookId, 7)
+      offsets.push(params.offset)
+      if (params.offset === 0) {
+        return Array.from({ length: 200 }, (_, index) => makeChapter(index))
+      }
+      return [makeChapter(200)]
+    }
+  })
+
+  assert.deepEqual(offsets, [0, 200])
+  assert.equal(books[0].chapters.length, 201)
+  assert.equal(books[0].chapters[200].chapterIndex, 200)
+}
+
+async function testListBackendBooksMarksOfflineFallback() {
+  const client = {
+    getBaseUrl: () => 'http://127.0.0.1:8765',
+    getToken: () => 'token',
+    getMe: async () => {
+      throw new Error('network unavailable')
+    }
+  }
+  const identity = setActiveBackendAccount({ id: 99, username: 'offline-reader' }, client)
+  await cacheBackendBooks([{
+    id: 'backend:99',
+    backendId: 99,
+    syncId: 'book-99',
+    source: 'backend',
+    title: 'Offline Book',
+    author: 'Reader',
+    chapters: []
+  }], { identity })
+
+  const books = await listBackendBooks(client, { cacheMode: 'refresh' })
+  assert.equal(books.length, 1)
+  assert.equal(books.offlineFallback, true)
+  assert.equal(Object.keys(books).includes('offlineFallback'), false)
+}
+
 async function testLoadBackendSourceContentWritesResolvedContentBackToChapter() {
   const calls = []
   const content = await loadBackendSourceContent({
@@ -229,6 +292,52 @@ async function testLoadBackendSourceContentWritesResolvedContentBackToChapter() 
     ['load', 5, 'https://chapter'],
     ['update', 12, '解析后的正文']
   ])
+}
+
+async function testLoadBackendSourceContentRecoversIncompleteChapterFromBackend() {
+  const calls = []
+  const chapter = {
+    chapterIndex: 156,
+    title: '第157章 天降宝物'
+  }
+  const content = await loadBackendSourceContent({
+    id: 'backend:5',
+    backendId: 5,
+    sourceId: 5
+  }, chapter, {
+    getToken: () => 'token',
+    listChapters: async bookId => {
+      calls.push(['list', bookId])
+      return [{
+        id: 162,
+        chapter_index: 156,
+        title: '第157章 天降宝物',
+        url: 'https://example.com/chapter-157',
+        content: '后端已有的章节正文',
+        is_cached: true
+      }]
+    },
+    loadSourceContent: async () => {
+      throw new Error('已有缓存时不应再次访问书源')
+    }
+  })
+
+  assert.equal(content, '后端已有的章节正文')
+  assert.equal(chapter.backendId, 162)
+  assert.equal(chapter.url, 'https://example.com/chapter-157')
+  assert.deepEqual(calls, [['list', 5]])
+}
+
+async function testLoadBackendSourceContentRejectsWhenChapterCannotBeRecovered() {
+  await assert.rejects(() => loadBackendSourceContent({
+    id: 'backend:5',
+    sourceId: 5
+  }, {
+    chapterIndex: 156
+  }, {
+    getToken: () => 'token',
+    listChapters: async () => []
+  }), /章节地址缺失/)
 }
 
 async function testAddBackendBookWithChaptersPreflightsFirstChapterBeforeCreatingBook() {
@@ -339,7 +448,11 @@ testMappingBackendBookAndChapter()
 testPayloads()
 testSourceMappingAndAuthGuard()
 await testListBackendBooksAcceptsWrappedBackendResponse()
+await testListBackendBooksLoadsEveryChapterPage()
+await testListBackendBooksMarksOfflineFallback()
 await testLoadBackendSourceContentWritesResolvedContentBackToChapter()
+await testLoadBackendSourceContentRecoversIncompleteChapterFromBackend()
+await testLoadBackendSourceContentRejectsWhenChapterCannotBeRecovered()
 await testAddBackendBookWithChaptersPreflightsFirstChapterBeforeCreatingBook()
 await testAddBackendBookWithChaptersOnlyCreatesCachedChapters()
 await testSyncBackendSourceFromLocalImportsRawSourceAndReturnsBackendId()

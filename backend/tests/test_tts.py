@@ -21,7 +21,7 @@ from app.core.config import Settings
 from app.db.session import Base, SessionLocal, engine
 from app.main import app
 from app.models.models import TtsCallLog
-from app.services.tts_service import TtsServiceError, _decode_streamed_audio
+from app.services.tts_service import ProviderAudio, TtsServiceError, _decode_streamed_audio
 
 
 client = TestClient(app)
@@ -56,7 +56,7 @@ def enabled_settings(tmp_path: Path, **overrides) -> Settings:
         "tts_retry_count": 0,
     }
     values.update(overrides)
-    return Settings(**values)
+    return Settings(_env_file=None, **values)
 
 
 def test_tts_endpoints_require_login(tmp_path, monkeypatch):
@@ -80,10 +80,12 @@ def test_list_cloud_voices_uses_stable_logical_ids(tmp_path, monkeypatch):
     assert response.status_code == 200
     body = response.json()
     assert body["provider"] == "volcengine"
-    assert body["available"] is True
+    assert body["available"] is False
     assert [voice["id"] for voice in body["voices"]] == ["loli", "uncle", "youth", "shota", "recital"]
     assert body["voices"][0]["networkRequired"] is True
     assert body["voices"][0]["isDefault"] is True
+    assert body["voices"][0]["verified"] is False
+    assert body["voices"][0]["unavailable_reason"] == "not_verified"
     assert all("speaker_id" not in voice for voice in body["voices"])
 
 
@@ -227,7 +229,7 @@ def test_daily_uncached_quota_rejects_without_calling_provider(tmp_path, monkeyp
     with SessionLocal() as db:
         log = db.query(TtsCallLog).one()
         assert log.status == "failed"
-        assert log.error_code == "quota_exceeded"
+        assert log.error_code == "user_daily_quota_exceeded"
 
 
 def test_provider_timeout_is_sanitized_and_logged(tmp_path, monkeypatch):
@@ -250,6 +252,36 @@ def test_provider_timeout_is_sanitized_and_logged(tmp_path, monkeypatch):
         assert log.status == "failed"
         assert log.error_code == "timeout"
         assert set(log.__table__.columns.keys()).isdisjoint({"text", "content", "error_message"})
+
+
+def test_provider_failure_metadata_is_logged_without_raw_message(tmp_path, monkeypatch):
+    settings = enabled_settings(tmp_path)
+    monkeypatch.setattr("app.api.tts.get_settings", lambda: settings)
+
+    async def fake_upstream(settings, **kwargs):
+        raise TtsServiceError(
+            "TTS voice is not authorized or unavailable",
+            status_code=400,
+            error_code="voice_unavailable",
+            provider_request_id="provider-log-failure",
+            upstream_status=403,
+        )
+
+    monkeypatch.setattr("app.services.tts_service.request_volcengine_audio", fake_upstream)
+    response = client.post(
+        "/api/tts/synthesize",
+        headers=auth_headers(),
+        json={"text": "安全日志", "voice_id": "uncle", "rate": 1},
+    )
+
+    assert response.status_code == 400
+    with SessionLocal() as db:
+        log = db.query(TtsCallLog).one()
+        assert log.provider_request_id == "provider-log-failure"
+        assert log.upstream_status == 403
+        assert log.audio_bytes == 0
+        assert log.error_code == "voice_unavailable"
+        assert "authorized" not in " ".join(str(value) for value in log.__dict__.values())
 
 
 def test_streamed_provider_json_audio_is_combined():
@@ -326,10 +358,201 @@ def test_v3_request_uses_voice_resource_and_speed_ratio(tmp_path, monkeypatch):
         )
     )
 
-    assert result == b"audio"
+    assert result.audio == b"audio"
     assert captured["headers"]["X-Api-Resource-Id"] == "seed-icl-2.0"
     assert captured["json"]["req_params"]["speed_ratio"] == 1.2
     assert "speech_rate" not in captured["json"]["req_params"]["audio_params"]
+
+
+def test_v3_request_captures_provider_log_id(tmp_path, monkeypatch):
+    from app.services.tts_service import get_voice, request_volcengine_audio
+
+    settings = enabled_settings(tmp_path)
+    encoded = base64.b64encode(b"audio").decode()
+
+    class FakeResponse:
+        status_code = 200
+        headers = {"content-type": "application/json", "X-Tt-Logid": "provider-log-123"}
+
+        async def aread(self):
+            return json_line({"code": 0, "data": encoded})
+
+    class FakeStream:
+        async def __aenter__(self):
+            return FakeResponse()
+
+        async def __aexit__(self, exc_type, exc, traceback):
+            return False
+
+    class FakeClient:
+        def stream(self, *args, **kwargs):
+            return FakeStream()
+
+    async def fake_client(_settings):
+        return FakeClient()
+
+    monkeypatch.setattr("app.services.tts_service.get_http_client", fake_client)
+    result = asyncio.run(
+        request_volcengine_audio(
+            settings,
+            text="测试",
+            voice=get_voice(settings, "loli"),
+            rate=1,
+            request_id="local-request",
+        )
+    )
+
+    assert isinstance(result, ProviderAudio)
+    assert result.provider_request_id == "provider-log-123"
+    assert result.upstream_status == 200
+
+
+def test_provider_errors_are_classified_and_sanitized(tmp_path, monkeypatch):
+    from app.services.tts_service import get_voice, request_volcengine_audio
+
+    settings = enabled_settings(tmp_path)
+
+    class FakeResponse:
+        status_code = 403
+        headers = {"content-type": "application/json", "X-Tt-Logid": "safe-log-id"}
+
+        async def aread(self):
+            return json_line({"code": 40101, "message": "invalid access token SECRET"})
+
+    class FakeStream:
+        async def __aenter__(self):
+            return FakeResponse()
+
+        async def __aexit__(self, exc_type, exc, traceback):
+            return False
+
+    class FakeClient:
+        def stream(self, *args, **kwargs):
+            return FakeStream()
+
+    async def fake_client(_settings):
+        return FakeClient()
+
+    monkeypatch.setattr("app.services.tts_service.get_http_client", fake_client)
+    try:
+        asyncio.run(
+            request_volcengine_audio(
+                settings,
+                text="测试",
+                voice=get_voice(settings, "loli"),
+                rate=1,
+                request_id="local-request",
+            )
+        )
+        assert False, "expected provider authentication error"
+    except TtsServiceError as exc:
+        assert exc.error_code == "provider_auth_failed"
+        assert exc.provider_request_id == "safe-log-id"
+        assert exc.upstream_status == 403
+        assert "SECRET" not in str(exc)
+
+
+def test_provider_voice_permission_error_is_not_misclassified_as_authentication():
+    from app.services.tts_service import classify_provider_error
+
+    error = classify_provider_error(
+        http_status=403,
+        provider_code="speaker_permission_denied",
+        provider_message="speaker is not authorized",
+        provider_request_id="voice-log-id",
+    )
+
+    assert error.status_code == 400
+    assert error.error_code == "voice_unavailable"
+    assert error.provider_request_id == "voice-log-id"
+
+
+def test_status_and_voice_verification_are_based_on_real_uncached_success(tmp_path, monkeypatch):
+    settings = enabled_settings(tmp_path)
+    monkeypatch.setattr("app.api.tts.get_settings", lambda: settings)
+
+    async def fake_upstream(settings, **kwargs):
+        return ProviderAudio(b"ID3-audio", "volc-log-1", 200)
+
+    monkeypatch.setattr("app.services.tts_service.request_volcengine_audio", fake_upstream)
+    headers = auth_headers()
+    initial = client.get("/api/tts/status", headers=headers)
+    assert initial.status_code == 200
+    assert initial.json()["verified_voice_count"] == 0
+    assert initial.json()["quota"]["user_daily_remaining"] == 10_000
+
+    synthesis = client.post(
+        "/api/tts/synthesize",
+        headers=headers,
+        json={"text": "真实探测", "voice_id": "loli", "rate": 1},
+    )
+    assert synthesis.status_code == 200
+    assert synthesis.json()["request_id"] == "volc-log-1"
+
+    status_response = client.get("/api/tts/status", headers=headers)
+    voices_response = client.get("/api/tts/voices", headers=headers)
+    assert status_response.json()["verified_voice_count"] == 1
+    assert status_response.json()["last_verified_at"]
+    assert status_response.json()["quota"]["user_daily_used"] == 4
+    loli = next(voice for voice in voices_response.json()["voices"] if voice["id"] == "loli")
+    assert loli["available"] is True
+    assert loli["verified"] is True
+    assert loli["unavailable_reason"] == ""
+
+    with SessionLocal() as db:
+        log = db.query(TtsCallLog).one()
+        assert log.provider_request_id == "volc-log-1"
+        assert log.upstream_status == 200
+        assert log.audio_bytes == len(b"ID3-audio")
+        assert set(log.__table__.columns.keys()).isdisjoint(
+            {"text", "content", "token", "access_token", "error_message"}
+        )
+
+
+def test_global_daily_and_monthly_quotas_are_independent(tmp_path, monkeypatch):
+    async def fake_upstream(settings, **kwargs):
+        return b"audio"
+
+    monkeypatch.setattr("app.services.tts_service.request_volcengine_audio", fake_upstream)
+
+    daily_settings = enabled_settings(
+        tmp_path,
+        tts_daily_uncached_characters=100,
+        tts_global_daily_uncached_characters=4,
+        tts_global_monthly_uncached_characters=100,
+    )
+    monkeypatch.setattr("app.api.tts.get_settings", lambda: daily_settings)
+    headers = auth_headers()
+    assert client.post(
+        "/api/tts/synthesize",
+        headers=headers,
+        json={"text": "1234", "voice_id": "loli", "rate": 1},
+    ).status_code == 200
+    daily_rejected = client.post(
+        "/api/tts/synthesize",
+        headers=headers,
+        json={"text": "5", "voice_id": "uncle", "rate": 1},
+    )
+    assert daily_rejected.status_code == 429
+    assert daily_rejected.json()["detail"] == "Global daily TTS character quota exceeded"
+
+    reset_database(Base, engine)
+    monthly_settings = enabled_settings(
+        tmp_path / "monthly",
+        tts_daily_uncached_characters=100,
+        tts_global_daily_uncached_characters=100,
+        tts_global_monthly_uncached_characters=3,
+    )
+    monkeypatch.setattr("app.api.tts.get_settings", lambda: monthly_settings)
+    monthly_headers = auth_headers(username="monthly", email="monthly@example.com")
+    monthly_rejected = client.post(
+        "/api/tts/synthesize",
+        headers=monthly_headers,
+        json={"text": "1234", "voice_id": "loli", "rate": 1},
+    )
+    assert monthly_rejected.status_code == 429
+    with SessionLocal() as db:
+        assert db.query(TtsCallLog).one().error_code == "global_monthly_quota_exceeded"
 
 
 def test_global_concurrency_gate_times_out_without_blocking_event_loop():

@@ -1,14 +1,71 @@
 <script>
 import { registerNovelReaderDeepLinkListener } from './common/deepLinkImport.js'
 import { applyAppThemeChrome } from './common/appTheme.js'
-import { applyMotionPreference, installNavigationMotion } from './common/motion.js'
+import { applyMotionPreference, installNavigationMotion, isMotionReduced } from './common/motion.js'
+import { installTimeAwareness, refreshTimeAwareness } from './common/timeAwareness.js'
+import { applyPerformanceProfile, refreshPerformanceProfile } from './common/performanceProfile.js'
+import apiClient from './common/apiClient.js'
+import { syncOfflineLibrary } from './common/backendLibrary.js'
+import { pauseSourceWarmup, resetSourceWarmupSession, setSourceWarmupForeground, startSourceWarmup } from './common/sourceWarmup.js'
+import { cancelPendingSourceDiscoveryCache, flushPendingSourceRuntimeWrites, prepareSourceIndexes } from './common/bookSources.js'
+import { finishPerformanceSpan, flushPerformanceMetrics, samplePerformanceMemory, startPerformanceSpan } from './common/performanceMetrics.js'
+
+let launchSpan = null
+let appShowTimers = []
+
+function clearAppShowTimers() {
+  appShowTimers.forEach(timer => clearTimeout(timer))
+  appShowTimers = []
+}
 
 export default {
   onLaunch() {
+    launchSpan = startPerformanceSpan('app.launch')
     applyAppThemeChrome()
-    applyMotionPreference()
+    const motionState = applyMotionPreference()
+    applyPerformanceProfile({ motionReduced: motionState.reduced })
     installNavigationMotion()
+    installTimeAwareness()
+    resetSourceWarmupSession()
     registerNovelReaderDeepLinkListener(globalThis, { storage: uni, navigator: uni })
+    if (typeof uni !== 'undefined' && typeof uni.onNetworkStatusChange === 'function') {
+      uni.onNetworkStatusChange(state => {
+        if (state && state.isConnected && apiClient.getToken()) {
+          syncOfflineLibrary({ reason: 'network-restored' }).catch(() => {})
+        }
+        if (state && state.isConnected && state.networkType === 'wifi') {
+          startSourceWarmup().catch(() => {})
+        } else {
+          pauseSourceWarmup()
+        }
+      })
+    }
+  },
+  onShow() {
+    clearAppShowTimers()
+    setSourceWarmupForeground(true)
+    refreshTimeAwareness()
+    refreshPerformanceProfile({ motionReduced: isMotionReduced() })
+    appShowTimers.push(setTimeout(() => {
+      if (launchSpan) {
+        finishPerformanceSpan(launchSpan, { status: 'first-frame' })
+        launchSpan = null
+      }
+    }, 0))
+    appShowTimers.push(setTimeout(() => prepareSourceIndexes().catch(() => {}), 2500))
+    appShowTimers.push(setTimeout(() => samplePerformanceMemory('app-show'), 800))
+    if (apiClient.getToken()) {
+      appShowTimers.push(setTimeout(() => syncOfflineLibrary({ reason: 'app-show' }).catch(() => {}), 1200))
+    }
+    appShowTimers.push(setTimeout(() => startSourceWarmup().catch(() => {}), 10000))
+  },
+  onHide() {
+    clearAppShowTimers()
+    cancelPendingSourceDiscoveryCache()
+    setSourceWarmupForeground(false)
+    pauseSourceWarmup()
+    flushPendingSourceRuntimeWrites()
+    flushPerformanceMetrics()
   }
 }
 </script>
@@ -85,6 +142,26 @@ uni-tabbar {
   background: var(--app-bg);
   animation: app-page-enter var(--app-motion-duration-normal) var(--app-motion-smooth) both;
   will-change: opacity, transform;
+}
+
+/*
+ * Reusable UI-copy alignment contract.
+ * Apply `ui-text-centered` to a page root, `ui-text-stack` to vertical copy
+ * groups and `ui-text-row` to flex rows. Reader prose and form controls stay
+ * outside this opt-in contract so continuous reading and input are unaffected.
+ */
+.ui-text-centered,
+.ui-text-centered button {
+  text-align: center;
+}
+
+.ui-text-centered .ui-text-stack {
+  text-align: center;
+}
+
+.ui-text-centered .ui-text-row {
+  justify-content: center;
+  text-align: center;
 }
 
 .app-page.secondary {
@@ -253,13 +330,24 @@ html[data-app-motion-kind="tab"] {
 }
 
 html[data-app-motion-kind="tab"] .app-page {
-  animation: app-tab-page-enter 180ms var(--app-motion-standard) both;
+  animation: app-tab-page-enter 100ms var(--app-motion-standard) both;
   will-change: opacity, transform;
 }
 
 .app-page.app-tab-enter {
-  animation: app-tab-page-enter 180ms var(--app-motion-standard) both;
+  animation: app-tab-page-enter 100ms var(--app-motion-standard) both;
   will-change: opacity, transform;
+}
+
+html[data-app-performance="lite"] .app-page.app-tab-enter,
+html[data-app-performance="lite"][data-app-motion-kind="tab"] .app-page {
+  animation: app-tab-page-enter-reduced 80ms linear both !important;
+  will-change: opacity;
+}
+
+html[data-app-performance="lite"] .app-page *,
+html[data-app-performance="lite"] .reader-page * {
+  animation-iteration-count: 1 !important;
 }
 
 .app-page.app-tab-enter-forward {
@@ -386,10 +474,64 @@ html[data-app-motion="reduced"] .app-page.app-tab-enter {
   will-change: opacity;
 }
 
+/* Theme changes are one whole-screen snapshot, so surfaces never recolor in batches. */
+::view-transition-group(root) {
+  animation-duration: var(--app-theme-morph-duration, 220ms);
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+::view-transition-old(root) {
+  animation: app-theme-crossfade-out var(--app-theme-morph-duration, 220ms) cubic-bezier(0.22, 1, 0.36, 1) both;
+  mix-blend-mode: normal;
+}
+
+::view-transition-new(root) {
+  animation: app-theme-crossfade-in var(--app-theme-morph-duration, 220ms) cubic-bezier(0.22, 1, 0.36, 1) both;
+  mix-blend-mode: normal;
+}
+
+html.app-theme-morph-fallback-a body {
+  animation: app-theme-fallback-in-a var(--app-theme-morph-duration, 120ms) ease-out both;
+  will-change: opacity;
+}
+
+html.app-theme-morph-fallback-b body {
+  animation: app-theme-fallback-in-b var(--app-theme-morph-duration, 120ms) ease-out both;
+  will-change: opacity;
+}
+
+@keyframes app-theme-crossfade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@keyframes app-theme-crossfade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes app-theme-fallback-in-a {
+  from { opacity: 0.88; }
+  to { opacity: 1; }
+}
+
+@keyframes app-theme-fallback-in-b {
+  from { opacity: 0.88; }
+  to { opacity: 1; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .app-page.app-tab-enter {
     animation: app-tab-page-enter-reduced 80ms linear both !important;
     will-change: opacity;
+  }
+
+  ::view-transition-group(root),
+  ::view-transition-old(root),
+  ::view-transition-new(root),
+  html.app-theme-morph-fallback-a body,
+  html.app-theme-morph-fallback-b body {
+    animation-duration: 80ms !important;
   }
 }
 
@@ -1028,5 +1170,32 @@ html[data-app-motion="reduced"] .app-page.app-tab-enter {
   .theme-candy.discover-page .history-chip:nth-child(n) {
     transform: none;
   }
+}
+
+/* V3.1 time awareness: environment light only; reading palettes stay untouched. */
+html[data-time-awareness='on'] .tab-page-shell > .app-page {
+  background-image: var(--app-time-ambient), var(--app-bg);
+  background-blend-mode: soft-light, normal;
+}
+
+html[data-time-awareness='on'][data-time-slot='morning'] .d-empty-motif {
+  position: relative;
+}
+
+html[data-time-awareness='on'][data-time-slot='morning'] .d-empty-motif::after {
+  position: absolute;
+  right: -14rpx;
+  bottom: -10rpx;
+  min-width: 36rpx;
+  padding: 3rpx 7rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: 999rpx;
+  content: '茶';
+  color: var(--app-on-accent);
+  background: var(--app-accent);
+  font-family: var(--app-body-font);
+  font-size: 15rpx;
+  line-height: 24rpx;
+  transform: rotate(-5deg);
 }
 </style>

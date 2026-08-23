@@ -82,6 +82,7 @@ def save_source_configs(db: Session, *, configs: list[dict], user_id: int) -> li
         source.enabled = config["enabled"]
         source.raw_json = json.dumps(protect_source_secrets(config["raw"]), ensure_ascii=False)
         source.compatibility = config["compatibility"]
+        source.health_status = config.get("health_status", source.health_status or "unknown")
         source.identity_hash = identity_hash
         source.deleted_at = None
         if existing:

@@ -232,6 +232,9 @@ class TtsCallLog(Base):
     cache_hit: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, index=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
     error_code: Mapped[str] = mapped_column(String(50), default="", nullable=False)
+    provider_request_id: Mapped[str] = mapped_column(String(100), default="", nullable=False)
+    upstream_status: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    audio_bytes: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     duration_ms: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, nullable=False, index=True)
 

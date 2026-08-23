@@ -1,11 +1,35 @@
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
 
 class SourceImportRequest(BaseModel):
     content: str = Field(min_length=1)
+    source_url: str = ""
+    import_method: str = "text"
+    duplicate_strategy: Literal["overwrite", "skip"] = "overwrite"
+
+
+class SourceImportItem(BaseModel):
+    name: str
+    base_url: str
+    source_key: str
+    status: Literal["ready", "partial", "needs_login", "blocked", "invalid"]
+    action: Literal["imported", "updated", "skipped", "rejected"]
+    reason: str = ""
+    error_code: str = ""
+    android_supported: bool
+    h5_supported: bool
+    backend_supported: bool
+
+
+class SourceImportPreviewResponse(BaseModel):
+    total_count: int
+    ready_count: int
+    unsupported_count: int
+    invalid_count: int
+    items: list[SourceImportItem]
 
 
 class SourceRead(BaseModel):
@@ -27,6 +51,10 @@ class SourceRead(BaseModel):
 class SourceImportResponse(BaseModel):
     imported_count: int
     sources: list[SourceRead]
+    updated_count: int = 0
+    skipped_count: int = 0
+    unsupported_count: int = 0
+    items: list[SourceImportItem] = Field(default_factory=list)
 
 
 class SourceUpdate(BaseModel):

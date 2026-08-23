@@ -27,8 +27,9 @@ class FakeScalarResult:
 
 
 class FakeConnection:
-    def __init__(self, migration_version):
+    def __init__(self, migration_version, write_error=None):
         self.migration_version = migration_version
+        self.write_error = write_error
 
     def __enter__(self):
         return self
@@ -38,18 +39,23 @@ class FakeConnection:
 
     def execute(self, statement):
         assert "alembic_version" in str(statement)
+        if str(statement).lstrip().upper().startswith("UPDATE"):
+            if self.write_error:
+                raise self.write_error
+            return FakeScalarResult(None)
         return FakeScalarResult(self.migration_version)
 
 
 class FakeEngine:
-    def __init__(self, migration_version=None, error=None):
+    def __init__(self, migration_version=None, error=None, write_error=None):
         self.migration_version = migration_version
         self.error = error
+        self.write_error = write_error
 
-    def connect(self):
+    def begin(self):
         if self.error:
             raise self.error
-        return FakeConnection(self.migration_version)
+        return FakeConnection(self.migration_version, self.write_error)
 
 
 def test_liveness_does_not_depend_on_database():
@@ -66,11 +72,30 @@ def test_readiness_accepts_connected_database_at_migration_head(monkeypatch):
     response = client.get("/api/health/ready")
 
     assert response.status_code == 200
-    assert response.json() == {"status": "ok", "database": "ready", "migration": "0004"}
+    assert response.json() == {
+        "status": "ok",
+        "app": main_module.settings.app_name,
+        "database": "ready",
+        "migration": "0004",
+    }
 
 
 def test_readiness_rejects_database_connection_failure(monkeypatch):
     monkeypatch.setattr(main_module, "engine", FakeEngine(error=RuntimeError("database offline")))
+
+    response = client.get("/api/health/ready")
+
+    assert response.status_code == 503
+    assert "not ready" in str(response.json()).lower()
+
+
+def test_readiness_rejects_readonly_database(monkeypatch):
+    monkeypatch.setattr(
+        main_module,
+        "engine",
+        FakeEngine("0004", write_error=RuntimeError("attempt to write a readonly database")),
+    )
+    monkeypatch.setattr(main_module, "expected_migration_head", lambda: "0004")
 
     response = client.get("/api/health/ready")
 

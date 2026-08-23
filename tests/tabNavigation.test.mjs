@@ -9,8 +9,8 @@ import {
 
 assert.equal(getTabCommitDelay(false), TAB_VISUAL_SETTLE_MS)
 assert.equal(getTabCommitDelay(true), TAB_REDUCED_SETTLE_MS)
-assert.equal(TAB_VISUAL_SETTLE_MS, 160)
-assert.equal(TAB_REDUCED_SETTLE_MS, 16)
+assert.equal(TAB_VISUAL_SETTLE_MS, 0)
+assert.equal(TAB_REDUCED_SETTLE_MS, 0)
 assert.equal(TAB_NAVIGATION_TIMEOUT_MS, 220)
 
 const firstTap = stageTabSelection(0, 3, 4)

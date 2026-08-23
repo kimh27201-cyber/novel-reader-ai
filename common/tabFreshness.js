@@ -1,4 +1,4 @@
-export const TAB_REFRESH_TTL = 30 * 1000
+export const TAB_REFRESH_TTL = 5 * 60 * 1000
 
 const tabState = Object.create(null)
 

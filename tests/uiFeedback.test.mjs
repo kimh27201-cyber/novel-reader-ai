@@ -23,6 +23,16 @@ assert.equal(
 )
 
 assert.equal(
+  friendlyErrorMessage({ code: 'SITE_UNREACHABLE', message: 'Unable to resolve host "m.yueshu.org": No address associated with hostname' }),
+  '书源站点域名无法访问，已从发现页暂时隔离；请换源或稍后重新检测'
+)
+
+assert.equal(
+  friendlyErrorMessage({ code: 'HTTP_NOT_FOUND', message: 'HTTP 404' }),
+  '书源入口已失效（HTTP 404），已从发现页暂时隔离；请换源或稍后重新检测'
+)
+
+assert.equal(
   friendlyErrorMessage(new Error('请先登录后端')),
   '请先登录后端'
 )

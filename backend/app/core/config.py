@@ -1,3 +1,4 @@
+import os
 from functools import lru_cache
 
 from pydantic import Field, model_validator
@@ -31,7 +32,9 @@ class Settings(BaseSettings):
     tts_retry_count: int = Field(default=1, ge=0, le=3)
     tts_max_concurrency: int = Field(default=2, ge=1, le=10)
     tts_concurrency_wait_seconds: float = Field(default=1.0, gt=0, le=30)
-    tts_daily_uncached_characters: int = Field(default=50_000, ge=1, le=10_000_000)
+    tts_daily_uncached_characters: int = Field(default=10_000, ge=1, le=10_000_000)
+    tts_global_daily_uncached_characters: int = Field(default=12_000, ge=1, le=100_000_000)
+    tts_global_monthly_uncached_characters: int = Field(default=20_000, ge=1, le=1_000_000_000)
     tts_cache_dir: str = "./data/tts-cache"
     tts_cache_ttl_seconds: int = Field(default=604_800, ge=60, le=31_536_000)
     tts_cache_max_bytes: int = Field(default=1_073_741_824, ge=1_048_576)
@@ -78,4 +81,7 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
+    app_env = os.getenv("APP_ENV", "").strip().lower()
+    if app_env in {"test", "testing"}:
+        return Settings(_env_file=None)
     return Settings()

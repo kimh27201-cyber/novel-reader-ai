@@ -1,0 +1,2058 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-13T07:58:27.452Z",
+  "sourceReport": "docs/source-acceptance/yck-current-cohort-stage7-window1-2026-08-13.json",
+  "sampleCount": 111,
+  "counts": {
+    "previousErrors": {
+      "TIMEOUT": 13,
+      "HTTP_BLOCKED": 34,
+      "NETWORK_ERROR": 25,
+      "PARSE_EMPTY": 19,
+      "TOC_EMPTY": 1,
+      "HTTP_SERVER_ERROR": 3,
+      "HTTP_NOT_FOUND": 11,
+      "CAPTCHA_REQUIRED": 1,
+      "CONTENT_EMPTY": 1,
+      "SEARCH_RESULT_INCOMPLETE": 1,
+      "SEARCH_EMPTY": 1,
+      "REQUEST_TEMPLATE_UNSUPPORTED": 1
+    },
+    "hostApis": {
+      "cookie.removeCookie": 12
+    },
+    "requestShapes": {
+      "keyVariable": 110,
+      "pageVariable": 14,
+      "post": 36,
+      "options": 41
+    },
+    "cookieSources": 75,
+    "headerSources": 41,
+    "fetchFailures": 0
+  },
+  "samples": [
+    {
+      "id": "7624",
+      "previousErrorCode": "TIMEOUT",
+      "fetched": true,
+      "elapsedMs": 6208,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "7619",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 6151,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "7543",
+      "previousErrorCode": "NETWORK_ERROR",
+      "fetched": true,
+      "elapsedMs": 6158,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": true,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "7515",
+      "previousErrorCode": "PARSE_EMPTY",
+      "fetched": true,
+      "elapsedMs": 6157,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "7583",
+      "previousErrorCode": "TIMEOUT",
+      "fetched": true,
+      "elapsedMs": 6139,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "7497",
+      "previousErrorCode": "PARSE_EMPTY",
+      "fetched": true,
+      "elapsedMs": 6161,
+      "request": {
+        "post": false,
+        "options": true,
+        "js": false,
+        "pageVariable": true,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "7562",
+      "previousErrorCode": "TIMEOUT",
+      "fetched": true,
+      "elapsedMs": 5898,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "7415",
+      "previousErrorCode": "PARSE_EMPTY",
+      "fetched": true,
+      "elapsedMs": 6158,
+      "request": {
+        "post": false,
+        "options": true,
+        "js": false,
+        "pageVariable": true,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "7406",
+      "previousErrorCode": "TOC_EMPTY",
+      "fetched": true,
+      "elapsedMs": 2428,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "7400",
+      "previousErrorCode": "TIMEOUT",
+      "fetched": true,
+      "elapsedMs": 2095,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "7390",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 1803,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "7388",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 2046,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "7382",
+      "previousErrorCode": "HTTP_SERVER_ERROR",
+      "fetched": true,
+      "elapsedMs": 1794,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "7259",
+      "previousErrorCode": "NETWORK_ERROR",
+      "fetched": true,
+      "elapsedMs": 2046,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6979",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 1786,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "7319",
+      "previousErrorCode": "HTTP_NOT_FOUND",
+      "fetched": true,
+      "elapsedMs": 2101,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "7285",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 2447,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": true,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "7279",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 2058,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6931",
+      "previousErrorCode": "PARSE_EMPTY",
+      "fetched": true,
+      "elapsedMs": 2058,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6917",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 1801,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6906",
+      "previousErrorCode": "HTTP_NOT_FOUND",
+      "fetched": true,
+      "elapsedMs": 2204,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6897",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 2142,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6896",
+      "previousErrorCode": "CAPTCHA_REQUIRED",
+      "fetched": true,
+      "elapsedMs": 2113,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6890",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 5860,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6875",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 1827,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6834",
+      "previousErrorCode": "NETWORK_ERROR",
+      "fetched": true,
+      "elapsedMs": 1839,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6813",
+      "previousErrorCode": "NETWORK_ERROR",
+      "fetched": true,
+      "elapsedMs": 1838,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6808",
+      "previousErrorCode": "PARSE_EMPTY",
+      "fetched": true,
+      "elapsedMs": 1724,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6792",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 2559,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6785",
+      "previousErrorCode": "TIMEOUT",
+      "fetched": true,
+      "elapsedMs": 2657,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6774",
+      "previousErrorCode": "NETWORK_ERROR",
+      "fetched": true,
+      "elapsedMs": 1699,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6772",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 1918,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": false
+    },
+    {
+      "id": "6771",
+      "previousErrorCode": "HTTP_NOT_FOUND",
+      "fetched": true,
+      "elapsedMs": 1910,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": false
+    },
+    {
+      "id": "6763",
+      "previousErrorCode": "PARSE_EMPTY",
+      "fetched": true,
+      "elapsedMs": 1911,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6754",
+      "previousErrorCode": "TIMEOUT",
+      "fetched": true,
+      "elapsedMs": 1650,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6752",
+      "previousErrorCode": "PARSE_EMPTY",
+      "fetched": true,
+      "elapsedMs": 1693,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6750",
+      "previousErrorCode": "HTTP_NOT_FOUND",
+      "fetched": true,
+      "elapsedMs": 1775,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [
+        "cookie.removeCookie"
+      ],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6689",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 1818,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6736",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 1696,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6715",
+      "previousErrorCode": "HTTP_NOT_FOUND",
+      "fetched": true,
+      "elapsedMs": 1703,
+      "request": {
+        "post": false,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6714",
+      "previousErrorCode": "HTTP_SERVER_ERROR",
+      "fetched": true,
+      "elapsedMs": 1705,
+      "request": {
+        "post": false,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6713",
+      "previousErrorCode": "PARSE_EMPTY",
+      "fetched": true,
+      "elapsedMs": 1704,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6705",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 1654,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6697",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 1655,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6687",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 1496,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6678",
+      "previousErrorCode": "HTTP_NOT_FOUND",
+      "fetched": true,
+      "elapsedMs": 1412,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": true,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6656",
+      "previousErrorCode": "HTTP_NOT_FOUND",
+      "fetched": true,
+      "elapsedMs": 1914,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": false
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6645",
+      "previousErrorCode": "PARSE_EMPTY",
+      "fetched": true,
+      "elapsedMs": 1906,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6619",
+      "previousErrorCode": "NETWORK_ERROR",
+      "fetched": true,
+      "elapsedMs": 1890,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6618",
+      "previousErrorCode": "PARSE_EMPTY",
+      "fetched": true,
+      "elapsedMs": 2249,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6612",
+      "previousErrorCode": "NETWORK_ERROR",
+      "fetched": true,
+      "elapsedMs": 1906,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6597",
+      "previousErrorCode": "NETWORK_ERROR",
+      "fetched": true,
+      "elapsedMs": 1944,
+      "request": {
+        "post": false,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6491",
+      "previousErrorCode": "TIMEOUT",
+      "fetched": true,
+      "elapsedMs": 1761,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6557",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 1712,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6543",
+      "previousErrorCode": "CONTENT_EMPTY",
+      "fetched": true,
+      "elapsedMs": 2572,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [
+        "cookie.removeCookie"
+      ],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6540",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 2623,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": true,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6535",
+      "previousErrorCode": "TIMEOUT",
+      "fetched": true,
+      "elapsedMs": 2623,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6534",
+      "previousErrorCode": "TIMEOUT",
+      "fetched": true,
+      "elapsedMs": 2638,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6530",
+      "previousErrorCode": "HTTP_NOT_FOUND",
+      "fetched": true,
+      "elapsedMs": 2305,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6507",
+      "previousErrorCode": "NETWORK_ERROR",
+      "fetched": true,
+      "elapsedMs": 2221,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6500",
+      "previousErrorCode": "TIMEOUT",
+      "fetched": true,
+      "elapsedMs": 2079,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6488",
+      "previousErrorCode": "HTTP_NOT_FOUND",
+      "fetched": true,
+      "elapsedMs": 2080,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6453",
+      "previousErrorCode": "NETWORK_ERROR",
+      "fetched": true,
+      "elapsedMs": 1916,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": false
+    },
+    {
+      "id": "6438",
+      "previousErrorCode": "SEARCH_RESULT_INCOMPLETE",
+      "fetched": true,
+      "elapsedMs": 2715,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6429",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 2649,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6392",
+      "previousErrorCode": "TIMEOUT",
+      "fetched": true,
+      "elapsedMs": 2342,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6336",
+      "previousErrorCode": "HTTP_NOT_FOUND",
+      "fetched": true,
+      "elapsedMs": 2688,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6326",
+      "previousErrorCode": "NETWORK_ERROR",
+      "fetched": true,
+      "elapsedMs": 2343,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [
+        "cookie.removeCookie"
+      ],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6322",
+      "previousErrorCode": "NETWORK_ERROR",
+      "fetched": true,
+      "elapsedMs": 2617,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6311",
+      "previousErrorCode": "PARSE_EMPTY",
+      "fetched": true,
+      "elapsedMs": 2673,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": true,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6306",
+      "previousErrorCode": "PARSE_EMPTY",
+      "fetched": true,
+      "elapsedMs": 1922,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6305",
+      "previousErrorCode": "PARSE_EMPTY",
+      "fetched": true,
+      "elapsedMs": 2245,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6293",
+      "previousErrorCode": "NETWORK_ERROR",
+      "fetched": true,
+      "elapsedMs": 1892,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6281",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 1620,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": true,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6265",
+      "previousErrorCode": "NETWORK_ERROR",
+      "fetched": true,
+      "elapsedMs": 1588,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6248",
+      "previousErrorCode": "PARSE_EMPTY",
+      "fetched": true,
+      "elapsedMs": 2279,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": true,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6247",
+      "previousErrorCode": "PARSE_EMPTY",
+      "fetched": true,
+      "elapsedMs": 2271,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6235",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 2304,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6240",
+      "previousErrorCode": "SEARCH_EMPTY",
+      "fetched": true,
+      "elapsedMs": 1717,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6238",
+      "previousErrorCode": "PARSE_EMPTY",
+      "fetched": true,
+      "elapsedMs": 1622,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "6187",
+      "previousErrorCode": "TIMEOUT",
+      "fetched": true,
+      "elapsedMs": 1622,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "5999",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 1629,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": true,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "5998",
+      "previousErrorCode": "PARSE_EMPTY",
+      "fetched": true,
+      "elapsedMs": 1692,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [
+        "cookie.removeCookie"
+      ],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "3963",
+      "previousErrorCode": "HTTP_SERVER_ERROR",
+      "fetched": true,
+      "elapsedMs": 1684,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "5992",
+      "previousErrorCode": "REQUEST_TEMPLATE_UNSUPPORTED",
+      "fetched": true,
+      "elapsedMs": 9690,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "5985",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 1624,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [
+        "cookie.removeCookie"
+      ],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "5957",
+      "previousErrorCode": "NETWORK_ERROR",
+      "fetched": true,
+      "elapsedMs": 1949,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "5950",
+      "previousErrorCode": "HTTP_NOT_FOUND",
+      "fetched": true,
+      "elapsedMs": 2006,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [
+        "cookie.removeCookie"
+      ],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "5939",
+      "previousErrorCode": "TIMEOUT",
+      "fetched": true,
+      "elapsedMs": 1547,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [
+        "cookie.removeCookie"
+      ],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "5934",
+      "previousErrorCode": "NETWORK_ERROR",
+      "fetched": true,
+      "elapsedMs": 1722,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "5928",
+      "previousErrorCode": "NETWORK_ERROR",
+      "fetched": true,
+      "elapsedMs": 1700,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [
+        "cookie.removeCookie"
+      ],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "5912",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 1612,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": true,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "5918",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 1270,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "5915",
+      "previousErrorCode": "PARSE_EMPTY",
+      "fetched": true,
+      "elapsedMs": 840,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "5911",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 528,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": true,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "5899",
+      "previousErrorCode": "NETWORK_ERROR",
+      "fetched": true,
+      "elapsedMs": 433,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [
+        "cookie.removeCookie"
+      ],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "5895",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 488,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "5892",
+      "previousErrorCode": "NETWORK_ERROR",
+      "fetched": true,
+      "elapsedMs": 317,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "5890",
+      "previousErrorCode": "NETWORK_ERROR",
+      "fetched": true,
+      "elapsedMs": 560,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "5889",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 640,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [
+        "cookie.removeCookie"
+      ],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "5852",
+      "previousErrorCode": "NETWORK_ERROR",
+      "fetched": true,
+      "elapsedMs": 258,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "5848",
+      "previousErrorCode": "NETWORK_ERROR",
+      "fetched": true,
+      "elapsedMs": 194,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [
+        "cookie.removeCookie"
+      ],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "5846",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 254,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "5845",
+      "previousErrorCode": "NETWORK_ERROR",
+      "fetched": true,
+      "elapsedMs": 234,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "5843",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 252,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": false,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "5825",
+      "previousErrorCode": "NETWORK_ERROR",
+      "fetched": true,
+      "elapsedMs": 202,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "5816",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 209,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [
+        "cookie.removeCookie"
+      ],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "5815",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 207,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "5814",
+      "previousErrorCode": "HTTP_BLOCKED",
+      "fetched": true,
+      "elapsedMs": 196,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": true,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "5813",
+      "previousErrorCode": "PARSE_EMPTY",
+      "fetched": true,
+      "elapsedMs": 243,
+      "request": {
+        "post": true,
+        "options": true,
+        "js": false,
+        "pageVariable": false,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": true,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    },
+    {
+      "id": "5802",
+      "previousErrorCode": "NETWORK_ERROR",
+      "fetched": true,
+      "elapsedMs": 201,
+      "request": {
+        "post": false,
+        "options": false,
+        "js": false,
+        "pageVariable": true,
+        "keyVariable": true
+      },
+      "hostApis": [],
+      "enabledCookieJar": false,
+      "hasHeader": true,
+      "hasLogin": false,
+      "hasExplore": true
+    }
+  ]
+}

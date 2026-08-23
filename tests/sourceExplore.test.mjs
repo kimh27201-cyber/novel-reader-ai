@@ -255,12 +255,12 @@ globalThis.uni.request = options => {
     }
   })
 }
-const beforeFallbackSettings = JSON.stringify(store['sources:settings'] || {})
 const fallbackSearch = await searchSourceBooks(fallbackSource.id, 'fallback', { timeoutMs: 1000 })
 assert.equal(requestedUrl, 'https://fallback.example.com/search?keyword=fallback')
 assert.equal(fallbackSearch.count, 1)
 assert.equal(fallbackSearch.results[0].book.title, 'Fallback Book')
-assert.equal(JSON.stringify(store['sources:settings'] || {}), beforeFallbackSettings)
+assert.equal(store['sources:settings'][fallbackSource.id].runtimeV2.search.status, 'passed')
+assert.equal(store['sources:settings'][fallbackSource.id].runtimeV2.search.resultCount, 1)
 
 globalThis.uni.request = options => {
   requestedUrl = String(options.data && options.data.url || '')
@@ -292,6 +292,7 @@ assert.equal(books[0].title, 'Explore Book')
 assert.equal(books[0].sourceName, 'Explore Source')
 assert.equal(books[0].book.bookUrl, 'https://explore.example.com/book/explore')
 assert.equal(books[0].book.kind, 'Fantasy')
+assert.equal(getSourceConfigs().find(item => item.id === source.id).exploreTest.status, 'passed')
 
 const loaded = await loadSourceExploreBooks(source.id, parsedEntries[2], { page: 1, timeoutMs: 1000 })
 assert.equal(loaded.sourceId, source.id)
@@ -300,6 +301,34 @@ assert.equal(loaded.page, 1)
 assert.equal(loaded.hasMore, false)
 assert.equal(loaded.books.length, 1)
 assert.equal(loaded.books[0].origin, 'explore')
+
+globalThis.uni.request = options => {
+  options.fail({ errMsg: 'Unable to resolve host "explore.example.com": No address associated with hostname' })
+}
+await assert.rejects(
+  exploreOnlineBooks(entries[2], { timeoutMs: 1000 }),
+  error => error && error.code === 'SITE_UNREACHABLE'
+)
+const failedExploreSource = getSourceConfigs().find(item => item.id === source.id)
+assert.equal(failedExploreSource.exploreTest.status, 'failed')
+assert.equal(failedExploreSource.exploreTest.errorCode, 'SITE_UNREACHABLE')
+assert.equal(getOnlineExploreEntries({ sources: [failedExploreSource] }).length, 0)
+
+globalThis.uni.request = options => {
+  requestedUrl = String(options.data && options.data.url || '')
+  options.success({
+    statusCode: 200,
+    data: {
+      text: JSON.stringify({ items: [{ name: 'Explore Book', url: '/book/explore' }] }),
+      status_code: 200,
+      final_url: requestedUrl
+    }
+  })
+}
+await exploreOnlineBooks(entries[2], { timeoutMs: 1000 })
+const recoveredExploreSource = getSourceConfigs().find(item => item.id === source.id)
+assert.equal(recoveredExploreSource.exploreTest.status, 'passed')
+assert.equal(getOnlineExploreEntries({ sources: [recoveredExploreSource] }).length, 3)
 
 const paginationSourceJson = JSON.stringify([{
   bookSourceName: 'Pagination Live Source',
@@ -358,13 +387,13 @@ globalThis.uni.request = options => {
 
 const partialSource = getSourceConfigs().find(item => item.name === 'Explore With Login Elsewhere')
 const partialExplore = getSourceExploreEntries(partialSource.id)
-assert.equal(partialExplore.available, true)
-const partialLoaded = await loadSourceExploreBooks(partialSource.id, partialExplore.entries[0], { page: 1, timeoutMs: 1000 })
-assert.equal(partialLoaded.books.length, 1)
+assert.equal(partialExplore.available, false)
+assert.equal(partialExplore.reasonCode, 'source_disabled')
 
 const searchPage = readFileSync(new URL('../pages/search/search.vue', import.meta.url), 'utf8')
-assert.match(searchPage, /getOnlineExploreEntries/)
-assert.match(searchPage, /exploreOnlineBooks/)
+assert.match(searchPage, /getSourceDiscoverySnapshot/)
+assert.match(searchPage, /openExploreCatalogEntry/)
+assert.match(searchPage, /snapshot\.catalog/)
 assert.match(searchPage, /exploreEntries/)
 assert.match(searchPage, /openExploreEntry/)
 assert.match(searchPage, /discover-source-list/)
@@ -395,7 +424,7 @@ assert.ok(pagesConfig.pages.some(page => page.path === 'pages/sourceHub/sourceHu
 
 const libraryPage = readFileSync(new URL('../pages/library/library.vue', import.meta.url), 'utf8')
 assert.match(libraryPage, /@tap="openSourceHub\(source\)"/)
-assert.match(libraryPage, /@tap\.stop="openSourceDetail\(source\.raw\)"/)
+assert.match(libraryPage, /@tap\.stop="openSourceDetail\(source\)"/)
 assert.match(libraryPage, /\/pages\/sourceHub\/sourceHub\?sourceId=/)
 assert.doesNotMatch(libraryPage, /categoryButtons|rankButtons|latestButtons|decorateExploreButtons/)
 

@@ -3,20 +3,25 @@ import { readFileSync } from 'node:fs'
 import {
   analyzeBackendBaseUrl,
   buildBackendStartCommands,
+  migrateLegacyHBuilderBaseUrl,
   normalizeBackendBaseUrl
 } from '../common/backendConnection.js'
 import { createApiClient } from '../common/apiClient.js'
 
 assert.equal(normalizeBackendBaseUrl(' http://127.0.0.1:8000/// '), 'http://127.0.0.1:8000')
 assert.equal(normalizeBackendBaseUrl(' http://127.0.0.1: 8000/// '), 'http://127.0.0.1:8000')
-assert.equal(normalizeBackendBaseUrl(''), 'http://127.0.0.1:8000')
+assert.equal(normalizeBackendBaseUrl(''), 'http://127.0.0.1:8765')
 assert.equal(normalizeBackendBaseUrl('192.168.1.8:8000'), 'http://192.168.1.8:8000')
+assert.equal(migrateLegacyHBuilderBaseUrl('http://127.0.0.1:8000', true), 'http://127.0.0.1:8765')
+assert.equal(migrateLegacyHBuilderBaseUrl('http://127.0.0.1:8000', false), 'http://127.0.0.1:8000')
+assert.equal(migrateLegacyHBuilderBaseUrl('http://192.168.1.8:8000', true), 'http://192.168.1.8:8000')
 
-const loopback = analyzeBackendBaseUrl('http://localhost:8000')
-assert.equal(loopback.normalized, 'http://localhost:8000')
+const loopback = analyzeBackendBaseUrl('http://localhost:8765')
+assert.equal(loopback.normalized, 'http://localhost:8765')
+assert.equal(loopback.port, 8765)
 assert.equal(loopback.mobileReady, true)
 assert.equal(loopback.connectionMode, 'adb-reverse')
-assert.match(loopback.message, /ADB reverse/)
+assert.match(loopback.message, /ADB reverse tcp:8765 tcp:8765/)
 
 const lan = analyzeBackendBaseUrl('http://192.168.1.8:8000')
 assert.equal(lan.mobileReady, true)
@@ -38,7 +43,8 @@ try {
 
 const commands = buildBackendStartCommands('192.168.1.8')
 assert.ok(commands.some(line => line.includes('--host 0.0.0.0')))
-assert.ok(commands.some(line => line.includes('http://192.168.1.8:8000')))
+assert.ok(commands.some(line => line.includes('--port 8765')))
+assert.ok(commands.some(line => line.includes('http://192.168.1.8:8765')))
 
 const calls = []
 const client = createApiClient({

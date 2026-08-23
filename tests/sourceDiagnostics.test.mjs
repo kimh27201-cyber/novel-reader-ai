@@ -81,10 +81,11 @@ const legado3Source = {
 importSourcesWithStats(JSON.stringify([compatibleSource, compatibleSourceTwo, headerSource, incompatibleSource, legado3Source]))
 
 const sources = pickOnlineSearchSources(Object.values(store['sources:user']))
-assert.equal(sources.length, 0)
+assert.equal(sources.length, 3, '静态合格但尚未手测的来源应进入智能探测池')
 
 const unsupported = Object.values(store['sources:user']).find(source => source.name === 'Diagnostic Unsupported')
-assert.equal(unsupported, undefined)
+assert.equal(unsupported.enabled, false)
+assert.equal(unsupported.status, 'blocked')
 const unsupportedCandidate = {
   id: 'diagnostic-unsupported',
   name: 'Diagnostic Unsupported',
@@ -135,8 +136,8 @@ const failed = getSourceDiagnostics(getSourceConfig(compatible.id))
 assert.equal(failed.compatible, true)
 assert.equal(failed.searchable, false)
 assert.equal(failed.networkStatus, 'failed')
-assert.equal(failed.statusTitle, '网络测试失败')
-assert.match(failed.statusDesc, /发现页会跳过它/)
+assert.equal(failed.statusTitle, '临时冷却中')
+assert.match(failed.statusDesc, /冷却结束后/)
 assert.equal(getSourceConfig(compatible.id).lastTest.status, 'failed')
 assert.equal(pickOnlineSearchSources(getSourceConfigs()).some(source => source.id === compatible.id), false)
 
@@ -154,8 +155,8 @@ assert.equal(result.results[0].title, '星轨图书馆')
 const passed = getSourceDiagnostics(getSourceConfig(compatible.id))
 assert.equal(passed.searchable, true)
 assert.equal(passed.networkStatus, 'passed')
-assert.equal(passed.statusTitle, '已通过网络测试')
-assert.match(passed.statusDesc, /发现页会使用它/)
+assert.equal(passed.statusTitle, '已进入可用池')
+assert.match(passed.statusDesc, /优先使用/)
 assert.equal(passed.ruleSummary.search, true)
 assert.equal(passed.ruleSummary.toc, true)
 assert.equal(passed.ruleSummary.content, true)
@@ -211,6 +212,24 @@ assert.equal(progress.length, 2)
 assert.equal(getSourceConfig(compatibleTwo.id).lastTest.status, 'failed')
 assert.equal(pickOnlineSearchSources(getSourceConfigs()).some(source => source.id === compatibleTwo.id), false)
 
+const limitedBatch = await batchTestSources({
+  keyword: '星轨图书馆',
+  sourceIds: [compatible.id, compatibleTwo.id],
+  maxSources: 1
+})
+assert.equal(limitedBatch.available, 2)
+assert.equal(limitedBatch.total, 1)
+assert.equal(limitedBatch.limited, true)
+
+const cancelledBatch = await batchTestSources({
+  keyword: '星轨图书馆',
+  sourceIds: [compatible.id, compatibleTwo.id],
+  shouldCancel: () => true
+})
+assert.equal(cancelledBatch.cancelled, true)
+assert.equal(cancelledBatch.tested, 0)
+assert.equal(cancelledBatch.results.length, 0)
+
 batchRequests = []
 const onlineResults = await searchOnlineBooks('星轨图书馆', { limit: 5, timeoutMs: 1000 })
 assert.equal(onlineResults.length, 1)
@@ -229,7 +248,10 @@ assert.match(library, /testSourceKeyword/)
 assert.match(library, /getSourceTestKeyword/)
 assert.match(library, /checkKeyWord/)
 assert.match(library, /批量检测/)
-assert.match(library, /测试全部启用源/)
+assert.match(library, /检测下一批（20）/)
+assert.match(library, /重试到期/)
+assert.match(library, /cancelBatchSourceTest/)
+assert.match(library, /正在筛选/)
 assert.match(library, /测试当前分组/)
 assert.match(library, /正在测试/)
 assert.match(library, /发现页只会使用可正常搜索的书源/)

@@ -21,6 +21,7 @@ from app.db.session import Base, SessionLocal, engine
 from app.main import app
 from app.models.models import BookSource, SourceSession
 from app.services.source_secrets import reveal_source_secrets
+from app.services.source_parser import apply_rule
 
 
 client = TestClient(app)
@@ -109,6 +110,36 @@ def test_import_and_list_sources():
     assert imported["compatibility"] == "v1 compatible"
     assert listed.status_code == 200
     assert listed.json()[0]["name"] == "测试小说源"
+
+
+def test_import_preview_and_duplicate_skip_contract():
+    headers = auth_headers()
+    preview = client.post(
+        "/api/sources/import/preview",
+        headers=headers,
+        json={"content": sample_source_json(), "import_method": "url"},
+    )
+    assert preview.status_code == 200
+    assert preview.json()["ready_count"] == 1
+    assert preview.json()["items"][0]["status"] == "ready"
+    assert preview.json()["items"][0]["android_supported"] is True
+
+    first = client.post(
+        "/api/sources/import",
+        headers=headers,
+        json={"content": sample_source_json(), "duplicate_strategy": "overwrite"},
+    )
+    skipped = client.post(
+        "/api/sources/import",
+        headers=headers,
+        json={"content": sample_source_json(), "duplicate_strategy": "skip"},
+    )
+    assert first.status_code == 201
+    assert skipped.status_code == 201
+    assert skipped.json()["imported_count"] == 0
+    assert skipped.json()["updated_count"] == 0
+    assert skipped.json()["skipped_count"] == 1
+    assert skipped.json()["items"][0]["action"] == "skipped"
 
 
 def test_delete_source_removes_owned_source_and_hides_from_list():
@@ -211,6 +242,20 @@ def test_search_source_parses_html_results(monkeypatch):
     assert books[0]["title"] == "星轨图书馆"
     assert books[0]["author"] == "示例作者"
     assert books[0]["book_url"] == "https://example.com/book/1"
+
+
+def test_legado_numeric_selector_and_text_link_are_supported():
+    html = """
+    <section class="item">
+      <a href="/first">第一项</a><a href="/second">第二项</a>
+      <p><span>玄幻</span><span>古典</span></p>
+      <a href="/catalog">全文目录</a>
+    </section>
+    """
+
+    assert apply_rule(html, ".item a.0@href") == "/first"
+    assert apply_rule(html, ".item p span.1@text") == "古典"
+    assert apply_rule(html, "text.全文目录@href") == "/catalog"
 
 
 def test_book_info_parser_endpoint_enriches_search_result(monkeypatch):

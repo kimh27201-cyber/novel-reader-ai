@@ -1,0 +1,6552 @@
+{
+  "schemaVersion": 2,
+  "capturedAt": "2026-08-12T16:56:41.247Z",
+  "repository": "https://www.yckceo.com/yuedu/shuyuan/index.html",
+  "pages": [
+    1,
+    28,
+    56
+  ],
+  "metrics": {
+    "target": 200,
+    "candidateCount": 300,
+    "validTextJson": 200,
+    "importable": 200,
+    "importRatePercent": 100,
+    "status": {
+      "blocked": 75,
+      "ready": 88,
+      "needs_login": 11,
+      "partial": 26
+    },
+    "staticEligible": 36,
+    "runtimeEligible": 3,
+    "runtimeExcluded": 33,
+    "runtimeExclusions": {
+      "TIMEOUT": 6,
+      "HTTP_BLOCKED": 6,
+      "NETWORK_ERROR": 13,
+      "SITE_UNREACHABLE": 4,
+      "HTTP_NOT_FOUND": 2,
+      "HTTP_SERVER_ERROR": 2
+    },
+    "flowErrors": {
+      "TIMEOUT": 6,
+      "HTTP_BLOCKED": 6,
+      "PASSED": 1,
+      "NETWORK_ERROR": 13,
+      "SITE_UNREACHABLE": 4,
+      "HTTP_NOT_FOUND": 2,
+      "HTTP_SERVER_ERROR": 2,
+      "SEARCH_EMPTY": 2
+    },
+    "flowTested": 36,
+    "flowPassed": 1,
+    "flowRatePercent": 33.33
+  },
+  "samples": [
+    {
+      "id": "7697",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "e466765156a8d5dd729a22f11464aa1f62d8f4d11ccbe11c4b5d43a20252670c",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 233,
+      "status": "blocked",
+      "sourceKey": "source-key-44afsu",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": true,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": true,
+        "webView": true
+      },
+      "eligible": false
+    },
+    {
+      "id": "7700",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "1b3a3127f7b9adbd06370e9c5986988776f5d9a3a57d5206f0ae666baa0ab186",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 417,
+      "status": "blocked",
+      "sourceKey": "source-key-1mroj5l",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": true,
+        "webView": true
+      },
+      "eligible": false
+    },
+    {
+      "id": "7661",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "cb87e179ff79d8b6160d29273157ef39f9568b08fb1d4ba7448f3c5336ccd5ad",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 516,
+      "status": "blocked",
+      "sourceKey": "source-key-gdlb4y",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": true,
+        "webView": true
+      },
+      "eligible": false
+    },
+    {
+      "id": "7699",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "819051fa30edc3ad0de0f240788a116b8ef65fcedbd7fce7571f6941921cf3c9",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 5324,
+      "status": "blocked",
+      "sourceKey": "source-key-1ub08i5",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": true,
+        "webView": true
+      },
+      "eligible": false
+    },
+    {
+      "id": "7698",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "403970f6fef64b402d54912cdf8e2a7aecf1b82b7b798b008328fdd96f216ffc",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1732,
+      "status": "blocked",
+      "sourceKey": "source-key-1oi1n4k",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": true,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7688",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "0d8f3cf8be0a8f36a686393bf6b729c7459d0710852be390229f27957da834b3",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1671,
+      "status": "blocked",
+      "sourceKey": "source-key-2491go",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": true,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7696",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "6a4ec0d0324d6e0bded00975a05b05303f86c1eb4f2c9ecf5567718329faed2b",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1711,
+      "status": "blocked",
+      "sourceKey": "source-key-xm84je",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": true,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": true,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7694",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "f965b757e263074ef2d733f612732e38c42981b0486a442d2d0f2b1ef563f8e2",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1567,
+      "status": "blocked",
+      "sourceKey": "source-key-b7beqv",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": true,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7693",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "621d703526f5751d82594acd61d3193655c30c2baf3aa674281c2d67b8182bc2",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1570,
+      "status": "ready",
+      "sourceKey": "source-key-3tk3g5",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7692",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "c7a895d5ec22ec560d0408d59187f5d49ac8ad8d707619de381d60b847b1cf09",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "LOGIN_REQUIRED",
+      "elapsedMs": 1508,
+      "status": "needs_login",
+      "sourceKey": "source-key-z2l95i",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": true,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7691",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "e8239d441d1e93355d98c630e586625c16455f41f04b47cfeb081bef716290e0",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1123,
+      "status": "blocked",
+      "sourceKey": "source-key-1ti3vps",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": true,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7689",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "58d0b3b86604a02cb0a28642ced1021b6c1405cea742234c35b49ba6573a682b",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1411,
+      "status": "blocked",
+      "sourceKey": "source-key-1m5z5i",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": true,
+        "webView": true
+      },
+      "eligible": false
+    },
+    {
+      "id": "7679",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "6039c6412023db035ad4c8e0dbbdd81a5e72b86d4915bc1981c24c31d546520c",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 2189,
+      "status": "blocked",
+      "sourceKey": "source-key-aq1b30",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": true,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7662",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "0dea1816be17c99a16eca68098f6a8d9030254714c4a437fe4f7abb51394fe3c",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1531,
+      "status": "blocked",
+      "sourceKey": "source-key-n0aca",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": true,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7624",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "d8c23d171ca74271d1b1270e716b79f43be166263868f0bc1c4e7cbc9055b11d",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 288,
+      "status": "ready",
+      "sourceKey": "source-key-17gjht1",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 12011,
+        "errorCode": "TIMEOUT",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "7623",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "950672e8489f7afd7fba0e8e09aa2a6f40319298a4efb6c08ca24fb9ec2bbcb4",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 365,
+      "status": "blocked",
+      "sourceKey": "source-key-11819of",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": true,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7622",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "ac2a79b4ef055aa866bbeaff10dbdfee5fcfbf1cddc01a3775ff21237acdfe93",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 618,
+      "status": "blocked",
+      "sourceKey": "source-key-eztf2w",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": false,
+        "content": true
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": true,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "6109",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "c689dcd33b1f974f87bbba8b206721432d677a49121379c52c64ffe2a220f095",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 344,
+      "status": "blocked",
+      "sourceKey": "source-key-18g7yox",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": true,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "3331",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "bc780257f440a387f4c1f58f990341e4f9072fd47bdf8de0c022d45928683753",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 278,
+      "status": "blocked",
+      "sourceKey": "source-key-1vcls23",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": true,
+        "webView": true
+      },
+      "eligible": false
+    },
+    {
+      "id": "7619",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "a5340abb6a1a4ac207e2d06dd6dbfdbac2b066bba239b758156a04d5030a4a21",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 166,
+      "status": "ready",
+      "sourceKey": "source-key-1rbh9g5",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 1248,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "7617",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "94ac628b454b5e428d66847c932bdc749087fe3cbd893ceb840a48bf16f89cca",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 210,
+      "status": "blocked",
+      "sourceKey": "source-key-1x3cv8d",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": true,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7536",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "e3d0ef8d7ce6ba09494eb89927b9f4e3ceb96727abdb63e5cc3e37a654d532f2",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 251,
+      "status": "blocked",
+      "sourceKey": "source-key-1xgxpr1",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": true,
+        "webView": true
+      },
+      "eligible": false
+    },
+    {
+      "id": "7614",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "194afe7c3066f5fa7f6734dcc2043b07967c04467014c5c7ca5824aa49d87782",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 215,
+      "status": "blocked",
+      "sourceKey": "source-key-1gi89rc",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": true,
+        "webView": true
+      },
+      "eligible": false
+    },
+    {
+      "id": "7613",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "bcdbd8df945bf3aeb21caaae5f9aabe08bfe2a398eb9c97455fc9eafc2e622c8",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 313,
+      "status": "blocked",
+      "sourceKey": "source-key-qj2ah3",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": true,
+        "toc": true,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": true,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7612",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "31c51237141da4f8f94b8179cc2a396fb981d41dc948950a6d2f26f219b7e442",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 201,
+      "status": "blocked",
+      "sourceKey": "source-key-95i1lm",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": true,
+        "toc": true,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": true,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7610",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "e51f7dd5a1046340fb8b994fe7d9429d515d45fc51510bc9b3db124f3e811d90",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 248,
+      "status": "blocked",
+      "sourceKey": "source-key-1l6qid",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": true,
+        "webView": true
+      },
+      "eligible": false
+    },
+    {
+      "id": "7609",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "3915d486c3d4771e6a9f92514b51a6e875143a4136953a8e0ffc8406848dead2",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "LOGIN_REQUIRED",
+      "elapsedMs": 211,
+      "status": "needs_login",
+      "sourceKey": "source-key-1qy6r9r",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": false
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": true,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7607",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "d6b332f542da46b9ad20564f59008ec928dbab6b91813be1a16223f05917fb86",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 214,
+      "status": "blocked",
+      "sourceKey": "source-key-jgquvj",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7606",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "2717efa54d19dd539253212a5773ce8351d40523a870641def1e943734628533",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 263,
+      "status": "blocked",
+      "sourceKey": "source-key-ocp81",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7604",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "de804351eab06cebe3d715bf6f28d0897917d1823154014a1eac2ef27233eea4",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 204,
+      "status": "blocked",
+      "sourceKey": "source-key-1wci5oo",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": true,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7603",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "9de2c939c821c1e7d8e45c4c0acf3db28abfeff792f8dd43080dd5d372977630",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 203,
+      "status": "blocked",
+      "sourceKey": "source-key-14g5xf1",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7602",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "149e2604c922e5bb1225512988df32d4c2501ea1bbf68894181ec351556e8a03",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 228,
+      "status": "ready",
+      "sourceKey": "source-key-16ju8r",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7600",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "6918dfd2d785c4ba0ec88c18e3a8dcf1451a38eccc20a48ccc23a7fcc8978f26",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 230,
+      "status": "blocked",
+      "sourceKey": "source-key-1esfwwq",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": true,
+        "webView": true
+      },
+      "eligible": false
+    },
+    {
+      "id": "7597",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "3ad5e5fd9a235157c5f1a5e9f5c07cbe8fb084c85dc4a5d3a6f28c624c2d32a6",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 525,
+      "status": "blocked",
+      "sourceKey": "source-key-duw3tx",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7596",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "6856da567c44c7dd0009c6535ec852bd435e6739b7c633ee4d0ff887be8a3827",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 493,
+      "status": "ready",
+      "sourceKey": "source-key-13zaxtq",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "passed",
+        "keyword": "斗破苍穹",
+        "elapsedMs": 14078,
+        "errorCode": ""
+      }
+    },
+    {
+      "id": "7595",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "68e3ce2ece5b234c6abc829f19ef422e453f816ec1e776b83c3a35a011092605",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 943,
+      "status": "blocked",
+      "sourceKey": "source-key-1aex2yd",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": true,
+        "webView": true
+      },
+      "eligible": false
+    },
+    {
+      "id": "7592",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "8033b24e1a2207a58f14b4ea7622a7a518d6ff9727544e377c75f71912514c7c",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 2101,
+      "status": "blocked",
+      "sourceKey": "source-key-lwwhcn",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": true,
+        "toc": true,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": true,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7590",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "3b7349f39afbb3e34cbf96a2d457d7946aa75db0ba4dc5e77f2ed519afeb1d28",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "LOGIN_REQUIRED",
+      "elapsedMs": 2198,
+      "status": "needs_login",
+      "sourceKey": "source-key-1xehrjt",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": true,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7589",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "57a3262bd3e1c0e13bf5bd3d08d226d0b23d86d2811476763d3aa7825872f1aa",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1239,
+      "status": "blocked",
+      "sourceKey": "source-key-1xtyq1",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7588",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "c0aac28b6e73df327a488493286d5a1d948ecb465e89cab14e4e97eb8982811f",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1190,
+      "status": "blocked",
+      "sourceKey": "source-key-12r5xzj",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7587",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "1f35df84fd24fa5f2e423ce584756606b5d4bd732df8ffd77146d85d799d0552",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 3748,
+      "status": "blocked",
+      "sourceKey": "source-key-csnub5",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7586",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "9f577256a29c535794f4bebda298f9c0e64bfddad6ce6271e78926b0195dffe0",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 856,
+      "status": "blocked",
+      "sourceKey": "source-key-b7beqv",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": true
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7585",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "1dd3ac751a3eb3b420ac16760cee4a37347741628b2eb04881031a5fe9f6851f",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1764,
+      "status": "ready",
+      "sourceKey": "source-key-18rirli",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "6873",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "4461b9219891659941c8f86775768d5a7e5771f1d31c8eeffe7b4ac0ecb20bc9",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 2061,
+      "status": "blocked",
+      "sourceKey": "source-key-jpesmf",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": true,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7583",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "4f8aed8a17158f4a4108844d9d18de9af37ceb61e5219a1778f981d8043f4b60",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 2091,
+      "status": "ready",
+      "sourceKey": "source-key-1g8x1x2",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": false,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 12007,
+        "errorCode": "TIMEOUT",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "7581",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "ae3d8b5d820784d25807a0bacd951848deef4ff5bc53af2e76c3018daa4e932a",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1708,
+      "status": "blocked",
+      "sourceKey": "source-key-byxd1m",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": true,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": true,
+        "webView": true
+      },
+      "eligible": false
+    },
+    {
+      "id": "7574",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "40a1eb47a048eeb1f2c9d25024cd6b7e7e904844c4dd54734777d4f8c1960c1b",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1699,
+      "status": "blocked",
+      "sourceKey": "source-key-tyvddo",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": true,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7573",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "18be45c387510ca419ebfc79e99a8dd52066f1258773fcf655f9ce7656fef8f5",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 875,
+      "status": "blocked",
+      "sourceKey": "source-key-1w30n3k",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": true,
+        "toc": true,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7565",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "31ded5e9efc7521221817976ef09f52da816cef21c654a222620c13ed24ea432",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1418,
+      "status": "blocked",
+      "sourceKey": "source-key-jnqupf",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": true,
+        "toc": true,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7563",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "1ef1ba18d37f395b44499f24c45503ee3bd3ade7ef8662e354b693d3cd60bfc5",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 2308,
+      "status": "blocked",
+      "sourceKey": "source-key-dw0xrj",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": true,
+        "webView": true
+      },
+      "eligible": false
+    },
+    {
+      "id": "7562",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "5f41e330376bd319a26c99012a37013c49d3f8cfc55a3c2963fabf11897d4240",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 2292,
+      "status": "ready",
+      "sourceKey": "source-key-1stdeek",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 12005,
+        "errorCode": "TIMEOUT",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "7561",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "3fe15f5cc1c04d0d77574317591bc5b1432f61d5da7865622b1b7b3703a9913c",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "LOGIN_REQUIRED",
+      "elapsedMs": 1928,
+      "status": "needs_login",
+      "sourceKey": "source-key-1rna4wr",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": false,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": true,
+        "webView": true
+      },
+      "eligible": false
+    },
+    {
+      "id": "7560",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "36d0fb310707abc26dd5a233df55a012f3f06b2fd1310304334304a2c3158512",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1881,
+      "status": "blocked",
+      "sourceKey": "source-key-1r05xuz",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7559",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "fae4a08cf860dd3cb95368a6e77a4310c721f4b2b3a441149aa0600504eb4255",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1877,
+      "status": "blocked",
+      "sourceKey": "source-key-n8g4mc",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": true,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7558",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "e8285aabb6854472add2c0af4f711056a0d0a4087de617b2240a18a0147bfd2f",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1809,
+      "status": "blocked",
+      "sourceKey": "source-key-9sdr09",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": true,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7557",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "21d27d94a6a7e398a56c154cb769639f706db1a0d85dc1e7c4436fcceba90ac3",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1763,
+      "status": "blocked",
+      "sourceKey": "source-key-5tpjdt",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "7556",
+      "layer": "recent",
+      "page": 1,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "8f973531088bd6bbc9d7e5d4e5fe23d79cdf3a351a2975210e62c48c34a7ca6a",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1520,
+      "status": "blocked",
+      "sourceKey": "source-key-18rirli",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": false,
+        "toc": true,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": true
+      },
+      "eligible": false
+    },
+    {
+      "id": "286",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "f5f576b0c34efa1e9865513e42ae4a820ab3d1d4d3ed04b974856d777393da2f",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "PARTIAL_CAPABILITY",
+      "elapsedMs": 2304,
+      "status": "partial",
+      "sourceKey": "source-key-914xiw",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "288",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "e2a431ab4747c4b03aa6114722a30e3c1a67dc55d84c2a031c8112a523114bca",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 2289,
+      "status": "ready",
+      "sourceKey": "source-key-1els0hl",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "289",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "fbc409b877d45c63afe1ca8445c81d001b35649b05f3aa5bdaa7bff45b68eac0",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 2304,
+      "status": "ready",
+      "sourceKey": "source-key-psflgo",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "290",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "9cd2e28ae6da42481fa16d60a2f7634fc671caa94e748c116c879e1d3282f4ca",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 2304,
+      "status": "ready",
+      "sourceKey": "source-key-jvm8t6",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 2846,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "291",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "3bcead8cca1e6583db0339143cb018fc3acc96b6d4e88289eddbb0ba9e85eeae",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 2296,
+      "status": "ready",
+      "sourceKey": "source-key-1vrncnj",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "293",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "3131d233d7c3881b9e5cb382ac42a1fa58332a8667de76d54cf34e013ab17273",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 2283,
+      "status": "ready",
+      "sourceKey": "source-key-16wnj8c",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "308",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "5c781d6a803dbcf097d40951b8bf909c5db0c84926008d1f4e5766a66e7dcedc",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "PARTIAL_CAPABILITY",
+      "elapsedMs": 2304,
+      "status": "partial",
+      "sourceKey": "source-key-hi6jgm",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "247",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "f59598c88e2e7361134cbf9fd00fddb7e66a406806aad990acf90257fc4d2904",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 2783,
+      "status": "ready",
+      "sourceKey": "source-key-1osk10c",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 4455,
+        "errorCode": "SITE_UNREACHABLE",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": false,
+        "diagnostics": {
+          "responseLength": 4540,
+          "responseFingerprint": "1a5f5a25",
+          "payloadType": "text",
+          "topLevelKeys": [],
+          "classNames": [
+            "buy",
+            "stencil-overall",
+            "l",
+            "color",
+            "a-header",
+            "a-banner",
+            "name",
+            "domain-name",
+            "a-content",
+            "clearfix",
+            "r",
+            "info",
+            "pt",
+            "bottom"
+          ],
+          "ruleKind": "css",
+          "listCount": 0,
+          "resultCount": 0,
+          "markers": {
+            "captcha": false,
+            "login": false,
+            "blocked": false,
+            "parked": true,
+            "noResult": false
+          },
+          "missingTitleCount": 0,
+          "missingBookUrlCount": 0
+        }
+      }
+    },
+    {
+      "id": "263",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "d044842f30787b3835076582f9e9ba5d152c32cfe5ef0ab3c0c3d603bf7059be",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 2369,
+      "status": "ready",
+      "sourceKey": "source-key-181wfn6",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 1622,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "264",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "e9b2f632b3be30afa50a1f7e2e80eaeb6cfbcfc8e7682cea4f0687c69cd88e46",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 2136,
+      "status": "ready",
+      "sourceKey": "source-key-1gyw0zw",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 354,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 405,
+        "retryable": false
+      }
+    },
+    {
+      "id": "265",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "7ba6dbf34104929f6c9994827c5b38e4b69ff49f52fa5768db539afee01da82a",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 2116,
+      "status": "ready",
+      "sourceKey": "source-key-ucpqca",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 1589,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "275",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "c47521b22b6f2cac37de290f93cd73705a66c1971e078369dd31f6add2b652fc",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 2352,
+      "status": "ready",
+      "sourceKey": "source-key-dfmbqe",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "277",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "586a36574958c5f19bda985b65a6f6a5fd30678e17b1db22bb006efccd8e83d8",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "PARTIAL_CAPABILITY",
+      "elapsedMs": 2360,
+      "status": "partial",
+      "sourceKey": "source-key-1g53f5u",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "303",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "46f05af59c50b5c57e8a247acc0e7c66b564acb648409832081e5fa5394c9b34",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 2345,
+      "status": "blocked",
+      "sourceKey": "source-key-en3vx4",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": true
+      },
+      "eligible": false
+    },
+    {
+      "id": "319",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "6852329eb981e16d607b2a44cab8c00ac83c22619a0d465098125b4d531b4ef5",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 2335,
+      "status": "ready",
+      "sourceKey": "source-key-1387cvd",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "249",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "9b926ba2cb24489dc42dcf0cdbea2530bb3d2268ba9912e3d017796fbe46e887",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1909,
+      "status": "blocked",
+      "sourceKey": "source-key-phvg9z",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": true
+      },
+      "eligible": false
+    },
+    {
+      "id": "271",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "cc6dc51a3d5a237384546d2e37b9140c2cc1b1884c3eb9a10eeba4b9969bddcc",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 2712,
+      "status": "ready",
+      "sourceKey": "source-key-1ajvb9g",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "272",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "14ac03a60f785b69216875e67ce6e7f092db03517c00d084eb3a4e4f17029d16",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 3532,
+      "status": "blocked",
+      "sourceKey": "source-key-4wrrdr",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "273",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "a56cc46b15547696dba51de08dcf7b2c1406af990a3b0145a426094eea437d39",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 3330,
+      "status": "ready",
+      "sourceKey": "source-key-uzw5ys",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "278",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "88dba9b1007c5f0541c8abb32abe4e2ccb12a8f8dc4118b8ad56d1bb884fc0d4",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 3234,
+      "status": "ready",
+      "sourceKey": "source-key-13ts17k",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "280",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "25582bbdb72bb066f33444b0f73636d69253fc93eadc3e09c5ba076ef24188a2",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 2480,
+      "status": "ready",
+      "sourceKey": "source-key-1m5z9lb",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "242",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "62d8e918f5f2d38f1d81c3359a14d4049ab898460d5753e706a327ce6e5d261e",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 2481,
+      "status": "ready",
+      "sourceKey": "source-key-eiazb2",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "261",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "adee59b0c2321d2613144b07d8cb2ca8796a589a300dfbc16931f329b0a8df23",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "LOGIN_REQUIRED",
+      "elapsedMs": 3560,
+      "status": "needs_login",
+      "sourceKey": "source-key-192d0oo",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": true,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "266",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "a15bb3576f9eec4ddbd9c3734d4cdc9092bcaa1d7af672626e15ebaf0d54ff40",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 2768,
+      "status": "blocked",
+      "sourceKey": "source-key-1t3udb2",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": false,
+        "toc": true,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "268",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "8bf3a5a7189cc2dfd5cafe250adb45d12fdb8fcf23b1ab309ac8773a8272002a",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 5923,
+      "status": "ready",
+      "sourceKey": "source-key-lij9iq",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "269",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "4f4ca2040879c8d16c1d62d9d1a85ee1d4df34c85addc4323493538389e55757",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 2999,
+      "status": "blocked",
+      "sourceKey": "source-key-14cmu33",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": false,
+        "toc": false,
+        "content": true
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "257",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "4ae31743d15f72106988b26aee635ca2ad97319111eca4e49cb0945bf10ad76e",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 2971,
+      "status": "ready",
+      "sourceKey": "source-key-11wxktl",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "281",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "4e14be57fb0873a615eb7e57c7343b7b35ffba6e15f691717b57efe1c42f5a2b",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1994,
+      "status": "ready",
+      "sourceKey": "source-key-tl629x",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "251",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "3a9a02ffcee1e50f0a5a4b56e96208d8b8766f9206f739df064d1391c2697644",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 2133,
+      "status": "ready",
+      "sourceKey": "source-key-q5eqpz",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 1701,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "252",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "6713ca2143d21ac6a92c2dc56493398ec2f432d009f624bb5b4bd6b533d56641",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1999,
+      "status": "blocked",
+      "sourceKey": "source-key-gtzdfj",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "253",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "860a88d5f8c407cd44a583f6b49b33f699b185d901e00d7b605d9bbf51349ddb",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1703,
+      "status": "ready",
+      "sourceKey": "source-key-ezhyc9",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "254",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "04d6fb26ea5f9469bb77620357619f554366febf2efc2b2272b02fb24c90c3d9",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1528,
+      "status": "ready",
+      "sourceKey": "source-key-1g7so94",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "255",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "76bbf21c1c8a54864e62557d5f8f8214c3af33059af8fb45e1c88a1c393f0b54",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1518,
+      "status": "ready",
+      "sourceKey": "source-key-4wrrdr",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "274",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "0368ffb0cefa0a156d1f9ed1c423bf038cc6f3da1ddf72df4a8e6b9d6082dbe3",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1438,
+      "status": "blocked",
+      "sourceKey": "source-key-1ui983q",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "276",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "c26efd3f458fadc9665ede140b83872222181b937eb2f0f98d838bdef7ee964a",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1429,
+      "status": "ready",
+      "sourceKey": "source-key-784dgf",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 6714,
+        "errorCode": "HTTP_NOT_FOUND",
+        "failedStage": "search",
+        "httpStatus": 404,
+        "retryable": false
+      }
+    },
+    {
+      "id": "294",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "714eec26efe2c2550548825683488d6048a5c3ac63c2eb957109f09c9f23b8f4",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "PARTIAL_CAPABILITY",
+      "elapsedMs": 1723,
+      "status": "partial",
+      "sourceKey": "source-key-12k21lr",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": false,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "203",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "8e2155e3d4cdd3b79250cf4ed0626d9d73f891324100991f48bd22a5258ea560",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "PARTIAL_CAPABILITY",
+      "elapsedMs": 1448,
+      "status": "partial",
+      "sourceKey": "source-key-qahqx9",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "229",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "b3e3c478486a05ed6d401d0a932cfbd5e172e3d149ebf7ec2eb6c331b728c21b",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1416,
+      "status": "ready",
+      "sourceKey": "source-key-zjf5fl",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 10455,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "231",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "1420369f8069c347a7895143cbbfce81ae8565bfbb57e0ae6ba61a67ef01dbc5",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1499,
+      "status": "blocked",
+      "sourceKey": "source-key-yhajif",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": false,
+        "toc": true,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "232",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "bd53c3522d843fa051a63393eddd1ae88fc9941616ea029f320b8dff7737559a",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1431,
+      "status": "ready",
+      "sourceKey": "source-key-iybwg3",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "235",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "839ee07dd61a0728c71fb6882f1a038b21728f21a3379bcb8698ac5816fa8b7e",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1737,
+      "status": "ready",
+      "sourceKey": "source-key-2x3e6o",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 1054,
+        "errorCode": "HTTP_SERVER_ERROR",
+        "failedStage": "search",
+        "httpStatus": 521,
+        "retryable": true
+      }
+    },
+    {
+      "id": "236",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "207a1a9988a672eb64acb5453c3d13444d48274bca1990dcfafb7a3a3c596d9b",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1721,
+      "status": "ready",
+      "sourceKey": "source-key-11s13q0",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "238",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "c8624ada2040963a6d6feeebf807a5d11c19d143854a8d83751470e55246b787",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1705,
+      "status": "ready",
+      "sourceKey": "source-key-1vwrqrd",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "243",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "e032b8314c24fc258072fc479a11d8a70e6349b30b0723a0751cd8f6b07b1dec",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1659,
+      "status": "blocked",
+      "sourceKey": "source-key-1ycz6b1",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "245",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "938fe039926229b34e73bb983de0c8f098a6ae9791070cab9b14a7fa74542b92",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 3585,
+      "status": "blocked",
+      "sourceKey": "source-key-1ajvb9g",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "246",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "48e7c60b39574af7331a0766d8be28e22d7ae7ff5563e1b2bb242146bfe48c15",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 3000,
+      "status": "blocked",
+      "sourceKey": "source-key-1yqi3mt",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "21",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "71bdff7c3e726c51276e956cf03d63c197d6055bab7d7ed0b79c1603fe2c019e",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1512,
+      "status": "ready",
+      "sourceKey": "source-key-uyh8z6",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "1709",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "3a5a839a20500db6d14ef685a9fce57d14edda0d54f5c7f38057aed9ee282f62",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1572,
+      "status": "blocked",
+      "sourceKey": "source-key-2dtw4v",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": false,
+        "toc": false,
+        "content": true
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": true,
+        "webView": true
+      },
+      "eligible": false
+    },
+    {
+      "id": "194",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "8eb374a2294b2bb98626812ac62ba0ce49b9074e621ad432de211b5aeaef5a6c",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1503,
+      "status": "ready",
+      "sourceKey": "source-key-fljqxy",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 12005,
+        "errorCode": "TIMEOUT",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "195",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "eee3ef11c9f7cf04b40c2d80d8e292001e4a1ee1d6e18e811c4f555c5dec555b",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1489,
+      "status": "ready",
+      "sourceKey": "source-key-1cze2y0",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "204",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "3499f503ffb0fc6c6a3b82698abae38a2f0e62bfbc6699c66d4b242dbde934eb",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1867,
+      "status": "ready",
+      "sourceKey": "source-key-1bafzan",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 1792,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "219",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "6fa60ba4a626982bb0aa937a4fafed4a5aaf8199d6454c1f38c3d7ea9a9a0642",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1586,
+      "status": "blocked",
+      "sourceKey": "source-key-ya631l",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "222",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "227b01411209d45a22ac1c79865f7ca386f80bfa8ab684165e127552b26d4b30",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1562,
+      "status": "ready",
+      "sourceKey": "source-key-16vb2w4",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "226",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "99f0d2f51f1dd7a1547b939e3dc7d0e9520f6e2b25c66d8d80d94eb07cb6ee56",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1572,
+      "status": "blocked",
+      "sourceKey": "source-key-1x27szw",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": true,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "227",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "452fd92e8b225c4985b8547c36d22d357f8ca700d237e3f474e944bbd67e9f18",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1521,
+      "status": "ready",
+      "sourceKey": "source-key-7pbhmr",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 3063,
+        "errorCode": "SEARCH_EMPTY",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": false,
+        "diagnostics": {
+          "responseLength": 4062,
+          "responseFingerprint": "6180e85b",
+          "payloadType": "text",
+          "topLevelKeys": [],
+          "classNames": [
+            "web-return-title",
+            "title-msg",
+            "title-left",
+            "kjcontainer",
+            "kjcontainer-common",
+            "kjsearch-input",
+            "kjbtn-search",
+            "kjsearch-result",
+            "kjresult-author",
+            "kjsearch-no",
+            "kjresult",
+            "kjerror"
+          ],
+          "ruleKind": "css",
+          "listCount": 0,
+          "resultCount": 0,
+          "markers": {
+            "captcha": false,
+            "login": false,
+            "blocked": false,
+            "parked": false,
+            "noResult": true
+          },
+          "missingTitleCount": 0,
+          "missingBookUrlCount": 0
+        }
+      }
+    },
+    {
+      "id": "228",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "78d1503aa8836a38d19b670891c0e79e4afd16e7b0e12e87f6df1f11a318b5f2",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1543,
+      "status": "ready",
+      "sourceKey": "source-key-3bplte",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "230",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "eced1465f46cb5433732f28155733bf35924ff3c0598c7ef603ac9f0bffebf71",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1310,
+      "status": "ready",
+      "sourceKey": "source-key-h3ddjc",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 10611,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "233",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "bac7457bf48de3c7605ed194c578b1f5864603a439b503a84f8a3e39b4f45cd6",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "PARTIAL_CAPABILITY",
+      "elapsedMs": 1390,
+      "status": "partial",
+      "sourceKey": "source-key-1p2z1r0",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "148",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "0d8a1833816416d038d201b33d2626f9bb6a33a32129f3f89922549f0b22b5d7",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "LOGIN_REQUIRED",
+      "elapsedMs": 1104,
+      "status": "needs_login",
+      "sourceKey": "source-key-b6irjb",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": true,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "191",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "0492d7ae4ed50d3134945b1b3511a53169a82320a6cfc1c12ceed84a47580c6c",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "LOGIN_REQUIRED",
+      "elapsedMs": 1121,
+      "status": "needs_login",
+      "sourceKey": "source-key-1hrheuv",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": false,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": true,
+        "webView": true
+      },
+      "eligible": false
+    },
+    {
+      "id": "212",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "b8f55bf19d8a6189ff7403c174abf611cbd5160031e7e82543da812a01f93600",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1103,
+      "status": "blocked",
+      "sourceKey": "source-key-1gxpps2",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": false,
+        "toc": true,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "213",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "7a0b82a17c3015c8508a54a80f76677efc288455025accc29b0ffd7fbf391dce",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "LOGIN_REQUIRED",
+      "elapsedMs": 1104,
+      "status": "needs_login",
+      "sourceKey": "source-key-qx7s3a",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": true,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "214",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "c6427ea51bdd61fa02f4bb15856cc1d3cf88af56cad163fbfd31a2cee1b0f1c0",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "PARTIAL_CAPABILITY",
+      "elapsedMs": 1500,
+      "status": "partial",
+      "sourceKey": "source-key-19wic0o",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "215",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "7f8a6eabdf5a8127dfad1c2948680225cf2536398dece7b9ff46850e301c6dc9",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "PARTIAL_CAPABILITY",
+      "elapsedMs": 1477,
+      "status": "partial",
+      "sourceKey": "source-key-lvj4f6",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "216",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "be38f4fbcc0962acc42d0e8a2486c12df12fc6bb9a6739d5cf0ea42938180618",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "PARTIAL_CAPABILITY",
+      "elapsedMs": 1651,
+      "status": "partial",
+      "sourceKey": "source-key-1a3ozus",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "218",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "0d5adfeca343d75e616f0bde66e25ee46625aafb89c858d9de07cf46a6f0c370",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1634,
+      "status": "ready",
+      "sourceKey": "source-key-3q38nh",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "234",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "e0d3fbad2c0067b5da1affa9b95a94799fb773e4642df74667faed0e01e6e3ba",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1617,
+      "status": "blocked",
+      "sourceKey": "source-key-iv5ixd",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": false,
+        "toc": true,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "2692",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "22d926f057f7faa4a08dbddb7054bde64c783cab00d916a0775257114b4dd668",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1184,
+      "status": "ready",
+      "sourceKey": "source-key-13xtp9q",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "1936",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "aa404658a2185f54840cd20af70da33fa420b1d743bd784b0508fa4f00d726da",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1120,
+      "status": "ready",
+      "sourceKey": "source-key-eizsup",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "2705",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "28e6d7dfb867a99f30eca87316e12f63f52686269e1df5df50fba87160c316dc",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1092,
+      "status": "ready",
+      "sourceKey": "source-key-1yr4aub",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "2722",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "e212225d5a2445b53bc2a4451fcff2b646af12a6e584fa6db4127ff816630d3e",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1532,
+      "status": "ready",
+      "sourceKey": "source-key-bruey",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "1972",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "c408e8b05da8babde266fcd67d0a2834df4814cfbccae5f704efd1e164e1e939",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1544,
+      "status": "ready",
+      "sourceKey": "source-key-1nktbjz",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "2745",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "94cf2d79db3995226dbd829b7477a4224cd7ba94127bb60524f72076a8b8a852",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1507,
+      "status": "ready",
+      "sourceKey": "source-key-1aaqikz",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 1348,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "2312",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "b3f3c92f5a0d4b0bfcc3d5bac1bfdf2571eac88b0b855912b4169825178efb3f",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "LOGIN_REQUIRED",
+      "elapsedMs": 1376,
+      "status": "needs_login",
+      "sourceKey": "source-key-1cm0c72",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": true,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "2066",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "44da1d4f1254fe00a345736fe6045c743e842c111ac00fa4b8ea9a3eb03201d9",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1356,
+      "status": "ready",
+      "sourceKey": "source-key-qztbt1",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 2338,
+        "errorCode": "SITE_UNREACHABLE",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": false,
+        "diagnostics": {
+          "responseLength": 4387,
+          "responseFingerprint": "ce0b35f3",
+          "payloadType": "text",
+          "topLevelKeys": [],
+          "classNames": [
+            "buy",
+            "stencil-overall",
+            "l",
+            "color",
+            "a-header",
+            "a-banner",
+            "name",
+            "domain-name",
+            "a-content",
+            "clearfix",
+            "r",
+            "info",
+            "pt",
+            "bottom"
+          ],
+          "ruleKind": "css",
+          "listCount": 0,
+          "resultCount": 0,
+          "markers": {
+            "captcha": false,
+            "login": false,
+            "blocked": false,
+            "parked": true,
+            "noResult": false
+          },
+          "missingTitleCount": 0,
+          "missingBookUrlCount": 0
+        }
+      }
+    },
+    {
+      "id": "2641",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "4b0b74d15f5fe35d851709870f99ba6ea73f135ef6452b884fcf2f4cb608461c",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1355,
+      "status": "ready",
+      "sourceKey": "source-key-tbomxj",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 7509,
+        "errorCode": "TIMEOUT",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "3161",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "302d1c62531f441924efd009c67fa4b2eef3f4e6e2a62ec53d4031493c4db505",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1354,
+      "status": "ready",
+      "sourceKey": "source-key-1v11y82",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "2150",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "488e4e8f6e5e1bba4f43beeb2503a7e4fc571dcf32c55601b0e68c73e71af383",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1354,
+      "status": "ready",
+      "sourceKey": "source-key-jy70zk",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 2562,
+        "errorCode": "SITE_UNREACHABLE",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": false,
+        "diagnostics": {
+          "responseLength": 4419,
+          "responseFingerprint": "78d01bbc",
+          "payloadType": "text",
+          "topLevelKeys": [],
+          "classNames": [
+            "buy",
+            "stencil-overall",
+            "l",
+            "color",
+            "a-header",
+            "a-banner",
+            "name",
+            "domain-name",
+            "a-content",
+            "clearfix",
+            "r",
+            "info",
+            "pt",
+            "bottom"
+          ],
+          "ruleKind": "css",
+          "listCount": 0,
+          "resultCount": 0,
+          "markers": {
+            "captcha": false,
+            "login": false,
+            "blocked": false,
+            "parked": true,
+            "noResult": false
+          },
+          "missingTitleCount": 0,
+          "missingBookUrlCount": 0
+        }
+      }
+    },
+    {
+      "id": "2669",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "a9566de5620feb428d8972cf23f8bc6770bf86e491f6b9e970b005487e9a67ab",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "PARTIAL_CAPABILITY",
+      "elapsedMs": 1557,
+      "status": "partial",
+      "sourceKey": "source-key-c5lvfc",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "2416",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "19de4a55cf82620899014456156eed4dd8b53658b660d7bd74be7e0ce6e34fe9",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "PARTIAL_CAPABILITY",
+      "elapsedMs": 2072,
+      "status": "partial",
+      "sourceKey": "source-key-7k0x2n",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "1971",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "cc03b97ffdfd3afaf32791f56d4f0a4aee7df0a8b0d787926296be1c3671fcd9",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1393,
+      "status": "ready",
+      "sourceKey": "source-key-1sx21nm",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "1975",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "67df0858665446591bf901d30694b489fbc79a00497e51825b875dd5b4c3d27a",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1546,
+      "status": "blocked",
+      "sourceKey": "source-key-14a9zr2",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": false,
+        "content": true
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "3024",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "c96e16d46c9a92d4ebf843355a2260e632abfdcb48987625f6ad3fd21b92ebb8",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1546,
+      "status": "ready",
+      "sourceKey": "source-key-on01sv",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "3033",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "d80d1cc6bb20b0c86dcf7280b017fd59c68924c8a1d1c1a8de7b845ea9f8f61e",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "PARTIAL_CAPABILITY",
+      "elapsedMs": 1546,
+      "status": "partial",
+      "sourceKey": "source-key-nasoee",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "2533",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "ff9a645cc639a17048b4c41703fef446256d2693b9407a86466964838c11b642",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1538,
+      "status": "ready",
+      "sourceKey": "source-key-1bgwssy",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "1776",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "a4f9b53e51db35e00b9dcc84de5127b1914424e2c4834ffef8cf8c51fa85035b",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1538,
+      "status": "ready",
+      "sourceKey": "source-key-1xpd19b",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "2550",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "068cb2154026698e25389482033d9066ec727da69defb2e9e11de01adee5f2ce",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1224,
+      "status": "ready",
+      "sourceKey": "source-key-c58tb7",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "2811",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "6738f2599d4343f231c7eb1ec2a8dc9f8b28af327918a91b08fce88290da9c18",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1312,
+      "status": "ready",
+      "sourceKey": "source-key-15wkdxa",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 3215,
+        "errorCode": "SEARCH_EMPTY",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": false,
+        "diagnostics": {
+          "responseLength": 63,
+          "responseFingerprint": "7b902aa6",
+          "payloadType": "object",
+          "topLevelKeys": [
+            "data",
+            "errorCode",
+            "pageSize",
+            "status",
+            "totalNum"
+          ],
+          "classNames": [],
+          "ruleKind": "css",
+          "listCount": 0,
+          "resultCount": 0,
+          "markers": {
+            "captcha": false,
+            "login": false,
+            "blocked": false,
+            "parked": false,
+            "noResult": true
+          },
+          "missingTitleCount": 0,
+          "missingBookUrlCount": 0
+        }
+      }
+    },
+    {
+      "id": "3085",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "4be67f878f7f795305a392c3bb1c7453b64172397d8f11177ea070f4ca4113ae",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1181,
+      "status": "blocked",
+      "sourceKey": "source-key-1lcarkb",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "3087",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "44734c6d25102e631f472c6968709d875aba8cd11698984bc4b90e5c393264bc",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1392,
+      "status": "ready",
+      "sourceKey": "source-key-s4u0hc",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 1304,
+        "errorCode": "SITE_UNREACHABLE",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": false,
+        "diagnostics": {
+          "responseLength": 1948,
+          "responseFingerprint": "e436d993",
+          "payloadType": "text",
+          "topLevelKeys": [],
+          "classNames": [
+            "production",
+            "EasyRegister",
+            "_1zv1zYlcgoz4xXhsXsDHJW"
+          ],
+          "ruleKind": "css",
+          "listCount": 0,
+          "resultCount": 0,
+          "markers": {
+            "captcha": false,
+            "login": false,
+            "blocked": false,
+            "parked": true,
+            "noResult": false
+          },
+          "missingTitleCount": 0,
+          "missingBookUrlCount": 0
+        }
+      }
+    },
+    {
+      "id": "3092",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "c8d3f463f191ab7d8cf2a48fcc83ef8a9ba74c812be6c9d957b14c4a4c667392",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1391,
+      "status": "blocked",
+      "sourceKey": "source-key-1lz2c9i",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "1831",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "99453189931f04f575ac153b267efc48e9a0fee22dfea287b526ac728c3ad8eb",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "PARTIAL_CAPABILITY",
+      "elapsedMs": 1392,
+      "status": "partial",
+      "sourceKey": "source-key-1hv8dq8",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "3134",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "0453bbaa6e801f37f4fd6306340c853bb035c8f836614a8e48157ee046e6dfd7",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1399,
+      "status": "ready",
+      "sourceKey": "source-key-qii6ud",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "2625",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "1f6da3d11f009e9693d0c08cdf151d982dec9f5baca27b02dd2402170005f007",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1374,
+      "status": "ready",
+      "sourceKey": "source-key-x72u2s",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": false,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 859,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "3154",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "da595373d0bf74b644ca10857641903b61833868092816f71aedfb754ac74e5a",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1409,
+      "status": "ready",
+      "sourceKey": "source-key-fsvx1i",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": false,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 4,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "2686",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "1465c467b3582ddd42cca84fc836eacf8faf1a0720961d1e72aecd4c4f136281",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1305,
+      "status": "ready",
+      "sourceKey": "source-key-kdw703",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 1262,
+        "errorCode": "HTTP_NOT_FOUND",
+        "failedStage": "search",
+        "httpStatus": 404,
+        "retryable": false
+      }
+    },
+    {
+      "id": "2968",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "c0459462a309048773230f5ee53949e5f83691135ebe813d127e95ab29a70950",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "PARTIAL_CAPABILITY",
+      "elapsedMs": 1297,
+      "status": "partial",
+      "sourceKey": "source-key-r9lcak",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "2503",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "1b48120ff827b6e07651001431702ebc2371a3b376abd553f7808850e698320b",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "PARTIAL_CAPABILITY",
+      "elapsedMs": 1239,
+      "status": "partial",
+      "sourceKey": "source-key-l68jl6",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "3015",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "563b7b65c50b5835f0871bef2abf02436eefdf39dff23d0e78e551c0200cae1b",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "PARTIAL_CAPABILITY",
+      "elapsedMs": 1266,
+      "status": "partial",
+      "sourceKey": "source-key-k4hgko",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "2252",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "80ac652f2637f24a7b0c68948380b0c2646e2b164f1f7e1450e6d1e0601ae728",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1275,
+      "status": "blocked",
+      "sourceKey": "source-key-r6fllw",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "2520",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "ecc161b70053aa89901a6c9a7a9129da1262852c8a2a1966deee6d7e99e15537",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 3067,
+      "status": "blocked",
+      "sourceKey": "source-key-1h9z2ph",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": false,
+        "content": true
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "2527",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "e0b6087e49af0bec28be4ea6078fa188b999efcdb37223711741a1cef95992a6",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "PARTIAL_CAPABILITY",
+      "elapsedMs": 3315,
+      "status": "partial",
+      "sourceKey": "source-key-1522xqf",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "1779",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "ab8229165545c78ee317c5af311d250051944b97463de3ebc908e124a5b696d7",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "PARTIAL_CAPABILITY",
+      "elapsedMs": 1290,
+      "status": "partial",
+      "sourceKey": "source-key-efzt2f",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "1815",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "ad42ee748c03b779efd0a5a6407ea9505218bfe081ab9f1124c9a7da7e521d02",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1062,
+      "status": "blocked",
+      "sourceKey": "source-key-15w9frt",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": true,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "1863",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "f3df8fc6847951b0527f300602c55af1d865ea1b478edd2af8ebd997cdcb2964",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "PARTIAL_CAPABILITY",
+      "elapsedMs": 1062,
+      "status": "partial",
+      "sourceKey": "source-key-393gy3",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "2376",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "e7d1e678c64a65f0616b4eea255a340e108fdbf0d7655484ff208686c2bcba40",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "PARTIAL_CAPABILITY",
+      "elapsedMs": 2004,
+      "status": "partial",
+      "sourceKey": "source-key-1wdh2y1",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": true
+      },
+      "eligible": false
+    },
+    {
+      "id": "2147",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "7b9b02dcf063b87835c0050f7c3e6a1dca9ee69a3268dfc21163ededf001e768",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1129,
+      "status": "ready",
+      "sourceKey": "source-key-3hdh0q",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 1562,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "2718",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "60f5950970b56c39af08f966963686d4ca19d543fefc22262b8414ebe166e849",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 857,
+      "status": "ready",
+      "sourceKey": "source-key-18ehg2g",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "1957",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "d4bd1e88bb6390550ebb00e7f24ee8cc61a115fdb151302b960f61d4d117a426",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1168,
+      "status": "ready",
+      "sourceKey": "source-key-1iuhr2m",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "2990",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "4d5fa542ec9cb63b2a174f8048c713b1d8d4feea9c256dd1d3d711e1d893e9bd",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1168,
+      "status": "ready",
+      "sourceKey": "source-key-1q2eyd1",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "2223",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "7dc34a9ead4a0ea7ecd39809a6b6a2d952f8b7fc95b2a1d2135d18f7aa667e39",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1379,
+      "status": "ready",
+      "sourceKey": "source-key-h85aa5",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 1819,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "2251",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "f8d079316330c7d481458f9bd187cb95bdcc186e296a74703d48a04fdeb8b394",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1379,
+      "status": "ready",
+      "sourceKey": "source-key-rmhqp5",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 1844,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "3019",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "806fe5d62d9cd05657795e2cc79aa4da0c6b9dbe499f8720c608194385c6f80e",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1122,
+      "status": "ready",
+      "sourceKey": "source-key-vt9g3r",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 611,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "2006",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "52fb874cf75f6aaaf3db871748be4e12141da909eea7063f28d4f4ad73b3bfb4",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1127,
+      "status": "ready",
+      "sourceKey": "source-key-n95xq4",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "2821",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "99a9d5bd075809ef91f1d86b1dee5df795cd553b7c6ef613b3a2551258e0d84e",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "LOGIN_REQUIRED",
+      "elapsedMs": 1061,
+      "status": "needs_login",
+      "sourceKey": "source-key-zwhgvm",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": false,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": true,
+        "webView": true
+      },
+      "eligible": false
+    },
+    {
+      "id": "1828",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "06c140054a97cbae06d963536688ed71ebc9af7bb7a511957edff1edc3fd85d5",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1286,
+      "status": "blocked",
+      "sourceKey": "source-key-1ptykqz",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": true,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "2859",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "95212094761c914afc33b6591fe1cc24d0f8e99a05bddda8c777c3e96d2840de",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 888,
+      "status": "ready",
+      "sourceKey": "source-key-1cli33r",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "3130",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "ad62f53276e2e1912c5fcf409096021bfec25c8a3ecc2f69569949b50820bab2",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "PARTIAL_CAPABILITY",
+      "elapsedMs": 1225,
+      "status": "partial",
+      "sourceKey": "source-key-1et4n6q",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "2901",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "3d656c04f27e159e7ea88815da0a42767429cd975a45871ab18c4348f9e7cc5d",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1234,
+      "status": "ready",
+      "sourceKey": "source-key-h81mu7",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": false,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 1649,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "1878",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "9d8e5e6d9c41b79ab776376723f31cf6d0c1c3d6518db4110e8fb89209c3feac",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1225,
+      "status": "ready",
+      "sourceKey": "source-key-1bp91i0",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "3175",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "bbfb599bdcf266c1e63d63ebb54e37e01b2098bb5c3e17c4eb7c66ebf7545a59",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1248,
+      "status": "blocked",
+      "sourceKey": "source-key-guu10o",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": false,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": true,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "2947",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "6016be6ead6c80eaeaf5fb2daa169b76faf69b650e177072cd6cca40db707382",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "PARTIAL_CAPABILITY",
+      "elapsedMs": 1528,
+      "status": "partial",
+      "sourceKey": "source-key-4x20cz",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "2445",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "dd08a582f59f77ffcae6469e4be6b4c71ee4745479d9aac75b4963c9ed0ec41f",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1565,
+      "status": "ready",
+      "sourceKey": "source-key-njsai8",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 7504,
+        "errorCode": "TIMEOUT",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "1942",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "67826bc0533db5724345716b9e998292bb90db1d355ba9a21541e0bd2cb2e362",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "PARTIAL_CAPABILITY",
+      "elapsedMs": 1241,
+      "status": "partial",
+      "sourceKey": "source-key-8k5zvt",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "1955",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "0a35ec90d0c7afa9040bc81ed62a3f7c4f6b0a48485dc13af4fe226c90659d80",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 955,
+      "status": "ready",
+      "sourceKey": "source-key-1x267r9",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "2764",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "5ed975ae43fc209a270cd02f50fc6722c8ec7ba877edea327695d2f7544a8876",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 910,
+      "status": "ready",
+      "sourceKey": "source-key-e9w0ba",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "3025",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "c8501820286473c1eb1cd3164c6d1012e05374fa85f724269f473b9dd373fd60",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 901,
+      "status": "blocked",
+      "sourceKey": "source-key-9ovtje",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "2038",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "629820496fe70d4a8465e30889c64bef37fd481c3e91525ef352b9553a14f633",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "PARTIAL_CAPABILITY",
+      "elapsedMs": 911,
+      "status": "partial",
+      "sourceKey": "source-key-vldiuu",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "2305",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "01fea8550c200180ae01e725e19d430818a8075b52628eae65a0f7c530b0e3f3",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 861,
+      "status": "ready",
+      "sourceKey": "source-key-1j9q6hk",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "2335",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "49da099a6b533a8a2f829d338b088aac39e06682ebe340cd6b971db8630210ee",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1312,
+      "status": "ready",
+      "sourceKey": "source-key-ei4b18",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "2856",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "06be9b907a53dd1738cd8c22a7dde4c258f5d5dd2dba71f1691cae8a128994d2",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1248,
+      "status": "ready",
+      "sourceKey": "source-key-1fbjx89",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "2877",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "9cd87598e88e531d3a560d3c0d558b6c75bb1d48deb6137fce5c9b1e802f371c",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1034,
+      "status": "ready",
+      "sourceKey": "source-key-18wklot",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": true,
+        "backend": true
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 3647,
+        "errorCode": "HTTP_SERVER_ERROR",
+        "failedStage": "search",
+        "httpStatus": 503,
+        "retryable": true
+      }
+    },
+    {
+      "id": "2880",
+      "layer": "older",
+      "page": 56,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "8883cee8504c4213b57f44e9be54d882a424124b667e2f22c4abbd0911b9b523",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "PARTIAL_CAPABILITY",
+      "elapsedMs": 1041,
+      "status": "partial",
+      "sourceKey": "source-key-15ostg9",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "198",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "dff91ae1299326d5ebb1ecea3101618ed397e62bfb9bd2eb0e5f8bbdfb195e0a",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 2189,
+      "status": "ready",
+      "sourceKey": "source-key-eta4ia",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 664,
+        "errorCode": "HTTP_BLOCKED",
+        "failedStage": "search",
+        "httpStatus": 403,
+        "retryable": false
+      }
+    },
+    {
+      "id": "200",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "f6c3c627aaa18f7be2c74d447489c3d66ab945251e94b37e9e159d878ec7809a",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 1499,
+      "status": "ready",
+      "sourceKey": "source-key-1di8g8m",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": true,
+      "flow": {
+        "status": "failed",
+        "keyword": "",
+        "elapsedMs": 2588,
+        "errorCode": "NETWORK_ERROR",
+        "failedStage": "search",
+        "httpStatus": 0,
+        "retryable": true
+      }
+    },
+    {
+      "id": "201",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "97d1eb8d1cc63028bb7c8b94e4046cef6ff15117f59826fca67e58b32062ee2a",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 1491,
+      "status": "blocked",
+      "sourceKey": "source-key-z2uft",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": true,
+        "toc": false,
+        "content": true
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "202",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "57acd114b15878c9c51689abe30fa287b3acbf60680e4ffb44d2ec5c949fa15f",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 2025,
+      "status": "blocked",
+      "sourceKey": "source-key-1q3kq0z",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "205",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "77460c5fbb1561e25a440f965534a977e15b50c26c458504b8a65a8cb9b2ed4a",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 2522,
+      "status": "blocked",
+      "sourceKey": "source-key-s2hcdp",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "206",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "7370b6adf0562a7064bd1f36b5dec93637810eff79a9dd97046269ab75a5217e",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "",
+      "elapsedMs": 2514,
+      "status": "ready",
+      "sourceKey": "source-key-1fgc0ha",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": true,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": true
+      },
+      "requires": {
+        "cookie": true,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "208",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "c05066f39b4cb141ed9254c57699f2d26707e80a754f5dee83e6904ae2079e79",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 4011,
+      "status": "blocked",
+      "sourceKey": "source-key-z5xhjm",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": true,
+        "toc": false,
+        "content": true
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": true
+      },
+      "eligible": false
+    },
+    {
+      "id": "209",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "903f1278348ad8663d6cefb07b3145e74b5e1c085ec475e7081cc5202c696da4",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "LOGIN_REQUIRED",
+      "elapsedMs": 4437,
+      "status": "needs_login",
+      "sourceKey": "source-key-1gs2c5c",
+      "format": "3.x",
+      "capabilities": {
+        "search": true,
+        "detail": true,
+        "toc": false,
+        "content": true
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": true,
+        "login": true,
+        "webView": true
+      },
+      "eligible": false
+    },
+    {
+      "id": "217",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "71005b38a530dd2a276b9317e5bf6852845466071fb035f73217c8ac3fad37ee",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "PARTIAL_CAPABILITY",
+      "elapsedMs": 3777,
+      "status": "partial",
+      "sourceKey": "source-key-nv6jrc",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": false,
+        "content": false
+      },
+      "platforms": {
+        "android": true,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    },
+    {
+      "id": "224",
+      "layer": "middle",
+      "page": 28,
+      "capturedAt": "2026-08-12T16:56:41.247Z",
+      "sha256": "bb8b6d9f36b071fed26b04a5b639d1b9d1d5e5caaf7a007d4396d5ef91bd5f46",
+      "downloadStatus": "valid_text_json",
+      "errorCode": "SCRIPT_UNSUPPORTED",
+      "elapsedMs": 3152,
+      "status": "blocked",
+      "sourceKey": "source-key-1hxjfwy",
+      "format": "3.x",
+      "capabilities": {
+        "search": false,
+        "detail": false,
+        "toc": true,
+        "content": false
+      },
+      "platforms": {
+        "android": false,
+        "h5": false,
+        "backend": false
+      },
+      "requires": {
+        "cookie": false,
+        "login": false,
+        "webView": false
+      },
+      "eligible": false
+    }
+  ]
+}

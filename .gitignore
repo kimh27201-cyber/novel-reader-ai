@@ -27,7 +27,12 @@ output/
 preview/
 novel_screen.png
 logs/
+artifacts/
+test-results/
+tmp/
+.v3-build/
 
 # OS
 Thumbs.db
 .DS_Store
+.test-data/

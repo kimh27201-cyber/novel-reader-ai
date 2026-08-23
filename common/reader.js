@@ -114,6 +114,7 @@ export function getProgress(bookId) {
   return uni.getStorageSync(progressKey(bookId)) || {
     chapterIndex: 0,
     pageIndex: 0,
+    charOffset: 0,
     scrollTop: 0,
     updatedAt: Date.now()
   }
@@ -123,6 +124,7 @@ export function saveProgress(bookId, progress) {
   uni.setStorageSync(progressKey(bookId), {
     chapterIndex: progress.chapterIndex || 0,
     pageIndex: progress.pageIndex || 0,
+    charOffset: Math.max(0, Number(progress.charOffset) || 0),
     scrollTop: progress.scrollTop || 0,
     updatedAt: Date.now()
   })

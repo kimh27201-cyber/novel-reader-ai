@@ -33,14 +33,14 @@
     </view>
 
     <view class="mode-row">
-      <button class="mode" :class="{ active: mode === 'cloud' }" @tap="setMode('cloud')">云端</button>
+      <button class="mode" :class="{ active: mode === 'cloud' }" @tap="setMode('cloud')">联网</button>
       <button class="mode" :class="{ active: mode === 'source' }" @tap="setMode('source')">书源</button>
       <button class="mode" :class="{ active: mode === 'local' }" @tap="setMode('local')">本地</button>
     </view>
 
     <view class="tip-card" v-if="mode === 'cloud'">
       <view class="tip-title">书源发现</view>
-      <text class="tip-desc">导入带 exploreUrl 的书源后，分类、榜单和最新入库会直接请求对应书源页面。当前可搜索 {{ availableSourceCount }} 个，可发现 {{ availableExploreCount }} 个入口。</text>
+      <text class="tip-desc">手机本地书源优先搜索，登录后端时只合并补充结果。已验证 {{ sourcePoolStats.verified }}，待检测 {{ sourcePoolStats.untested }}，冷却中 {{ sourcePoolStats.cooling }}，受限 {{ sourcePoolStats.blocked }}。</text>
       <text class="tip-desc" v-if="availableSourceNames">可用书源：{{ availableSourceNames }}</text>
       <view class="search-settings-toggle" @tap="searchSettingsExpanded = !searchSettingsExpanded">
         <text class="setting-label">高级搜索</text>
@@ -66,10 +66,18 @@
         <view class="setting-cell">
           <text class="setting-label">检查数量</text>
           <view class="stepper">
-            <button class="stepper-button" @tap="adjustSearchSetting('sourceLimit', -1)">−</button>
+            <button class="stepper-button" @tap="adjustSearchSetting('sourceLimit', -10)">−</button>
             <text class="stepper-value">{{ searchSettings.sourceLimit }}</text>
-            <button class="stepper-button" @tap="adjustSearchSetting('sourceLimit', 1)">＋</button>
+            <button class="stepper-button" @tap="adjustSearchSetting('sourceLimit', 10)">＋</button>
           </view>
+        </view>
+        <view class="setting-cell">
+          <text class="setting-label">Wi-Fi 智能检测</text>
+          <switch :checked="searchSettings.autoWarmup" color="#e26a4f" @change="toggleSearchSetting('autoWarmup', $event)" />
+        </view>
+        <view class="setting-cell">
+          <text class="setting-label">合并后端结果</text>
+          <switch :checked="searchSettings.mergeBackend" color="#e26a4f" @change="toggleSearchSetting('mergeBackend', $event)" />
         </view>
       </view>
     </view>
@@ -133,16 +141,7 @@
           </view>
         </view>
 
-        <view class="search-skeleton-list" v-if="loading" aria-label="正在加载搜索结果">
-          <view class="search-skeleton-row" v-for="index in 3" :key="index">
-            <view class="search-skeleton-cover"></view>
-            <view class="search-skeleton-copy">
-              <view class="search-skeleton-line strong"></view>
-              <view class="search-skeleton-line"></view>
-              <view class="search-skeleton-line short"></view>
-            </view>
-          </view>
-        </view>
+        <DSkeleton class="search-skeleton-list" v-if="loading" variant="search" :rows="3" aria-label="正在加载搜索结果" />
 
         <view class="search-error-state" v-if="searchError && !loading">
           <view class="state-mark error">!</view>
@@ -150,10 +149,14 @@
             <view class="empty-title">这条线索暂时中断</view>
             <text class="empty-desc">{{ searchError }}</text>
           </view>
-          <button class="state-action" @tap="retrySearch">重新搜索</button>
+          <button class="state-action" @tap="retrySearch">{{ retryActionLabel }}</button>
         </view>
 
-        <view class="discover-source-list" v-if="mode === 'cloud' && exploreEntries.length && !results.length">
+        <view class="source-usage" v-if="lastSearchReport && lastSearchReport.local && !loading">
+          已探测 {{ lastSearchReport.local.attempted }} 个来源：有结果 {{ lastSearchReport.local.succeeded }}，空结果 {{ lastSearchReport.local.empty }}，失败 {{ lastSearchReport.local.failed }}；后端补充 {{ lastSearchReport.backend.count }} 条。
+        </view>
+
+        <view class="discover-source-list" v-if="mode === 'cloud' && exploreEntries.length && !results.length && !hasSearched">
           <view class="section-head">
             <view>
               <view class="section-title">分类</view>
@@ -242,21 +245,23 @@
 
         <view class="empty-state" v-else-if="mode === 'cloud' && noAvailableSourceHint && !loading">
           <view class="empty-title">暂无可用书源</view>
-          <text class="empty-desc">请先到书源页完成书源测试。发现页只使用已通过测试的书源。</text>
-          <button class="starter primary" @tap="goLibrary">去书源页批量检测</button>
+          <text class="empty-desc">当前没有静态规则合格的文字书源，可继续导入来源或检查是否误停用了全部书源。</text>
+          <button class="starter primary" @tap="goLibrary">查看书源设置</button>
         </view>
 
         <view class="empty-state no-result-state" v-else-if="hasSearched && !loading && !searchError">
-          <view class="state-mark">⌕</view>
+          <view class="state-mark">花</view>
           <view class="empty-title">没有找到“{{ lastSearchKeyword }}”</view>
           <text class="empty-desc">{{ mode === 'cloud' ? '换一个更短的书名，或切换书源后再试。' : '本地书架中没有匹配项，可以先导入 TXT 或加入一本书。' }}</text>
-          <button class="state-action" @tap="focusSearchInput">换个关键词</button>
+          <button class="state-action continue-search-action" @tap.stop="continueSearch">
+            {{ lastSearchReport && lastSearchReport.local && lastSearchReport.local.hasMore ? '继续检测下一批' : '换个关键词' }}
+          </button>
         </view>
 
         <view class="empty-state" v-else-if="!loading && !searchError">
           <view class="state-mark">书</view>
           <view class="empty-title">{{ mode === 'cloud' ? '从一个书名开始发现' : '搜索本地书架' }}</view>
-          <text class="empty-desc">{{ mode === 'cloud' ? '输入完整书名或从推荐线索开始，发现页会聚合已通过测试的书源。' : '本地模式只查已经导入或加入书架的书籍。' }}</text>
+          <text class="empty-desc">{{ mode === 'cloud' ? '输入完整书名或从推荐线索开始，应用会自动探测手机中的本地书源。' : '本地模式只查已经导入或加入书架的书籍。' }}</text>
           <view class="starter-grid" v-if="mode === 'cloud' && !searchHistory.length">
             <button class="starter" v-for="entry in starterKeywords" :key="entry" @tap="useStarter(entry)">
               {{ entry }}
@@ -272,12 +277,14 @@
 
 <script>
 import { searchBooks } from '../../common/books.js'
-import { exploreOnlineBooks, getOnlineExploreEntries, getOnlineSearchSettings, getSourceConfigs, pickOnlineSearchSources, saveOnlineBookDraft, saveOnlineSearchSettings, searchOnlineBooks, setSourceEnabled } from '../../common/bookSources.js'
-import apiClient from '../../common/apiClient.js'
-import { searchBackendBooks } from '../../common/backendLibrary.js'
+import { getOnlineSearchSettings, getSourceConfigs, getSourceDiscoverySnapshot, getSourceLibraryPage, openExploreCatalogEntry, saveOnlineBookDraft, saveOnlineSearchSettings, setSourceEnabled } from '../../common/bookSources.js'
+import { mergeUnifiedSearchResults, searchUnifiedBooks } from '../../common/sourceSearchRuntime.js'
+import { setSourceWarmupBusy } from '../../common/sourceWarmup.js'
 import { buildSearchResultKey, buildSourceToggleState, demoSearchKeywords, sanitizeSearchKeyword } from '../../common/searchHelpers.js'
 import { getAppThemeId, getAppThemeStyle } from '../../common/appTheme.js'
 import GlassTabBar from '../../custom-tab-bar/index.vue'
+import DEmptyState from '../../components/composite/DEmptyState.vue'
+import DSkeleton from '../../components/feedback/DSkeleton.vue'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 import { markTabDirty, markTabFresh, shouldRefreshTab } from '../../common/tabFreshness.js'
 import { getNavigationMotion } from '../../common/motion.js'
@@ -285,6 +292,7 @@ import { markTabRouteShown } from '../../common/tabNavigation.js'
 import { ensureNativeTabBarHidden } from '../../common/tabShell.js'
 
 const SEARCH_HISTORY_KEY = 'search:history'
+let searchSourceConfigs = []
 
 function getStoredSearchHistory() {
   try {
@@ -296,7 +304,7 @@ function getStoredSearchHistory() {
 }
 
 export default {
-  components: { GlassTabBar },
+  components: { GlassTabBar, DEmptyState, DSkeleton },
   data() {
     return {
       mode: 'cloud',
@@ -315,8 +323,15 @@ export default {
       searchSettings: getOnlineSearchSettings(),
       searchSettingsExpanded: false,
       exploreEntries: [],
+      exploreCatalog: [],
+      sourcePoolStats: { total: 0, verified: 0, untested: 0, retryable: 0, cooling: 0, blocked: 0, available: 0 },
+      sourceCandidates: [],
+      lastSearchReport: null,
+      searchedSourceIds: [],
       activeExploreEntry: null,
       discoverRefreshing: false,
+      sourceFilterTimer: null,
+      sourceHydrationTimer: null,
       themeId: getAppThemeId(),
       pageMotionKind: '',
       pageMotionDirection: 'forward',
@@ -346,30 +361,35 @@ export default {
       return this.sources.filter(source => source.enabled).length
     },
     availableSearchSources() {
-      return pickOnlineSearchSources(this.sources, 99)
+      return this.sourceCandidates.slice(0, Math.max(8, Number(this.searchSettings.sourceLimit || 20)))
     },
     availableSourceCount() {
-      return this.availableSearchSources.length
+      return this.sourcePoolStats.available
     },
     availableExploreCount() {
       return this.exploreEntries.length
     },
+    availableExploreSourceCount() {
+      return new Set(this.exploreEntries.map(entry => entry.sourceId).filter(Boolean)).size
+    },
     availableSourceNames() {
-      return this.availableSearchSources.map(source => source.name).join('、')
+      const names = this.availableSearchSources.slice(0, 8).map(source => source.name).join('、')
+      return this.availableSourceCount > 8 ? `${names} 等` : names
     },
     exploreCategoryEntries() {
-      return this.exploreEntries.filter(entry => entry.kind === 'category').slice(0, 12)
+      return this.exploreCatalog.filter(entry => entry.kind === 'category').slice(0, 12)
     },
     exploreRankEntries() {
-      return this.exploreEntries.filter(entry => entry.kind === 'rank').slice(0, 9)
+      return this.exploreCatalog.filter(entry => entry.kind === 'rank').slice(0, 9)
     },
     latestExploreEntries() {
-      return this.exploreEntries.filter(entry => entry.kind === 'latest').slice(0, 6)
+      return this.exploreCatalog.filter(entry => entry.kind === 'latest').slice(0, 6)
     },
     sourceExploreRows() {
       const rows = []
+      const rowMap = new Map()
       this.exploreEntries.forEach(entry => {
-        const found = rows.find(row => row.sourceId === entry.sourceId)
+        const found = rowMap.get(entry.sourceId)
         if (found) {
           found.count += 1
           return
@@ -381,12 +401,13 @@ export default {
           firstEntry: entry,
           count: 1
         })
+        rowMap.set(entry.sourceId, rows[rows.length - 1])
       })
       return rows.slice(0, 8)
     },
     loadingTitle() {
       if (this.activeExploreEntry) return `正在打开 ${this.activeExploreEntry.title}`
-      return this.mode === 'cloud' ? '正在搜索云端书源' : '正在搜索本地书架'
+      return this.mode === 'cloud' ? '正在探测联网书源' : '正在搜索本地书架'
     },
     searchProgressText() {
       if (!this.loading || this.mode !== 'cloud' || !this.searchProgress.total) return ''
@@ -399,17 +420,20 @@ export default {
       return Math.max(8, Math.min(100, Math.round((this.searchProgress.done / this.searchProgress.total) * 100)))
     },
     noAvailableSourceHint() {
-      return this.availableSourceCount === 0 && this.availableExploreCount === 0 && !apiClient.getToken()
+      return this.sourcePoolStats.available === 0 && this.availableExploreCount === 0
     },
     modeHint() {
       if (this.mode === 'source') return '管理外部书源'
       if (this.mode === 'local') return '只查本地书架'
-      return `可搜索 ${this.availableSourceCount} · 可发现 ${this.availableExploreCount}`
+      return `可搜索 ${this.availableSourceCount} · 发现源 ${this.availableExploreSourceCount}`
+    },
+    retryActionLabel() {
+      return this.activeExploreEntry ? '重试当前入口' : '查看其他可用入口'
     },
     modeLabel() {
       if (this.mode === 'source') return '书源'
       if (this.mode === 'local') return '本地'
-      return '云端'
+      return '联网'
     },
     searchPlaceholder() {
       if (this.mode === 'source') return '筛选书源名称'
@@ -418,6 +442,16 @@ export default {
     },
     refresherStyle() {
       return ['candy', 'sakura'].includes(this.themeId) ? 'black' : 'white'
+    }
+  },
+  watch: {
+    keyword() {
+      if (this.mode !== 'source') return
+      if (this.sourceFilterTimer) clearTimeout(this.sourceFilterTimer)
+      this.sourceFilterTimer = setTimeout(() => {
+        this.sourceFilterTimer = null
+        this.sources = getSourceLibraryPage({ keyword: this.keyword, limit: 30 }).rows
+      }, 120)
     }
   },
   onLoad() {
@@ -434,16 +468,40 @@ export default {
   },
   onUnload() {
     if (uni.$off) uni.$off('sources:changed', this.handleSourcesChanged)
+    if (this.sourceFilterTimer) clearTimeout(this.sourceFilterTimer)
+    if (this.sourceHydrationTimer) clearTimeout(this.sourceHydrationTimer)
+  },
+  onHide() {
+    if (this.sourceHydrationTimer) clearTimeout(this.sourceHydrationTimer)
+    this.sourceHydrationTimer = null
   },
   methods: {
-    refreshExploreEntries() {
-      this.exploreEntries = getOnlineExploreEntries({ sources: this.sources })
+    refreshSourcePool() {
+      const snapshot = searchSourceConfigs.length
+        ? getSourceDiscoverySnapshot({ sources: searchSourceConfigs })
+        : getSourceDiscoverySnapshot({ preferCache: true })
+      this.sourceCandidates = snapshot.candidates
+      this.sourcePoolStats = snapshot.counts
+      return snapshot
+    },
+    refreshExploreEntries(options = {}) {
+      const snapshot = options.skipPool ? getSourceDiscoverySnapshot({ sources: searchSourceConfigs }) : this.refreshSourcePool()
+      this.exploreEntries = snapshot.entries
+      this.exploreCatalog = snapshot.catalog
       markTabFresh('search')
+      return snapshot
     },
     refreshDiscoverShell() {
       this.searchSettings = getOnlineSearchSettings()
-      this.sources = getSourceConfigs()
-      this.refreshExploreEntries()
+      this.sources = getSourceLibraryPage({ keyword: this.mode === 'source' ? this.keyword : '', limit: 30 }).rows
+      const cachedSnapshot = this.refreshExploreEntries()
+      if (cachedSnapshot.catalog.length || cachedSnapshot.candidates.length) return
+      if (this.sourceHydrationTimer) clearTimeout(this.sourceHydrationTimer)
+      this.sourceHydrationTimer = setTimeout(() => {
+        this.sourceHydrationTimer = null
+        searchSourceConfigs = getSourceConfigs()
+        this.refreshExploreEntries()
+      }, 1800)
     },
     handleSourcesChanged() {
       markTabDirty('search')
@@ -453,7 +511,8 @@ export default {
       this.discoverRefreshing = true
       try {
         this.searchSettings = getOnlineSearchSettings()
-        this.sources = getSourceConfigs()
+      searchSourceConfigs = getSourceConfigs()
+      this.sources = getSourceLibraryPage({ keyword: this.mode === 'source' ? this.keyword : '', limit: 30 }).rows
         this.refreshExploreEntries()
         if (this.loading) return
         if (this.activeExploreEntry) {
@@ -473,6 +532,12 @@ export default {
       this.searchSettings = saveOnlineSearchSettings({
         ...this.searchSettings,
         [field]: current + delta
+      })
+    },
+    toggleSearchSetting(field, event) {
+      this.searchSettings = saveOnlineSearchSettings({
+        ...this.searchSettings,
+        [field]: !!(event && event.detail && event.detail.value)
       })
     },
     setMode(mode) {
@@ -522,13 +587,27 @@ export default {
         this.openExploreEntry(entry)
         return
       }
+      if (!sanitizeSearchKeyword(this.keyword)) {
+        this.results = []
+        this.hasSearched = false
+        this.refreshDiscoverShell()
+        return
+      }
       this.runSearch()
+    },
+    continueSearch() {
+      if (this.lastSearchReport && this.lastSearchReport.local && this.lastSearchReport.local.hasMore) {
+        this.runSearch({ continue: true })
+        return
+      }
+      this.focusSearchInput()
     },
     toggleSource(source) {
       const state = buildSourceToggleState(source)
       if (state.sourceId) {
         setSourceEnabled(state.sourceId, state.nextEnabled)
-        this.sources = getSourceConfigs()
+        searchSourceConfigs = getSourceConfigs()
+        this.sources = getSourceLibraryPage({ keyword: this.mode === 'source' ? this.keyword : '', limit: 30 }).rows
         this.refreshExploreEntries()
       }
       uni.showToast({ title: state.toast, icon: 'none' })
@@ -548,24 +627,38 @@ export default {
       this.activeExploreEntry = entry
       this.lastSearchSourceNames = [`${entry.sourceName} · ${entry.title}`]
       try {
-        const results = await exploreOnlineBooks(entry)
-        if (this.searchToken === token) this.results = results
+        setSourceWarmupBusy(true)
+        const catalogEntry = entry.providers ? entry : { ...entry, key: entry.id, providers: [entry] }
+        const report = await openExploreCatalogEntry(catalogEntry)
+        if (this.searchToken === token) {
+          this.results = report.results
+          this.lastSearchSourceNames = [`${report.provider.sourceName} · ${entry.title}`]
+        }
       } catch (error) {
         if (this.searchToken === token) {
           this.results = []
           this.searchError = friendlyErrorMessage(error, '发现入口打开失败')
+          searchSourceConfigs = getSourceConfigs()
+          this.refreshExploreEntries()
+          if (!this.exploreEntries.some(item => item.sourceId === entry.sourceId)) {
+            this.activeExploreEntry = null
+          }
           uni.showToast({ title: this.searchError, icon: 'none' })
         }
       } finally {
         if (this.searchToken === token) this.loading = false
+        setSourceWarmupBusy(false)
       }
     },
-    async runSearch() {
+    async runSearch(options = {}) {
       const word = sanitizeSearchKeyword(this.keyword)
       this.keyword = word
       const token = Date.now()
+      const continuing = options && options.continue === true && word === this.lastSearchKeyword
+      const previousResults = continuing ? this.results.slice() : []
+      if (!continuing) this.searchedSourceIds = []
       this.searchToken = token
-      this.results = []
+      this.results = previousResults
       this.hasSearched = false
       this.searchError = ''
       this.lastSearchSourceNames = []
@@ -587,30 +680,32 @@ export default {
         return
       }
 
-      if (this.noAvailableSourceHint) {
-        uni.showToast({ title: '暂无可用书源，请先到书源页完成书源测试', icon: 'none' })
-        return
-      }
-
-      this.lastSearchSourceNames = apiClient.getToken()
-        ? ['后端演示源']
-        : this.availableSearchSources.slice(0, this.searchSettings.sourceLimit).map(source => source.name)
+      this.lastSearchSourceNames = this.availableSearchSources.slice(0, this.searchSettings.sourceLimit).map(source => source.name)
       this.loading = true
+      setSourceWarmupBusy(true)
       try {
-        const results = apiClient.getToken()
-          ? await searchBackendBooks(word)
-          : await searchOnlineBooks(word, {
-            ...this.searchSettings,
-            onProgress: progress => {
-              if (this.searchToken !== token) return
-              this.searchProgress = {
-                done: progress.done,
-                total: progress.total,
-                message: `${progress.sourceName} ${progress.status === 'success' ? `返回 ${progress.count}` : '失败'}`
-              }
+        const report = await searchUnifiedBooks(word, {
+          ...this.searchSettings,
+          excludeSourceIds: this.searchedSourceIds,
+          onResults: results => {
+            if (this.searchToken === token) this.results = mergeUnifiedSearchResults(previousResults, results)
+          },
+          onProgress: progress => {
+            if (this.searchToken !== token) return
+            this.searchProgress = {
+              done: progress.done,
+              total: progress.total,
+              message: `${progress.sourceName} ${progress.status === 'success' ? `返回 ${progress.count}` : progress.status === 'empty' ? '无结果' : '失败'}`
             }
-          })
-        if (this.searchToken === token) this.results = results
+          }
+        })
+        if (this.searchToken === token) {
+          this.results = mergeUnifiedSearchResults(previousResults, report.results)
+          this.lastSearchReport = report
+          this.searchedSourceIds = [...this.searchedSourceIds, ...report.local.attemptedSourceIds]
+          searchSourceConfigs = getSourceConfigs()
+          this.refreshExploreEntries()
+        }
       } catch (error) {
         if (this.searchToken === token) {
           this.results = []
@@ -619,6 +714,7 @@ export default {
         }
       } finally {
         if (this.searchToken === token) this.loading = false
+        setSourceWarmupBusy(false)
       }
     },
     goLibrary() {
@@ -626,7 +722,12 @@ export default {
     },
     openResult(item) {
       if (item.type === 'online' || item.type === 'backend-online') {
-        saveOnlineBookDraft(item.type === 'backend-online' ? item : item.book)
+        const alternates = [
+          ...(Array.isArray(item.alternateSources) ? item.alternateSources : []),
+          ...(Array.isArray(item.alternateRoutes) ? item.alternateRoutes.map(route => route.candidate).filter(Boolean) : [])
+        ]
+        const selected = item.type === 'backend-online' ? item : item.book
+        saveOnlineBookDraft({ ...selected, alternateSources: alternates })
         uni.navigateTo({ url: '/pages/sourceBook/sourceBook' })
         return
       }

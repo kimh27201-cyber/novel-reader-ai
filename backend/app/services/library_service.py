@@ -3,7 +3,7 @@ from datetime import UTC, datetime
 from fastapi import HTTPException, status
 from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.models.models import Book, BookSource, Chapter, ReadingHistory
 from app.schemas.library import (
@@ -13,7 +13,7 @@ from app.schemas.library import (
     ChapterCreate,
     ReadingHistoryUpsert,
 )
-from app.services.sync_service import record_change, serialize_entity
+from app.services.sync_service import latest_cursor, record_change, serialize_entity
 
 
 def get_owned_book(db: Session, *, book_id: int, user_id: int) -> Book:
@@ -48,6 +48,50 @@ def list_books(db: Session, *, user_id: int, limit: int, offset: int) -> list[Bo
         .limit(limit)
         .all()
     )
+
+
+def build_offline_snapshot(
+    db: Session,
+    *,
+    user_id: int,
+    book_offset: int,
+    book_limit: int,
+    include_cached_content: bool,
+) -> dict:
+    query = (
+        db.query(Book)
+        .options(selectinload(Book.chapters), selectinload(Book.reading_history))
+        .filter(Book.user_id == user_id, Book.deleted_at.is_(None))
+        .order_by(Book.updated_at.desc(), Book.id.desc())
+    )
+    rows = query.offset(book_offset).limit(book_limit + 1).all()
+    has_more = len(rows) > book_limit
+    rows = rows[:book_limit]
+    books = []
+    for book in rows:
+        chapters = []
+        for chapter in sorted(book.chapters, key=lambda item: (item.chapter_index, item.id)):
+            chapters.append({
+                "id": chapter.id,
+                "book_id": chapter.book_id,
+                "chapter_index": chapter.chapter_index,
+                "title": chapter.title,
+                "url": chapter.url,
+                "content": chapter.content if include_cached_content and chapter.is_cached else "",
+                "is_cached": chapter.is_cached,
+                "created_at": chapter.created_at,
+                "updated_at": chapter.updated_at,
+            })
+        history = next((item for item in book.reading_history if item.deleted_at is None), None)
+        books.append({"book": book, "chapters": chapters, "reading_history": history})
+    return {
+        "account_id": user_id,
+        "generated_at": datetime.now(UTC),
+        "sync_cursor": latest_cursor(db, user_id),
+        "books": books,
+        "next_offset": book_offset + len(rows),
+        "has_more": has_more,
+    }
 
 
 def _validate_source_ownership(db: Session, *, source_id: int, user_id: int) -> None:

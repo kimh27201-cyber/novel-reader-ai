@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "stage": 9,
+  "capturedAt": "2026-08-13T19:29:00+08:00",
+  "feature": "source-discovery-precompute",
+  "tests": {"frontendPassed": 112, "frontendTotal": 112},
+  "device": {
+    "model": "REA-AN00",
+    "android": 15,
+    "sourceCount": 5330,
+    "shelfBookCount": 3,
+    "firstInstallTimePreserved": true
+  },
+  "discovery": {
+    "captureAfterTapMs": 500,
+    "firstFrameComplete": true,
+    "providerCount": 48,
+    "categoryCount": 12,
+    "precomputeUsesNetwork": false,
+    "cancelledOnAppHide": true,
+    "invalidatedOnSourceRevision": true
+  },
+  "memoryKb": {"stablePss": 142817},
+  "apk": {
+    "path": "release/android-stage9/V2.apk",
+    "bytes": 1356254,
+    "sha256": "5DD2B5DE7D79D4498BBCF60B0B10A0072F14B7FA6DA54A72BE58AA7D08E33575",
+    "v1": true,
+    "v2": true,
+    "v3": true
+  },
+  "stage7SecondWindow": {
+    "earliest": "2026-08-14T15:47:00+08:00",
+    "executed": false,
+    "prMustRemainDraft": true
+  }
+}

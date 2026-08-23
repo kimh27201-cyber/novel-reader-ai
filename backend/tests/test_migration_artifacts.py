@@ -50,6 +50,18 @@ def test_tts_call_log_migration_is_privacy_safe() -> None:
     assert 'sa.Column("text"' not in migration
 
 
+def test_tts_provider_metadata_migration_is_privacy_safe() -> None:
+    migration = (BACKEND_DIR / "migrations" / "versions" / "0007_tts_provider_metadata.py").read_text(
+        encoding="utf-8"
+    )
+    assert 'revision = "0007_tts_provider_metadata"' in migration
+    assert 'down_revision = "0006_tts_call_logs"' in migration
+    assert '"provider_request_id"' in migration
+    assert '"upstream_status"' in migration
+    assert '"audio_bytes"' in migration
+    assert all(forbidden not in migration for forbidden in ('"text"', '"token"', '"error_message"'))
+
+
 def test_source_session_migration_declares_session_table() -> None:
     migration = (BACKEND_DIR / "migrations" / "versions" / "0003_source_sessions.py").read_text(encoding="utf-8")
     assert '"source_sessions",' in migration

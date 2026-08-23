@@ -32,15 +32,17 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 Copy-Item .env.example .env
 python -m alembic upgrade head
-python -m uvicorn app.main:app --reload --port 8000
+python -m uvicorn app.main:app --reload --port 8765
 ```
 
 启动后可访问：
 
-- Swagger：`http://127.0.0.1:8000/docs`
-- 基础健康检查：`GET http://127.0.0.1:8000/api/health`
-- 存活检查：`GET http://127.0.0.1:8000/api/health/live`
-- 就绪检查：`GET http://127.0.0.1:8000/api/health/ready`
+- Swagger：`http://127.0.0.1:8765/docs`
+- 基础健康检查：`GET http://127.0.0.1:8765/api/health`
+- 存活检查：`GET http://127.0.0.1:8765/api/health/live`
+- 就绪检查：`GET http://127.0.0.1:8765/api/health/ready`
+
+离线书架、聚合快照和真实书源验收说明见 `..\docs\BACKEND_OFFLINE_LIBRARY_ACCEPTANCE.md`。
 
 `ready` 会同时检查数据库连接和 Alembic 版本；数据库未迁移到最新版本时返回 `503`。
 
@@ -116,7 +118,7 @@ CI 执行以下检查：
 
 ```powershell
 cd D:\Codex\novel-reader-uniapp\backend
-$env:ACCEPTANCE_BASE_URL='http://127.0.0.1:8000'
+$env:ACCEPTANCE_BASE_URL='http://127.0.0.1:8765'
 python scripts/acceptance_smoke.py
 ```
 
@@ -221,13 +223,22 @@ TTS_RESOURCE_ID=seed-tts-1.0
 - `POST /api/tts/synthesize`
 - `GET /api/tts/audio/{cache_key}?ticket=...`
 
-单次合成限制 300 字和 900 UTF-8 字节；默认每用户每天最多产生 50,000 个未缓存字符，全局最多并发 2 个上游请求。MP3 缓存默认保留 7 天、总量最多 1 GB。`tts_call_logs` 仅记录字符数、音色、耗时、缓存命中和错误码，不保存正文。
+单次合成限制 300 字和 900 UTF-8 字节；默认每用户每日、全局每日、全局每月最多产生
+10,000、12,000、20,000 个未缓存字符，全局最多并发 2 个上游请求。可分别通过
+`TTS_DAILY_UNCACHED_CHARACTERS`、`TTS_GLOBAL_DAILY_UNCACHED_CHARACTERS` 和
+`TTS_GLOBAL_MONTHLY_UNCACHED_CHARACTERS` 下调硬限额。MP3 缓存默认保留 7 天、总量最多
+1 GB。
+
+`GET /api/tts/status` 返回服务是否启用、真实验证过的音色数量和当前用户的剩余额度；
+`GET /api/tts/voices` 中的 `verified` 只会在该音色产生过一次未缓存成功合成后变为
+`true`。`tts_call_logs` 仅记录字符数、音色、耗时、缓存命中、供应商请求 ID、HTTP 状态
+和音频字节数，不保存正文、Token 或供应商错误原文。
 
 真实服务验收需先启动已配置 TTS 的后端，然后执行：
 
 ```powershell
 cd D:\Codex\novel-reader-uniapp\backend
-$env:TTS_ACCEPTANCE_BASE_URL='http://127.0.0.1:8000'
+$env:TTS_ACCEPTANCE_BASE_URL='http://127.0.0.1:8765'
 .\.venv\Scripts\python.exe scripts\tts_real_service_acceptance.py
 ```
 

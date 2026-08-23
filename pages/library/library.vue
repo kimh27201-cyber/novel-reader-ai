@@ -64,7 +64,7 @@
           <button
             class="source-detail-action"
             aria-label="书源详情"
-            @tap.stop="openSourceDetail(source.raw)"
+            @tap.stop="openSourceDetail(source)"
           >
             <text class="source-detail-mark">i</text>
           </button>
@@ -72,11 +72,16 @@
         </view>
       </view>
 
-      <view class="source-empty-state" v-if="!v2SourceRows.length">
-        <view class="source-empty-mark">源</view>
-        <view class="source-empty-title">书源列表还是空的</view>
-        <text class="source-hint">可粘贴 URL 或 JSON、扫描二维码，或选择本地 JSON 文件。</text>
-      </view>
+      <DEmptyState
+        class="source-empty-state"
+        v-if="!v2SourceRows.length"
+        scene="source"
+        :theme-id="themeId"
+        title="书源列表还是空的"
+        description="可粘贴 URL 或 JSON、扫描二维码，或选择本地 JSON 文件。"
+        action-text="导入书源"
+        @action="openImportDrawer('repo')"
+      />
 
       <view class="recent-import-panel recent-import source-meta-section" v-if="recentImportHistory.length">
         <view class="recent-import-head">
@@ -108,6 +113,42 @@
           <text class="tools-toggle">{{ toolsExpanded ? '收起' : '展开' }}</text>
         </view>
         <view class="tools-body" v-if="toolsExpanded">
+          <view class="runtime-diagnostics">
+            <view class="runtime-diagnostics-head">
+              <view>
+                <view class="test-title">运行诊断</view>
+                <text class="source-hint">只汇总状态与错误码，不读取正文、Cookie 或完整配置。</text>
+              </view>
+              <text class="runtime-diagnostics-total">失败 {{ sourceRuntimeDiagnostics.counts.failed }}</text>
+            </view>
+            <view class="runtime-diagnostic-grid">
+              <button class="runtime-diagnostic-item passed" @tap="sourceFilter = 'verified'">已验证 {{ sourceRuntimeDiagnostics.counts.verified }}</button>
+              <button class="runtime-diagnostic-item" @tap="sourceFilter = 'untested'">待检测 {{ sourceRuntimeDiagnostics.counts.untested }}</button>
+              <button class="runtime-diagnostic-item warning" @tap="sourceFilter = 'cooldown'">冷却中 {{ sourceRuntimeDiagnostics.counts.cooldown }}</button>
+              <button class="runtime-diagnostic-item blocked" @tap="sourceFilter = 'blocked'">受限 {{ sourceRuntimeDiagnostics.counts.blocked }}</button>
+            </view>
+            <text class="source-hint">双窗稳定 {{ sourceRuntimeDiagnostics.counts.stable || 0 }} · 仅提升候选排序，不改变启停状态</text>
+            <view class="runtime-error-list" v-if="sourceRuntimeDiagnostics.topErrors.length">
+              <button
+                class="runtime-error-chip"
+                v-for="item in sourceRuntimeDiagnostics.topErrors"
+                :key="`${item.code}-${item.httpStatus}`"
+                :class="{ active: sourceErrorCode === item.code }"
+                @tap="selectSourceErrorCode(item.code)"
+              >{{ item.code }}{{ item.httpStatus ? ` · HTTP ${item.httpStatus}` : '' }} ×{{ item.count }}{{ item.retryReady ? ` · 可重试 ${item.retryReady}` : '' }}</button>
+            </view>
+            <view class="runtime-active-filter" v-if="sourceErrorCode">
+              <text>正在筛选 {{ sourceErrorCode }} · {{ sourcePage.total }} 个来源</text>
+              <button @tap="sourceErrorCode = ''">清除</button>
+            </view>
+            <view class="runtime-retry-row">
+              <text class="source-hint">只重试冷却已结束且允许自动访问的来源，受限来源不会重复请求。</text>
+              <view class="runtime-retry-actions">
+                <button class="small-action primary" :loading="batchTesting" :disabled="!sourceRuntimeDiagnostics.counts.retryReady || batchTesting" @tap="runBatchSourceTest('retry')">重试到期 {{ sourceRuntimeDiagnostics.counts.retryReady }}</button>
+                <button class="small-action" v-if="batchTesting" @tap="cancelBatchSourceTest">取消</button>
+              </view>
+            </view>
+          </view>
           <scroll-view class="filter-strip" scroll-x :show-scrollbar="false">
             <button
               class="filter-chip"
@@ -116,7 +157,7 @@
               :class="{ active: sourceFilter === item.value }"
               @tap="sourceFilter = item.value"
             >
-              {{ item.label }}
+              {{ filterOptionLabel(item) }}
             </button>
           </scroll-view>
 
@@ -166,9 +207,10 @@
                 <text class="source-hint">发现页只会使用可正常搜索的书源；若不可用，会保留原因方便处理。</text>
               </view>
               <view class="batch-actions">
-                <button class="small-action primary" :loading="batchTesting" @tap="runBatchSourceTest('all')">测试全部启用源</button>
+                <button class="small-action primary" :loading="batchTesting" @tap="runBatchSourceTest('all')">检测下一批（20）</button>
                 <button class="small-action" :disabled="sourceGroupFilter === allSourceGroup" :loading="batchTesting" @tap="runBatchSourceTest('group')">测试当前分组</button>
                 <button class="small-action" :loading="batchHealthTesting" @tap="runBatchSourceHealth('all')">健康检测</button>
+                <button class="small-action" v-if="batchTesting" @tap="cancelBatchSourceTest">取消</button>
               </view>
             </view>
             <input class="field compact" v-model="batchTestKeyword" placeholder="批量测试关键词，例如 星轨图书馆" />
@@ -281,7 +323,7 @@
         :disabled="sourceImportPreviewing || sourceImporting"
         maxlength="-1"
         placeholder="粘贴书源 JSON、sources 包装结构、yuedu:// 或 legado:// 一键导入链接"
-        @input="invalidateSourceImportPreview"
+        @input="onSourceImportTextInput"
       ></textarea>
       <input
         v-else
@@ -293,6 +335,8 @@
       />
       <text class="source-hint">{{ sourceImportHint }}</text>
 
+      <DSkeleton v-if="sourceImportPreviewing" scene="source" :rows="3" />
+
       <view class="preview-card" v-if="sourceImportPreview">
         <view class="test-title">导入前预览</view>
         <text class="source-hint">新增 {{ sourceImportPreview.imported }} / 覆盖 {{ sourceImportPreview.updated }} / 不兼容 {{ sourceImportPreview.incompatible }}</text>
@@ -303,24 +347,25 @@
         <view class="source-import-feedback-title">{{ sourceImportFeedback.title }}</view>
         <text>{{ sourceImportFeedback.detail }}</text>
       </view>
-      <button
+      <DButton
         class="outline-action wide"
+        variant="secondary"
         :disabled="sourceImportPreviewing || sourceImporting || !sourceImportRaw"
         :loading="sourceImportPreviewing"
         @tap="previewSourceImport"
-      >导入前预览</button>
-      <button
+      >导入前预览</DButton>
+      <DButton
         class="submit-button"
         :disabled="sourceImportPreviewing || sourceImporting || !sourceImportRaw"
         :loading="sourceImporting"
         @tap="submitSourceImport"
-      >{{ sourceImportPreview ? '确认导入' : '导入书源' }}</button>
+      >{{ sourceImportPreview ? '确认导入' : '导入书源' }}</DButton>
 
       <view class="quick-actions">
         <button class="outline-action" @tap="importFromClipboard">剪贴板</button>
         <button class="outline-action" @tap="chooseSourceJsonFile">本地 JSON</button>
         <button class="outline-action" @tap="scanSourceQr">扫码</button>
-        <button class="outline-action" @tap="goSourceMarket">源仓库页</button>
+        <button class="outline-action" @tap="goSourceMarket()">源仓库页</button>
       </view>
     </view>
 
@@ -561,7 +606,11 @@ import {
   getSourceAntiCrawlerSettings,
   getSourceDiagnostics,
   getSourceExploreEntries,
+  getSourceConfig,
   getSourceConfigs,
+  getSourceLibraryPage,
+  getSourceRetryCandidates,
+  getSourceSnapshot,
   applyImportPreview,
   importSourcesFromAny,
   previewSourcesFromAny,
@@ -575,6 +624,9 @@ import {
 } from '../../common/bookSources.js'
 import { getAppThemeId, getAppThemeStyle } from '../../common/appTheme.js'
 import GlassTabBar from '../../custom-tab-bar/index.vue'
+import DEmptyState from '../../components/composite/DEmptyState.vue'
+import DButton from '../../components/base/DButton.vue'
+import DSkeleton from '../../components/feedback/DSkeleton.vue'
 import {
   chooseSingleFile,
   getClipboardText,
@@ -594,12 +646,7 @@ import {
   runSourceAcceptance
 } from '../../common/sourceAcceptance.js'
 import { resolveMarketScanTarget } from '../../common/sourceMarket.js'
-import {
-  ALL_SOURCE_GROUP,
-  filterLibrarySources,
-  getLibrarySourceGroups,
-  normalizeLibrarySources
-} from '../../common/sourceLibrary.js'
+import { ALL_SOURCE_GROUP } from '../../common/sourceLibrary.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 import { markTabDirty, markTabFresh, shouldRefreshTab } from '../../common/tabFreshness.js'
 import { getNavigationMotion } from '../../common/motion.js'
@@ -615,10 +662,11 @@ import {
 } from '../../common/backendLibrary.js'
 
 export default {
-  components: { GlassTabBar },
+  components: { GlassTabBar, DEmptyState, DButton, DSkeleton },
   data() {
     return {
       sources: [],
+      sourcePage: { total: 0, rows: [], groups: [ALL_SOURCE_GROUP], groupStats: [], stats: { total: 0, enabled: 0, incompatible: 0, searchable: 0 }, diagnostics: { counts: { total: 0, verified: 0, untested: 0, probing: 0, cooldown: 0, blocked: 0, retryReady: 0, failed: 0, incompatible: 0, stable: 0 }, topErrors: [], lastCheckedAt: 0 } },
       pageMotionKind: '',
       pageMotionDirection: 'forward',
       toolsExpanded: false,
@@ -660,6 +708,7 @@ export default {
       testSourceKeyword: '星轨图书馆',
       sourceTestResult: null,
       batchTesting: false,
+      batchTestCancelled: false,
       batchHealthTesting: false,
       batchTestKeyword: '星轨图书馆',
       batchProgress: { current: 0, total: 0 },
@@ -667,9 +716,11 @@ export default {
       batchTestItems: [],
       importReadiness: buildImportReadiness(),
       sourceFilter: 'all',
+      sourceErrorCode: '',
       sourceSort: 'manual',
       sourceKeyword: '',
       sourceGroupFilter: ALL_SOURCE_GROUP,
+      libraryFilterTimer: null,
       allSourceGroup: ALL_SOURCE_GROUP,
       themeId: getAppThemeId(),
       importTitle: '',
@@ -678,6 +729,10 @@ export default {
       importFileText: '',
       filterOptions: [
         { label: '全部', value: 'all' },
+        { label: '已验证', value: 'verified' },
+        { label: '待检测', value: 'untested' },
+        { label: '冷却中', value: 'cooldown' },
+        { label: '受限', value: 'blocked' },
         { label: '启用', value: 'enabled' },
         { label: '停用', value: 'disabled' },
         { label: '不兼容', value: 'incompatible' }
@@ -712,18 +767,20 @@ export default {
     },
     sourceImportHint() {
       if (this.sourceImportMode === 'json') return '支持单个对象、数组、sources 包装结构和一键导入链接。'
-      if (this.sourceImportMode === 'repo') return '粘贴 yck2026/yckceo 详情页，系统会通过后端代理下载页面并优先读取 JSON 地址。'
-      return '支持直接 JSON 链接、yuedu://、legado:// 和包含 src= 的链接；网络内容会通过后端代理下载。'
+      if (this.sourceImportMode === 'repo') return '粘贴 yck2026/yckceo 详情页；Android APK 会在本机联网解析，H5 可使用已配置的代理。'
+      return '支持直接 JSON 链接、yuedu://、legado:// 和包含 src= 的链接；Android APK 无需连接电脑后端。'
     },
     sourceImportRaw() {
       return String(this.sourceImportMode === 'json' ? this.sourceImportText : this.sourceImportUrl).trim()
     },
     sourceStats() {
-      return {
-        total: this.sources.length,
-        enabled: this.sources.filter(source => source.enabled).length,
-        incompatible: this.sources.filter(source => !getSourceDiagnostics(source).compatible).length,
-        searchable: this.sources.filter(source => getSourceDiagnostics(source).searchable).length
+      return this.sourcePage.stats
+    },
+    sourceRuntimeDiagnostics() {
+      return this.sourcePage.diagnostics || {
+        counts: { total: 0, verified: 0, untested: 0, probing: 0, cooldown: 0, blocked: 0, retryReady: 0, failed: 0, incompatible: 0, stable: 0 },
+        topErrors: [],
+        lastCheckedAt: 0
       }
     },
     v2SourceRows() {
@@ -733,8 +790,8 @@ export default {
           type: 'source',
           id: source.id,
           name: source.name,
-          meta: `${source.group || '未分组'} · ${source.enabled ? '已启用' : '已停用'} · ${this.sourceCompatibilityLabel(source)}`,
-          partialUnsupported: this.isPartialUnsupportedSource(source),
+          meta: `${source.group || '未分组'} · ${source.enabled ? '已启用' : '已停用'} · ${source.compatible ? '规则兼容' : '规则不兼容'} · ${this.sourceRuntimeLabel(source)}${source.stableAccepted ? ' · 双窗稳定' : ''}`,
+          partialUnsupported: false,
           icon: this.sourceListIcon(index),
           iconClass: this.sourceListIconClass(index),
           raw: source
@@ -743,14 +800,7 @@ export default {
       return rows.slice(0, 30)
     },
     sourceGroupStats() {
-      const counts = {}
-      this.sources.forEach(source => {
-        const group = source.group || '未分组'
-        counts[group] = (counts[group] || 0) + 1
-      })
-      return Object.keys(counts)
-        .sort((a, b) => a.localeCompare(b, 'zh-Hans-CN'))
-        .map(group => ({ group, count: counts[group] }))
+      return this.sourcePage.groupStats
     },
     importReadinessSummaryText() {
       return summarizeImportReadiness(this.importReadiness).text
@@ -832,17 +882,17 @@ export default {
       ].filter(Boolean)
     },
     sourceGroups() {
-      return getLibrarySourceGroups(this.sources)
+      return this.sourcePage.groups
     },
     visibleSources() {
-      const list = filterLibrarySources(this.sources, {
-        keyword: this.sourceKeyword,
-        sourceFilter: this.sourceFilter,
-        sourceGroupFilter: this.sourceGroupFilter,
-        getDiagnostics: getSourceDiagnostics
-      })
-      return this.sortSources(list)
+      return this.sourcePage.rows
     }
+  },
+  watch: {
+    sourceKeyword() { this.scheduleLibraryFilter() },
+    sourceFilter() { this.scheduleLibraryFilter() },
+    sourceErrorCode() { this.scheduleLibraryFilter() },
+    sourceGroupFilter() { this.scheduleLibraryFilter() }
   },
   onLoad() {
     if (uni.$on) uni.$on('sources:changed', this.handleSourcesChanged)
@@ -858,8 +908,41 @@ export default {
   },
   onUnload() {
     if (uni.$off) uni.$off('sources:changed', this.handleSourcesChanged)
+    if (this.libraryFilterTimer) clearTimeout(this.libraryFilterTimer)
   },
   methods: {
+    filterOptionLabel(item) {
+      const counts = this.sourceRuntimeDiagnostics.counts
+      const countMap = {
+        all: counts.total,
+        verified: counts.verified,
+        untested: counts.untested,
+        cooldown: counts.cooldown,
+        blocked: counts.blocked,
+        enabled: this.sourceStats.enabled,
+        incompatible: this.sourceStats.incompatible
+      }
+      return countMap[item.value] == null ? item.label : `${item.label} ${countMap[item.value]}`
+    },
+    sourceRuntimeLabel(source) {
+      const state = source && (source.runtimeState || source.runtimeStatus)
+      if (state === 'passed') return '已验证'
+      if (state === 'cooldown') return `冷却中${source.errorCode ? ` · ${source.errorCode}` : ''}`
+      if (state === 'blocked') return `受限${source.errorCode ? ` · ${source.errorCode}` : ''}`
+      if (state === 'probing') return '检测中'
+      return '待检测'
+    },
+    selectSourceErrorCode(errorCode) {
+      const next = String(errorCode || '').trim().toUpperCase()
+      this.sourceErrorCode = this.sourceErrorCode === next ? '' : next
+    },
+    scheduleLibraryFilter() {
+      if (this.libraryFilterTimer) clearTimeout(this.libraryFilterTimer)
+      this.libraryFilterTimer = setTimeout(() => {
+        this.libraryFilterTimer = null
+        this.refreshInstalledSources({ readiness: false })
+      }, 120)
+    },
     sourceListIcon(index) {
       const icons = ['📘', '☯', '🌈', '八', '⑬']
       return icons[index % icons.length]
@@ -868,7 +951,15 @@ export default {
       return ['blue', 'ink', 'rainbow', 'plain', 'red'][index % 5]
     },
     refreshInstalledSources(options = {}) {
-      this.sources = normalizeLibrarySources(getSourceConfigs())
+      this.sourcePage = getSourceLibraryPage({
+        keyword: this.sourceKeyword,
+        filter: this.sourceFilter,
+        errorCode: this.sourceErrorCode,
+        group: this.sourceGroupFilter,
+        sort: this.sourceSort,
+        limit: 30
+      })
+      this.sources = this.sourcePage.rows
       this.recentImportHistory = getRecentImportHistory()
       if (this.sourceGroupFilter !== ALL_SOURCE_GROUP && !this.sourceGroups.includes(this.sourceGroupFilter)) {
         this.sourceGroupFilter = ALL_SOURCE_GROUP
@@ -887,8 +978,9 @@ export default {
       return source && (source.compatibleLevel === 'h5Unsupported' || source.compatibleLevel === 'partialCompatible' || source.h5Unsupported === true)
     },
     sourceCompatibilityLabel(source) {
-      if (this.isPartialUnsupportedSource(source)) return '部分不兼容'
-      return source && (source.compatibleLevel || source.compatibilityLevel) || 'unknown'
+      if (this.isPartialUnsupportedSource(source)) return '部分兼容'
+      const diagnostics = getSourceDiagnostics(source)
+      return diagnostics.compatible ? '规则兼容' : '规则不兼容'
     },
     importHistoryActionLabel(action) {
       if (action === 'added') return '新增'
@@ -915,6 +1007,7 @@ export default {
     },
     selectSourceSort(value) {
       this.sourceSort = value
+      this.refreshInstalledSources({ readiness: false })
     },
     openFilterSheet() {
       this.filterSheetVisible = true
@@ -974,12 +1067,23 @@ export default {
       this.sourceImportPreviewRaw = ''
       this.sourceImportFeedback = null
     },
+    onSourceImportTextInput(event) {
+      const detailValue = event && event.detail ? event.detail.value : undefined
+      const targetValue = event && event.target ? event.target.value : undefined
+      const nextValue = detailValue !== undefined ? detailValue : targetValue
+      if (nextValue !== undefined) {
+        this.sourceImportText = String(nextValue)
+      }
+      this.invalidateSourceImportPreview()
+    },
     openSourceDetail(source) {
-      this.selectedSource = source
-      this.sourceDiagnostics = getSourceDiagnostics(source)
+      const fullSource = getSourceConfig(source && source.id)
+      if (!fullSource) return
+      this.selectedSource = fullSource
+      this.sourceDiagnostics = getSourceDiagnostics(fullSource)
       this.sourceAcceptanceReport = getSourceAcceptanceReports(source.id).latest
-      this.syncAntiCrawlerForm(source)
-      this.testSourceKeyword = this.getSourceTestKeyword(source)
+      this.syncAntiCrawlerForm(fullSource)
+      this.testSourceKeyword = this.getSourceTestKeyword(fullSource)
       this.sourceTestResult = null
       this.importDrawerVisible = false
       this.txtVisible = false
@@ -1058,9 +1162,10 @@ export default {
       this.openSourceHub(row)
     },
     openSourceEdit(source) {
-      this.editingSource = source
-      this.sourceEditName = source.name
-      this.sourceEditGroup = source.group || '未分组'
+      this.editingSource = getSourceConfig(source && source.id)
+      if (!this.editingSource) return
+      this.sourceEditName = this.editingSource.name
+      this.sourceEditGroup = this.editingSource.group || '未分组'
       this.importDrawerVisible = false
       this.txtVisible = false
       this.sourceDetailVisible = false
@@ -1102,22 +1207,26 @@ export default {
       return '未测试'
     },
     getBatchSourceIds(scope) {
-      return this.sources
-        .filter(source => source.enabled)
-        .filter(source => {
-          if (scope !== 'group') return true
-          if (this.sourceGroupFilter === ALL_SOURCE_GROUP) return true
-          return source.group === this.sourceGroupFilter
-        })
-        .map(source => source.id)
+      if (scope === 'retry') {
+        return getSourceRetryCandidates({
+          errorCode: this.sourceErrorCode,
+          group: this.sourceGroupFilter,
+          limit: 20
+        }).map(source => source.id)
+      }
+      const group = scope === 'group' ? this.sourceGroupFilter : ALL_SOURCE_GROUP
+      let page = getSourceLibraryPage({ filter: 'untested', group, limit: 20 })
+      if (!page.rows.length) page = getSourceLibraryPage({ filter: 'enabled', group, limit: 20 })
+      return page.rows.filter(source => source.enabled && source.compatible && source.searchable).map(source => source.id)
     },
     async runBatchSourceTest(scope = 'all') {
       const sourceIds = this.getBatchSourceIds(scope)
       if (!sourceIds.length) {
-        uni.showToast({ title: scope === 'group' ? '当前分组没有启用书源' : '没有启用书源可检测', icon: 'none' })
+        uni.showToast({ title: scope === 'retry' ? '当前没有冷却到期的可重试来源' : scope === 'group' ? '当前分组没有可检测书源' : '没有可检测书源', icon: 'none' })
         return
       }
       this.batchTesting = true
+      this.batchTestCancelled = false
       this.batchTestResult = null
       this.batchTestItems = []
       this.batchProgress = { current: 0, total: sourceIds.length }
@@ -1125,6 +1234,8 @@ export default {
         const result = await batchTestSources({
           keyword: this.batchTestKeyword,
           sourceIds,
+          maxSources: 20,
+          shouldCancel: () => this.batchTestCancelled,
           onProgress: item => {
             this.batchProgress = { current: item.index, total: item.total }
             this.batchTestItems = [...this.batchTestItems.filter(row => row.sourceId !== item.sourceId), item]
@@ -1133,12 +1244,15 @@ export default {
         this.batchTestResult = result
         this.batchTestItems = result.results
         this.refreshInstalledSources({ readiness: false })
-        uni.showToast({ title: `检测完成：通过 ${result.passed} / 失败 ${result.failed}`, icon: 'none' })
+        uni.showToast({ title: result.cancelled ? `已取消：完成 ${result.tested}` : `检测完成：通过 ${result.passed} / 失败 ${result.failed}`, icon: 'none' })
       } catch (error) {
         uni.showToast({ title: friendlyErrorMessage(error, '批量检测失败'), icon: 'none' })
       } finally {
         this.batchTesting = false
       }
+    },
+    cancelBatchSourceTest() {
+      this.batchTestCancelled = true
     },
     async runBatchSourceHealth(scope = 'all') {
       const sourceIds = this.getBatchSourceIds(scope)
@@ -1181,7 +1295,7 @@ export default {
     },
     refreshSelectedSource() {
       if (!this.selectedSource) return
-      const latest = getSourceConfigs().find(source => source.id === this.selectedSource.id)
+      const latest = getSourceConfig(this.selectedSource.id)
       if (!latest) {
         this.closePanels()
         return
@@ -1547,7 +1661,8 @@ export default {
       uni.showToast({ title: `书源已删除${backendMessage}`, icon: 'none' })
     },
     goSourceMarket(url = '') {
-      const query = url ? `?url=${encodeURIComponent(url)}` : ''
+      const targetUrl = typeof url === 'string' ? url.trim() : ''
+      const query = targetUrl ? `?url=${encodeURIComponent(targetUrl)}` : ''
       uni.navigateTo({ url: `/pages/sourceMarket/sourceMarket${query}` })
     },
     scanSourceQr() {
@@ -2010,6 +2125,108 @@ button,
   margin-top: 20rpx;
 }
 
+.runtime-diagnostics {
+  margin-top: 18rpx;
+  padding: 18rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: 20rpx;
+  background: var(--app-panel);
+}
+
+.runtime-diagnostics-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+}
+
+.runtime-diagnostics-total {
+  flex-shrink: 0;
+  color: var(--app-muted);
+  font-size: 22rpx;
+}
+
+.runtime-diagnostic-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10rpx;
+  margin-top: 16rpx;
+}
+
+.runtime-diagnostic-item {
+  min-width: 0;
+  min-height: 58rpx;
+  padding: 0 8rpx;
+  border-radius: 14rpx;
+  color: var(--app-text);
+  background: var(--app-input);
+  font-size: 21rpx;
+}
+
+.runtime-diagnostic-item.passed { color: var(--app-on-accent); background: var(--app-accent); }
+.runtime-diagnostic-item.warning { color: var(--app-text); background: color-mix(in srgb, var(--app-accent-2) 24%, var(--app-input)); }
+.runtime-diagnostic-item.blocked { opacity: 0.72; }
+
+.runtime-error-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10rpx 14rpx;
+  margin-top: 14rpx;
+  color: var(--app-muted);
+  font-size: 20rpx;
+}
+
+.runtime-error-chip {
+  min-height: 44rpx;
+  padding: 4rpx 12rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: 999rpx;
+  color: var(--app-muted);
+  background: var(--app-input);
+  font-size: 20rpx;
+}
+
+.runtime-error-chip.active {
+  color: var(--app-on-accent);
+  background: var(--app-accent);
+}
+
+.runtime-retry-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  margin-top: 14rpx;
+}
+
+.runtime-retry-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: 10rpx;
+}
+
+.runtime-active-filter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+  margin-top: 12rpx;
+  padding: 10rpx 14rpx;
+  border-radius: 14rpx;
+  color: var(--app-text);
+  background: color-mix(in srgb, var(--app-accent) 12%, var(--app-input));
+  font-size: 21rpx;
+}
+
+.runtime-active-filter button {
+  min-width: 84rpx;
+  height: 44rpx;
+  border-radius: 999rpx;
+  color: var(--app-on-accent);
+  background: var(--app-accent);
+  font-size: 20rpx;
+}
+
 .filter-chip,
 .group-chip {
   display: inline-flex;
@@ -2102,6 +2319,8 @@ button,
 .batch-actions {
   display: flex;
   flex-shrink: 0;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 12rpx;
 }
 

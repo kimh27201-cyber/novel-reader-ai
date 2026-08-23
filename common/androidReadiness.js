@@ -8,7 +8,7 @@ function stateLabel(state) {
 
 function backendAddressDetail(backend) {
   if (!backend.mobileReady) {
-    return '请填写 http://127.0.0.1:8000，或填写电脑局域网 IP。'
+    return '请填写 http://127.0.0.1:8765，或填写电脑局域网 IP。'
   }
   if (backend.connectionMode === 'adb-reverse') {
     return `手机将通过 ADB reverse 访问 ${backend.normalized}，请保持数据线连接。`

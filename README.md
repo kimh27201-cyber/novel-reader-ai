@@ -80,7 +80,7 @@ novel-reader-uniapp/
 ```powershell
 cd D:\Codex\novel-reader-uniapp\backend
 .\.venv\Scripts\Activate.ps1
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --port 8765
 ```
 
 首次运行或重建环境：
@@ -92,29 +92,29 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 copy .env.example .env
 python scripts/init_db.py
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --port 8765
 ```
 
 打开：
 
-- Swagger: http://127.0.0.1:8000/docs
-- 健康检查: http://127.0.0.1:8000/api/health
+- Swagger: http://127.0.0.1:8765/docs
+- 健康检查: http://127.0.0.1:8765/api/health
 
 前端：
 
 - 使用 HBuilderX 打开 `D:\Codex\novel-reader-uniapp`
 - 运行到浏览器、Android App 基座或打包 Android WebView APK
-- 手机端“我的”页面后端地址可填 `http://127.0.0.1:8000`，配合 `adb reverse` 使用
+- 手机端“我的”页面后端地址可填 `http://127.0.0.1:8765`，配合 `adb reverse` 使用
 
 Android 真机通过 USB 调试连接本机后端：
 
 ```powershell
 cd D:\Codex\novel-reader-uniapp\backend
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
-D:\program\Android\SDK\platform-tools\adb.exe reverse tcp:8000 tcp:8000
+.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8765
+D:\program\Android\SDK\platform-tools\adb.exe reverse tcp:8765 tcp:8765
 ```
 
-如果不用 USB 转发，也可以把后端启动在 `0.0.0.0:8000`，手机端填写电脑局域网 IP，例如 `http://192.168.x.x:8000`。
+如果不用 USB 转发，也可以把后端启动在 `0.0.0.0:8765`，手机端填写电脑局域网 IP，例如 `http://192.168.x.x:8765`。
 
 ## Android APK 打包
 
@@ -133,7 +133,7 @@ release\android-v1\novel-reader-1.0.0-android-webview-v1.apk
 
 ```powershell
 adb install -r .\release\android-v1\novel-reader-1.0.0-android-webview-v1.apk
-adb reverse tcp:8000 tcp:8000
+adb reverse tcp:8765 tcp:8765
 adb shell monkey -p com.novelreader.v1 1
 ```
 
@@ -255,13 +255,13 @@ start-dev.bat
 1. 检查并启动 FastAPI 后端；
 2. 检查 Android 设备是否已授权；
 3. 清理旧的 `adb reverse`；
-4. 重新建立 `adb reverse tcp:8000 tcp:8000`；
+4. 重新建立 `adb reverse tcp:8765 tcp:8765`；
 5. 打印当前 reverse 转发表。
 
 手机 App 的后端地址保持填写：
 
 ```txt
-http://127.0.0.1:8000
+http://127.0.0.1:8765
 ```
 
 如果脚本提示 `unauthorized`，请解锁手机并允许 USB 调试；如果提示没有设备，请重新插入数据线并确认 USB 调试已开启。

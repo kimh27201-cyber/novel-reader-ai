@@ -363,6 +363,32 @@ def test_reading_history_upserts_one_row_per_user_and_book():
     assert second.json()["progress_percent"] == 50
 
 
+def test_offline_snapshot_is_scoped_and_can_omit_cached_content():
+    owner_headers = auth_headers()
+    other_headers = auth_headers("snapshot-other", "snapshot-other@example.com")
+    book = create_book(owner_headers)
+    create_chapter(owner_headers, book["id"])
+    progress = client.post(
+        "/api/reading-history",
+        headers=owner_headers,
+        json={"book_id": book["id"], "chapter_index": 0, "page_index": 2, "progress_percent": 12},
+    )
+    assert progress.status_code == 200
+
+    owner = client.get("/api/library/offline-snapshot?include_cached_content=false", headers=owner_headers)
+    other = client.get("/api/library/offline-snapshot", headers=other_headers)
+
+    assert owner.status_code == 200
+    assert owner.json()["account_id"] > 0
+    assert owner.json()["has_more"] is False
+    assert len(owner.json()["books"]) == 1
+    assert owner.json()["books"][0]["chapters"][0]["content"] == ""
+    assert owner.json()["books"][0]["chapters"][0]["is_cached"] is True
+    assert owner.json()["books"][0]["reading_history"]["page_index"] == 2
+    assert other.status_code == 200
+    assert other.json()["books"] == []
+
+
 def test_book_rejects_source_owned_by_another_user():
     owner_headers = auth_headers()
     other_headers = auth_headers("source-owner", "source-owner@example.com")

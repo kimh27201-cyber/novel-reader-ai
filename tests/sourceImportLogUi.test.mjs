@@ -75,7 +75,7 @@ assert.equal(log.items.find(item => item.name === 'Missing Url').status, 'blocke
 assert.match(log.items.find(item => item.name === 'Missing Url').reason, /Missing required fields|bookSourceUrl/)
 
 const duplicatePreview = buildImportPreview(
-  normalizeBookSources(validSource('Log Success Again', 'https://log-success.example')),
+  normalizeBookSources(validSource('Log Success', 'https://log-success.example')),
   getSourceConfigs(),
   { duplicateStrategy: 'skip' }
 )

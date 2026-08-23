@@ -1,13 +1,19 @@
 <template>
-  <view class="tab-page-shell" :class="themeClass" :style="themeVars">
-  <view class="decoder-page app-page tab-page-content" :class="[themeClass, pageMotionClass]" @tap="closeSwipeBook">
+  <view class="tab-page-shell" :class="themeClass" :style="pageVars">
+  <view class="decoder-page app-page tab-page-content ui-text-centered" :class="[themeClass, pageMotionClass]" @tap="closeSwipeBook">
+    <view class="shelf-depth" aria-hidden="true">
+      <view class="shelf-depth-ambient"></view>
+      <view class="shelf-depth-horizon"></view>
+      <view class="shelf-depth-marker"></view>
+    </view>
     <view class="top-zone">
-      <view class="shelf-heading">
+      <view class="shelf-heading ui-text-stack">
         <text class="shelf-eyebrow">解码阅读</text>
-        <view class="shelf-filter-active">
+        <view class="shelf-filter-active ui-text-row">
           <text>书架</text>
           <text class="shelf-count" v-if="books.length">{{ books.length }} 本</text>
           <text class="shelf-layout-state" v-if="books.length">{{ shelfLayout === 'compact' ? '紧凑' : '列表' }}</text>
+          <text class="shelf-layout-state" v-if="backendOffline">离线书架</text>
         </view>
       </view>
       <view class="top-actions">
@@ -17,7 +23,7 @@
     </view>
 
     <view class="more-menu" v-if="moreMenuVisible">
-      <button class="menu-item" v-for="item in moreActions" :key="item.id" @tap="handleMoreAction(item.id)">
+      <button class="menu-item ui-text-row" v-for="item in moreActions" :key="item.id" @tap="handleMoreAction(item.id)">
         <text class="menu-icon">{{ item.icon }}</text>
         <text>{{ item.label }}</text>
       </button>
@@ -34,14 +40,20 @@
       :refresher-default-style="refresherStyle"
       @refresherrefresh="refreshShelfFromGesture"
       @scrolltolower="loadMoreBooks"
+      @scroll="handleShelfScroll"
     >
       <view
         class="shelf-swipe-row"
         v-for="(book, index) in visibleBooks"
         :key="book.id"
-        :class="{ open: swipeBookId === book.id && swipeOffset > 0 }"
-        :style="{ '--shelf-enter-delay': `${Math.min(index, 10) * 60}ms` }"
-        @tap.stop="handleBookTap(book)"
+        :data-book-id="book.id"
+        :class="{
+          open: swipeBookId === book.id && swipeOffset > 0,
+          'shelf-enter': books.length <= 20 && books.length <= performanceProfile.staggerLimit && performanceProfile.features.stagger && shelfActive,
+          'ritual-opening': openingBookId === book.id
+        }"
+        :style="getShelfRowStyle(index)"
+        @tap.stop="handleBookTap(book, $event)"
         @touchstart="onBookSwipeStart(book, $event)"
         @touchmove="onBookSwipeMove(book, $event)"
         @touchend="onBookSwipeEnd(book, $event)"
@@ -55,21 +67,25 @@
           :aria-label="`打开《${book.title}》`"
           @longpress.stop="openBookActions(book)"
         >
-        <view class="cover-wrap">
-          <image class="cover-image" v-if="book.coverUrl" :src="book.coverUrl" mode="aspectFill" lazy-load />
-          <view class="cover-fallback" v-else>
-            <text class="cover-fallback-title">{{ shortTitle(book.title) }}</text>
-            <text class="cover-fallback-kind">{{ book.source === 'online' ? '在线' : '本地' }}</text>
-          </view>
-          <view class="cover-spine"></view>
-        </view>
-        <view class="book-info">
+        <DBookCover
+          class="cover-wrap"
+          :book-id="book.id"
+          :cover-url="book.coverUrl || ''"
+          :title="book.title"
+          :source-kind="book.source === 'online' ? '在线' : '本地'"
+          :theme-id="themeId"
+          :recent="shelfActive && performanceProfile.features.breathe && recentBookId === book.id"
+          :motion-reduced="motionReduced"
+          :ritual-state="bookRitualState(book)"
+          @longpress="openBookActions(book)"
+        />
+        <view class="book-info ui-text-stack">
           <view class="book-title">{{ book.title }}</view>
-          <view class="reading-line">
+          <view class="reading-line ui-text-row">
             <text class="reading-label">读至</text>
             <text class="reading-chapter">{{ progressText(book) }}</text>
           </view>
-          <view class="meta-line">
+          <view class="meta-line ui-text-row">
             <text>{{ book.author || '未知作者' }}</text>
             <text class="meta-separator">·</text>
             <text>{{ book.source === 'online' ? book.sourceName || '在线书源' : book.category || '本地书籍' }}</text>
@@ -82,18 +98,26 @@
         </view>
       </view>
 
-      <view class="empty-box" v-if="!books.length">
-        <view class="empty-bookmark">书</view>
-        <view class="empty-title">还没有可解码的书</view>
-        <text class="empty-desc">先导入书源或 TXT，然后从“发现”搜索一本书加入书架。</text>
-        <button class="empty-primary-action" @tap="goSearch">前往发现</button>
-        <text class="empty-helper">已导入的 TXT 和在线书籍会出现在这里</text>
-      </view>
+      <DEmptyState
+        class="empty-box"
+        v-if="!books.length"
+        scene="bookshelf"
+        :theme-id="themeId"
+        title="还没有可解码的书"
+        description="先导入书源或 TXT，然后从“发现”搜索一本书加入书架。"
+        action-text="前往发现"
+        helper="已导入的 TXT 和在线书籍会出现在这里"
+        @action="goSearch"
+      />
     </scroll-view>
 
-    <view class="book-action-mask app-motion-overlay" v-if="bookActionsVisible" @tap="closeBookActions"></view>
-    <view class="book-action-sheet app-motion-sheet" v-if="bookActionsVisible && selectedBook">
-      <view class="sheet-handle"></view>
+    <DBottomSheet
+      :visible="bookActionsVisible && !!selectedBook"
+      :bottom-offset-rpx="140"
+      panel-class="book-action-sheet"
+      @close="closeBookActions"
+    >
+      <view class="book-action-content" v-if="selectedBook">
       <button class="sheet-close" aria-label="关闭书籍操作" @tap="closeBookActions">×</button>
       <view class="sheet-book-summary">
         <view class="sheet-cover">
@@ -103,10 +127,10 @@
             <text class="cover-fallback-kind">{{ selectedBook.source === 'online' ? '在线' : '本地' }}</text>
           </view>
         </view>
-        <view class="sheet-book-info">
+        <view class="sheet-book-info ui-text-stack">
           <view class="sheet-title">{{ selectedBook.title }}</view>
           <text class="sheet-desc">{{ selectedBook.author || '未知作者' }} · {{ selectedBook.category || selectedBook.sourceName || '书架书籍' }}</text>
-          <view class="sheet-meta">
+          <view class="sheet-meta ui-text-row">
             <text>读至：{{ progressText(selectedBook) }}</text>
             <text>共 {{ chapterCount(selectedBook) }} 章</text>
           </view>
@@ -119,11 +143,15 @@
         <button class="sheet-action" @tap="runBookAction('copy')">复制书名</button>
         <button class="sheet-action danger" @tap="runBookAction('delete')">移出书架</button>
       </view>
-    </view>
+      </view>
+    </DBottomSheet>
 
-    <view class="delete-confirm-mask app-motion-overlay" v-if="deleteConfirmVisible" @tap="closeDeleteConfirm"></view>
-    <view class="delete-confirm-sheet app-motion-dialog" v-if="deleteConfirmVisible && pendingDeleteBook">
-      <view class="sheet-handle"></view>
+    <DModal
+      :visible="deleteConfirmVisible && !!pendingDeleteBook"
+      panel-class="delete-confirm-dialog"
+      @close="closeDeleteConfirm"
+    >
+      <view class="delete-confirm-content ui-text-stack" v-if="pendingDeleteBook">
       <text class="delete-confirm-kicker">REMOVE FROM SHELF</text>
       <view class="delete-confirm-title">移出《{{ pendingDeleteBook.title }}》？</view>
       <text class="delete-confirm-copy">本地阅读进度会保留在设备中；之后重新加入时可以继续阅读。</text>
@@ -131,7 +159,8 @@
         <button class="delete-confirm-cancel" @tap="closeDeleteConfirm">保留书籍</button>
         <button class="delete-confirm-submit" @tap="confirmDeleteNow">移出书架</button>
       </view>
-    </view>
+      </view>
+    </DModal>
   </view>
   <GlassTabBar active-path="pages/bookshelf/bookshelf" />
   </view>
@@ -141,14 +170,32 @@
 import { deleteShelfBook, getBooks, mergeShelfBooks } from '../../common/books.js'
 import { getProgress } from '../../common/reader.js'
 import { getSourceConfigs } from '../../common/bookSources.js'
-import { getAppThemeId, getAppThemeStyle } from '../../common/appTheme.js'
+import { getAppThemeId, getAppThemeRuntimeStyle } from '../../common/appTheme.js'
 import apiClient from '../../common/apiClient.js'
-import { listBackendBooks } from '../../common/backendLibrary.js'
+import { deleteBackendBook, listBackendBooks, syncOfflineLibrary } from '../../common/backendLibrary.js'
+import {
+  clearCurrentAccountOfflineData,
+  getBackendOfflineStats,
+  getCachedBackendBooks
+} from '../../common/backendOfflineLibrary.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
 import { markTabFresh, shouldRefreshTab } from '../../common/tabFreshness.js'
 import { getNavigationMotion } from '../../common/motion.js'
+import { isMotionReduced } from '../../common/motion.js'
 import { markTabRouteShown } from '../../common/tabNavigation.js'
 import { ensureNativeTabBarHidden } from '../../common/tabShell.js'
+import { buildReaderRitualUrl, getShelfEnterDelay, getThemeExperience } from '../../common/v3Experience.js'
+import {
+  captureSharedBookTransition,
+  clearSharedBookTransition
+} from '../../common/sharedBookTransition.js'
+import { createScrollParallaxController, getScrollParallaxFrame } from '../../common/scrollParallax.js'
+import { createLayoutFlipController } from '../../common/layoutFlip.js'
+import { getCurrentPerformanceProfile } from '../../common/performanceProfile.js'
+import DBookCover from '../../components/composite/DBookCover.vue'
+import DEmptyState from '../../components/composite/DEmptyState.vue'
+import DBottomSheet from '../../components/feedback/DBottomSheet.vue'
+import DModal from '../../components/feedback/DModal.vue'
 import GlassTabBar from '../../custom-tab-bar/index.vue'
 
 const SHELF_LAYOUT_KEY = 'bookshelf:layout'
@@ -187,7 +234,7 @@ function booksMatch(current, next) {
 }
 
 export default {
-  components: { GlassTabBar },
+  components: { GlassTabBar, DBookCover, DEmptyState, DBottomSheet, DModal },
   data() {
     return {
       books: [],
@@ -208,10 +255,23 @@ export default {
       shelfRefreshing: false,
       booksRefreshing: false,
       booksRefreshPromise: null,
+      backendOffline: false,
       themeId: getAppThemeId(),
       shelfLayout: 'list',
       pageMotionKind: '',
       pageMotionDirection: 'forward',
+      shelfActive: true,
+      motionReduced: isMotionReduced(),
+      openingBookId: '',
+      ritualState: 'idle',
+      ritualNavigationLocked: false,
+      ritualNavigationTimer: null,
+      ritualFallbackTimer: null,
+      shelfScrollTop: 0,
+      parallaxFrame: getScrollParallaxFrame(0),
+      parallaxController: null,
+      layoutFlipController: null,
+      performanceProfile: getCurrentPerformanceProfile(),
       moreActions: [
         { id: 'refresh', label: '更新书架', icon: '↻' },
         { id: 'sync', label: '同步云端', icon: '☁' },
@@ -225,7 +285,16 @@ export default {
   },
   computed: {
     themeVars() {
-      return getAppThemeStyle(this.themeId)
+      return getAppThemeRuntimeStyle(this.themeId)
+    },
+    pageVars() {
+      return {
+        ...this.themeVars,
+        '--shelf-parallax-ambient-y': `${this.parallaxFrame.ambientY}px`,
+        '--shelf-parallax-horizon-y': `${this.parallaxFrame.horizonY}px`,
+        '--shelf-parallax-marker-y': `${this.parallaxFrame.markerY}px`,
+        '--shelf-depth-opacity': String(this.parallaxFrame.depthOpacity)
+      }
     },
     themeClass() {
       return `theme-${this.themeId}`
@@ -238,11 +307,41 @@ export default {
     visibleBooks() {
       return this.books.slice(0, this.visibleBookCount)
     },
+    recentBookId() {
+      let recentId = ''
+      let recentAt = 0
+      this.books.forEach(book => {
+        try {
+          const progress = uni.getStorageSync(`reader:progress:${book.id}`)
+          const updatedAt = Number(progress && progress.updatedAt) || 0
+          if (updatedAt > recentAt) {
+            recentAt = updatedAt
+            recentId = book.id
+          }
+        } catch (error) {}
+      })
+      return recentId || (this.books[0] && this.books[0].id) || ''
+    },
     refresherStyle() {
       return ['candy', 'sakura'].includes(this.themeId) ? 'black' : 'white'
     }
   },
+  onLoad() {
+    if (typeof uni !== 'undefined' && typeof uni.$on === 'function') {
+      uni.$on('app:performance-changed', this.handlePerformanceProfileChange)
+    }
+  },
   onShow() {
+    this.shelfActive = true
+    this.motionReduced = isMotionReduced()
+    this.performanceProfile = getCurrentPerformanceProfile()
+    this.ensureParallaxController()
+    this.ensureShelfLayoutFlipController()
+    this.parallaxController.update(this.shelfScrollTop, {
+      active: this.shelfActive,
+      motionReduced: this.motionReduced || !this.performanceProfile.features.parallax
+    })
+    this.clearBookRitual()
     markTabRouteShown('pages/bookshelf/bookshelf')
     ensureNativeTabBarHidden()
     this.closeSwipeBook()
@@ -255,7 +354,19 @@ export default {
     if (shouldRefreshTab('bookshelf')) this.refreshBooks({ initial: !this.books.length })
   },
   onHide() {
+    this.shelfActive = false
+    this.cancelShelfLayoutFlip()
+    this.resetShelfParallax()
+    this.clearBookRitual()
     this.shelfRefreshing = false
+  },
+  onUnload() {
+    this.clearBookRitual()
+    this.destroyShelfLayoutFlip()
+    this.destroyShelfParallax()
+    if (typeof uni !== 'undefined' && typeof uni.$off === 'function') {
+      uni.$off('app:performance-changed', this.handlePerformanceProfileChange)
+    }
   },
   onBackPress() {
     if (this.swipeBookId) {
@@ -277,20 +388,75 @@ export default {
     return false
   },
   methods: {
+    handlePerformanceProfileChange(profile) {
+      if (!profile || !profile.features) return
+      this.performanceProfile = profile
+      if (!profile.features.parallax) this.resetShelfParallax()
+      if (!profile.features.layoutFlip) this.cancelShelfLayoutFlip()
+    },
+    ensureShelfLayoutFlipController() {
+      if (this.layoutFlipController) return this.layoutFlipController
+      this.layoutFlipController = createLayoutFlipController({ keyAttribute: 'data-book-id' })
+      return this.layoutFlipController
+    },
+    getShelfFlipElements() {
+      if (typeof document === 'undefined' || typeof document.querySelectorAll !== 'function') return []
+      return document.querySelectorAll('.shelf-swipe-row[data-book-id]')
+    },
+    cancelShelfLayoutFlip() {
+      if (this.layoutFlipController) this.layoutFlipController.cancel()
+    },
+    destroyShelfLayoutFlip() {
+      if (this.layoutFlipController) this.layoutFlipController.destroy()
+      this.layoutFlipController = null
+    },
+    ensureParallaxController() {
+      if (this.parallaxController) return this.parallaxController
+      this.parallaxController = createScrollParallaxController(frame => {
+        this.parallaxFrame = frame
+      })
+      return this.parallaxController
+    },
+    handleShelfScroll(event) {
+      this.shelfScrollTop = Math.max(0, Number(event && event.detail && event.detail.scrollTop) || 0)
+      this.ensureParallaxController().update(this.shelfScrollTop, {
+        active: this.shelfActive,
+        motionReduced: this.motionReduced || !this.performanceProfile.features.parallax
+      })
+    },
+    resetShelfParallax() {
+      if (this.parallaxController) this.parallaxController.reset()
+      else this.parallaxFrame = getScrollParallaxFrame(0)
+    },
+    destroyShelfParallax() {
+      if (this.parallaxController) this.parallaxController.destroy()
+      this.parallaxController = null
+      this.parallaxFrame = getScrollParallaxFrame(0)
+    },
     async refreshBooks(options = {}) {
       if (this.booksRefreshPromise) return this.booksRefreshPromise
       this.booksRefreshing = true
       const refreshTask = (async () => {
         const localBooks = getBooks()
-        let nextBooks = localBooks
+        const cachedBackendBooks = apiClient.getToken() ? getCachedBackendBooks() : []
+        let nextBooks = mergeShelfBooks(cachedBackendBooks, localBooks)
+        if (!booksMatch(this.books, nextBooks)) {
+          this.books = nextBooks
+          if (options.initial) this.resetVisibleBooks()
+        }
         try {
           if (apiClient.getToken()) {
-            const backendBooks = await withTimeout(listBackendBooks())
+            const backendBooks = await withTimeout(listBackendBooks(apiClient, { cacheMode: 'refresh' }))
             nextBooks = mergeShelfBooks(backendBooks, localBooks)
+            this.backendOffline = !!backendBooks.offlineFallback
           }
         } catch (error) {
+          this.backendOffline = cachedBackendBooks.length > 0
           if (options.gesture || !this.books.length || options.initial) {
-            uni.showToast({ title: friendlyErrorMessage(error, '云端书架加载失败'), icon: 'none' })
+            uni.showToast({
+              title: this.backendOffline ? '后端暂不可用，已显示离线书架' : friendlyErrorMessage(error, '云端书架加载失败'),
+              icon: 'none'
+            })
           }
         }
         if (!booksMatch(this.books, nextBooks)) {
@@ -343,6 +509,14 @@ export default {
       const offset = this.swipeBookId === book.id ? this.swipeOffset : 0
       return { transform: `translate3d(-${offset}rpx, 0, 0)` }
     },
+    getShelfRowStyle(index) {
+      return {
+        '--shelf-enter-delay': `${this.performanceProfile.features.stagger ? getShelfEnterDelay(index, this.books.length, this.themeId) : 0}ms`
+      }
+    },
+    bookRitualState(book) {
+      return this.openingBookId === book.id ? this.ritualState : 'idle'
+    },
     onBookSwipeStart(book, event) {
       const touch = this.getTouchPoint(event)
       if (this.bookActionsVisible) return
@@ -387,13 +561,35 @@ export default {
       this.swipeOffset = 0
       this.swipeAxis = ''
     },
-    handleBookTap(book) {
+    handleBookTap(book, event) {
       if (Date.now() < this.ignoreBookTapUntil) return
       if (this.swipeBookId && this.swipeOffset) {
         this.closeSwipeBook()
         return
       }
-      this.openBook(book)
+      this.openBook(book, event)
+    },
+    resolveBookCoverElement(event, bookId = '') {
+      if (event && event.coverRect) return event.coverRect
+      const nativeEvent = event && event.nativeEvent || event
+      const currentTarget = nativeEvent && nativeEvent.currentTarget
+      if (currentTarget && typeof currentTarget.matches === 'function' && currentTarget.matches('.d-book-cover')) {
+        return currentTarget
+      }
+      if (currentTarget && typeof currentTarget.querySelector === 'function') {
+        const nestedCover = currentTarget.querySelector('.d-book-cover')
+        if (nestedCover) return nestedCover
+      }
+      const target = nativeEvent && nativeEvent.target
+      const closestCover = target && typeof target.closest === 'function' ? target.closest('.d-book-cover') : null
+      if (closestCover) return closestCover
+      if (typeof document !== 'undefined' && typeof document.querySelectorAll === 'function') {
+        const covers = document.querySelectorAll('.d-book-cover[data-book-id]')
+        for (const cover of covers) {
+          if (cover.getAttribute('data-book-id') === String(bookId || '')) return cover
+        }
+      }
+      return null
     },
     confirmSwipeDelete(book) {
       this.closeSwipeBook()
@@ -411,11 +607,45 @@ export default {
       if (book.firstChapterTitle) return book.firstChapterTitle
       return book.latestChapter || '等待目录解码'
     },
-    openBook(book) {
-      if (this.bookActionsVisible || Date.now() < this.ignoreBookTapUntil) return
-      uni.navigateTo({
-        url: `/pages/reader/reader?bookId=${book.id}`
+    openBook(book, event) {
+      if (this.bookActionsVisible || Date.now() < this.ignoreBookTapUntil || this.ritualNavigationLocked) return
+      const experience = getThemeExperience(this.themeId)
+      const duration = this.motionReduced ? 80 : experience.ritualDurationMs
+      this.clearBookRitual()
+      const sharedTransition = captureSharedBookTransition(book, this.resolveBookCoverElement(event, book.id), {
+        themeId: this.themeId,
+        motionReduced: this.motionReduced
       })
+      this.ritualNavigationLocked = true
+      this.openingBookId = book.id
+      this.ritualState = 'opening'
+      this.ritualNavigationTimer = setTimeout(() => {
+        this.ritualNavigationTimer = null
+        if (!this.ritualNavigationLocked || this.openingBookId !== book.id) return
+        this.ritualState = 'navigating'
+        uni.navigateTo({
+          url: buildReaderRitualUrl(book.id, this.themeId, { sharedCover: !!sharedTransition }),
+          fail: () => {
+            clearSharedBookTransition()
+            this.clearBookRitual()
+            uni.showToast({ title: '书籍暂时无法打开，请重试', icon: 'none' })
+          }
+        })
+      }, Math.round(duration * 0.40))
+      this.ritualFallbackTimer = setTimeout(() => {
+        if (!this.ritualNavigationLocked) return
+        clearSharedBookTransition()
+        this.clearBookRitual()
+      }, 800)
+    },
+    clearBookRitual() {
+      if (this.ritualNavigationTimer) clearTimeout(this.ritualNavigationTimer)
+      if (this.ritualFallbackTimer) clearTimeout(this.ritualFallbackTimer)
+      this.ritualNavigationTimer = null
+      this.ritualFallbackTimer = null
+      this.openingBookId = ''
+      this.ritualState = 'idle'
+      this.ritualNavigationLocked = false
     },
     openBookActions(book) {
       this.moreMenuVisible = false
@@ -495,8 +725,14 @@ export default {
           uni.showToast({ title: '登录后可同步云端书架', icon: 'none' })
           return
         }
-        await this.refreshBooks()
-        uni.showToast({ title: '云端书架已同步', icon: 'none' })
+        try {
+          await syncOfflineLibrary({ reason: 'manual' })
+          await this.refreshBooks()
+          uni.showToast({ title: '云端书架与离线进度已同步', icon: 'none' })
+        } catch (error) {
+          this.backendOffline = getCachedBackendBooks().length > 0
+          uni.showToast({ title: this.backendOffline ? '同步失败，离线书架仍可使用' : friendlyErrorMessage(error, '同步失败'), icon: 'none' })
+        }
         return
       }
       if (id === 'stats') {
@@ -508,7 +744,7 @@ export default {
         return
       }
       if (id === 'layout') {
-        this.toggleShelfLayout()
+        await this.toggleShelfLayout()
         return
       }
       if (id === 'export') {
@@ -536,9 +772,20 @@ export default {
       })
       uni.showToast({ title: '已按最近加入排序', icon: 'none' })
     },
-    toggleShelfLayout() {
+    async toggleShelfLayout() {
+      const controller = this.ensureShelfLayoutFlipController()
+      controller.cancel()
+      const firstRects = controller.capture(this.getShelfFlipElements())
+      this.closeSwipeBook()
       this.shelfLayout = this.shelfLayout === 'compact' ? 'list' : 'compact'
       uni.setStorageSync(SHELF_LAYOUT_KEY, this.shelfLayout)
+      await new Promise(resolve => this.$nextTick(resolve))
+      const experience = getThemeExperience(this.themeId)
+      controller.play(this.getShelfFlipElements(), firstRects, {
+        duration: experience.layoutFlipMs,
+        easing: experience.ease,
+        motionReduced: this.motionReduced || !this.performanceProfile.features.layoutFlip
+      })
       uni.showToast({ title: this.shelfLayout === 'compact' ? '紧凑布局' : '列表布局', icon: 'none' })
     },
     exportShelfList() {
@@ -555,10 +802,21 @@ export default {
       })
     },
     showCacheState() {
-      const cachedChapters = this.books.reduce((total, book) => {
-        return total + (book.chapters || []).filter(chapter => chapter.content || chapter.isCached).length
-      }, 0)
-      uni.showToast({ title: `已缓存 ${cachedChapters} 个章节`, icon: 'none' })
+      const stats = getBackendOfflineStats()
+      uni.showActionSheet({
+        itemList: [
+          `离线书籍 ${stats.books} 本，章节 ${stats.cachedChapters} 章`,
+          `待同步进度 ${stats.pendingProgress} 条`,
+          '清除当前账号离线数据'
+        ],
+        success: async result => {
+          if (result.tapIndex !== 2) return
+          const cleared = await clearCurrentAccountOfflineData()
+          this.books = this.books.filter(book => book.source !== 'backend')
+          this.backendOffline = false
+          uni.showToast({ title: `已清除 ${cleared.books} 本书的离线数据`, icon: 'none' })
+        }
+      })
     },
     confirmDeleteSelectedBook(book = this.selectedBook) {
       if (!book) return
@@ -571,13 +829,23 @@ export default {
       this.closeDeleteConfirm()
       if (book) this.deleteSelectedBook(book)
     },
-    deleteSelectedBook(book = this.selectedBook) {
-      const removed = deleteShelfBook(book)
-      if (!removed) {
-        const message = book && book.source === 'backend'
-          ? '云端书籍需在云端书架中删除'
-          : book && book.source === 'online'
-            ? '在线书籍未找到，无法按现有规则删除'
+      deleteSelectedBook(book = this.selectedBook) {
+        if (book && book.source === 'backend') {
+          try {
+            deleteBackendBook(book)
+            this.books = this.books.filter(item => item.id !== book.id)
+            this.closeBookActions()
+            this.closeDeleteConfirm()
+            uni.showToast({ title: this.backendOffline ? '已移出，联网后同步云端' : '已从书架移出', icon: 'none' })
+          } catch (error) {
+            uni.showToast({ title: friendlyErrorMessage(error, '删除云端书籍失败'), icon: 'none' })
+          }
+          return
+        }
+        const removed = deleteShelfBook(book)
+        if (!removed) {
+          const message = book && book.source === 'online'
+             ? '在线书籍未找到，无法按现有规则删除'
             : '当前书籍类型不支持本机删除'
         uni.showToast({ title: message, icon: 'none' })
         return
@@ -981,10 +1249,16 @@ button::after {
 }
 
 .shelf-heading {
+  position: absolute;
+  top: 86rpx;
+  bottom: 0;
+  left: 50%;
   display: flex;
   flex-direction: column;
+  align-items: center;
   justify-content: center;
-  align-self: stretch;
+  max-width: calc(100% - 360rpx);
+  transform: translateX(-50%);
 }
 
 .shelf-eyebrow {
@@ -1009,11 +1283,12 @@ button::after {
 }
 
 .shelf-filter-active::after {
-  left: 2rpx;
+  left: 50%;
   bottom: -4rpx;
   width: 44rpx;
   height: 4rpx;
   background: var(--app-accent-3);
+  transform: translateX(-50%);
 }
 
 .shelf-count {
@@ -1038,9 +1313,11 @@ button::after {
 }
 
 .top-actions {
+  position: absolute;
+  right: 38rpx;
+  bottom: 0;
   display: flex;
   align-items: center;
-  align-self: flex-end;
   height: 86rpx;
 }
 
@@ -1719,10 +1996,17 @@ button::after {
 }
 
 .delete-confirm-actions button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   flex: 1;
+  height: var(--app-touch-target-min, 88rpx);
   min-height: var(--app-touch-target-min, 88rpx);
+  padding: 0 20rpx;
   font-size: 26rpx;
   font-weight: 700;
+  line-height: 1.2;
+  text-align: center;
 }
 
 .delete-confirm-cancel {
@@ -1781,5 +2065,269 @@ button::after {
 @keyframes shelf-sheet-enter {
   from { opacity: 0; transform: translate3d(0, 100%, 0); }
   to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+/* Editorial shelf: books read as a collection, not a stack of identical cards. */
+.decoder-page .shelf-swipe-row {
+  margin-bottom: var(--app-space-sm, 16rpx);
+  border-radius: var(--app-card-radius, 16rpx);
+  animation: none;
+}
+
+.decoder-page .shelf-swipe-row.shelf-enter {
+  animation: shelf-row-enter 360ms var(--app-motion-ease, var(--app-motion-smooth)) both;
+  animation-delay: var(--shelf-enter-delay, 0ms);
+}
+
+.decoder-page .shelf-swipe-row.ritual-opening .book-info,
+.decoder-page .shelf-swipe-row.ritual-opening .chapter-badge {
+  opacity: 0.58;
+  transform: translate3d(6rpx, 0, 0);
+  transition: opacity 180ms ease, transform 220ms var(--app-motion-smooth);
+}
+
+.decoder-page .book-row {
+  min-height: 224rpx;
+  padding: var(--app-space-sm);
+  padding-right: 104rpx;
+  border: 0;
+  border-bottom: 1rpx solid var(--app-border);
+  border-radius: var(--app-card-radius, 16rpx);
+  background: var(--app-panel);
+  box-shadow: none;
+}
+
+.decoder-page .book-row::before {
+  position: absolute;
+  z-index: 3;
+  top: var(--app-space-md);
+  bottom: var(--app-space-md);
+  left: 0;
+  width: 4rpx;
+  background: var(--app-accent);
+  content: "";
+  opacity: 0.78;
+}
+
+.decoder-page .book-title {
+  color: var(--app-text);
+  font-family: var(--app-display-font);
+  font-size: var(--app-font-size-lg, 36rpx);
+  font-weight: 720;
+  line-height: 48rpx;
+}
+
+.decoder-page .reading-line {
+  margin-top: var(--app-space-sm, 16rpx);
+  padding-top: var(--app-space-sm, 16rpx);
+  border-top: 1rpx solid var(--app-border);
+}
+
+.decoder-page .reading-label {
+  color: var(--app-accent);
+  font-family: var(--app-utility-font);
+  font-size: var(--app-font-size-xs, 20rpx);
+  letter-spacing: 1rpx;
+}
+
+.decoder-page .reading-chapter,
+.decoder-page .meta-line {
+  color: var(--app-muted);
+  font-family: var(--shelf-ui-font);
+  font-size: var(--app-font-size-sm, 24rpx);
+}
+
+.decoder-page .chapter-badge {
+  top: var(--app-space-md);
+  right: var(--app-space-md);
+  align-items: flex-end;
+  min-width: 56rpx;
+  padding: 0;
+  border: 0;
+  color: var(--app-text);
+  background: transparent;
+}
+
+.decoder-page .chapter-count {
+  font-family: var(--app-utility-font);
+  font-size: var(--app-font-size-lg, 36rpx);
+  font-weight: 650;
+}
+
+.decoder-page .chapter-unit {
+  color: var(--app-muted);
+  font-size: var(--app-font-size-xs, 20rpx);
+}
+
+.theme-xuanye.decoder-page .book-row::before {
+  box-shadow: 8rpx 0 0 color-mix(in srgb, var(--app-accent) 12%, transparent);
+}
+
+.theme-candy.decoder-page .shelf-swipe-row,
+.theme-candy.decoder-page .book-row {
+  border-radius:
+    var(--app-card-radius)
+    calc(var(--app-card-radius) + var(--app-space-sm))
+    calc(var(--app-card-radius) - var(--app-space-xs))
+    calc(var(--app-card-radius) + var(--app-space-xs));
+}
+
+.theme-candy.decoder-page .book-row {
+  border: 2rpx solid var(--app-border);
+  box-shadow: 5rpx 6rpx 0 color-mix(in srgb, var(--app-accent-2) 22%, transparent);
+}
+
+.theme-sakura.decoder-page .book-row::before {
+  width: 6rpx;
+  border-radius: 6rpx;
+  background: var(--app-accent-3);
+}
+
+.theme-cyber.decoder-page .book-row {
+  border: 1rpx solid var(--app-border);
+  border-left: 6rpx solid var(--app-accent);
+}
+
+.theme-cyber.decoder-page .book-row::before {
+  display: none;
+}
+
+.theme-noirGold.decoder-page .book-row {
+  border-top: 1rpx solid color-mix(in srgb, var(--app-accent) 38%, transparent);
+  border-bottom: 1rpx solid color-mix(in srgb, var(--app-accent) 38%, transparent);
+  box-shadow: inset 8rpx 0 0 color-mix(in srgb, var(--app-accent) 7%, transparent);
+}
+
+.theme-noirGold.decoder-page .book-row::before {
+  top: 50%;
+  bottom: auto;
+  width: 8rpx;
+  height: 8rpx;
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+.book-list.compact .book-row {
+  min-height: 176rpx;
+  padding: var(--app-space-sm) 80rpx var(--app-space-sm) var(--app-space-sm);
+}
+
+.delete-confirm-dialog {
+  width: min(100%, 680px);
+  padding: 30rpx 32rpx 34rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: 30rpx;
+  background: var(--app-panel-strong);
+  box-shadow: var(--app-floating-shadow);
+}
+
+/* V3.1-C: one restrained depth band between shelf identity and book content. */
+.decoder-page {
+  position: relative;
+}
+
+.decoder-page .book-list {
+  position: relative;
+  z-index: 2;
+}
+
+.shelf-depth {
+  position: absolute;
+  z-index: 1;
+  top: 116rpx;
+  right: 0;
+  left: 0;
+  height: 128rpx;
+  overflow: hidden;
+  opacity: var(--shelf-depth-opacity, 0.28);
+  pointer-events: none;
+}
+
+.shelf-depth-ambient,
+.shelf-depth-horizon,
+.shelf-depth-marker {
+  position: absolute;
+  pointer-events: none;
+}
+
+.shelf-depth-ambient {
+  top: -40rpx;
+  right: -12%;
+  bottom: -32rpx;
+  left: -12%;
+  background:
+    radial-gradient(ellipse at 24% 55%, color-mix(in srgb, var(--app-accent) 22%, transparent), transparent 46%),
+    linear-gradient(180deg, color-mix(in srgb, var(--app-accent-3) 12%, transparent), transparent 72%);
+  transform: translate3d(0, var(--shelf-parallax-ambient-y), 0);
+}
+
+.shelf-depth-horizon {
+  top: 70rpx;
+  right: 34rpx;
+  left: 34rpx;
+  height: 1rpx;
+  background: linear-gradient(90deg, transparent, var(--app-border) 16% 84%, transparent);
+  transform: translate3d(0, var(--shelf-parallax-horizon-y), 0);
+}
+
+.shelf-depth-horizon::before,
+.shelf-depth-horizon::after {
+  position: absolute;
+  top: -5rpx;
+  width: 1rpx;
+  height: 11rpx;
+  background: var(--app-border);
+  content: "";
+}
+
+.shelf-depth-horizon::before { left: 22%; }
+.shelf-depth-horizon::after { right: 22%; }
+
+.shelf-depth-marker {
+  top: 62rpx;
+  left: 42rpx;
+  width: 46rpx;
+  height: 4rpx;
+  border-radius: 999rpx;
+  background: var(--app-accent);
+  box-shadow: 54rpx 0 0 color-mix(in srgb, var(--app-accent-2) 46%, transparent);
+  transform: translate3d(0, var(--shelf-parallax-marker-y), 0);
+}
+
+.theme-candy.decoder-page .shelf-depth-marker {
+  height: 7rpx;
+  border: 1rpx solid var(--app-text);
+  border-radius: 2rpx 8rpx 3rpx 7rpx;
+}
+
+.theme-sakura.decoder-page .shelf-depth-ambient {
+  background: radial-gradient(ellipse at 72% 48%, color-mix(in srgb, var(--app-accent-3) 28%, transparent), transparent 48%);
+}
+
+.theme-cyber.decoder-page .shelf-depth-horizon {
+  height: 2rpx;
+  background: repeating-linear-gradient(90deg, var(--app-accent) 0 12rpx, transparent 12rpx 22rpx);
+}
+
+.theme-noirGold.decoder-page .shelf-depth-marker {
+  width: 28rpx;
+  height: 2rpx;
+  border-radius: 0;
+  box-shadow: 38rpx 0 0 var(--app-accent), 76rpx 0 0 color-mix(in srgb, var(--app-accent) 42%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .decoder-page .book-row {
+    transition: none;
+  }
+
+  .shelf-depth {
+    opacity: 0.28 !important;
+  }
+
+  .shelf-depth-ambient,
+  .shelf-depth-horizon,
+  .shelf-depth-marker {
+    transform: translate3d(0, 0, 0) !important;
+  }
 }
 </style>

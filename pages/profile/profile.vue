@@ -12,7 +12,7 @@
     <view class="backend-card">
       <view class="backend-head" @tap="backendExpanded = !backendExpanded">
         <view>
-          <view class="backend-title">阅读服务</view>
+          <view class="backend-title">云服务与同步（可选）</view>
           <text class="backend-desc">{{ backendStatusDesc }}</text>
         </view>
         <view class="backend-head-right">
@@ -22,6 +22,7 @@
       </view>
 
       <view class="backend-detail" v-if="backendExpanded">
+        <text class="backend-desc">Android 书源阅读只需要手机联网；这里仅用于账号同步、云书架、云 TTS 和 H5 跨域代理。</text>
         <input class="backend-input" v-model="backend.baseUrl" placeholder="后端地址" />
         <view class="backend-tip" :class="{ warning: !backendAddressTip.mobileReady }">
           <text>{{ backendAddressTip.message }}</text>
@@ -112,6 +113,36 @@
         </view>
       </view>
 
+      <view class="dev-panel demo-card">
+        <view class="demo-head">
+          <view>
+            <view class="demo-title">本机性能报告</view>
+            <text class="demo-desc">仅记录页面阶段、耗时、数量和内存，不保存书名、正文或账号凭据。</text>
+          </view>
+        </view>
+        <view class="demo-actions">
+          <button class="demo-button primary" @tap="copyPerformanceReport">复制报告</button>
+          <button class="demo-button" @tap="clearPerformanceMetrics">清空报告</button>
+        </view>
+        <view class="performance-summary">
+          <text class="performance-summary-count">已记录 {{ performanceReport.count }} 条</text>
+          <text
+            class="performance-summary-row"
+            v-for="item in performanceReport.summary.slice(0, 8)"
+            :key="item.name"
+          >{{ item.name }} · P95 {{ item.p95Ms }}ms · {{ item.count }} 次</text>
+        </view>
+      </view>
+
+      <view class="dev-panel tts-acceptance-card" @tap="openTtsAcceptance">
+        <view class="tts-acceptance-copy">
+          <text class="eyebrow">REAL VOICE LAB</text>
+          <view class="tts-acceptance-title">TTS 自动验收</view>
+          <text class="tts-acceptance-desc">验证五种真实音色、缓存、三章连续播放、故障降级与后台停止。</text>
+        </view>
+        <view class="tts-acceptance-button">开始</view>
+      </view>
+
       <view class="dev-panel validation-card">
         <view class="validation-head">
           <view>
@@ -145,59 +176,81 @@
 
     <view class="settings-list">
       <text class="section-label settings-section-first">常用</text>
-      <view class="setting-item" v-for="item in mainItems" :key="item.id" @tap="openItem(item.id)">
-        <text class="setting-icon">{{ item.icon }}</text>
-        <view class="setting-copy">
-          <view class="setting-title">{{ item.id === 'web' ? '阅读服务' : item.title }}</view>
-          <text class="setting-desc">{{ item.id === 'web' ? '登录后可使用 AI 总结与问答' : item.desc }}</text>
+      <view class="setting-group">
+        <view class="setting-item" v-for="item in mainItems" :key="item.id" @tap="openItem(item.id)">
+          <text class="setting-icon">{{ item.icon }}</text>
+          <view class="setting-copy">
+            <view class="setting-title">{{ item.id === 'web' ? '阅读服务' : item.title }}</view>
+            <text class="setting-desc">{{ item.id === 'web' ? '登录后可使用 AI 总结与问答' : item.desc }}</text>
+          </view>
+          <view class="setting-extra" v-if="item.id === 'theme'">{{ activeThemeName }}</view>
+          <view class="setting-extra" v-if="item.id === 'web'">{{ backend.user ? '已连接' : '未启动' }}</view>
         </view>
-        <view class="setting-extra" v-if="item.id === 'theme'">{{ activeThemeName }}</view>
-        <view class="setting-extra" v-if="item.id === 'web'">{{ backend.user ? '已连接' : '未启动' }}</view>
       </view>
 
       <text class="section-label">设置</text>
 
-      <view class="setting-item" @tap="exportBackup">
-        <text class="setting-icon">▰</text>
-        <view class="setting-copy">
-          <view class="setting-title">备份与恢复</view>
-          <text class="setting-desc">复制追书记录，旧版数据可在书源页恢复</text>
+      <view class="setting-group">
+        <view class="setting-item" @tap="exportBackup">
+          <text class="setting-icon">▰</text>
+          <view class="setting-copy">
+            <view class="setting-title">备份与恢复</view>
+            <text class="setting-desc">复制追书记录，旧版数据可在书源页恢复</text>
+          </view>
         </view>
-      </view>
-      <view class="setting-item" @tap="openThemePanel">
-        <text class="setting-icon">▣</text>
-        <view class="setting-copy">
-          <view class="setting-title">主题设置</view>
-          <text class="setting-desc">与界面/颜色相关的一些设置</text>
+        <view class="setting-item" @tap="openThemePanel">
+          <text class="setting-icon">▣</text>
+          <view class="setting-copy">
+            <view class="setting-title">主题设置</view>
+            <text class="setting-desc">与界面/颜色相关的一些设置</text>
+          </view>
         </view>
-      </view>
-      <view class="setting-item" @tap="cycleMotionPreference">
-        <text class="setting-icon">◌</text>
-        <view class="setting-copy">
-          <view class="setting-title">动效效果</view>
-          <text class="setting-desc">控制转场、弹层与阅读翻页的动态效果</text>
+        <view class="setting-item" @tap="cycleMotionPreference">
+          <text class="setting-icon">◌</text>
+          <view class="setting-copy">
+            <view class="setting-title">动效效果</view>
+            <text class="setting-desc">控制转场、弹层与阅读翻页的动态效果</text>
+          </view>
+          <view class="setting-extra">{{ motionPreferenceLabel }}</view>
         </view>
-        <view class="setting-extra">{{ motionPreferenceLabel }}</view>
-      </view>
-      <view class="setting-item" @tap="showBoundary">
-        <text class="setting-icon">⌾</text>
-        <view class="setting-copy">
-          <view class="setting-title">其它设置</view>
-          <text class="setting-desc">书源解码边界、缓存和兼容说明</text>
+        <view class="setting-item" aria-label="性能模式" @tap="cyclePerformanceMode">
+          <text class="setting-icon">▦</text>
+          <view class="setting-copy">
+            <view class="setting-title">性能适配</view>
+            <text class="setting-desc">自动、流畅和完整三档；Android 默认优先流畅</text>
+          </view>
+          <view class="setting-extra">{{ performanceProfileLabel }}</view>
         </view>
-      </view>
-      <view class="setting-item about-item" @tap="onVersionTap">
-        <text class="setting-icon">i</text>
-        <view class="setting-copy">
-          <view class="setting-title">关于</view>
-          <text class="setting-desc">{{ debugModeEnabled ? (devPanelVisible ? '调试面板已展开 · 点击隐藏' : '调试模式已开启 · 点击展开面板') : '' }}</text>
+        <view class="setting-item" @tap="toggleTimeAwareness">
+          <text class="setting-icon">◒</text>
+          <view class="setting-copy">
+            <view class="setting-title">时间氛围</view>
+            <text class="setting-desc">按清晨、白天、傍晚和深夜轻微调整环境光与书封节奏</text>
+          </view>
+          <view class="setting-extra">{{ timeAwarenessLabel }}</view>
         </view>
-        <view class="setting-extra">V1</view>
+        <view class="setting-item" @tap="showBoundary">
+          <text class="setting-icon">⌾</text>
+          <view class="setting-copy">
+            <view class="setting-title">其它设置</view>
+            <text class="setting-desc">书源解码边界、缓存和兼容说明</text>
+          </view>
+        </view>
+        <view class="setting-item about-item" @tap="onVersionTap">
+          <text class="setting-icon">i</text>
+          <view class="setting-copy">
+            <view class="setting-title">关于</view>
+            <text class="setting-desc">{{ debugModeEnabled ? (devPanelVisible ? '调试面板已展开 · 点击隐藏' : '调试模式已开启 · 点击展开面板') : '' }}</text>
+          </view>
+          <view class="setting-extra">V1</view>
+        </view>
       </view>
     </view>
+  </view>
 
+    <!-- Keep the theme studio outside the transformed page so fixed actions stay viewport-bound. -->
     <view class="theme-panel-mask app-motion-overlay" v-if="themeVisible" @tap="closeThemePanel"></view>
-    <view class="theme-panel app-floating-panel app-motion-sheet profile-theme-panel-enter" v-if="themeVisible">
+    <view class="theme-panel app-floating-panel app-motion-sheet profile-theme-panel-enter" :class="themeClass" v-if="themeVisible">
       <view class="panel-head">
         <view>
           <view class="panel-kicker">PERSONAL STYLE</view>
@@ -255,7 +308,6 @@
         <button class="theme-apply-button" @tap="applyTheme">应用 {{ pendingThemeName }}</button>
       </view>
     </view>
-  </view>
   <GlassTabBar active-path="pages/profile/profile" />
   </view>
 </template>
@@ -264,14 +316,19 @@
 import { exportTrackedBooks } from '../../common/tracking.js'
 import {
   appThemes,
-  applyAppThemeChrome,
+  cancelAppThemeMorph,
   getAppThemeId,
-  getAppThemeStyle,
-  previewAppTheme,
-  saveAppTheme
+  getAppThemeRuntimeStyle,
+  morphAppTheme
 } from '../../common/appTheme.js'
 import GlassTabBar from '../../custom-tab-bar/index.vue'
 import { getMotionPreference, getNavigationMotion, saveMotionPreference } from '../../common/motion.js'
+import {
+  getCurrentTimeAwareness,
+  getTimeAwarenessEnabled,
+  refreshTimeAwareness,
+  saveTimeAwarenessEnabled
+} from '../../common/timeAwareness.js'
 import { markTabRouteShown } from '../../common/tabNavigation.js'
 import { ensureNativeTabBarHidden } from '../../common/tabShell.js'
 import apiClient from '../../common/apiClient.js'
@@ -292,6 +349,8 @@ import {
   tapDebugModeVersion
 } from '../../common/debugMode.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
+import { getCurrentPerformanceProfile, getPerformanceMode, refreshPerformanceProfile, savePerformanceMode } from '../../common/performanceProfile.js'
+import { clearPerformanceReport, getPerformanceReport } from '../../common/performanceMetrics.js'
 
 export default {
   components: { GlassTabBar },
@@ -304,9 +363,15 @@ export default {
       themeVisible: false,
       pageMotionKind: '',
       pageMotionDirection: 'forward',
-      themePreviewTimer: null,
+      themePreviewFrame: null,
+      themePreviewFrameType: '',
       themePreviewToken: 0,
       motionPreference: getMotionPreference(),
+      performanceProfile: getCurrentPerformanceProfile(),
+      performanceMode: getPerformanceMode(),
+      performanceReport: getPerformanceReport(),
+      timeAwarenessEnabled: getTimeAwarenessEnabled(),
+      timeAwarenessState: getCurrentTimeAwareness(),
       backend: {
         baseUrl: '',
         username: 'student',
@@ -334,7 +399,7 @@ export default {
       return this.debugModeState.enabled
     },
     themeVars() {
-      return getAppThemeStyle(this.themeId)
+      return getAppThemeRuntimeStyle(this.themeId)
     },
     themeClass() {
       return `theme-${this.themeId}`
@@ -351,7 +416,7 @@ export default {
       return (this.themes.find(theme => theme.id === this.pendingThemeId) || this.themes[0]).name
     },
     themeAccent() {
-      return getAppThemeStyle(this.themeId)['--app-accent']
+      return getAppThemeRuntimeStyle(this.themeId)['--app-accent']
     },
     motionPreferenceLabel() {
       return {
@@ -359,6 +424,15 @@ export default {
         reduced: '减少动效',
         full: '完整动效'
       }[this.motionPreference] || '跟随系统'
+    },
+    performanceProfileLabel() {
+      const modeLabel = { auto: '自动', lite: '流畅', full: '完整' }[this.performanceMode] || '自动'
+      return `${modeLabel} · ${(this.performanceProfile && this.performanceProfile.label) || '轻量'}`
+    },
+    timeAwarenessLabel() {
+      return this.timeAwarenessEnabled
+        ? (this.timeAwarenessState.label || '跟随时间')
+        : '已关闭'
     },
     backendStatusDesc() {
       return this.backend.user
@@ -411,11 +485,17 @@ export default {
     this.pageMotionKind = motion.kind
     this.pageMotionDirection = motion.direction
     this.motionPreference = getMotionPreference()
+    this.performanceProfile = getCurrentPerformanceProfile()
+    this.performanceMode = getPerformanceMode()
+    this.performanceReport = getPerformanceReport()
+    this.timeAwarenessEnabled = getTimeAwarenessEnabled()
+    this.timeAwarenessState = refreshTimeAwareness()
     this.debugModeState = getDebugModeState()
     this.loadBackendState()
   },
   onUnload() {
     this.clearThemePreview()
+    cancelAppThemeMorph()
   },
   onBackPress() {
     if (this.themeVisible) {
@@ -431,7 +511,34 @@ export default {
       const next = preferences[(index + 1) % preferences.length]
       const state = saveMotionPreference(next)
       this.motionPreference = state.preference
+      this.performanceProfile = refreshPerformanceProfile({ motionReduced: state.reduced })
       uni.showToast({ title: `动效：${this.motionPreferenceLabel}`, icon: 'none' })
+    },
+    cyclePerformanceMode() {
+      const modes = ['auto', 'lite', 'full']
+      const next = modes[(modes.indexOf(this.performanceMode) + 1) % modes.length]
+      this.performanceMode = savePerformanceMode(next)
+      this.performanceProfile = refreshPerformanceProfile({
+        motionReduced: this.motionPreference === 'reduced',
+        mode: this.performanceMode
+      })
+      uni.showToast({ title: `性能：${this.performanceProfileLabel}`, icon: 'none' })
+    },
+    copyPerformanceReport() {
+      this.performanceReport = getPerformanceReport()
+      const payload = JSON.stringify(this.performanceReport, null, 2)
+      uni.setClipboardData({ data: payload })
+    },
+    clearPerformanceMetrics() {
+      clearPerformanceReport()
+      this.performanceReport = getPerformanceReport()
+      uni.showToast({ title: '性能报告已清空', icon: 'none' })
+    },
+    toggleTimeAwareness() {
+      const state = saveTimeAwarenessEnabled(!this.timeAwarenessEnabled)
+      this.timeAwarenessEnabled = state.enabled
+      this.timeAwarenessState = state
+      uni.showToast({ title: `时间氛围：${this.timeAwarenessLabel}`, icon: 'none' })
     },
     loadBackendState() {
       this.backend.baseUrl = apiClient.getBaseUrl()
@@ -536,6 +643,9 @@ export default {
     goLibrary() {
       uni.switchTab({ url: '/pages/library/library' })
     },
+    openTtsAcceptance() {
+      uni.navigateTo({ url: '/pages/ttsAcceptance/ttsAcceptance?auto=1' })
+    },
     toggleDeviceValidation(itemId) {
       this.deviceValidationState = toggleDeviceValidationItem(itemId)
     },
@@ -602,35 +712,67 @@ export default {
       if (!this.themes.some(theme => theme.id === themeId)) return
       this.pendingThemeId = themeId
       this.clearThemePreview()
+      if (themeId === this.themeId) return
       const token = ++this.themePreviewToken
-      this.themePreviewTimer = setTimeout(() => {
+      const runPreview = () => {
         if (token !== this.themePreviewToken) return
-        this.themePreviewTimer = null
-        this.themeId = previewAppTheme(themeId)
-      }, 120)
+        this.themePreviewFrame = null
+        this.themePreviewFrameType = ''
+        morphAppTheme(themeId, {
+          persist: false,
+          preview: true,
+          commit: nextThemeId => this.commitThemeState(nextThemeId)
+        })
+      }
+      if (typeof requestAnimationFrame === 'function') {
+        this.themePreviewFrameType = 'animation-frame'
+        this.themePreviewFrame = requestAnimationFrame(runPreview)
+      } else {
+        this.themePreviewFrameType = 'timeout'
+        this.themePreviewFrame = setTimeout(runPreview, 0)
+      }
     },
     clearThemePreview() {
-      if (this.themePreviewTimer) {
-        clearTimeout(this.themePreviewTimer)
-        this.themePreviewTimer = null
+      if (this.themePreviewFrame !== null) {
+        if (this.themePreviewFrameType === 'animation-frame' && typeof cancelAnimationFrame === 'function') {
+          cancelAnimationFrame(this.themePreviewFrame)
+        } else {
+          clearTimeout(this.themePreviewFrame)
+        }
+        this.themePreviewFrame = null
+        this.themePreviewFrameType = ''
       }
       this.themePreviewToken += 1
     },
+    commitThemeState(themeId, closePanel = false) {
+      this.themeId = themeId
+      this.pendingThemeId = themeId
+      if (closePanel) this.themeVisible = false
+      return new Promise(resolve => this.$nextTick(resolve))
+    },
     closeThemePanel() {
       this.clearThemePreview()
-      this.themeId = this.savedThemeId
       this.pendingThemeId = this.savedThemeId
-      this.themeVisible = false
-      previewAppTheme(this.savedThemeId)
+      if (this.themeId === this.savedThemeId) {
+        this.themeVisible = false
+        return
+      }
+      morphAppTheme(this.savedThemeId, {
+        persist: false,
+        preview: true,
+        duration: 200,
+        commit: nextThemeId => this.commitThemeState(nextThemeId, true)
+      })
     },
     applyTheme() {
       this.clearThemePreview()
-      const nextThemeId = saveAppTheme(this.pendingThemeId)
+      const nextThemeId = morphAppTheme(this.pendingThemeId, {
+        persist: true,
+        animate: false,
+        commit: committedThemeId => this.commitThemeState(committedThemeId, true)
+      })
       this.savedThemeId = nextThemeId
       this.pendingThemeId = nextThemeId
-      this.themeId = nextThemeId
-      this.themeVisible = false
-      applyAppThemeChrome(nextThemeId)
       uni.showToast({ title: `已应用${this.pendingThemeName}`, icon: 'none' })
     },
     exportBackup() {
@@ -1580,11 +1722,12 @@ button::after {
 
 .theme-panel {
   z-index: 20;
-  bottom: calc(124rpx + env(safe-area-inset-bottom));
+  bottom: calc(154rpx + env(safe-area-inset-bottom));
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
-  max-height: calc(100vh - 166rpx - env(safe-area-inset-bottom));
+  height: calc(100vh - 210rpx - env(safe-area-inset-bottom));
+  max-height: 1240rpx;
   padding: 28rpx 28rpx 24rpx;
   overflow: hidden;
   border-radius: var(--app-card-radius, 24rpx) var(--app-card-radius, 24rpx) 0 0;
@@ -1633,10 +1776,12 @@ button::after {
 }
 
 .theme-grid {
-  flex: 1;
+  flex: 1 1 0;
   min-height: 0;
-  height: 60vh;
-  max-height: 920rpx;
+  height: 0;
+  max-height: none;
+  overflow: hidden;
+  overscroll-behavior: contain;
 }
 
 .theme-grid-inner {
@@ -1829,12 +1974,15 @@ button::after {
 }
 
 .theme-panel-actions {
+  position: relative;
+  z-index: 2;
   display: grid;
   flex-shrink: 0;
   grid-template-columns: 0.72fr 1.28fr;
   gap: 14rpx;
   padding-top: 18rpx;
   border-top: 1rpx solid var(--app-border);
+  background: var(--app-panel-strong);
 }
 
 .theme-cancel-button,
@@ -2021,6 +2169,72 @@ button::after {
   border-radius: var(--profile-surface-radius, 20rpx);
 }
 
+.performance-summary {
+  display: grid;
+  gap: 8rpx;
+  padding: 14rpx 16rpx;
+  border-radius: 14rpx;
+  color: var(--app-muted);
+  background: var(--app-panel);
+}
+
+.performance-summary-count,
+.performance-summary-row {
+  display: block;
+  font-size: 21rpx;
+  line-height: 32rpx;
+}
+
+.performance-summary-count {
+  color: var(--app-text);
+  font-weight: 800;
+}
+
+.tts-acceptance-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24rpx;
+  background:
+    radial-gradient(circle at 84% 12%, color-mix(in srgb, var(--app-accent) 24%, transparent), transparent 42%),
+    color-mix(in srgb, var(--app-card) 94%, transparent);
+}
+
+.tts-acceptance-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.tts-acceptance-title {
+  margin-top: 8rpx;
+  color: var(--app-text);
+  font-size: 32rpx;
+  font-weight: 800;
+}
+
+.tts-acceptance-desc {
+  display: block;
+  margin-top: 10rpx;
+  color: var(--app-text-muted);
+  font-size: 23rpx;
+  line-height: 1.55;
+}
+
+.tts-acceptance-button {
+  flex-shrink: 0;
+  min-width: 112rpx;
+  height: 68rpx;
+  margin: 0;
+  padding: 0 26rpx;
+  border: 0;
+  border-radius: 34rpx;
+  color: var(--app-on-accent);
+  background: var(--app-accent);
+  font-size: 24rpx;
+  font-weight: 800;
+  line-height: 68rpx;
+}
+
 .theme-cyber.profile-page .theme-panel {
   border-radius: var(--profile-panel-radius, 26rpx);
 }
@@ -2036,7 +2250,8 @@ button::after {
 }
 
 /* Profile control pass: every theme uses rounded, touchable surfaces instead of square modules. */
-.profile-page {
+.profile-page,
+.theme-panel {
   --profile-surface-radius: 28rpx;
   --profile-control-radius: 18rpx;
   --profile-panel-radius: 32rpx;
@@ -2078,12 +2293,13 @@ button::after {
 .profile-page .apk-card,
 .profile-page .validation-card,
 .profile-page .setting-item,
-.profile-page .theme-card {
+.profile-page .theme-card,
+.theme-panel .theme-card {
   overflow: hidden;
   border-radius: var(--profile-surface-radius);
 }
 
-.profile-page .theme-panel {
+.tab-page-shell > .theme-panel {
   right: 24rpx;
   bottom: calc(154rpx + env(safe-area-inset-bottom));
   left: 24rpx;
@@ -2102,8 +2318,8 @@ button::after {
 .profile-page .backend-button,
 .profile-page .demo-button,
 .profile-page .validation-button,
-.profile-page .theme-cancel-button,
-.profile-page .theme-apply-button {
+.theme-panel .theme-cancel-button,
+.theme-panel .theme-apply-button {
   border-radius: var(--profile-control-radius);
 }
 
@@ -2148,6 +2364,18 @@ button::after {
   background: rgba(213, 175, 98, 0.08);
 }
 
+.theme-candy.theme-panel .theme-card {
+  border: 2rpx solid rgba(52, 42, 50, 0.78);
+}
+
+.theme-cyber.theme-panel .theme-card {
+  border-radius: var(--profile-surface-radius, 20rpx);
+}
+
+.theme-noirGold.theme-panel .theme-card {
+  box-shadow: inset 0 0 0 6rpx rgba(213, 175, 98, 0.022), var(--app-shadow);
+}
+
 .theme-panel-mask {
   animation: profile-overlay-in 200ms ease both;
 }
@@ -2165,5 +2393,149 @@ button::after {
 @keyframes profile-theme-card-in {
   from { opacity: 0; transform: translate3d(0, 18rpx, 0); }
   to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+/* Reading passport: related controls share one bound volume instead of one card each. */
+.profile-page .backend-card {
+  position: relative;
+  border: 1rpx solid var(--app-border);
+  border-radius: var(--app-card-radius);
+  background: var(--app-panel);
+  box-shadow: none;
+}
+
+.profile-page .backend-card::before {
+  position: absolute;
+  top: var(--app-space-md);
+  bottom: var(--app-space-md);
+  left: 0;
+  width: 5rpx;
+  background: var(--app-accent);
+  content: "";
+}
+
+.profile-page .settings-list {
+  gap: 0;
+}
+
+.profile-page .setting-group {
+  overflow: hidden;
+  border: 1rpx solid var(--app-border);
+  border-radius: var(--app-card-radius);
+  background: var(--app-panel);
+  box-shadow: none;
+}
+
+.profile-page .setting-item {
+  min-height: 112rpx;
+  padding: var(--app-space-sm) var(--app-space-xl) var(--app-space-sm) var(--app-space-sm);
+  margin: 0;
+  overflow: visible;
+  border: 0;
+  border-bottom: 1rpx solid var(--app-border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.profile-page .setting-item:last-child {
+  border-bottom: 0;
+}
+
+.profile-page .setting-item:active {
+  border-color: var(--app-border);
+  background: var(--app-input);
+  transform: none;
+}
+
+.profile-page .setting-icon {
+  width: 64rpx;
+  height: 64rpx;
+  margin-left: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  font-family: var(--app-utility-font);
+  font-size: var(--app-font-size-md, 28rpx);
+}
+
+.profile-page .setting-copy {
+  margin-left: var(--app-space-sm, 16rpx);
+}
+
+.profile-page .setting-title {
+  font-family: var(--app-display-font);
+  font-size: var(--app-font-size-md, 28rpx);
+  font-weight: 700;
+  line-height: 38rpx;
+}
+
+.profile-page .setting-desc {
+  margin-top: 6rpx;
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: var(--app-font-size-sm, 24rpx);
+  line-height: 34rpx;
+}
+
+.profile-page .setting-extra {
+  padding: 0;
+  border-radius: 0;
+  color: var(--app-muted);
+  background: transparent;
+}
+
+.profile-page .tts-acceptance-card {
+  position: relative;
+  overflow: hidden;
+  border: 1rpx solid var(--app-border);
+  background: var(--app-panel);
+  box-shadow: none;
+}
+
+.profile-page .tts-acceptance-card::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 5rpx;
+  background: var(--app-accent-3);
+  content: "";
+}
+
+.theme-candy.profile-page .setting-group {
+  border: 2rpx solid var(--app-border);
+  border-radius:
+    var(--app-card-radius)
+    calc(var(--app-card-radius) + var(--app-space-sm))
+    calc(var(--app-card-radius) - var(--app-space-xs))
+    calc(var(--app-card-radius) + var(--app-space-xs));
+  box-shadow: 5rpx 6rpx 0 color-mix(in srgb, var(--app-accent-2) 20%, transparent);
+}
+
+.theme-candy.profile-page .setting-icon {
+  border: 0;
+  box-shadow: none;
+}
+
+.theme-sakura.profile-page .backend-card::before {
+  width: 7rpx;
+  border-radius: 0 7rpx 7rpx 0;
+  background: var(--app-accent-3);
+}
+
+.theme-cyber.profile-page .setting-group {
+  border-left: 5rpx solid var(--app-accent);
+}
+
+.theme-noirGold.profile-page .setting-group {
+  border-color: color-mix(in srgb, var(--app-accent) 38%, var(--app-border));
+  box-shadow: inset 0 0 0 6rpx color-mix(in srgb, var(--app-accent) 3%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .profile-page .setting-item {
+    transition: none;
+  }
 }
 </style>

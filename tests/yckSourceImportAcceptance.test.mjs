@@ -216,6 +216,21 @@ assertVisibleSource('\u901f\u8bfb\u8c37\u5b50')
 assert.equal(batch.importLog.parsedCount, 3)
 assert.equal(batch.importLog.successCount, 3)
 assert.equal(batch.importLog.storageCount, 3)
+assert.notEqual(
+  getSourceConfigs().find(source => source.name === '\u901f\u8bfb\u8c37(SUDUGU)').id,
+  getSourceConfigs().find(source => source.name === '\u901f\u8bfb\u8c37\u5b50').id,
+  '同一基础网址的不同命名书源必须保留独立 id'
+)
+
+resetStore()
+const duplicateInSamePayload = importSourcesWithStats(JSON.stringify([
+  suduguSource(),
+  { ...suduguSource(), bookSourceComment: 'newer duplicate' }
+]))
+assert.equal(duplicateInSamePayload.imported, 1)
+assert.equal(duplicateInSamePayload.updated, 1)
+assert.equal(getSourceConfigs().length, 1)
+assert.equal(getSourceConfigs()[0].comment, 'newer duplicate')
 
 resetStore()
 let requestedUrl = ''
@@ -287,10 +302,10 @@ assert.equal(getSourceConfigs().length, 0)
 resetStore()
 const incompatiblePreview = buildImportPreview(normalizeBookSources(shuba69Source(), { source: 'json-url', sourceUrl: 'https://www.yckceo.com/yuedu/shuyuan/json/id/7395.json' }), getSourceConfigs())
 const incompatibleResult = applyImportPreview(incompatiblePreview, { importMethod: 'json-url', sourceUrl: 'https://www.yckceo.com/yuedu/shuyuan/json/id/7395.json' })
-assert.equal(incompatibleResult.actualWritten, 0)
-assert.equal(incompatibleResult.skipped, 1)
-assert.equal(incompatibleResult.importLog.failedCount, 1)
+assert.equal(incompatibleResult.actualWritten, 1)
+assert.equal(incompatibleResult.skipped, 0)
+assert.equal(incompatibleResult.importLog.unsupported, 1)
 assert.ok(incompatibleResult.importLog.failureReasons.some(reason => /JS|WebView|Cookie|Legado runtime/.test(reason)))
-assert.equal(getSourceConfigs().some(item => item.name === '69\u4e66\u5427[]'), false)
+assert.equal(getSourceConfigs().some(item => item.name === '69\u4e66\u5427[]' && item.enabled === false), true)
 
 console.log('yckSourceImportAcceptance tests passed')

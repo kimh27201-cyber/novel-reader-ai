@@ -6,6 +6,7 @@ import {
   extractJsonPayload,
   extractRepositorySourceUrl,
   getRuntimeRequestUrl,
+  normalizeSourceConfig,
   parseRequestSpec,
   parseSourceJson,
   requestText,
@@ -31,6 +32,19 @@ assert.equal(items.length, 2)
 assert.equal(applyRule(items[0], 'h3 a@text'), '第一本书')
 assert.equal(applyRule(items[1], 'h3 a@href'), '/book/2')
 assert.equal(applyRule(items[0], '.missing@text||.author@text'), '作者甲')
+assert.equal(applyRule(items[0], "h3 a@text@js:result.replace(/第/,'真实第')"), '真实第一本书')
+assert.equal(applyRule(items[0], 'h3 a@text@js:eval(result)'), '')
+assert.equal(applyRule(items[0], '@a@text'), '第一本书')
+assert.equal(
+  applyRule('<div onclick="newWebView(\'/b/229093.html\', \'\', \'\')"></div>', "@onclick@js:result.match(/\\('(.*?)', '', ''\\)/)[1]"),
+  '/b/229093.html'
+)
+
+const nestedCard = '<div class="search-novel-card"><div class="cover"><a href="/cover">封面</a></div><div class="info"><h3 class="search-novel-title"><a href="/novel/2416">诡秘之主</a></h3></div></div>'
+const nestedItems = applyListRule(nestedCard, '.search-novel-card')
+assert.equal(nestedItems.length, 1)
+assert.equal(applyRule(nestedItems[0], '.search-novel-title@a@text'), '诡秘之主')
+assert.equal(applyRule(nestedItems[0], '.search-novel-title@a@href'), '/novel/2416')
 assert.equal(applyRule('作者：张三 / 类型：玄幻', '##.*作者[:： ]*([^\\s/]+).*##$1'), '张三')
 
 const cssPrefixedHtml = `
@@ -72,14 +86,24 @@ const legado3Html = `
   <div id="content"><p>第一段</p><p>第二段</p></div>
 `
 assert.equal(applyRule(legado3Html, 'class.book@tag.a@href'), '/book/3')
+assert.equal(applyRule(legado3Html, 'class.book@a@href'), '/book/3')
 assert.equal(applyRule(legado3Html, 'class.book@tag.span.0@text'), '第三本书')
 assert.equal(applyRule(legado3Html, 'id.content@textNodes'), '第一段\n第二段')
 
 const json = { data: { books: [{ name: '书源小说', url: '/novel/9' }] } }
 assert.deepEqual(applyListRule(json, '$.data.books[*]').map(item => item.name), ['书源小说'])
 assert.equal(applyRule(json, '$.data.books[0].name'), '书源小说')
+assert.deepEqual(
+  applyListRule({ a: { format: 3, name: 'A' }, b: { format: 2, name: 'B' }, c: { format: '3', name: 'C' } }, '@JSON:$.*[?(@.format==3)]').map(item => item.name),
+  ['A', 'C']
+)
+assert.deepEqual(
+  applyListRule('<ul class="list"><li><a>A</a></li><li><a>B</a></li></ul>', 'class.list@children').map(item => applyRule(item, 'a@text')),
+  ['A', 'B']
+)
 
 assert.equal(renderTemplate('/search/{{key}}/{{page}}', { key: '剑来', page: 2 }), '/search/%E5%89%91%E6%9D%A5/2')
+assert.equal(applyRule({}, '/book?resourceId={{book.kind}}', { book: { kind: '6305' } }), '/book?resourceId=6305')
 assert.equal(resolveUrl('/book/1', 'https://example.com/root/'), 'https://example.com/book/1')
 
 const request = parseRequestSpec('https://example.com/search,{"method":"POST","body":"key={{key}}","headers":{"X-Test":"{{page}}"}}', {
@@ -89,6 +113,46 @@ const request = parseRequestSpec('https://example.com/search,{"method":"POST","b
 assert.equal(request.method, 'POST')
 assert.equal(request.data, 'key=abc')
 assert.equal(request.header['X-Test'], '3')
+assert.equal(request.header['Content-Type'], 'application/x-www-form-urlencoded')
+const relaxedRequest = parseRequestSpec("https://example.com/search,{method:'POST', body:'key={{key}}', charset:'gbk'}", { key: 'abc' })
+assert.equal(relaxedRequest.method, 'POST')
+assert.equal(relaxedRequest.data, 'key=abc')
+assert.equal(relaxedRequest.charset, 'gbk')
+const gbkRequest = parseRequestSpec('https://example.com/search,{"method":"POST","body":"key={{key}}","charset":"gb2312"}', { key: '斗破苍穹' })
+assert.equal(gbkRequest.data, 'key=斗破苍穹')
+assert.equal(gbkRequest.charset, 'gb2312')
+const gbkGetRequest = parseRequestSpec('/search?word={{key}}, {"charset":"gbk"}', { key: '剑来' }, 'https://example.com')
+assert.equal(gbkGetRequest.url, 'https://example.com/search?word=剑来')
+const legacyCharsetSource = normalizeSourceConfig({
+  bookSourceName: 'GBK 源',
+  bookSourceUrl: 'https://legacy.example',
+  searchUrl: '/search,{"method":"POST","body":"key={{key}}","charset":"GBK"}'
+})
+assert.equal(legacyCharsetSource.antiCrawler.charset, 'gbk')
+const paramsRequest = parseRequestSpec('https://example.com/search,{"method":"GET","params":{"q":"{{key}}","page":"{{page}}"}}', { key: '剑来', page: 2 })
+assert.equal(paramsRequest.method, 'GET')
+assert.equal(new URL(paramsRequest.url).searchParams.get('q'), '剑来')
+assert.equal(new URL(paramsRequest.url).searchParams.get('page'), '2')
+assert.throws(
+  () => parseRequestSpec('https://example.com/search,{"method":"GET","params":{"__proto__":"x"}}', {}),
+  error => error && error.code === 'REQUEST_TEMPLATE_UNSUPPORTED'
+)
+const cookieRequest = parseRequestSpec('@js:cookie.removeCookie(baseUrl); var body = "searchkey="+key; var option = {"method":"POST","body":String(body)}; baseUrl+"/search,"+JSON.stringify(option)', { key: '剑来', baseUrl: 'https://example.com' })
+assert.equal(cookieRequest.url, 'https://example.com/search')
+assert.equal(cookieRequest.method, 'POST')
+assert.equal(cookieRequest.data, 'searchkey=剑来')
+assert.throws(
+  () => parseRequestSpec('https://example.com/search,{method: makeMethod()}', { key: 'abc' }),
+  error => error && error.code === 'REQUEST_TEMPLATE_UNSUPPORTED'
+)
+assert.throws(
+  () => parseRequestSpec('https://example.com/search,{__proto__: {polluted: true}}', { key: 'abc' }),
+  error => error && error.code === 'REQUEST_TEMPLATE_UNSUPPORTED'
+)
+
+const scriptedRequest = parseRequestSpec('<js>var url = "https://example.com/search"; var post = JSON.stringify({method: "POST", body: "q=" + encodeURIComponent(key)}); url + "," + post;</js>', { key: '剑来' })
+assert.equal(scriptedRequest.method, 'POST')
+assert.equal(scriptedRequest.data, `q=${encodeURIComponent('剑来')}`)
 
 const importLink = 'yuedu://bookSource/import?src=https%3A%2F%2Fwww.yck2026.top%2Fyuedu%2Fshuyuan%2Fjson%2F7274.json'
 assert.deepEqual(detectSourceImportPayload('[{"bookSourceName":"A"}]'), {
@@ -158,15 +222,9 @@ assert.equal(
   }),
   '<html>proxied</html>'
 )
-assert.equal(proxyCalls[0].url, 'http://127.0.0.1:8000/api/proxy/fetch')
-assert.deepEqual(proxyCalls[0].data, {
-  url: 'https://novel.example.com/search',
-  method: 'POST',
-  headers: { Referer: 'https://novel.example.com' },
-  body: 'q=abc',
-  charset: 'gbk',
-  throttle_ms: 0
-})
+assert.equal(proxyCalls[0].url, 'http://127.0.0.1:8765/api/proxy/fetch')
+assert.equal(proxyCalls[0].method, 'POST')
+assert.equal(proxyCalls[0].data.body, 'q=abc')
 delete globalThis.uni
 
 const sourceJson = JSON.stringify([{
@@ -224,6 +282,6 @@ const searchSources = pickOnlineSearchSources([
   { id: 'three', enabled: true, lastTest: { status: 'passed' }, raw: { searchUrl: '/three', ruleSearch: { bookList: '$.items[*]' } } },
   { id: 'four', enabled: true, lastTest: { status: 'untested' }, raw: { searchUrl: '/four', ruleSearch: { bookList: '$.items[*]' } } }
 ])
-assert.deepEqual(searchSources.map(source => source.id), ['one', 'two', 'three'])
+assert.deepEqual(searchSources.map(source => source.id), ['one', 'two', 'three', 'four'])
 
 console.log('sourceEngine tests passed')

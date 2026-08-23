@@ -1,5 +1,28 @@
 <template>
-  <view class="reader-page" :class="themeClass" :style="pageStyle">
+  <view class="reader-page" :class="[themeClass, readerEntryClass, { 'reader-entry-active': entryAnimating, 'shared-book-entry-active': sharedBookTransitionVisible }]" :style="pageStyle">
+    <view class="reader-entry-overlay" v-if="entryAnimating" aria-hidden="true">
+      <text class="reader-entry-glyph">{{ readerEntryGlyph }}</text>
+    </view>
+    <view
+      class="shared-book-transition"
+      :class="`shared-theme-${sharedBookTransition.themeId}`"
+      :style="sharedBookTransitionStyle"
+      v-if="sharedBookTransitionVisible && sharedBookTransition"
+      aria-hidden="true"
+    >
+      <image
+        class="shared-book-transition-image"
+        v-if="sharedBookTransition.coverUrl"
+        :src="sharedBookTransition.coverUrl"
+        mode="aspectFill"
+      />
+      <view class="shared-book-transition-fallback" v-else>
+        <text class="shared-book-transition-title">{{ sharedBookTransition.title.slice(0, 4) }}</text>
+        <text class="shared-book-transition-kind">{{ sharedBookTransition.sourceKind }}</text>
+      </view>
+      <view class="shared-book-transition-spine"></view>
+      <view class="shared-book-transition-decoration"></view>
+    </view>
     <view class="reader-embed text-only-reader" :class="{ immersive: prefs.immersiveMode, 'controls-open': controlsVisible }">
       <view
         class="reading-surface"
@@ -13,6 +36,11 @@
           <text>{{ loadingText }}</text>
         </view>
 
+        <view class="pagination-card" v-if="paginationPending && !loadingChapter" aria-live="polite">
+          <view class="loading-dot"></view>
+          <text>正在整理本页...</text>
+        </view>
+
         <view class="error-card" v-if="chapterLoadError">
           <view>
             <view class="error-title">章节解码失败</view>
@@ -23,11 +51,10 @@
 
         <view
           class="reader-content"
-          :key="pageTurnKey"
-          :class="['page-turn-' + prefs.pageTurnMode, 'page-turn-' + pageTurnDirection, { quiet: loadingChapter, 'page-turn-active': pageTurnAnimating }]"
+          :class="['page-turn-' + prefs.pageTurnMode, 'page-turn-' + pageTurnDirection, readerTransitionClass, { quiet: loadingChapter || paginationPending, 'page-turn-active': pageTurnAnimating }]"
           :style="readerContentStyle"
         >
-          <view class="reader-progress-mark" v-if="!loadingChapter && !chapterLoadError">
+          <view class="reader-progress-mark" v-if="!loadingChapter && !paginationPending && !chapterLoadError">
             <view class="reader-progress-rail">
               <view class="reader-progress-rail-fill" :style="{ width: pageProgressPercent + '%' }"></view>
             </view>
@@ -37,8 +64,28 @@
             class="reader-paragraph"
             v-for="(paragraph, index) in pageParagraphs"
             :key="index"
-            :class="{ 'reader-paragraph-speaking': isReadAloudParagraphActive(index) }"
-            :style="paragraphStyle"
+            :class="{
+              'reader-paragraph-speaking': isReadAloudParagraphActive(index),
+              'reader-paragraph-continuation': index === 0 && currentPageMeta.continuesFromPrevious
+            }"
+            :style="paragraphStyleFor(index, currentPageMeta.continuesFromPrevious)"
+          >
+            {{ paragraph }}
+          </text>
+        </view>
+
+        <view class="reader-measure-content" :style="readerMeasureStyle" aria-hidden="true">
+          <view class="reader-progress-mark">
+            <view class="reader-progress-rail">
+              <view class="reader-progress-rail-fill" :style="{ width: pageProgressPercent + '%' }"></view>
+            </view>
+            <text>{{ chapterIndex + 1 }} / {{ totalChapters }}</text>
+          </view>
+          <text
+            class="reader-paragraph"
+            v-for="(paragraph, index) in measurementParagraphs"
+            :key="`measure-${index}`"
+            :style="paragraphStyleFor(index, measurementContinuesFromPrevious)"
           >
             {{ paragraph }}
           </text>
@@ -67,6 +114,9 @@
         <button class="more-item touch-hit" @tap.stop="aiAskChapter">AI 问答本章</button>
         <button class="more-item touch-hit" @tap.stop="toggleCurrentBookmark">{{ currentBookmarkActive ? '取消书签' : '加入书签' }}</button>
         <button class="more-item touch-hit" @tap.stop="copyProgress">复制进度</button>
+        <button class="more-item touch-hit" v-if="book.source === 'backend'" @tap.stop="toggleOfflineDownload">
+          {{ offlineDownloading ? '暂停离线下载' : '下载离线' }}
+        </button>
         <button class="more-item touch-hit" @tap.stop="retryChapter">重新解码本章</button>
         <button class="more-item touch-hit" @tap.stop="showSourceInfo">来源信息</button>
         <button class="more-item touch-hit" @tap.stop="back">回到书架</button>
@@ -100,7 +150,12 @@
         </view>
       </view>
 
-      <view class="settings-panel app-motion-sheet reader-settings-enter" v-if="settingsVisible">
+      <DBottomSheet
+        :visible="settingsVisible"
+        panel-class="settings-panel reader-settings-enter"
+        :show-handle="false"
+        @close="closeSettings"
+      >
         <view class="panel-head">
           <view>
             <view class="panel-title">{{ settingsMode === 'interface' ? '界面设置' : '阅读设置' }}</view>
@@ -214,7 +269,7 @@
             </view>
           </view>
         </view>
-      </view>
+      </DBottomSheet>
 
       <view
         class="read-aloud-player app-motion-dialog"
@@ -240,8 +295,13 @@
         </view>
       </view>
 
-      <view class="catalog-mask app-motion-overlay" v-if="catalogVisible" @tap.stop="closeCatalog">
-        <view class="catalog-panel app-motion-sheet" @tap.stop>
+      <DBottomSheet
+        :visible="catalogVisible"
+        panel-class="reader-catalog-sheet"
+        :show-handle="false"
+        @close="closeCatalog"
+      >
+        <view class="catalog-content">
           <view class="panel-head">
             <view>
               <view class="panel-title">目录与书签</view>
@@ -265,9 +325,11 @@
             scroll-y
             :scroll-into-view="activeChapterId"
             :show-scrollbar="false"
+            @scroll="handleCatalogScroll"
             @scrolltolower="loadMoreCatalogChapters"
             @scrolltoupper="loadPreviousCatalogChapters"
           >
+            <view class="catalog-window-spacer" :style="catalogTopSpacerStyle"></view>
             <view
               class="catalog-item"
               v-for="item in visibleCatalogChapters"
@@ -283,6 +345,7 @@
               </view>
               <text class="catalog-check" v-if="item.index === chapterIndex">✓</text>
             </view>
+            <view class="catalog-window-spacer" :style="catalogBottomSpacerStyle"></view>
           </scroll-view>
 
           <scroll-view v-else class="bookmark-list" scroll-y :show-scrollbar="false">
@@ -301,7 +364,7 @@
             </view>
           </scroll-view>
         </view>
-      </view>
+      </DBottomSheet>
 
       <view class="brightness-mask" :style="{ opacity: brightnessOpacity }"></view>
     </view>
@@ -324,27 +387,55 @@ import {
   themes,
   toggleBookmark
 } from '../../common/reader.js'
-import { getAppThemeId, getAppThemeStyle } from '../../common/appTheme.js'
+import {
+  findPageIndexForOffset,
+  getPageStartOffset,
+  normalizeChapterContent,
+  paginateContentByMeasurement
+} from '../../common/readerPagination.js'
+import { getAppThemeId, getAppThemeRuntimeStyle } from '../../common/appTheme.js'
+import { finishPerformanceSpan, startPerformanceSpan } from '../../common/performanceMetrics.js'
+import { getReaderEntryClass, getThemeExperience, normalizeThemeExperienceId } from '../../common/v3Experience.js'
+import DBottomSheet from '../../components/feedback/DBottomSheet.vue'
 import apiClient from '../../common/apiClient.js'
 import {
   backendBookId,
   backendChapterId,
+  downloadBackendBook,
   isBackendBookId,
   loadBackendBook,
   loadBackendReadingHistory,
   loadBackendSourceContent,
+  pauseBackendBookDownload,
+  preloadBackendChapters,
   saveBackendReadingHistory
 } from '../../common/backendLibrary.js'
 import { friendlyErrorMessage } from '../../common/uiFeedback.js'
+import { setSourceWarmupBusy } from '../../common/sourceWarmup.js'
 import { isMotionReduced, setNavigationMotion } from '../../common/motion.js'
+import {
+  SHARED_BOOK_TRANSITION_DURATION,
+  consumeSharedBookTransition,
+  getSharedBookFlightStyle
+} from '../../common/sharedBookTransition.js'
 import {
   createReadAloudController,
   READ_ALOUD_RATES
 } from '../../common/readAloud.js'
+import {
+  buildCatalogMatchIndexes,
+  catalogWindowStartForScroll,
+  CATALOG_WINDOW_SIZE,
+  createCatalogWindow,
+  getCatalogWindowMetrics,
+  readCatalogWindow,
+  shiftCatalogWindow
+} from '../../common/catalogWindow.js'
 
-const CATALOG_BATCH_SIZE = 120
+const CATALOG_ITEM_HEIGHT_RPX = 98
 
 export default {
+  components: { DBottomSheet },
   data() {
     return {
       bookId: '',
@@ -352,6 +443,16 @@ export default {
       chapterIndex: 0,
       pageIndex: 0,
       pages: [''],
+      paginationMeta: [],
+      paginationToken: 0,
+      paginationTimer: null,
+      paginationBounds: { width: 0, height: 0 },
+      paginationCache: Object.create(null),
+      paginationCacheOrder: [],
+      measurementContent: '',
+      measurementContinuesFromPrevious: false,
+      pendingCharacterOffset: null,
+      paginationPending: false,
       prefs: getPrefs(),
       themes,
       bookmarks: [],
@@ -363,20 +464,27 @@ export default {
       chapterLoadError: '',
       loadingText: '正在解码章节...',
       chapterLoadToken: 0,
+      chapterPreloadTimer: null,
+      offlineDownloading: false,
       chromeTimer: null,
       touchStartX: 0,
       touchStartY: 0,
       pageTurnDirection: 'forward',
-      pageTurnKey: 0,
       pageTurnTimer: null,
       pageTurnToken: 0,
       pageTurnAnimating: false,
       motionReduced: isMotionReduced(),
       appThemeId: getAppThemeId(),
+      entryMode: '',
+      entryThemeId: getAppThemeId(),
+      entryAnimating: false,
+      entryTimer: null,
+      sharedBookTransition: null,
+      sharedBookTransitionVisible: false,
+      sharedBookTransitionTimer: null,
       catalogTab: 'catalog',
       catalogKeyword: '',
       catalogStartIndex: 0,
-      catalogVisibleCount: CATALOG_BATCH_SIZE,
       settingsMode: 'interface',
       readAloudRates: READ_ALOUD_RATES,
       readAloudController: null,
@@ -408,34 +516,71 @@ export default {
       return Math.min(100, Math.max(4, Math.round(((this.pageIndex + 1) / total) * 100)))
     },
     appAccent() {
-      return getAppThemeStyle(this.appThemeId)['--app-accent'] || '#df7458'
+      return getAppThemeRuntimeStyle(this.appThemeId)['--app-accent'] || '#df7458'
     },
     themeClass() {
       return `theme-${this.appThemeId}`
     },
+    readerExperience() {
+      return getThemeExperience(this.entryThemeId || this.appThemeId)
+    },
+    readerEntryClass() {
+      return getReaderEntryClass(this.entryThemeId || this.appThemeId, this.entryMode)
+    },
+    readerTransitionClass() {
+      return `experience-turn-${getThemeExperience(this.appThemeId).readerTransition}`
+    },
+    readerEntryGlyph() {
+      return {
+        scan: 'DECRYPTED',
+        page: 'OPEN',
+        fade: '✦',
+        book: 'PRIVATE LIBRARY'
+      }[this.readerExperience.readerTransition] || ''
+    },
+    sharedBookTransitionStyle() {
+      return getSharedBookFlightStyle(this.sharedBookTransition)
+    },
     activeChapterId() {
-      return `chapter-${Math.max(0, this.chapterIndex - 2)}`
+      return this.visibleCatalogChapters.some(item => item.index === this.chapterIndex)
+        ? `chapter-${this.chapterIndex}`
+        : ''
     },
     pageContent() {
       return this.pages[this.pageIndex] || ''
     },
+    currentPageMeta() {
+      return this.paginationMeta[this.pageIndex] || {
+        start: 0,
+        end: this.pageContent.length,
+        continuesFromPrevious: false,
+        continuesToNext: false
+      }
+    },
     pageParagraphs() {
       return splitParagraphs(this.pageContent)
+    },
+    measurementParagraphs() {
+      return splitParagraphs(this.measurementContent)
     },
     activeTheme() {
       return getTheme(this.prefs.theme)
     },
     pageStyle() {
-      const appVars = getAppThemeStyle(this.appThemeId)
+      const appVars = getAppThemeRuntimeStyle(this.appThemeId)
       return {
         ...appVars,
         background: appVars['--app-stage'],
-        color: appVars['--app-text']
+        color: appVars['--app-text'],
+        '--reader-entry-duration': `${this.motionReduced ? 80 : this.readerExperience.readerEntryMs}ms`
       }
     },
     readerSurfaceStyle() {
       return {
-        background: this.activeTheme.background,
+        // Keep the reader palette user-selectable while allowing the app
+        // theme texture to remain visible. The background shorthand would
+        // reset CSS background-image and make all five V3 themes look alike.
+        backgroundColor: this.activeTheme.background,
         color: this.activeTheme.text
       }
     },
@@ -445,6 +590,12 @@ export default {
         lineHeight: `${this.lineHeight}px`,
         width: `${this.prefs.contentWidth}%`,
         letterSpacing: '0'
+      }
+    },
+    readerMeasureStyle() {
+      return {
+        ...this.readerContentStyle,
+        width: this.paginationBounds.width > 0 ? `${this.paginationBounds.width}px` : this.readerContentStyle.width
       }
     },
     paragraphStyle() {
@@ -483,14 +634,20 @@ export default {
       }
       return `亮度 ${this.prefs.brightness}% · ${this.prefs.immersiveMode ? '沉浸' : '标准'} · ${this.prefs.pageTurnMode}`
     },
-    filteredChapters() {
-      const keyword = this.catalogKeyword.trim().toLowerCase()
-      return (this.book.chapters || [])
-        .map((item, index) => ({ ...item, index }))
-        .filter(item => !keyword || String(item.title || '').toLowerCase().includes(keyword))
+    catalogMatchIndexes() {
+      return buildCatalogMatchIndexes(this.book.chapters || [], this.catalogKeyword)
     },
     visibleCatalogChapters() {
-      return this.filteredChapters.slice(this.catalogStartIndex, this.catalogStartIndex + this.catalogVisibleCount)
+      return readCatalogWindow(this.book.chapters || [], this.catalogMatchIndexes, this.catalogStartIndex, CATALOG_WINDOW_SIZE)
+    },
+    catalogWindowMetrics() {
+      return getCatalogWindowMetrics(this.catalogMatchIndexes, this.catalogStartIndex, CATALOG_WINDOW_SIZE)
+    },
+    catalogTopSpacerStyle() {
+      return { height: `${this.catalogWindowMetrics.before * CATALOG_ITEM_HEIGHT_RPX}rpx` }
+    },
+    catalogBottomSpacerStyle() {
+      return { height: `${this.catalogWindowMetrics.after * CATALOG_ITEM_HEIGHT_RPX}rpx` }
     },
     currentBookmarkActive() {
       return this.bookmarks.some(item => item.chapterIndex === this.chapterIndex && item.pageIndex === this.pageIndex)
@@ -555,16 +712,21 @@ export default {
     }
   },
   onLoad(options) {
-    this.appThemeId = getAppThemeId()
+    this.entryMode = options.entry === 'ritual' ? 'ritual' : ''
+    this.entryThemeId = normalizeThemeExperienceId(options.themeId || getAppThemeId())
+    this.appThemeId = this.entryMode ? this.entryThemeId : getAppThemeId()
     this.bookId = options.bookId || 'wind-city'
+    this.prepareSharedBookTransition(options)
     this.prefs = savePrefs({ ...this.prefs, readingMode: 'page' })
     this.loadBookmarks()
     this.loadInitialBook(options)
+    this.playReaderEntry()
     if (typeof uni !== 'undefined' && typeof uni.$on === 'function') {
       uni.$on('app:motion-changed', this.handleMotionChange)
     }
   },
   onShow() {
+    setSourceWarmupBusy(true)
     this.appThemeId = getAppThemeId()
     this.motionReduced = isMotionReduced()
     const latestPrefs = getPrefs()
@@ -577,39 +739,297 @@ export default {
       this.readAloudController.setVoice(this.prefs.ttsVoiceId, this.prefs.ttsVoiceProvider)
     }
     this.loadBookmarks()
+    if (!this.loadingChapter && this.chapter.content && !this.paginationMeta.length) {
+      this.scheduleRepagination(80)
+    }
+  },
+  onResize() {
+    this.scheduleRepagination(140)
   },
   onHide() {
+    setSourceWarmupBusy(false)
     this.stopReadAloud('page-hidden')
+    this.clearPaginationWork()
+    this.clearPageTurnAnimation()
+    this.clearReaderEntry()
+    this.clearSharedBookTransitionView()
   },
   onUnload() {
+    setSourceWarmupBusy(false)
+    if (this.offlineDownloading && this.book && this.book.id) {
+      pauseBackendBookDownload(this.book.id)
+      this.offlineDownloading = false
+    }
     this.disposeReadAloud()
+    this.clearPaginationWork()
     this.clearPageTurnAnimation()
+    this.clearReaderEntry()
+    this.clearSharedBookTransitionView()
     this.clearChromeTimer()
     if (typeof uni !== 'undefined' && typeof uni.$off === 'function') {
       uni.$off('app:motion-changed', this.handleMotionChange)
     }
   },
   methods: {
+    paragraphStyleFor(index, continuesFromPrevious = false) {
+      return {
+        ...this.paragraphStyle,
+        textIndent: index === 0 && continuesFromPrevious ? '0em' : this.paragraphStyle.textIndent
+      }
+    },
+    nextRender() {
+      return new Promise(resolve => this.$nextTick(resolve))
+    },
+    queryReaderRect(selector) {
+      return new Promise(resolve => {
+        try {
+          const query = uni.createSelectorQuery().in(this)
+          query.select(selector).boundingClientRect(rect => resolve(rect || null)).exec()
+        } catch (error) {
+          resolve(null)
+        }
+      })
+    },
+    async measureReaderBounds() {
+      await this.nextRender()
+      const rect = await this.queryReaderRect('.reader-content')
+      if (!rect || !(rect.width > 0) || !(rect.height > 0)) return null
+      this.paginationBounds = { width: rect.width, height: rect.height }
+      await this.nextRender()
+      return this.paginationBounds
+    },
+    async measurePaginationCandidate(content, context, token) {
+      if (token !== this.paginationToken) {
+        const error = new Error('pagination-cancelled')
+        error.code = 'PAGINATION_CANCELLED'
+        throw error
+      }
+      this.measurementContent = content
+      this.measurementContinuesFromPrevious = !!(context && context.continuesFromPrevious)
+      await this.nextRender()
+      const rect = await this.queryReaderRect('.reader-measure-content')
+      if (!rect) return false
+      const pageFootSpace = Math.max(8, Math.round(this.lineHeight * 0.55))
+      return rect.height <= this.paginationBounds.height - pageFootSpace
+    },
+    currentCharacterOffset() {
+      if (this.paginationMeta.length) {
+        return getPageStartOffset(this.paginationMeta, this.pageIndex)
+      }
+      const contentLength = normalizeChapterContent(this.chapter.content).length
+      if (!contentLength || this.pages.length <= 1) return 0
+      return Math.round((Math.max(0, this.pageIndex) / this.pages.length) * contentLength)
+    },
+    paginationCacheKey(content, bounds) {
+      let hash = 2166136261
+      for (let index = 0; index < content.length; index += 1) {
+        hash ^= content.charCodeAt(index)
+        hash = Math.imul(hash, 16777619)
+      }
+      return [
+        'reader-layout-v3',
+        this.bookId,
+        this.chapterIndex,
+        (hash >>> 0).toString(36),
+        Math.round(bounds.width),
+        Math.round(bounds.height),
+        this.prefs.fontSize,
+        this.prefs.lineHeight,
+        this.prefs.paragraphSpacing,
+        this.prefs.textIndent,
+        this.prefs.contentWidth
+      ].join(':')
+    },
+    rememberPagination(key, result) {
+      this.paginationCache[key] = {
+        pages: result.pages.slice(),
+        metadata: result.metadata.map(item => ({ ...item }))
+      }
+      this.paginationCacheOrder = this.paginationCacheOrder.filter(item => item !== key)
+      this.paginationCacheOrder.push(key)
+      while (this.paginationCacheOrder.length > 8) {
+        const expired = this.paginationCacheOrder.shift()
+        delete this.paginationCache[expired]
+      }
+    },
+    async applyChapterPagination(content, options = {}) {
+      const normalized = normalizeChapterContent(content)
+      const fallbackPages = splitChapter(normalized, this.prefs.fontSize, this.prefs)
+      const restorePageIndex = Math.max(0, Number(options.restorePageIndex) || 0)
+      const explicitAnchor = options.anchorOffset !== null && options.anchorOffset !== undefined
+        ? Number(options.anchorOffset)
+        : NaN
+      const pendingAnchor = this.pendingCharacterOffset !== null && this.pendingCharacterOffset !== undefined
+        ? Number(this.pendingCharacterOffset)
+        : NaN
+      const fallbackAnchor = normalized.length
+        ? Math.round((Math.min(restorePageIndex, fallbackPages.length - 1) / Math.max(fallbackPages.length, 1)) * normalized.length)
+        : 0
+      const anchorOffset = Number.isFinite(explicitAnchor)
+        ? explicitAnchor
+        : (Number.isFinite(pendingAnchor) ? pendingAnchor : fallbackAnchor)
+
+      const token = ++this.paginationToken
+      const showPaginationPending = options.showPending === true || !String(this.pageContent || '').trim()
+      if (showPaginationPending) this.paginationPending = true
+      const chapterMatches = () => options.chapterToken === undefined || options.chapterToken === this.chapterLoadToken
+      const clearPaginationPending = () => {
+        if (token === this.paginationToken) this.paginationPending = false
+      }
+      const commitPagination = (pages, metadata = []) => {
+        if (token !== this.paginationToken || !chapterMatches()) return false
+        this.pages = pages.slice()
+        this.paginationMeta = metadata.map(item => ({ ...item }))
+        this.pageIndex = metadata.length
+          ? findPageIndexForOffset(metadata, anchorOffset, restorePageIndex)
+          : Math.max(0, Math.min(restorePageIndex, pages.length - 1))
+        this.pendingCharacterOffset = null
+        return true
+      }
+      const commitFallback = () => commitPagination(fallbackPages)
+      const bounds = await this.measureReaderBounds()
+      if (token !== this.paginationToken || !chapterMatches()) return false
+      if (!bounds) {
+        const committed = commitFallback()
+        clearPaginationPending()
+        return committed
+      }
+      const cacheKey = this.paginationCacheKey(normalized, bounds)
+      const cached = this.paginationCache[cacheKey]
+      if (cached) {
+        const committed = commitPagination(cached.pages, cached.metadata)
+        clearPaginationPending()
+        return committed
+      }
+
+      try {
+        const result = await paginateContentByMeasurement(
+          normalized,
+          (candidate, context) => this.measurePaginationCandidate(candidate, context, token),
+          {
+            estimatedCharacters: Math.max(48, Math.round(normalized.length / Math.max(fallbackPages.length, 1))),
+            minimumRatio: 0.72,
+            paragraphMinimumRatio: 0.84,
+            charactersPerLine: Math.max(8, Math.floor(bounds.width / Math.max(this.prefs.fontSize * 1.05, 1))),
+            minimumParagraphLines: 2,
+            minimumBalanceRatio: 0.58
+          }
+        )
+        if (token !== this.paginationToken || !chapterMatches()) return false
+        if (!commitPagination(result.pages, result.metadata)) return false
+        this.rememberPagination(cacheKey, result)
+        return true
+      } catch (error) {
+        if (error && error.code === 'PAGINATION_CANCELLED') return false
+        console.warn('[reader] measured pagination fallback', error)
+        return commitFallback()
+      } finally {
+        if (token === this.paginationToken) {
+          this.measurementContent = ''
+          this.measurementContinuesFromPrevious = false
+          this.paginationPending = false
+        }
+      }
+    },
+    scheduleRepagination(delay = 120) {
+      if (this.paginationTimer) clearTimeout(this.paginationTimer)
+      const anchorOffset = this.currentCharacterOffset()
+      this.paginationTimer = setTimeout(() => {
+        this.paginationTimer = null
+        if (!this.loadingChapter && this.chapter.content) {
+          this.rebuildPages({ anchorOffset })
+        }
+      }, delay)
+    },
+    clearPaginationWork() {
+      if (this.paginationTimer) clearTimeout(this.paginationTimer)
+      this.paginationTimer = null
+      this.paginationToken += 1
+      this.measurementContent = ''
+      this.measurementContinuesFromPrevious = false
+      this.paginationPending = false
+      if (this.chapterPreloadTimer) clearTimeout(this.chapterPreloadTimer)
+      this.chapterPreloadTimer = null
+    },
+    scheduleChapterPreload(kind, chapterIndex, token) {
+      if (this.chapterPreloadTimer) clearTimeout(this.chapterPreloadTimer)
+      this.chapterPreloadTimer = setTimeout(() => {
+        this.chapterPreloadTimer = null
+        if (this.chapterLoadToken !== token) return
+        const task = kind === 'backend'
+          ? preloadBackendChapters(this.book, chapterIndex)
+          : preloadOnlineChapters(this.book, chapterIndex)
+        Promise.resolve(task).catch(() => {})
+      }, 600)
+    },
     handleMotionChange(state) {
       this.motionReduced = !!(state && state.reduced)
+      if (this.motionReduced) {
+        this.clearPageTurnAnimation()
+        this.clearReaderEntry()
+        this.clearSharedBookTransitionView()
+      }
+    },
+    playReaderEntry() {
+      this.clearReaderEntry()
+      if (this.entryMode !== 'ritual') return
+      this.entryAnimating = true
+      const duration = this.motionReduced ? 80 : this.readerExperience.readerEntryMs
+      this.entryTimer = setTimeout(() => {
+        this.entryTimer = null
+        this.entryAnimating = false
+      }, duration)
+    },
+    clearReaderEntry() {
+      if (this.entryTimer) clearTimeout(this.entryTimer)
+      this.entryTimer = null
+      this.entryAnimating = false
+    },
+    prepareSharedBookTransition(options = {}) {
+      this.clearSharedBookTransitionView()
+      if (options.shared !== 'cover' || this.motionReduced) return
+      const transition = consumeSharedBookTransition(this.bookId, { motionReduced: this.motionReduced })
+      if (!transition) return
+      this.sharedBookTransition = transition
+      this.sharedBookTransitionVisible = true
+      this.sharedBookTransitionTimer = setTimeout(() => {
+        this.sharedBookTransitionTimer = null
+        this.sharedBookTransitionVisible = false
+        this.sharedBookTransition = null
+      }, SHARED_BOOK_TRANSITION_DURATION + 80)
+    },
+    clearSharedBookTransitionView() {
+      if (this.sharedBookTransitionTimer) clearTimeout(this.sharedBookTransitionTimer)
+      this.sharedBookTransitionTimer = null
+      this.sharedBookTransitionVisible = false
+      this.sharedBookTransition = null
     },
     playPageTurn(direction) {
       this.pageTurnDirection = direction === 'back' ? 'back' : 'forward'
       this.clearPageTurnAnimation()
-      if (this.motionReduced || this.prefs.pageTurnMode === 'none') return
-      this.pageTurnKey += 1
-      this.pageTurnAnimating = true
+      if (
+        this.motionReduced ||
+        this.prefs.pageTurnMode === 'none' ||
+        this.loadingChapter ||
+        this.paginationPending ||
+        this.chapterLoadError ||
+        ['initializing', 'speaking', 'loading-next'].includes(this.readAloudState.status)
+      ) return
       const token = ++this.pageTurnToken
-      const duration = this.prefs.pageTurnMode === 'cover' ? 220 : 210
-      this.pageTurnTimer = setTimeout(() => {
-        if (token === this.pageTurnToken) this.pageTurnAnimating = false
-      }, duration)
+      this.$nextTick(() => {
+        if (token !== this.pageTurnToken) return
+        this.pageTurnAnimating = true
+        this.pageTurnTimer = setTimeout(() => {
+          if (token === this.pageTurnToken) this.pageTurnAnimating = false
+        }, 140)
+      })
     },
     clearPageTurnAnimation() {
       if (this.pageTurnTimer) {
         clearTimeout(this.pageTurnTimer)
         this.pageTurnTimer = null
       }
+      this.pageTurnToken += 1
       this.pageTurnAnimating = false
     },
     async loadInitialBook(options) {
@@ -620,39 +1040,60 @@ export default {
           const fallbackProgress = getProgress(this.bookId)
           this.chapterIndex = Number(options.chapterIndex !== undefined ? options.chapterIndex : (backendProgress && backendProgress.chapter_index !== undefined ? backendProgress.chapter_index : fallbackProgress.chapterIndex)) || 0
           this.pageIndex = Number(options.pageIndex !== undefined ? options.pageIndex : (backendProgress && backendProgress.page_index !== undefined ? backendProgress.page_index : fallbackProgress.pageIndex)) || 0
+          this.pendingCharacterOffset = options.pageIndex === undefined && Number(fallbackProgress.chapterIndex) === this.chapterIndex && Number.isFinite(Number(fallbackProgress.charOffset))
+            ? Number(fallbackProgress.charOffset)
+            : null
         } else {
           this.book = getBook(this.bookId)
           this.book = await loadLocalBookCatalog(this.book)
           const progress = getProgress(this.bookId)
           this.chapterIndex = Number(options.chapterIndex !== undefined ? options.chapterIndex : progress.chapterIndex) || 0
           this.pageIndex = Number(options.pageIndex !== undefined ? options.pageIndex : progress.pageIndex) || 0
+          this.pendingCharacterOffset = options.pageIndex === undefined && Number(progress.chapterIndex) === this.chapterIndex && Number.isFinite(Number(progress.charOffset))
+            ? Number(progress.charOffset)
+            : null
         }
       } catch (error) {
-        this.book = getBook('wind-city')
+        this.book = isBackendBookId(this.bookId)
+          ? {
+              id: this.bookId,
+              source: 'backend',
+              title: '云端书籍',
+              author: '',
+              chapters: [{ index: 0, chapterIndex: 0, title: '离线内容不可用', content: '' }]
+            }
+          : getBook('wind-city')
         this.chapterIndex = 0
         this.pageIndex = 0
         uni.showToast({ title: friendlyErrorMessage(error, '云端书籍加载失败'), icon: 'none' })
       }
-      this.rebuildPages()
+      await this.rebuildPages()
     },
-    async rebuildPages() {
-      const token = Date.now()
+    async rebuildPages(options = {}) {
+      const chapterSpan = startPerformanceSpan('reader.chapter.render', { mode: this.book.source || 'builtin' })
+      this.clearPaginationWork()
+      const token = this.chapterLoadToken + 1
       this.chapterLoadToken = token
       const currentChapter = this.chapter
+      const restorePageIndex = this.pageIndex
+      const anchorOffset = options.anchorOffset
       this.chapterLoadError = ''
+      try {
 
       if (this.book.source === 'online' && currentChapter && !currentChapter.content) {
         this.loadingChapter = true
+        this.paginationMeta = []
         this.loadingText = currentChapter.isCached ? '正在读取缓存...' : '正在解码章节...'
         this.pages = ['请稍候，正在为你解析这一章。']
         try {
-          const loaded = await loadOnlineChapter(this.book, currentChapter, { autoPreload: true })
+          const loaded = await loadOnlineChapter(this.book, currentChapter, { autoPreload: false })
           if (this.chapterLoadToken !== token) return
           this.book.chapters.splice(this.chapterIndex, 1, loaded)
           addOnlineBookToShelf(this.book)
-          preloadOnlineChapters(this.book, this.chapterIndex).catch(() => {})
-          this.pages = splitChapter(loaded.content, this.prefs.fontSize, this.prefs)
           this.loadingChapter = false
+          await this.applyChapterPagination(loaded.content, { anchorOffset, restorePageIndex, chapterToken: token, showPending: true })
+          if (this.chapterLoadToken !== token) return
+          this.scheduleChapterPreload('online', this.chapterIndex, token)
         } catch (error) {
           if (this.chapterLoadToken !== token) return
           this.loadingChapter = false
@@ -664,6 +1105,7 @@ export default {
           })
           addOnlineBookToShelf(this.book)
           this.pages = ['这一章暂时没有解码成功。你可以轻点重试，或者回到目录换一章。']
+          this.paginationMeta = []
         }
         this.pageIndex = Math.max(0, Math.min(this.pageIndex, this.pages.length - 1))
         this.persist()
@@ -672,6 +1114,7 @@ export default {
 
       if (this.book.source === 'backend' && currentChapter && !currentChapter.content) {
         this.loadingChapter = true
+        this.paginationMeta = []
         this.loadingText = '正在从后端解析章节...'
         this.pages = ['请稍候，正在从后端书源解析这一章。']
         try {
@@ -682,13 +1125,16 @@ export default {
             content,
             isCached: !!content
           })
-          this.pages = splitChapter(content, this.prefs.fontSize, this.prefs)
           this.loadingChapter = false
+          await this.applyChapterPagination(content, { anchorOffset, restorePageIndex, chapterToken: token, showPending: true })
+          if (this.chapterLoadToken !== token) return
+          this.scheduleChapterPreload('backend', this.chapterIndex, token)
         } catch (error) {
           if (this.chapterLoadToken !== token) return
           this.loadingChapter = false
           this.chapterLoadError = this.formatChapterLoadError(error, '后端章节解析失败')
           this.pages = ['这一章暂时没有解析成功。你可以重试，或回到目录换一章。']
+          this.paginationMeta = []
         }
         this.pageIndex = Math.max(0, Math.min(this.pageIndex, this.pages.length - 1))
         this.persist()
@@ -697,6 +1143,7 @@ export default {
 
       if (this.book.source === 'local' && currentChapter && !currentChapter.content) {
         this.loadingChapter = true
+        this.paginationMeta = []
         this.loadingText = '正在读取本地章节...'
         this.pages = ['请稍候，正在读取本地 TXT 正文。']
         try {
@@ -707,13 +1154,15 @@ export default {
             content,
             isCached: true
           })
-          this.pages = splitChapter(content, this.prefs.fontSize, this.prefs)
           this.loadingChapter = false
+          await this.applyChapterPagination(content, { anchorOffset, restorePageIndex, chapterToken: token, showPending: true })
+          if (this.chapterLoadToken !== token) return
         } catch (error) {
           if (this.chapterLoadToken !== token) return
           this.loadingChapter = false
           this.chapterLoadError = friendlyErrorMessage(error, '本地章节读取失败，请重新导入 TXT 文件。')
           this.pages = ['这一章暂时无法读取。请重新导入 TXT 文件后再试。']
+          this.paginationMeta = []
         }
         this.pageIndex = Math.max(0, Math.min(this.pageIndex, this.pages.length - 1))
         this.persist()
@@ -722,9 +1171,16 @@ export default {
 
       this.loadingChapter = false
       this.chapterLoadError = ''
-      this.pages = splitChapter(currentChapter.content, this.prefs.fontSize, this.prefs)
+      await this.applyChapterPagination(currentChapter.content, { anchorOffset, restorePageIndex, chapterToken: token })
+      if (this.chapterLoadToken !== token) return
       this.pageIndex = Math.max(0, Math.min(this.pageIndex, this.pages.length - 1))
       this.persist()
+      } finally {
+        finishPerformanceSpan(chapterSpan, {
+          status: this.chapterLoadToken === token ? (this.chapterLoadError ? 'failed' : 'rendered') : 'cancelled',
+          pageCount: this.pages.length
+        })
+      }
     },
     formatChapterLoadError(error, fallback) {
       const message = friendlyErrorMessage(error, fallback)
@@ -737,6 +1193,7 @@ export default {
       saveProgress(this.bookId, {
         chapterIndex: this.chapterIndex,
         pageIndex: this.pageIndex,
+        charOffset: this.currentCharacterOffset(),
         scrollTop: 0
       })
       if (this.book.source === 'backend' && this.prefs.autoSyncProgress) {
@@ -747,6 +1204,31 @@ export default {
           pageIndex: this.pageIndex,
           progressPercent: this.progressPercent
         }).catch(() => {})
+      }
+    },
+    async toggleOfflineDownload() {
+      if (this.offlineDownloading) {
+        pauseBackendBookDownload(this.book.id)
+        this.offlineDownloading = false
+        uni.showToast({ title: '离线下载将在当前章节后暂停', icon: 'none' })
+        return
+      }
+      this.offlineDownloading = true
+      this.moreVisible = false
+      uni.showLoading({ title: '正在下载离线章节', mask: false })
+      try {
+        const result = await downloadBackendBook(this.book, { concurrency: 2, resume: true })
+        const title = result.paused
+          ? `已暂停，完成 ${result.completed}/${result.total}`
+          : result.failures.length
+            ? `完成 ${result.completed}/${result.total}，${result.failures.length} 章失败`
+            : `已下载 ${result.completed} 章`
+        uni.showToast({ title, icon: 'none' })
+      } catch (error) {
+        uni.showToast({ title: friendlyErrorMessage(error, '离线下载失败'), icon: 'none' })
+      } finally {
+        this.offlineDownloading = false
+        uni.hideLoading()
       }
     },
     loadBookmarks() {
@@ -790,7 +1272,7 @@ export default {
       }
     },
     nextPage() {
-      if (this.loadingChapter) return
+      if (this.loadingChapter || this.paginationPending) return
       this.stopReadAloud('manual-navigation')
       if (this.pageIndex < this.pages.length - 1) {
         this.playPageTurn('forward')
@@ -801,7 +1283,7 @@ export default {
       this.nextChapter()
     },
     prevPage() {
-      if (this.loadingChapter) return
+      if (this.loadingChapter || this.paginationPending) return
       this.stopReadAloud('manual-navigation')
       if (this.pageIndex > 0) {
         this.playPageTurn('back')
@@ -863,22 +1345,35 @@ export default {
       this.clearChromeTimer()
     },
     resetCatalogWindow(centerCurrent = true) {
-      const list = this.filteredChapters
-      const currentIndex = list.findIndex(item => item.index === this.chapterIndex)
-      const shouldCenter = centerCurrent && !this.catalogKeyword.trim() && currentIndex >= 0
-      this.catalogStartIndex = shouldCenter ? Math.max(0, currentIndex - 20) : 0
-      this.catalogVisibleCount = Math.min(CATALOG_BATCH_SIZE, Math.max(list.length - this.catalogStartIndex, 0))
+      const window = createCatalogWindow(this.catalogMatchIndexes, this.chapterIndex, {
+        size: CATALOG_WINDOW_SIZE,
+        anchorOffset: 20,
+        centerCurrent: centerCurrent && !this.catalogKeyword.trim()
+      })
+      this.catalogStartIndex = window.start
     },
     loadMoreCatalogChapters() {
-      const remaining = this.filteredChapters.length - this.catalogStartIndex
-      if (this.catalogVisibleCount >= remaining) return
-      this.catalogVisibleCount = Math.min(remaining, this.catalogVisibleCount + CATALOG_BATCH_SIZE)
+      this.catalogStartIndex = shiftCatalogWindow(this.catalogMatchIndexes, this.catalogStartIndex, 'next', {
+        size: CATALOG_WINDOW_SIZE
+      })
     },
     loadPreviousCatalogChapters() {
-      if (this.catalogStartIndex <= 0) return
-      const step = Math.min(CATALOG_BATCH_SIZE, this.catalogStartIndex)
-      this.catalogStartIndex -= step
-      this.catalogVisibleCount += step
+      this.catalogStartIndex = shiftCatalogWindow(this.catalogMatchIndexes, this.catalogStartIndex, 'previous', {
+        size: CATALOG_WINDOW_SIZE
+      })
+    },
+    handleCatalogScroll(event) {
+      const scrollTop = Number(event && event.detail && event.detail.scrollTop || 0)
+      let windowWidth = 375
+      try {
+        windowWidth = Number(uni.getSystemInfoSync().windowWidth || windowWidth)
+      } catch (error) {}
+      const itemHeightPx = CATALOG_ITEM_HEIGHT_RPX * windowWidth / 750
+      const nextStart = catalogWindowStartForScroll(this.catalogMatchIndexes, scrollTop, itemHeightPx, {
+        size: CATALOG_WINDOW_SIZE,
+        preload: 20
+      })
+      if (Math.abs(nextStart - this.catalogStartIndex) >= 10) this.catalogStartIndex = nextStart
     },
     closeCatalog() {
       this.catalogVisible = false
@@ -904,10 +1399,11 @@ export default {
       this.scheduleChromeAutoHide()
     },
     saveReaderPrefs(rebuild = false) {
+      const anchorOffset = rebuild ? this.currentCharacterOffset() : null
       this.prefs = savePrefs(this.prefs)
       if (rebuild) {
         this.stopReadAloud('layout-changed')
-        this.rebuildPages()
+        this.rebuildPages({ anchorOffset })
       }
     },
     changeFont(delta) {
@@ -928,19 +1424,19 @@ export default {
     },
     changeParagraphSpacing(delta) {
       this.prefs.paragraphSpacing += delta
-      this.saveReaderPrefs(false)
+      this.saveReaderPrefs(true)
     },
     changeParagraphSlider(event) {
       this.prefs.paragraphSpacing = Number(event.detail.value) / 100
-      this.saveReaderPrefs(false)
+      this.saveReaderPrefs(true)
     },
     changeTextIndent(delta) {
       this.prefs.textIndent += delta
-      this.saveReaderPrefs(false)
+      this.saveReaderPrefs(true)
     },
     changeTextIndentSlider(event) {
       this.prefs.textIndent = Number(event.detail.value) / 10
-      this.saveReaderPrefs(false)
+      this.saveReaderPrefs(true)
     },
     changeContentWidth(delta) {
       this.prefs.contentWidth += delta
@@ -1098,7 +1594,7 @@ export default {
       }
     },
     startReadAloud() {
-      if (this.loadingChapter) {
+      if (this.loadingChapter || this.paginationPending) {
         uni.showToast({ title: '章节仍在加载，请稍候', icon: 'none' })
         return false
       }
@@ -1406,7 +1902,7 @@ export default {
   position: relative;
   max-width: 930px;
   height: calc(100vh - 68rpx);
-  min-height: 760rpx;
+  min-height: 0;
   margin: 0 auto;
   overflow: hidden;
   border-radius: calc(var(--app-card-radius, 24rpx) + 4rpx);
@@ -1448,51 +1944,49 @@ export default {
 .reader-content {
   display: block;
   flex: 1;
+  min-height: 0;
   width: 88%;
+  overflow: hidden;
   margin-left: auto;
   margin-right: auto;
   padding-top: 22rpx;
   padding-bottom: 10rpx;
   box-sizing: border-box;
-  transition: opacity 0.2s ease, max-width 0.2s ease;
+  transition: opacity 0.12s ease;
 }
 
-.reader-content.page-turn-slide.page-turn-forward:not(.quiet) {
-  animation: reader-page-slide-forward 210ms var(--app-motion-standard) both;
+.reader-measure-content {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: -1;
+  display: block;
+  height: auto;
+  min-height: 0;
+  padding-top: 22rpx;
+  padding-bottom: 10rpx;
+  overflow: visible;
+  visibility: hidden;
+  pointer-events: none;
+  box-sizing: border-box;
 }
 
-.reader-content.page-turn-slide.page-turn-back:not(.quiet) {
-  animation: reader-page-slide-back 210ms var(--app-motion-standard) both;
+.reader-content.page-turn-slide {
+  --reader-page-turn-duration: 110ms;
 }
 
-.reader-content.page-turn-cover.page-turn-forward:not(.quiet) {
-  transform-origin: right center;
-  animation: reader-page-cover-forward 220ms var(--app-motion-smooth) both;
+.reader-content.page-turn-cover {
+  --reader-page-turn-duration: 140ms;
 }
 
-.reader-content.page-turn-cover.page-turn-back:not(.quiet) {
-  transform-origin: left center;
-  animation: reader-page-cover-back 220ms var(--app-motion-smooth) both;
+.reader-content.page-turn-active:not(.quiet):not(.page-turn-none) {
+  will-change: opacity;
+  animation: reader-page-settle var(--reader-page-turn-duration, 120ms) ease-out both;
 }
 
-@keyframes reader-page-slide-forward {
-  from { opacity: 0; transform: translate3d(22rpx, 0, 0); }
-  to { opacity: 1; transform: translate3d(0, 0, 0); }
-}
-
-@keyframes reader-page-slide-back {
-  from { opacity: 0; transform: translate3d(-22rpx, 0, 0); }
-  to { opacity: 1; transform: translate3d(0, 0, 0); }
-}
-
-@keyframes reader-page-cover-forward {
-  from { opacity: 0.12; transform: translate3d(12rpx, 0, 0) scaleX(0.96); }
-  to { opacity: 1; transform: translate3d(0, 0, 0) scaleX(1); }
-}
-
-@keyframes reader-page-cover-back {
-  from { opacity: 0.12; transform: translate3d(-12rpx, 0, 0) scaleX(0.96); }
-  to { opacity: 1; transform: translate3d(0, 0, 0) scaleX(1); }
+@keyframes reader-page-settle {
+  from { opacity: var(--reader-page-turn-opacity, 0.94); }
+  to { opacity: 1; }
 }
 
 
@@ -1501,9 +1995,14 @@ export default {
   color: inherit;
   font-weight: 400;
   text-align: justify;
+  text-align-last: left;
   text-justify: inter-ideograph;
-  word-break: break-word;
+  hanging-punctuation: first last;
+  line-break: strict;
+  word-break: normal;
   overflow-wrap: anywhere;
+  orphans: 2;
+  widows: 2;
   white-space: pre-wrap;
   font-family: "KaiTi", "STKaiti", "FZKai-Z03", "PingFang SC", "Microsoft YaHei", serif;
   border-radius: 8rpx;
@@ -2103,6 +2602,17 @@ export default {
   height: 50vh;
 }
 
+.catalog-window-spacer {
+  width: 1px;
+  pointer-events: none;
+}
+
+.catalog-content {
+  display: flex;
+  flex-direction: column;
+  max-height: 78vh;
+}
+
 .catalog-item,
 .bookmark-item {
   gap: 18rpx;
@@ -2336,6 +2846,24 @@ export default {
 
 .reader-chrome-enter-top {
   animation: reader-chrome-in-top var(--app-motion-duration-normal) var(--app-motion-smooth) both;
+}
+
+.pagination-card {
+  position: absolute;
+  z-index: 3;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+  padding: 18rpx 24rpx;
+  border: 1rpx solid var(--app-border);
+  border-radius: var(--app-control-radius, 999rpx);
+  color: var(--app-muted);
+  background: var(--app-panel);
+  box-shadow: var(--app-floating-shadow);
+  transform: translate3d(-50%, -50%, 0);
+  pointer-events: none;
 }
 
 .reader-chrome-enter-bottom {
@@ -2574,5 +3102,304 @@ export default {
 @keyframes reader-catalog-in {
   from { opacity: 0; transform: translate3d(100%, 0, 0); }
   to { opacity: 1; transform: translate3d(0, 0, 0); }
+}
+
+/* Editorial reader chrome: controls behave like page-edge tools and yield to text. */
+.reader-page .reader-progress-rail-fill,
+.reader-page .chapter-track-fill {
+  background: var(--app-accent);
+}
+
+.reader-page .top-chrome,
+.reader-page .bottom-chrome,
+.reader-page .settings-panel {
+  border: 1rpx solid var(--app-border);
+  background: var(--app-reader-control);
+  box-shadow: none;
+}
+
+.reader-page .top-chrome {
+  overflow: hidden;
+  border-radius: var(--app-card-radius);
+}
+
+.reader-page .top-chrome::before {
+  position: absolute;
+  top: var(--app-space-sm);
+  bottom: var(--app-space-sm);
+  left: 0;
+  width: 4rpx;
+  background: var(--app-accent);
+  content: "";
+}
+
+.reader-page .top-chrome .icon-button {
+  border: 0;
+  background: transparent;
+}
+
+.reader-page .quick-actions {
+  gap: 0;
+  overflow: hidden;
+  border: 1rpx solid var(--app-border);
+  border-radius: var(--app-control-radius);
+  background: var(--app-reader-control);
+  box-shadow: none;
+}
+
+.reader-page .quick-action {
+  border: 0;
+  border-bottom: 1rpx solid var(--app-border);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.reader-page .quick-action:last-child {
+  border-bottom: 0;
+}
+
+.reader-page .bottom-chrome {
+  overflow: hidden;
+  border-radius: var(--app-card-radius);
+}
+
+.reader-page .chapter-button,
+.reader-page .dock-tool {
+  border: 0;
+  background: transparent;
+}
+
+.reader-page .dock-actions {
+  gap: 0;
+  padding-top: var(--app-space-xs);
+  border-top: 1rpx solid var(--app-border);
+}
+
+.reader-page .dock-tool {
+  position: relative;
+  border-radius: 0;
+}
+
+.reader-page .dock-tool + .dock-tool::before {
+  position: absolute;
+  top: var(--app-space-sm);
+  bottom: var(--app-space-sm);
+  left: 0;
+  width: 1rpx;
+  background: var(--app-border);
+  content: "";
+}
+
+.theme-candy.reader-page .top-chrome,
+.theme-candy.reader-page .bottom-chrome {
+  border: 2rpx solid var(--app-border);
+  border-radius:
+    var(--app-card-radius)
+    calc(var(--app-card-radius) + var(--app-space-sm))
+    calc(var(--app-card-radius) - var(--app-space-xs))
+    calc(var(--app-card-radius) + var(--app-space-xs));
+}
+
+.theme-sakura.reader-page .top-chrome::before {
+  width: 7rpx;
+  border-radius: 7rpx;
+  background: var(--app-accent-3);
+}
+
+.theme-cyber.reader-page .top-chrome,
+.theme-cyber.reader-page .bottom-chrome,
+.theme-cyber.reader-page .quick-actions {
+  border-radius: var(--app-card-radius);
+  box-shadow: inset 0 0 0 1rpx color-mix(in srgb, var(--app-accent) 10%, transparent);
+}
+
+.theme-noirGold.reader-page .top-chrome,
+.theme-noirGold.reader-page .bottom-chrome {
+  border-color: color-mix(in srgb, var(--app-accent) 38%, var(--app-border));
+  box-shadow: inset 0 0 0 6rpx color-mix(in srgb, var(--app-accent) 3%, transparent);
+}
+
+/* V3 entry continuation: short, theme-specific and isolated from reading text. */
+.shared-book-transition {
+  position: fixed;
+  z-index: 920;
+  overflow: visible;
+  border-radius: var(--app-cover-radius, 12rpx);
+  pointer-events: none;
+  transform-origin: left top;
+  animation: shared-book-flight var(--shared-book-duration, 360ms) var(--app-motion-ease, var(--app-motion-smooth)) both;
+  will-change: transform, opacity;
+}
+
+.shared-book-transition-image,
+.shared-book-transition-fallback {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  border-radius: inherit;
+}
+
+.shared-book-transition-image { display: block; }
+
+.shared-book-transition-fallback {
+  box-sizing: border-box;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 12rpx;
+  color: var(--app-on-accent);
+  background: linear-gradient(145deg, var(--app-accent), var(--app-accent-3));
+}
+
+.shared-book-transition-title {
+  font-family: var(--app-display-font);
+  font-size: 26rpx;
+  font-weight: 800;
+  text-align: center;
+}
+
+.shared-book-transition-kind {
+  margin-top: 10rpx;
+  padding: 2rpx 8rpx;
+  border: 1rpx solid currentColor;
+  border-radius: 999rpx;
+  font-size: 16rpx;
+}
+
+.shared-book-transition-spine,
+.shared-book-transition-decoration {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+}
+
+.shared-book-transition-spine {
+  right: auto;
+  width: 7rpx;
+  background: color-mix(in srgb, var(--app-accent-2) 42%, transparent);
+}
+
+.shared-theme-xuanye .shared-book-transition-decoration {
+  box-shadow: inset 0 0 0 1rpx var(--app-accent), 0 0 20rpx color-mix(in srgb, var(--app-accent) 32%, transparent);
+}
+
+.shared-theme-candy .shared-book-transition-decoration {
+  border: 2rpx solid rgba(52, 42, 50, 0.78);
+  box-shadow: 4rpx 5rpx 0 var(--app-accent-2);
+}
+
+.shared-theme-sakura .shared-book-transition-decoration {
+  border: 1rpx solid color-mix(in srgb, var(--app-accent-3) 48%, transparent);
+  box-shadow: inset 0 10rpx 0 color-mix(in srgb, var(--app-accent) 12%, transparent);
+}
+
+.shared-theme-cyber .shared-book-transition-decoration {
+  border: 1rpx solid var(--app-accent);
+  background: repeating-linear-gradient(0deg, transparent 0 5rpx, color-mix(in srgb, var(--app-accent) 8%, transparent) 6rpx);
+}
+
+.shared-theme-noirGold .shared-book-transition-decoration {
+  border: 1rpx solid color-mix(in srgb, var(--app-accent) 64%, transparent);
+  box-shadow: inset 7rpx 7rpx 0 -6rpx var(--app-accent), inset -7rpx -7rpx 0 -6rpx var(--app-accent);
+}
+
+.reader-entry-overlay {
+  position: fixed;
+  z-index: 900;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  color: var(--app-accent);
+  background: var(--app-stage);
+  transform-origin: center;
+  animation-duration: var(--reader-entry-duration, 200ms);
+  animation-timing-function: var(--app-motion-ease, var(--app-motion-smooth));
+  animation-fill-mode: both;
+}
+
+.reader-entry-glyph {
+  font-family: var(--app-utility-font);
+  font-size: 22rpx;
+  font-weight: 760;
+  letter-spacing: 4rpx;
+}
+
+.reader-entry-scan .reader-entry-overlay { animation-name: reader-entry-scan; }
+.reader-entry-page .reader-entry-overlay { animation-name: reader-entry-page; transform-origin: right center; }
+.reader-entry-fade .reader-entry-overlay { animation-name: reader-entry-fade; }
+.reader-entry-book .reader-entry-overlay { animation-name: reader-entry-book; }
+
+@keyframes shared-book-flight {
+  0% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1, 1);
+  }
+  18% {
+    opacity: 1;
+    transform: translate3d(0, -3px, 0) scale(1.02, 1.02);
+  }
+  72% {
+    opacity: 1;
+    transform: translate3d(var(--shared-book-x), var(--shared-book-y), 0) scale(var(--shared-book-scale-x), var(--shared-book-scale-y));
+  }
+  84% {
+    opacity: 1;
+    transform: translate3d(var(--shared-book-x), var(--shared-book-y), 0) scale(var(--shared-book-scale-x), var(--shared-book-scale-y));
+  }
+  100% {
+    opacity: 0;
+    transform: translate3d(var(--shared-book-x), calc(var(--shared-book-y) - 4px), 0) scale(var(--shared-book-scale-x), var(--shared-book-scale-y));
+  }
+}
+
+.reader-content.experience-turn-scan.page-turn-active:not(.quiet) {
+  --reader-page-turn-opacity: 0.96;
+}
+
+.reader-content.experience-turn-fade.page-turn-active:not(.quiet) {
+  --reader-page-turn-opacity: 0.92;
+}
+
+.reader-content.experience-turn-page.page-turn-active:not(.quiet) {
+  --reader-page-turn-opacity: 0.94;
+}
+
+.reader-content.experience-turn-book.page-turn-active:not(.quiet) {
+  --reader-page-turn-opacity: 0.95;
+}
+
+@keyframes reader-entry-scan {
+  0% { opacity: 1; transform: translate3d(0, 0, 0) scaleY(1); }
+  100% { opacity: 0; transform: translate3d(0, -12rpx, 0) scaleY(0.96); }
+}
+
+@keyframes reader-entry-page {
+  0% { opacity: 1; transform: rotateY(0deg) scaleX(1); }
+  100% { opacity: 0; transform: rotateY(-7deg) scaleX(0.96); }
+}
+
+@keyframes reader-entry-fade {
+  0% { opacity: 1; transform: translate3d(0, 0, 0); }
+  100% { opacity: 0; transform: translate3d(0, 8rpx, 0); }
+}
+
+@keyframes reader-entry-book {
+  0% { opacity: 1; transform: scaleX(1); }
+  100% { opacity: 0; transform: scaleX(1.08); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reader-page .top-chrome,
+  .reader-page .quick-actions,
+  .reader-page .bottom-chrome {
+    transition: none;
+  }
+
+  .reader-entry-overlay { animation-duration: 80ms !important; }
+  .shared-book-transition { display: none !important; }
 }
 </style>

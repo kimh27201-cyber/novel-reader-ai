@@ -19,12 +19,12 @@ PowerShell 启动后端：
 ```powershell
 cd D:\Codex\novel-reader-uniapp\backend
 .\.venv\Scripts\Activate.ps1
-uvicorn app.main:app --reload --port 8000
+uvicorn app.main:app --reload --port 8765
 ```
 
 打开：
 
-- Swagger: http://127.0.0.1:8000/docs
+- Swagger: http://127.0.0.1:8765/docs
 - GitHub Actions: https://github.com/kimh27201-cyber/novel-reader-ai/actions
 
 如果要演示 uni-app 页面，用 HBuilderX 打开项目根目录 `D:\Codex\novel-reader-uniapp`，运行到浏览器或模拟器。
@@ -160,8 +160,8 @@ POST /api/sources/{source_id}/toc
 
 ```json
 {
-  "book_url": "http://127.0.0.1:8000/demo-source/books/star-library/catalog",
-  "toc_url": "http://127.0.0.1:8000/demo-source/books/star-library/catalog"
+  "book_url": "http://127.0.0.1:8765/demo-source/books/star-library/catalog",
+  "toc_url": "http://127.0.0.1:8765/demo-source/books/star-library/catalog"
 }
 ```
 
@@ -176,7 +176,7 @@ POST /api/sources/{source_id}/toc
 第一章的章节地址通常是：
 
 ```text
-http://127.0.0.1:8000/demo-source/books/star-library/chapters/1
+http://127.0.0.1:8765/demo-source/books/star-library/chapters/1
 ```
 
 #### 5.4 解析正文
@@ -191,7 +191,7 @@ POST /api/sources/{source_id}/content
 
 ```json
 {
-  "chapter_url": "http://127.0.0.1:8000/demo-source/books/star-library/chapters/1"
+  "chapter_url": "http://127.0.0.1:8765/demo-source/books/star-library/chapters/1"
 }
 ```
 

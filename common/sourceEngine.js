@@ -1,7 +1,8 @@
-import apiClient from './apiClient.js'
 import { normalizeHeaders } from './headerUtils.js'
 import { executeJsRule } from './jsRuleSandbox.js'
 import { renderedFetch } from './webViewBridge.js'
+import { requestSourceText as transportRequestSourceText } from './sourceTransport.js'
+import { SourceRuntimeError } from './sourceErrors.js'
 
 export const unsupportedRulePattern = /(?:java\.|eval\(|\bFunction\s*\(|\bfetch\s*\(|XMLHttpRequest|WebSocket|\bwindow\.|\bdocument\.|localStorage|sessionStorage|\brequire\s*\(|\bprocess\.|\bwhile\s*\(|\bfor\s*\()/i
 
@@ -29,13 +30,53 @@ export function hasUnsupportedRule(value) {
 }
 
 export function createSourceId(source) {
-  const base = String(source.bookSourceUrl || source.sourceUrl || source.name || source.bookSourceName || Date.now())
+  const name = String(source.bookSourceName || source.name || source.sourceName || '').trim().toLowerCase()
+  const url = trimTrailingSlash(String(source.bookSourceUrl || source.sourceUrl || source.baseUrl || ''))
+    .trim()
+    .toLowerCase()
+  // A site can publish multiple independently named sources on the same base URL.
+  // Keep legacy stored ids unchanged, but make newly generated ids match sourceKey identity.
+  const base = `${name}\n${url}` || String(Date.now())
   let hash = 0
   for (let index = 0; index < base.length; index += 1) {
     hash = ((hash << 5) - hash) + base.charCodeAt(index)
     hash |= 0
   }
   return `source-${Math.abs(hash).toString(36)}`
+}
+
+export function createRuleFlowContext(sourceKey = '', initialValues = {}, options = {}) {
+  const values = Object.create(null)
+  Object.entries(initialValues && typeof initialValues === 'object' ? initialValues : {}).forEach(([key, value]) => {
+    if (/^[A-Za-z_$][\w$-]{0,63}$/.test(key)) values[key] = String(value == null ? '' : value).slice(0, 8192)
+  })
+  return {
+    sourceKey: String(sourceKey || ''),
+    values,
+    maxKeys: Math.max(1, Math.min(64, Number(options.maxKeys || 32))),
+    maxValueChars: Math.max(64, Math.min(16384, Number(options.maxValueChars || 8192))),
+    maxTotalChars: Math.max(1024, Math.min(131072, Number(options.maxTotalChars || 65536)))
+  }
+}
+
+export function exportRuleFlowValues(flowContext) {
+  return flowContext && flowContext.values && typeof flowContext.values === 'object'
+    ? { ...flowContext.values }
+    : {}
+}
+
+export function createSourceKey(source) {
+  const name = String(source.bookSourceName || source.name || source.sourceName || '').trim().toLowerCase()
+  const url = trimTrailingSlash(String(source.bookSourceUrl || source.sourceUrl || source.baseUrl || ''))
+    .trim()
+    .toLowerCase()
+  const identity = `${name}\n${url}`
+  let hash = 2166136261
+  for (let index = 0; index < identity.length; index += 1) {
+    hash ^= identity.charCodeAt(index)
+    hash = Math.imul(hash, 16777619)
+  }
+  return `source-key-${(hash >>> 0).toString(36)}`
 }
 
 export function normalizeSourceConfig(input, defaults = {}) {
@@ -54,9 +95,11 @@ export function normalizeSourceConfig(input, defaults = {}) {
     need_login: '条件兼容（需登录）',
     unsupported: '不兼容（受限能力）'
   }
+  const inferredCharset = inferDeclaredSourceCharset(raw)
 
   return {
     id,
+    sourceKey: input.sourceKey || defaults.sourceKey || createSourceKey(raw),
     name,
     baseUrl: trimTrailingSlash(baseUrl),
     group: raw.bookSourceGroup || raw.group || defaults.group || '用户导入',
@@ -67,12 +110,23 @@ export function normalizeSourceConfig(input, defaults = {}) {
     respondTimeMs: Number(raw.respondTime || raw.respondTimeMs || defaults.respondTimeMs || 0),
     enabled: input.enabled !== undefined ? !!input.enabled : defaults.enabled !== undefined ? !!defaults.enabled : true,
     recommended: input.recommended !== undefined ? !!input.recommended : raw.recommended !== undefined ? !!raw.recommended : !!defaults.recommended,
+    antiCrawler: input.antiCrawler || defaults.antiCrawler || (inferredCharset ? { charset: inferredCharset } : undefined),
     raw,
     compatibilityLevel: incompatible ? 'unsupported' : levelInfo.level,
     compatibility: incompatible ? '不兼容（包含危险脚本能力）' : compatibilityLabels[levelInfo.level],
     importedAt: input.importedAt !== undefined ? input.importedAt : defaults.importedAt !== undefined ? defaults.importedAt : Date.now(),
     updatedAt: Date.now()
   }
+}
+
+export function inferDeclaredSourceCharset(raw = {}) {
+  const explicit = String(raw.charset || '').trim().toLowerCase()
+  if (['utf-8', 'gbk', 'gb2312', 'gb18030'].includes(explicit)) return explicit
+  const templates = [raw.searchUrl, raw.exploreUrl, raw.loginUrl]
+    .filter(value => typeof value === 'string')
+    .join('\n')
+  const match = templates.match(/["']?charset["']?\s*:\s*["']?(utf-?8|gbk|gb2312|gb18030)["']?/i)
+  return String(match && match[1] || '').toLowerCase()
 }
 
 export function detectSourceFormat(raw = {}) {
@@ -253,14 +307,25 @@ export function decodeHtml(value) {
     .replace(/&nbsp;/gi, ' ')
 }
 
-export function renderTemplate(template, context = {}) {
+export function renderTemplate(template, context = {}, options = {}) {
+  const encodeKey = typeof options.encodeKey === 'function' ? options.encodeKey : encodeURIComponent
   return String(template || '').replace(/\{\{\s*([^}]+?)\s*\}\}/g, (_, key) => {
     const name = key.trim()
-    if (name === 'key' || name === 'keyword') return encodeURIComponent(context.key || context.keyword || '')
+    if (name === 'key' || name === 'keyword') return encodeKey(context.key || context.keyword || '')
     if (name === 'page') return context.page || 1
     if (name.startsWith('$.')) {
-      const value = readJsonPath(context, name)
+      const value = readJsonPath(context.$ && typeof context.$ === 'object' ? context.$ : context, name)
       return Array.isArray(value) ? value[0] || '' : value || ''
+    }
+    if (name === 'source.getKey()') return context.sourceKey || context.baseUrl || ''
+    const flowString = name.match(/^java\.getString\((['"])([A-Za-z_$][\w$-]{0,63})\1\)$/)
+    if (flowString) return getRuleFlowValue(context, flowString[2])
+    if (name === 'Base()') {
+      try { return new URL(context.baseUrl || context.sourceKey || '').origin } catch (error) { return context.baseUrl || '' }
+    }
+    if (name === 'cookie.removeCookie(source.getKey())') {
+      if (typeof context.clearSourceCookie === 'function') context.clearSourceCookie()
+      return ''
     }
     if (context[name] != null) return context[name]
     try {
@@ -285,12 +350,20 @@ export function resolveUrl(url, baseUrl) {
 export function parseRequestSpec(spec, context = {}, baseUrl = '') {
   const rawSpec = String(spec || '').trim()
   const requestContext = { ...context, baseUrl: context.baseUrl || baseUrl }
-  const text = /^(?:<js>|@js:)/i.test(rawSpec)
-    ? String(executeJsRule(rawSpec, {
+  const legacyRequestTemplate = /["']?charset["']?\s*:\s*["']?(?:gbk|gb2312|gb18030)["']?/i.test(rawSpec)
+  const safeScriptSpec = rawSpec.replace(
+    /^((?:<js>|@js:)\s*)cookie\.removeCookie\(\s*(?:baseUrl|source\.getKey\(\))\s*\)\s*;?/i,
+    '$1'
+  )
+  const renderedText = /^(?:<js>|@js:)/i.test(rawSpec)
+    ? String(executeJsRule(safeScriptSpec, {
       ...requestContext,
       result: requestContext.result == null ? (requestContext.key || '') : requestContext.result
     }))
-    : renderTemplate(rawSpec, requestContext)
+    : renderTemplate(rawSpec, requestContext, {
+      encodeKey: legacyRequestTemplate ? value => String(value || '') : encodeURIComponent
+    })
+  const text = expandRuleFlowGets(renderedText, requestContext).value
   const match = text.match(/^([^,]+),\s*(\{[\s\S]*\})\s*$/)
   if (!match) {
     return {
@@ -304,18 +377,78 @@ export function parseRequestSpec(spec, context = {}, baseUrl = '') {
   let options = {}
   try {
     options = JSON.parse(match[2])
-  } catch (error) {
-    options = {}
+  } catch (jsonError) {
+    try {
+      options = executeJsRule(match[2], requestContext, {
+        timeoutMs: 100,
+        maxOperations: 48,
+        maxDepth: 6
+      })
+    } catch (sandboxError) {
+      throw new SourceRuntimeError('REQUEST_TEMPLATE_UNSUPPORTED', '书源请求模板配置无效或包含不安全表达式', {
+        stage: 'request',
+        cause: sandboxError || jsonError
+      })
+    }
+  }
+
+  if (!options || Array.isArray(options) || typeof options !== 'object') {
+    throw new SourceRuntimeError('REQUEST_TEMPLATE_UNSUPPORTED', '书源请求模板配置必须是对象', { stage: 'request' })
+  }
+  const allowedOptionKeys = new Set(['method', 'body', 'data', 'charset', 'headers', 'header', 'params'])
+  const invalidOptionKey = Object.keys(options).find(key => !allowedOptionKeys.has(key))
+  if (invalidOptionKey) {
+    throw new SourceRuntimeError('REQUEST_TEMPLATE_UNSUPPORTED', `书源请求模板包含未允许字段：${invalidOptionKey}`, { stage: 'request' })
+  }
+
+  const method = String(options.method || (options.body != null || options.data != null ? 'POST' : 'GET')).toUpperCase()
+  if (!['GET', 'POST'].includes(method)) {
+    throw new SourceRuntimeError('REQUEST_TEMPLATE_UNSUPPORTED', `暂不支持请求方法：${method}`, { stage: 'request' })
+  }
+  const header = normalizeHeaders(options.headers || options.header || {}, { channel: 'proxy', context: requestContext })
+  const requestCharset = String(options.charset || '').trim().toLowerCase()
+  const legacyBodyCharset = ['gbk', 'gb2312', 'gb18030'].includes(requestCharset)
+  const data = renderTemplate(options.body == null ? options.data || '' : options.body, requestContext, {
+    encodeKey: legacyBodyCharset ? value => String(value || '') : encodeURIComponent
+  })
+  let requestUrl = resolveUrl(match[1], baseUrl)
+  if (legacyBodyCharset) {
+    const rawKey = String(requestContext.key || requestContext.keyword || '')
+    const encodedKey = encodeURIComponent(rawKey)
+    if (rawKey && encodedKey) requestUrl = requestUrl.split(encodedKey).join(rawKey)
+  }
+  if (options.params != null) {
+    if (!options.params || Array.isArray(options.params) || typeof options.params !== 'object') {
+      throw new SourceRuntimeError('REQUEST_TEMPLATE_UNSUPPORTED', '书源请求 params 必须是对象', { stage: 'request' })
+    }
+    const entries = Object.entries(options.params)
+    if (entries.length > 64 || entries.some(([key, value]) => FORBIDDEN_REQUEST_PARAM_KEYS.has(key) || value != null && typeof value === 'object')) {
+      throw new SourceRuntimeError('REQUEST_TEMPLATE_UNSUPPORTED', '书源请求 params 包含不安全字段或超出数量限制', { stage: 'request' })
+    }
+    const resolved = new URL(requestUrl)
+    entries.forEach(([key, value]) => {
+      const rawValue = String(value == null ? '' : value).replace(/\{\{\s*(?:key|keyword)\s*\}\}/gi, String(requestContext.key || requestContext.keyword || ''))
+      const renderedValue = renderTemplate(rawValue, requestContext)
+      let decodedValue = renderedValue
+      try { decodedValue = decodeURIComponent(renderedValue) } catch (error) {}
+      resolved.searchParams.set(key, decodedValue)
+    })
+    requestUrl = resolved.toString()
+  }
+  if (method === 'POST' && data && !Object.keys(header).some(key => key.toLowerCase() === 'content-type')) {
+    header['Content-Type'] = 'application/x-www-form-urlencoded'
   }
 
   return {
-    url: resolveUrl(match[1], baseUrl),
-    method: String(options.method || (options.body ? 'POST' : 'GET')).toUpperCase(),
-    header: normalizeHeaders(options.headers || options.header || {}, { channel: 'proxy', context }),
-    data: renderTemplate(options.body || options.data || '', context),
+    url: requestUrl,
+    method,
+    header,
+    data,
     charset: options.charset || ''
   }
 }
+
+const FORBIDDEN_REQUEST_PARAM_KEYS = new Set(['__proto__', 'prototype', 'constructor'])
 
 const sourceRequestTimestamps = new Map()
 
@@ -373,7 +506,7 @@ export async function requestText(spec) {
   throw lastError || new Error('网络请求失败')
 }
 
-function requestTextOnce(requestUrl, spec, allowDirectFallback) {
+function requestTextOnce(requestUrl, spec) {
   if (spec.rendered) {
     return renderedFetch(spec.url, {
       headers: normalizeHeaders(spec.header || {}, { channel: 'proxy' }),
@@ -384,60 +517,23 @@ function requestTextOnce(requestUrl, spec, allowDirectFallback) {
       timeoutMs: spec.timeoutMs || 10000
     }).then(result => result.html)
   }
-  if (shouldUseBackendProxy(spec.url)) {
-    return apiClient.proxyFetch(spec.url, {
-      method: spec.method || 'GET',
-      headers: normalizeHeaders(spec.header || {}, { channel: 'proxy' }),
-      body: spec.data || '',
-      charset: spec.charset || '',
-      throttleMs: 0
-    }).then(data => {
-      if (data && typeof data.text === 'string') return data.text
-      return typeof data === 'string' ? data : JSON.stringify(data || '')
-    }).catch(error => {
-      if (allowDirectFallback) return directRequestText(requestUrl, spec)
-      throw error
-    })
-  }
-
-  return directRequestText(requestUrl, spec)
-}
-
-function directRequestText(requestUrl, spec) {
-  const directHeaders = normalizeHeaders(spec.header || {}, {
-    channel: typeof window !== 'undefined' ? 'direct' : 'proxy'
-  })
-  if (typeof uni !== 'undefined' && uni.request) {
-    return new Promise((resolve, reject) => {
-      uni.request({
-        url: requestUrl,
-        method: spec.method || 'GET',
-        header: directHeaders,
-        data: spec.data || undefined,
-        timeout: 12000,
-        responseType: 'text',
-        success: response => {
-          const data = response.data
-          resolve(typeof data === 'string' ? data : JSON.stringify(data || ''))
-        },
-        fail: () => reject(new Error('网络请求失败'))
-      })
-    })
-  }
-
-  if (typeof fetch !== 'undefined') {
-    return fetch(requestUrl, {
-      method: spec.method || 'GET',
-      headers: directHeaders,
-      body: spec.method === 'POST' ? spec.data : undefined
-    }).then(response => response.text())
-  }
-
-  return Promise.reject(new Error('当前环境不支持网络请求'))
-}
-
-function shouldUseBackendProxy(url) {
-  return /^https?:\/\//i.test(String(url || ''))
+  return transportRequestSourceText({
+    url: /^https?:\/\//i.test(String(spec.url || '')) ? spec.url : requestUrl,
+    method: spec.method || 'GET',
+    headers: spec.header || {},
+    body: spec.data || '',
+    charset: spec.charset || '',
+    cookie: spec.cookie || '',
+    userAgent: spec.userAgent || '',
+    referer: spec.referer || '',
+    timeoutMs: spec.timeoutMs || 12000,
+    maxBytes: spec.maxBytes,
+    sourceKey: spec.sourceKey
+  }, {
+    sourceKey: spec.sourceKey,
+    useBackend: spec.useBackend !== false,
+    backendOnly: !!spec.backendOnly
+  }).then(response => response.text)
 }
 
 export function getRuntimeRequestUrl(url) {
@@ -496,8 +592,36 @@ export function applyListRule(input, rule, context = {}) {
 }
 
 function applyRulePart(input, rule, context) {
+  const flowGet = String(rule || '').match(/^@get:\{\s*([A-Za-z_$][\w$-]{0,63})\s*\}$/)
+  if (flowGet) return getRuleFlowValue(context, flowGet[1])
+  const putMatch = matchTrailingPutRule(rule)
+  if (putMatch) {
+    const selected = putMatch.selector ? applyRulePart(input, putMatch.selector, context) : input
+    applyRuleFlowPut(input, putMatch.body, context)
+    return selected
+  }
+  const chainedJsIndex = String(rule || '').indexOf('@js:')
+  if (chainedJsIndex > 0) {
+    const selected = applyRulePart(input, String(rule).slice(0, chainedJsIndex), context)
+    return executeJsRule(String(rule).slice(chainedJsIndex), { ...context, result: selected })
+  }
+  const concatRules = String(rule || '').split('&&').map(item => item.trim()).filter(Boolean)
+  if (concatRules.length > 1) {
+    const values = concatRules.map(item => applyRulePart(input, item, context))
+    if (values.some(Array.isArray)) {
+      const size = Math.max(...values.map(value => asArray(value).length))
+      return Array.from({ length: size }, (_, index) => values.map(value => {
+        const items = asArray(value)
+        return items[index] == null ? items[0] || '' : items[index]
+      }).join(''))
+    }
+    return values.join('')
+  }
   const parts = String(rule || '').split('##')
-  let value = applySelectorPipeline(input, renderTemplate(parts[0], context))
+  const expandedRule = expandRuleFlowGets(renderTemplate(parts[0], context), context)
+  let value = expandedRule.changed
+    ? expandedRule.value
+    : applySelectorPipeline(input, expandedRule.value)
 
   for (let index = 1; index < parts.length; index += 2) {
     const pattern = parts[index]
@@ -511,13 +635,27 @@ function applyRulePart(input, rule, context) {
 function applySelectorPipeline(input, rule) {
   const text = String(rule || '').trim()
   if (!text) return input
+  if (input && typeof input === 'object' && !Array.isArray(input) && /^[A-Za-z_$][\w$]*$/.test(text)) {
+    return Object.prototype.hasOwnProperty.call(input, text) ? input[text] : ''
+  }
+  if (/^https?:\/\//i.test(text)) return text
+  if (/^(?:\/(?!\/)|\.{1,2}\/)/.test(text)) return text
   if (text === '@text' || text === 'text') return extractText(input)
   if (text === '@html' || text === 'html') return asArray(input).join('')
+  if (/^(?:@?json:)/i.test(text)) return readJsonPath(input, text.replace(/^(?:@?json:)/i, ''))
+  if (/^(?:@?xpath:|\.?\/\/)/i.test(text)) return selectXPath(input, text.replace(/^(?:@?xpath:)/i, ''))
   if (text.startsWith('$.')) return readJsonPath(input, text)
 
   const tokens = text.split('@').map(item => item.trim()).filter(Boolean)
+  const startsWithAccessor = text.startsWith('@')
+    && tokens.length === 1
+    && !/^@(?:css|json|xpath|js):/i.test(text)
   let value = input
   tokens.forEach((token, index) => {
+    if (index === 0 && startsWithAccessor) {
+      value = applyAccessor(value, token)
+      return
+    }
     if ((index === 0 && !isAccessor(token)) || isSelectorToken(token)) {
       value = selectValues(value, normalizeSelectorToken(token))
       return
@@ -533,10 +671,119 @@ function selectValues(input, selector) {
     if (Array.isArray(byPath) ? byPath.length : byPath) return byPath
   }
 
+  if (/^(?:xpath:|\/\/)/i.test(selector)) {
+    return selectXPath(input, String(selector).replace(/^xpath:/i, ''))
+  }
   return asArray(input).flatMap(fragment => selectHtml(String(fragment || ''), selector))
 }
 
+function matchTrailingPutRule(rule) {
+  const text = String(rule || '').trim()
+  const marker = text.lastIndexOf('@put:{')
+  if (marker < 0 || !text.endsWith('}')) return null
+  return { selector: text.slice(0, marker).trim(), body: text.slice(marker + 6, -1) }
+}
+
+function splitTopLevelRuleEntries(text) {
+  const entries = []
+  let quote = ''
+  let escaped = false
+  let depth = 0
+  let start = 0
+  const source = String(text || '')
+  for (let index = 0; index < source.length; index += 1) {
+    const char = source[index]
+    if (escaped) { escaped = false; continue }
+    if (char === '\\') { escaped = true; continue }
+    if (quote) { if (char === quote) quote = ''; continue }
+    if (char === '"' || char === "'") { quote = char; continue }
+    if (char === '{' || char === '[' || char === '(') depth += 1
+    else if (char === '}' || char === ']' || char === ')') depth -= 1
+    else if (char === ',' && depth === 0) {
+      entries.push(source.slice(start, index).trim())
+      start = index + 1
+    }
+  }
+  const tail = source.slice(start).trim()
+  if (tail) entries.push(tail)
+  return entries
+}
+
+function splitRuleEntry(entry) {
+  let quote = ''
+  let escaped = false
+  const text = String(entry || '')
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index]
+    if (escaped) { escaped = false; continue }
+    if (char === '\\') { escaped = true; continue }
+    if (quote) { if (char === quote) quote = ''; continue }
+    if (char === '"' || char === "'") { quote = char; continue }
+    if (char === ':') return [text.slice(0, index).trim(), text.slice(index + 1).trim()]
+  }
+  return []
+}
+
+function normalizePutRuleValue(value) {
+  const text = String(value || '').trim()
+  if ((text.startsWith('"') && text.endsWith('"')) || (text.startsWith("'") && text.endsWith("'"))) {
+    try { return text.startsWith('"') ? JSON.parse(text) : text.slice(1, -1).replace(/\\'/g, "'") } catch (error) { return '' }
+  }
+  return text
+}
+
+function applyRuleFlowPut(input, body, context) {
+  const flow = context && context.ruleFlow
+  if (!flow || !flow.values || typeof flow.values !== 'object') return
+  const entries = splitTopLevelRuleEntries(body)
+  if (entries.length > flow.maxKeys) throw new SourceRuntimeError('SCRIPT_BUDGET_EXCEEDED', '书源流程缓存键数量超限', { stage: 'rule' })
+  entries.forEach(entry => {
+    const pair = splitRuleEntry(entry)
+    const key = String(pair[0] || '').replace(/^['"]|['"]$/g, '')
+    if (!/^[A-Za-z_$][\w$-]{0,63}$/.test(key) || ['__proto__', 'prototype', 'constructor'].includes(key)) {
+      throw new SourceRuntimeError('SCRIPT_BLOCKED', '书源流程缓存键不安全', { stage: 'rule' })
+    }
+    const valueRule = normalizePutRuleValue(pair[1])
+    const value = valueRule ? firstRuleFlowValue(applyRule(input, valueRule, context)) : ''
+    const text = String(value == null ? '' : value)
+    if (text.length > flow.maxValueChars) throw new SourceRuntimeError('SCRIPT_BUDGET_EXCEEDED', '书源流程缓存值大小超限', { stage: 'rule' })
+    const existing = Object.prototype.hasOwnProperty.call(flow.values, key)
+    if (!existing && Object.keys(flow.values).length >= flow.maxKeys) throw new SourceRuntimeError('SCRIPT_BUDGET_EXCEEDED', '书源流程缓存键数量超限', { stage: 'rule' })
+    const total = Object.entries(flow.values).reduce((sum, [name, stored]) => sum + (name === key ? 0 : String(stored).length), 0) + text.length
+    if (total > flow.maxTotalChars) throw new SourceRuntimeError('SCRIPT_BUDGET_EXCEEDED', '书源流程缓存总大小超限', { stage: 'rule' })
+    flow.values[key] = text
+  })
+}
+
+function firstRuleFlowValue(value) {
+  return Array.isArray(value) ? value[0] == null ? '' : value[0] : value
+}
+
+function getRuleFlowValue(context, key) {
+  const flow = context && context.ruleFlow
+  if (!flow || !flow.values || !Object.prototype.hasOwnProperty.call(flow.values, key)) return ''
+  return flow.values[key]
+}
+
+function expandRuleFlowGets(rule, context) {
+  let changed = false
+  const value = String(rule || '').replace(/@get:\{\s*([A-Za-z_$][\w$-]{0,63})\s*\}/g, (_, key) => {
+    changed = true
+    return getRuleFlowValue(context, key)
+  })
+  return { value, changed }
+}
+
 function selectHtml(html, selector) {
+  if (typeof DOMParser !== 'undefined') {
+    try {
+      const document = new DOMParser().parseFromString(String(html || ''), 'text/html')
+      const nodes = Array.from(document.querySelectorAll(String(selector || '')))
+      if (nodes.length) return nodes.map(node => node.outerHTML || node.textContent || '')
+    } catch (error) {
+      // Continue with the deterministic parser used by Node tests and older WebViews.
+    }
+  }
   const steps = String(selector || '').split(/\s+|>/).map(item => item.trim()).filter(Boolean)
   if (!steps.length) return [html]
   let current = [html]
@@ -547,21 +794,47 @@ function selectHtml(html, selector) {
 }
 
 function selectSimpleHtml(html, selector) {
-  const pseudo = extractSelectorPseudo(selector)
-  const indexMatch = pseudo.selector.match(/^(.*?)(?:\.|\[)(\d+)\]?$/)
-  const cleanSelector = indexMatch ? indexMatch[1] : pseudo.selector
-  const requestedIndex = indexMatch ? Number(indexMatch[2]) : pseudo.index
-  const { tag, id, classNames, attr } = parseSimpleSelector(cleanSelector)
+  const hasMatch = String(selector || '').match(/^(.*):has\(([^()]+)\)$/i)
+  if (hasMatch) {
+    return selectSimpleHtml(html, hasMatch[1] || '*')
+      .filter(fragment => selectHtml(fragment, hasMatch[2]).length > 0)
+  }
+  const containsMatch = String(selector || '').match(/^(.*):contains\((['"]?)([\s\S]*?)\2\)$/i)
+  if (containsMatch) {
+    const expected = cleanText(containsMatch[3])
+    return selectSimpleHtml(html, containsMatch[1] || '*')
+      .filter(fragment => cleanText(fragment).includes(expected))
+  }
+  const textMatch = String(selector || '').match(/^text\.([\s\S]+)$/)
+  if (textMatch) return selectElementsByText(html, textMatch[1])
+  const excludeMatch = String(selector || '').match(/^(.*)!(\d+)$/)
+  const excludeFirst = /:not\(\s*:first-child\s*\)$/i.test(String(selector || ''))
+  const normalizedSelector = String(selector || '')
+    .replace(/:not\(\s*:first-child\s*\)$/i, '')
+    .replace(/:nth-child\(n\)$/i, '')
+    .replace(/!(\d+)$/, '')
+  const pseudo = extractSelectorPseudo(normalizedSelector)
+  const rangeMatch = pseudo.selector.match(/^(.*?)(?:\.|\[)(-?\d+)(?::(-?\d+))?\]?$/)
+  const cleanSelector = rangeMatch ? rangeMatch[1] : pseudo.selector
+  const requestedIndex = rangeMatch && rangeMatch[3] == null ? Number(rangeMatch[2]) : pseudo.index
+  const requestedRange = rangeMatch && rangeMatch[3] != null ? [Number(rangeMatch[2]), Number(rangeMatch[3])] : null
+  const legadoClass = cleanSelector.match(/^legado-class:([^\s]+)$/)
+  const { tag, id, classNames, attr } = legadoClass
+    ? { tag: '', id: '', classNames: [decodeURIComponent(legadoClass[1])], attr: null }
+    : parseSimpleSelector(cleanSelector)
 
   if (id || classNames.length || attr) {
     const tagged = selectByAttribute(html, id, classNames, attr, tag)
+    if (excludeMatch) return tagged.filter((_, index) => index !== Number(excludeMatch[2]))
+    if (excludeFirst) return tagged.slice(1)
+    if (requestedRange) return sliceSelectorRange(tagged, requestedRange)
     if (requestedIndex === 'last') return tagged.length ? [tagged[tagged.length - 1]] : []
-    if (requestedIndex !== null) return tagged[requestedIndex] ? [tagged[requestedIndex]] : []
+    if (requestedIndex !== null) return selectSelectorIndex(tagged, requestedIndex)
     return tagged
   }
 
-  const tagPattern = tag || '[a-zA-Z][\\w:-]*'
-  const pattern = new RegExp(`<(${tagPattern})([^>]*)>([\\s\\S]*?)<\\/\\1>`, 'gi')
+  const tagPattern = tag ? escapeRegExp(tag) : '[a-zA-Z][\\w:-]*'
+  const pattern = new RegExp(`<(${tagPattern})([^>]*)>`, 'gi')
   const matches = []
   let match
 
@@ -570,21 +843,37 @@ function selectSimpleHtml(html, selector) {
     if (id && !new RegExp(`\\bid=["']?${escapeRegExp(id)}["']?`, 'i').test(attrs)) continue
     if (!hasRequiredClasses(attrs, classNames)) continue
     if (attr && !matchesAttributeSelector(attrs, attr)) continue
-    matches.push(match[0])
+    matches.push(sliceBalancedElement(html, match.index, pattern.lastIndex, match[1], match[0]))
   }
 
-  const selfClosing = new RegExp(`<(${tagPattern})([^>]*)\\/?>`, 'gi')
-  while ((match = selfClosing.exec(html))) {
-    const attrs = match[2] || ''
-    if (!/^(img|input|meta|link|br)$/i.test(match[1])) continue
-    if (id && !new RegExp(`\\bid=["']?${escapeRegExp(id)}["']?`, 'i').test(attrs)) continue
-    if (!hasRequiredClasses(attrs, classNames)) continue
-    if (attr && !matchesAttributeSelector(attrs, attr)) continue
-    matches.push(match[0])
-  }
-
+  if (excludeMatch) return matches.filter((_, index) => index !== Number(excludeMatch[2]))
+  if (excludeFirst) return matches.slice(1)
+  if (requestedRange) return sliceSelectorRange(matches, requestedRange)
   if (requestedIndex === 'last') return matches.length ? [matches[matches.length - 1]] : []
-  if (requestedIndex !== null) return matches[requestedIndex] ? [matches[requestedIndex]] : []
+  if (requestedIndex !== null) return selectSelectorIndex(matches, requestedIndex)
+  return matches
+}
+
+function selectSelectorIndex(values, index) {
+  const resolved = index < 0 ? values.length + index : index
+  return values[resolved] == null ? [] : [values[resolved]]
+}
+
+function sliceSelectorRange(values, range) {
+  const resolve = value => value < 0 ? Math.max(0, values.length + value) : value
+  return values.slice(resolve(range[0]), resolve(range[1]))
+}
+
+function selectElementsByText(html, expectedText) {
+  const expected = cleanText(expectedText)
+  if (!expected) return []
+  const pattern = /<([a-zA-Z][\w:-]*)([^>]*)>/gi
+  const matches = []
+  let match
+  while ((match = pattern.exec(String(html || '')))) {
+    const element = sliceBalancedElement(String(html || ''), match.index, pattern.lastIndex, match[1], match[0])
+    if (cleanText(element) === expected) matches.push(element)
+  }
   return matches
 }
 
@@ -601,31 +890,41 @@ function selectByAttribute(html, id, classNames = [], attr = null, tagName = '')
     if (!hasRequiredClasses(attrs, classNames)) continue
     if (attr && !matchesAttributeSelector(attrs, attr)) continue
 
-    if (/^(img|input|meta|link|br)$/i.test(tag)) {
-      matches.push(match[0])
-      continue
-    }
-
-    const close = new RegExp(`<\\/${escapeRegExp(tag)}>`, 'i')
-    const rest = html.slice(pattern.lastIndex)
-    const closeMatch = rest.match(close)
-    matches.push(closeMatch ? html.slice(match.index, pattern.lastIndex + closeMatch.index + closeMatch[0].length) : match[0])
+    matches.push(sliceBalancedElement(html, match.index, pattern.lastIndex, tag, match[0]))
   }
 
   return matches
 }
 
+function sliceBalancedElement(html, start, openEnd, tag, openingTag) {
+  if (/\/>$/.test(openingTag) || /^(?:area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)$/i.test(tag)) {
+    return html.slice(start, openEnd)
+  }
+  const pattern = new RegExp(`<\\/?${escapeRegExp(tag)}\\b[^>]*>`, 'gi')
+  pattern.lastIndex = openEnd
+  let depth = 1
+  let token
+  while ((token = pattern.exec(html))) {
+    if (/^<\//.test(token[0])) depth -= 1
+    else if (!/\/>$/.test(token[0])) depth += 1
+    if (depth === 0) return html.slice(start, pattern.lastIndex)
+  }
+  return html.slice(start, openEnd)
+}
+
 function parseSimpleSelector(selector) {
-  const attrMatch = selector.match(/^(.*?)(\[[^\]]+\])$/)
+  const rawAttrMatch = selector.match(/^(.*?)(\[[^\]]+\])$/)
+  const parsedAttr = rawAttrMatch ? parseAttributeSelector(rawAttrMatch[2]) : null
+  const attrMatch = parsedAttr ? rawAttrMatch : null
   const baseSelector = attrMatch ? attrMatch[1] : selector
-  const attr = attrMatch ? parseAttributeSelector(attrMatch[2]) : null
+  const attr = parsedAttr
   const tagMatch = baseSelector.match(/^([a-zA-Z][\w:-]*)/)
   const tag = tagMatch ? tagMatch[1] : ''
   const suffix = baseSelector.slice(tag.length)
   const idMatch = suffix.match(/#([\w-]+)/)
-  const classNames = [...suffix.matchAll(/\.([\w-]+)/g)].map(match => match[1])
+  const classNames = [...suffix.matchAll(/\.([\w\-\[\]]+)/g)].map(match => match[1])
 
-  if (suffix && suffix.replace(/#[\w-]+|\.[\w-]+/g, '')) {
+  if (suffix && suffix.replace(/#[\w-]+|\.[\w\-\[\]]+/g, '')) {
     return { tag: baseSelector || '', id: '', classNames: [], attr }
   }
 
@@ -634,11 +933,16 @@ function parseSimpleSelector(selector) {
 
 function hasRequiredClasses(attrs, classNames = []) {
   const expected = Array.isArray(classNames) ? classNames : [classNames]
-  return expected.every(className => new RegExp(`\\bclass=["'][^"']*\\b${escapeRegExp(className)}\\b`, 'i').test(attrs))
+  const match = String(attrs || '').match(/\bclass=["']([^"']*)["']/i)
+  if (!match) return expected.length === 0
+  const actual = new Set(String(match[1] || '').split(/\s+/).filter(Boolean))
+  return expected.every(className => actual.has(className))
 }
 
 function extractSelectorPseudo(selector) {
   const text = String(selector || '').trim()
+  const equal = text.match(/^(.*?):eq\((-?\d+)\)$/i)
+  if (equal) return { selector: equal[1], index: Number(equal[2]) }
   const indexed = text.match(/^(.*?):nth-(?:of-type|child)\((\d+)\)$/i)
   if (indexed) return { selector: indexed[1], index: Math.max(0, Number(indexed[2]) - 1) }
   if (/:last-child$/i.test(text)) return { selector: text.replace(/:last-child$/i, ''), index: 'last' }
@@ -647,7 +951,7 @@ function extractSelectorPseudo(selector) {
 }
 
 function parseAttributeSelector(selector) {
-  const match = String(selector || '').match(/^\[\s*([\w:-]+)\s*(\*?=)\s*["']?([^"'\]]*)["']?\s*\]$/)
+  const match = String(selector || '').match(/^\[\s*([\w:-]+)\s*([*^$~|]?=)\s*["']?([^"'\]]*)["']?\s*\]$/)
   if (!match) return null
   return {
     name: match[1],
@@ -660,14 +964,30 @@ function matchesAttributeSelector(attrs, attr) {
   if (!attr || !attr.name) return true
   const value = extractAttr(`<x ${attrs}></x>`, attr.name)
   if (!value) return false
-  return attr.operator === '*=' ? value.includes(attr.value) : value === attr.value
+  if (attr.operator === '*=') return value.includes(attr.value)
+  if (attr.operator === '^=') return value.startsWith(attr.value)
+  if (attr.operator === '$=') return value.endsWith(attr.value)
+  if (attr.operator === '|=') return value === attr.value || value.startsWith(`${attr.value}-`)
+  if (attr.operator === '~=') {
+    const alternatives = /^[\w:-]+(?:\|[\w:-]+)*$/.test(attr.value) ? attr.value.split('|') : [attr.value]
+    const tokens = value.split(/\s+/).filter(Boolean)
+    return alternatives.some(expected => tokens.includes(expected) || value.includes(expected))
+  }
+  return value === attr.value
 }
 
 function applyAccessor(input, accessor) {
   const token = String(accessor || '').replace(/^@/, '')
-  if (token === 'text' || token === 'textNodes' || token === 'ownText') return extractText(input)
+  if (token === 'text' || token === 'textNodes') return extractText(input)
+  if (token === 'ownText') return extractOwnText(input)
   if (token === 'html') return asArray(input).join('')
+  if (token === 'children') return asArray(input).flatMap(extractDirectChildren)
   if (/^\d+$/.test(token)) return asArray(input)[Number(token)] || ''
+  if (/^-\d+$/.test(token)) {
+    const values = asArray(input)
+    return values[values.length + Number(token)] || ''
+  }
+  if (/^!\d+$/.test(token)) return asArray(input).slice().reverse()[Number(token.slice(1))] || ''
   if (token.startsWith('$.')) return readJsonPath(input, token)
 
   const values = asArray(input).map(item => extractAttr(item, token)).filter(Boolean)
@@ -682,14 +1002,118 @@ function extractText(input) {
   return values.length > 1 ? values : values[0] || ''
 }
 
+function extractOwnText(input) {
+  const values = asArray(input).map(item => cleanText(String(item || '')
+    .replace(/<([a-zA-Z][\w:-]*)\b[^>]*>[\s\S]*?<\/\1>/g, ' ')))
+    .filter(Boolean)
+  return values.length > 1 ? values : values[0] || ''
+}
+
+function selectXPath(input, expression) {
+  if (typeof DOMParser === 'undefined' || typeof document === 'undefined' || !document.evaluate) {
+    return selectSimpleXPath(input, expression)
+  }
+  const output = []
+  asArray(input).forEach(fragment => {
+    try {
+      const parsed = new DOMParser().parseFromString(String(fragment || ''), 'text/html')
+      const snapshot = parsed.evaluate(
+        String(expression || ''),
+        parsed,
+        null,
+        XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,
+        null
+      )
+      for (let index = 0; index < snapshot.snapshotLength; index += 1) {
+        const node = snapshot.snapshotItem(index)
+        output.push(node && (node.outerHTML || node.nodeValue || node.textContent) || '')
+      }
+    } catch (error) {
+      // Invalid XPath returns an empty result and can fall back through ||.
+    }
+  })
+  return output
+}
+
+function selectSimpleXPath(input, expression) {
+  const text = String(expression || '').trim().replace(/^\.\/\//, '//')
+  if (!/^\/\//.test(text) || /\||::|\b(?:contains|starts-with|normalize-space)\s*\(/i.test(text)) return []
+  const steps = text.replace(/^\/+/, '').split(/\/+|\/\//).map(item => item.trim()).filter(Boolean)
+  let values = asArray(input)
+  for (const step of steps) {
+    if (step === 'text()') {
+      values = asArray(extractText(values))
+      continue
+    }
+    const attrOnly = step.match(/^@([\w:-]+)$/)
+    if (attrOnly) {
+      values = asArray(applyAccessor(values, attrOnly[1]))
+      continue
+    }
+    const matched = step.match(/^([a-zA-Z][\w:-]*|\*)(?:\[@(class|id|[\w:-]+)=['"]([^'"]+)['"]\])?(?:\[(\d+)\])?$/)
+    if (!matched) return []
+    const tag = matched[1] === '*' ? '' : matched[1]
+    const attr = matched[2]
+    const attrValue = matched[3]
+    let selector = tag || '*'
+    if (attr === 'class') selector += `.${attrValue.split(/\s+/).filter(Boolean).join('.')}`
+    else if (attr === 'id') selector += `#${attrValue}`
+    else if (attr) selector += `[${attr}="${attrValue}"]`
+    values = values.flatMap(fragment => selectHtml(String(fragment || ''), selector))
+    if (matched[4]) {
+      const index = Math.max(0, Number(matched[4]) - 1)
+      values = values[index] == null ? [] : [values[index]]
+    }
+  }
+  return values
+}
+
 function extractAttr(input, attr) {
   if (typeof input === 'object' && input !== null) return input[attr] || ''
-  const match = String(input || '').match(new RegExp(`\\b${escapeRegExp(attr)}=["']([^"']*)["']`, 'i'))
-  return match ? decodeHtml(match[1]) : ''
+  const quoted = String(input || '').match(new RegExp(`\\b${escapeRegExp(attr)}\\s*=\\s*(["'])([\\s\\S]*?)\\1`, 'i'))
+  if (quoted) return decodeHtml(quoted[2])
+  const unquoted = String(input || '').match(new RegExp(`\\b${escapeRegExp(attr)}\\s*=\\s*([^\\s>]+)`, 'i'))
+  return unquoted ? decodeHtml(unquoted[1]) : ''
 }
 
 function readJsonPath(input, path) {
   if (typeof input !== 'object' || input === null) return ''
+  if (String(path || '').trim() === '$') return input
+  const recursive = String(path || '').match(/^\$\.\.([A-Za-z_$][\w$]*)(?:\[(\*|\d+)\])?([\s\S]*)$/)
+  if (recursive) {
+    const matches = []
+    const visited = new WeakSet()
+    let remaining = 10000
+    const visit = value => {
+      if (!value || typeof value !== 'object' || visited.has(value) || remaining <= 0) return
+      visited.add(value)
+      remaining -= 1
+      if (Object.prototype.hasOwnProperty.call(value, recursive[1])) matches.push(value[recursive[1]])
+      Object.values(value).forEach(visit)
+    }
+    visit(input)
+    let flattened = matches.flatMap(value => {
+      if (recursive[2] === '*') return asArray(value)
+      if (/^\d+$/.test(recursive[2] || '')) return Array.isArray(value) && value[Number(recursive[2])] != null ? [value[Number(recursive[2])]] : []
+      return [value]
+    })
+    if (recursive[3]) {
+      flattened = flattened.flatMap(value => asArray(readJsonPath(value, `$${recursive[3]}`)))
+    }
+    return flattened.length > 1 ? flattened : flattened[0] == null ? '' : flattened[0]
+  }
+  const filter = String(path || '').match(/^([\s\S]*?)\[\?\(@\.([A-Za-z_$][\w$]*)\s*(==|!=)\s*([^\]]+?)\)\]([\s\S]*)$/)
+  if (filter) {
+    const candidates = asArray(readJsonPath(input, filter[1] || '$.*')).flat()
+    const expected = parseJsonPathFilterValue(filter[4])
+    const filtered = candidates.filter(item => {
+      const actual = item && typeof item === 'object' ? item[filter[2]] : undefined
+      return filter[3] === '==' ? actual == expected : actual != expected // Legado JSONPath uses loose scalar comparison.
+    })
+    if (!filter[5]) return filtered
+    const mapped = filtered.flatMap(item => asArray(readJsonPath(item, `$${filter[5]}`)))
+    return mapped.length > 1 ? mapped : mapped[0] == null ? '' : mapped[0]
+  }
   const normalized = String(path || '').replace(/^\$\./, '').replace(/\[(\d+|\*)\]/g, '.$1')
   const parts = normalized.split('.').filter(Boolean)
   let values = [input]
@@ -705,6 +1129,53 @@ function readJsonPath(input, path) {
 
   const flattened = values.flat()
   return flattened.length > 1 ? flattened : flattened[0] == null ? '' : flattened[0]
+}
+
+function parseJsonPathFilterValue(value) {
+  const text = String(value || '').trim()
+  if ((text[0] === '"' && text[text.length - 1] === '"') || (text[0] === "'" && text[text.length - 1] === "'")) return text.slice(1, -1)
+  if (/^-?\d+(?:\.\d+)?$/.test(text)) return Number(text)
+  if (text === 'true') return true
+  if (text === 'false') return false
+  if (text === 'null') return null
+  return text
+}
+
+function extractDirectChildren(fragment) {
+  const html = String(fragment || '').trim()
+  const opening = html.match(/^<([a-zA-Z][\w:-]*)\b[^>]*>/)
+  let inner = html
+  if (opening) {
+    const closing = new RegExp(`<\/${escapeRegExp(opening[1])}\\s*>\\s*$`, 'i')
+    inner = html.replace(opening[0], '').replace(closing, '')
+  }
+
+  const tokens = /<\/?([a-zA-Z][\w:-]*)\b[^>]*>/g
+  const voidTags = /^(?:area|base|br|col|embed|hr|img|input|link|meta|param|source|track|wbr)$/i
+  const children = []
+  let depth = 0
+  let start = -1
+  let token
+  while ((token = tokens.exec(inner))) {
+    const full = token[0]
+    const closing = /^<\//.test(full)
+    const selfClosing = /\/>$/.test(full) || voidTags.test(token[1])
+    if (!closing) {
+      if (depth === 0) start = token.index
+      if (!selfClosing) depth += 1
+      else if (depth === 0 && start >= 0) {
+        children.push(inner.slice(start, tokens.lastIndex))
+        start = -1
+      }
+      continue
+    }
+    if (depth > 0) depth -= 1
+    if (depth === 0 && start >= 0) {
+      children.push(inner.slice(start, tokens.lastIndex))
+      start = -1
+    }
+  }
+  return children
 }
 
 function replaceValue(input, pattern, replacement) {
@@ -725,17 +1196,29 @@ function splitFallbacks(rule) {
 }
 
 function isAccessor(token) {
-  return /^(text|textNodes|ownText|html|href|src|content|value|\d+|\$\.)/.test(token)
+  return /^(?:text|textNodes|ownText|html|children|href|src|title|alt|content|value|data-[\w-]+|-?\d+|!\d+|\$\..+)$/.test(String(token || ''))
 }
 
 function isSelectorToken(token) {
-  return /^(class\.|id\.|tag\.|#|\.)/.test(String(token || ''))
+  const value = String(token || '').trim()
+  if (isAccessor(value)) return false
+  return /^(class\.|id\.|tag\.|text\.|css:|xpath:|json:|\.?\/\/|#|\.)/i.test(value)
+    || value.length <= 512 && /^[a-zA-Z.#\[][\s\S]*(?:\s+|\s*>\s*|\s*\+\s*)[a-zA-Z.#\[][\s\S]*$/.test(value)
+    || /^[a-zA-Z][\w:-]*(?:[#.\[:!][\s\S]*)?$/.test(value)
 }
 
 function normalizeSelectorToken(token) {
   const value = String(token || '').trim()
   if (/^css:/i.test(value)) return value.replace(/^css:/i, '')
-  if (value.startsWith('class.')) return `.${value.slice(6)}`
+  if (value.startsWith('class.')) {
+    const className = value.slice(6).trim().replace(/\.\[(-?\d+(?::-?\d+)?)\]$/, '[$1]')
+    const range = className.match(/^([\s\S]+?)\[(-?\d+(?::-?\d+)?)\]$/)
+    const baseClassName = range ? range[1] : className
+    const selector = /[#\[\]]/.test(baseClassName)
+      ? `legado-class:${encodeURIComponent(baseClassName)}`
+      : `.${baseClassName.split(/\s+/).filter(Boolean).join('.')}`
+    return range ? `${selector}[${range[2]}]` : selector
+  }
   if (value.startsWith('id.')) return `#${value.slice(3)}`
   if (value.startsWith('tag.')) return value.slice(4)
   return value

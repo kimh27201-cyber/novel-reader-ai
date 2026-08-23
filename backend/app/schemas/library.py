@@ -96,3 +96,18 @@ class ReadingHistoryRead(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class OfflineBookSnapshot(BaseModel):
+    book: BookRead
+    chapters: list[ChapterRead]
+    reading_history: ReadingHistoryRead | None = None
+
+
+class OfflineLibrarySnapshot(BaseModel):
+    account_id: int
+    generated_at: datetime
+    sync_cursor: int
+    books: list[OfflineBookSnapshot]
+    next_offset: int
+    has_more: bool

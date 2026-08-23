@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-13T14:24:00.000Z",
+  "baselineReport": "yck-current-cohort-stage7-window1-2026-08-13.json",
+  "privacy": {
+    "storesContent": false,
+    "storesCookies": false,
+    "storesTokens": false,
+    "storesFullResponses": false,
+    "storesFullSourceConfigs": false
+  },
+  "implementedRuleFamilies": [
+    "relaxed_request_object",
+    "legado_selector_chain",
+    "selector_index_and_range",
+    "text_selector",
+    "relative_xpath",
+    "flow_put_get",
+    "safe_J_Base_sourceKey_cookie_clear"
+  ],
+  "securityFixtures": {
+    "success": "tests/sourceDeclarativeRuleExtensions.test.mjs",
+    "blocked": "tests/sourceEngine.test.mjs",
+    "budget": "tests/sourceDeclarativeRuleExtensions.test.mjs"
+  },
+  "summary": {
+    "replayed": 12,
+    "fullFlowPassed": 1,
+    "externalOrAccessFailures": 5,
+    "siteChangedFailures": 4,
+    "postFixPendingReplay": 2,
+    "confirmedRegressionFixedIds": ["6543"],
+    "confirmedRequestParserAdvancedIds": ["5992"]
+  },
+  "samples": [
+    {"id":"5992","sourceKey":"source-key-16v4xt2","baselineConfigSha256":"d32d3187167af7f0671f98106743205e0b5715354a28f723ce8b873c12b365a4","ruleFamily":"relaxed_request_object","previousErrorCode":"REQUEST_TEMPLATE_UNSUPPORTED","status":"failed","errorCode":"HTTP_SERVER_ERROR","stage":"search","httpStatus":500,"responseFingerprint":"","classification":"external"},
+    {"id":"6248","sourceKey":"source-key-o3k28b","baselineConfigSha256":"4f737fc0f19c8a0287adfa72e23742b08ac9842e5b499a0a5beb4180342dd389","ruleFamily":"legado_selector_flow","previousErrorCode":"PARSE_EMPTY","status":"failed","errorCode":"HTTP_BLOCKED","stage":"search","httpStatus":403,"responseFingerprint":"","classification":"external"},
+    {"id":"6543","sourceKey":"source-key-id69jy","baselineConfigSha256":"9afc8a2ee4abe339fb5c443b2931a601dbc558059025ea8efd26ed841b10420a","ruleFamily":"safe_cookie_source_context","previousErrorCode":"CONTENT_EMPTY","status":"passed","errorCode":"","stage":"complete","httpStatus":200,"responseFingerprint":"","chapters":4718,"contentChars":8516,"classification":"engine_fixed"},
+    {"id":"6752","sourceKey":"source-key-12wi4iw","baselineConfigSha256":"b0380eab73e1fde0e99c4afe3c071a4598a97df204c4a5d813f434367bff9c39","ruleFamily":"css","previousErrorCode":"PARSE_EMPTY","status":"failed","errorCode":"PARSE_EMPTY","stage":"search","httpStatus":0,"responseFingerprint":"37994dc3","classification":"site_changed"},
+    {"id":"6763","sourceKey":"source-key-lbluhk","baselineConfigSha256":"4f15fcea24a30b4cb9d0bae2561a5f6bd81f7726454eef524f142ee21563d830","ruleFamily":"xpath","previousErrorCode":"PARSE_EMPTY","status":"failed","errorCode":"PARSE_EMPTY","stage":"search","httpStatus":0,"responseFingerprint":"591379b2","classification":"site_changed"},
+    {"id":"6618","sourceKey":"source-key-1oqfbzu","baselineConfigSha256":"e06616e246504858a86a37a3e63e5a6e06d0be0dab7d74f52806827576e2af25","ruleFamily":"css_post_gb2312","previousErrorCode":"PARSE_EMPTY","status":"failed","errorCode":"PARSE_EMPTY","stage":"search","httpStatus":0,"responseFingerprint":"15b641d8","classification":"site_changed"},
+    {"id":"6306","sourceKey":"source-key-1wwbafp","baselineConfigSha256":"9410e0435aa1b685ad9dca75be09a8d5243af930714abcf56e6600024e89539f","ruleFamily":"css","previousErrorCode":"PARSE_EMPTY","status":"failed","errorCode":"PARSE_EMPTY","stage":"search","httpStatus":0,"responseFingerprint":"877a310b","classification":"site_changed"},
+    {"id":"6438","sourceKey":"source-key-1egad4d","baselineConfigSha256":"e25a028dc2698ebf1fc72388f949a4e2cbabb2c30be1e07288dcdc4036e846cc","ruleFamily":"selector_attribute_chain","previousErrorCode":"SEARCH_RESULT_INCOMPLETE","status":"failed","errorCode":"SEARCH_RESULT_INCOMPLETE","stage":"search","httpStatus":0,"responseFingerprint":"d84dc1b6","classification":"engine_candidate_fixed_after_replay"},
+    {"id":"7415","sourceKey":"source-key-1dvqj6u","baselineConfigSha256":"c0eed0b8614eac3a1b8f565a9e5ebb18f675143eff750d32e985725162b37f97","ruleFamily":"css_has_contains","previousErrorCode":"PARSE_EMPTY","status":"failed","errorCode":"PARSE_EMPTY","stage":"search","httpStatus":0,"responseFingerprint":"1b9408be","classification":"engine_candidate_fixed_after_replay"},
+    {"id":"7497","sourceKey":"source-key-1uh7uni","baselineConfigSha256":"6391891efaea8cd8bcb67115ee3eaee4104a90321cec5ca85216e6ccc197f157","ruleFamily":"safe_js_host_context","previousErrorCode":"PARSE_EMPTY","status":"failed","errorCode":"HTTP_BLOCKED","stage":"search","httpStatus":403,"responseFingerprint":"","classification":"external"},
+    {"id":"7515","sourceKey":"source-key-1exgmbn","baselineConfigSha256":"b985bcf5c2b8ddb04c9131d3827504ecf02d7379d3985f4342cf83fafe87b3c5","ruleFamily":"complex_script","previousErrorCode":"PARSE_EMPTY","status":"failed","errorCode":"PARSE_EMPTY","stage":"search","httpStatus":0,"responseFingerprint":"781ea203","classification":"access_shell"},
+    {"id":"7406","sourceKey":"source-key-144flv7","baselineConfigSha256":"abcac613997c143f333a1241390c83cf24e8cd20703ad19b3463241f4c01a727","ruleFamily":"request","previousErrorCode":"TOC_EMPTY","status":"failed","errorCode":"TIMEOUT","stage":"search","httpStatus":0,"responseFingerprint":"","classification":"external"}
+  ]
+}

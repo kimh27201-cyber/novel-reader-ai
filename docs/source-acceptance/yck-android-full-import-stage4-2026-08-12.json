@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-12T14:20:57.000Z",
+  "repository": "https://www.yckceo.com/yuedu/shuyuan/index.html",
+  "device": {
+    "model": "REA-AN00",
+    "androidRelease": "15",
+    "applicationId": "com.novelreader.v1",
+    "versionName": "1.0.0",
+    "versionCode": 10000,
+    "lastUpdateTime": "2026-08-12 22:33:11"
+  },
+  "network": {
+    "computerBackendPort8765": "closed_and_not_reversed",
+    "adbReverse": [
+      "tcp:8000 -> tcp:8000",
+      "tcp:8001 -> tcp:8001"
+    ],
+    "sourceRuntime": "android_native_http"
+  },
+  "result": {
+    "advertisedTotal": 5624,
+    "processed": 5624,
+    "missing": 0,
+    "added": 5330,
+    "updated": 294,
+    "storedAfterRestart": 5330,
+    "totalPages": 57,
+    "processedPages": 57,
+    "restartPersistence": "passed"
+  },
+  "apk": {
+    "relativePath": "release/android-v2/V2.apk",
+    "sizeBytes": 1520718,
+    "sha256": "3C8BA0EFD6BCFB781188CA28063612CB74A1EFEACAA64B7D23D0DE656B542967",
+    "signatureSchemes": {
+      "v1": true,
+      "v2": true,
+      "v3": true
+    }
+  },
+  "privacy": {
+    "storesContent": false,
+    "storesCookies": false,
+    "storesTokens": false,
+    "screenshotsCommitted": false
+  }
+}

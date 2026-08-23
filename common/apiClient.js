@@ -1,9 +1,14 @@
 import { friendlyErrorMessage } from './uiFeedback.js'
+import {
+  DEFAULT_BACKEND_BASE_URL,
+  migrateLegacyHBuilderBaseUrl
+} from './backendConnection.js'
 
-const DEFAULT_BASE_URL = 'http://127.0.0.1:8000'
+const DEFAULT_BASE_URL = DEFAULT_BACKEND_BASE_URL
 const BASE_URL_KEY = 'novelReaderBackendBaseUrl'
 const TOKEN_KEY = 'novelReaderBackendToken'
 const REFRESH_TOKEN_KEY = 'novelReaderBackendRefreshToken'
+const ACTIVE_ACCOUNT_KEY = 'novelReaderBackendActiveAccount'
 const DIAGNOSTIC_LIMIT = 20
 
 export class ApiError extends Error {
@@ -95,6 +100,38 @@ function responseKeys(data) {
   return data && typeof data === 'object' && !Array.isArray(data) ? Object.keys(data).slice(0, 8) : []
 }
 
+function unexpectedBackendResponse(path, data) {
+  return new ApiError(
+    '连接到了错误服务，请检查后端端口',
+    502,
+    {
+      error: {
+        code: 'unexpected_backend_response',
+        message: '连接到了错误服务，请检查后端端口'
+      },
+      path,
+      responseType: Array.isArray(data) ? 'array' : typeof data
+    }
+  )
+}
+
+function validateObjectResponse(path, data, predicate) {
+  if (!data || typeof data !== 'object' || Array.isArray(data) || !predicate(data)) {
+    throw unexpectedBackendResponse(path, data)
+  }
+  return data
+}
+
+function defaultIsHBuilderDebugRuntime() {
+  try {
+    return typeof plus !== 'undefined' &&
+      plus.runtime &&
+      plus.runtime.appid === 'HBuilder'
+  } catch (error) {
+    return false
+  }
+}
+
 function storageGetter(deps, methodName) {
   const uniApi = getUni()
   return deps[methodName] || (uniApi && uniApi[methodName] ? uniApi[methodName].bind(uniApi) : null)
@@ -105,6 +142,7 @@ export function createApiClient(deps = {}) {
   const setStorageSync = storageGetter(deps, 'setStorageSync') || (() => {})
   const removeStorageSync = storageGetter(deps, 'removeStorageSync') || (() => {})
   const requestAdapter = deps.request || (options => defaultRequest(options))
+  const isHBuilderDebugRuntime = deps.isHBuilderDebugRuntime || defaultIsHBuilderDebugRuntime
   const diagnostics = []
   let memoryToken = ''
   let memoryRefreshToken = ''
@@ -125,7 +163,17 @@ export function createApiClient(deps = {}) {
   }
 
   function getBaseUrl() {
-    return normalizeBaseUrl(getStorageSync(BASE_URL_KEY))
+    const stored = getStorageSync(BASE_URL_KEY)
+    const normalized = migrateLegacyHBuilderBaseUrl(stored, !!isHBuilderDebugRuntime())
+    if (stored && normalized !== normalizeBaseUrl(stored)) {
+      setStorageSync(BASE_URL_KEY, normalized)
+      recordDiagnostic({
+        event: 'base-url-migrate',
+        from: 'http://127.0.0.1:8000',
+        to: normalized
+      })
+    }
+    return normalized
   }
 
   function setBaseUrl(baseUrl) {
@@ -181,6 +229,7 @@ export function createApiClient(deps = {}) {
     memoryRefreshToken = ''
     removeStorageSync(TOKEN_KEY)
     removeStorageSync(REFRESH_TOKEN_KEY)
+    removeStorageSync(ACTIVE_ACCOUNT_KEY)
   }
 
   const clearToken = clearTokens
@@ -359,8 +408,31 @@ export function createApiClient(deps = {}) {
     getMe() {
       return request('/api/auth/me')
     },
+    getOfflineSnapshot(params = {}) {
+      return request(`/api/library/offline-snapshot${buildQuery(params)}`)
+    },
     healthCheck() {
-      return request('/api/health', { auth: false })
+      return request('/api/health', { auth: false }).then(data => validateObjectResponse(
+        '/api/health',
+        data,
+        value => value.status === 'ok'
+      ))
+    },
+    readinessCheck() {
+      return request('/api/health/ready', { auth: false }).then(data => validateObjectResponse(
+        '/api/health/ready',
+        data,
+        value => value.status === 'ok' && value.database === 'ready'
+      ))
+    },
+    getTtsStatus() {
+      return request('/api/tts/status').then(data => validateObjectResponse(
+        '/api/tts/status',
+        data,
+        value => typeof value.enabled === 'boolean' &&
+          typeof value.configured === 'boolean' &&
+          Number.isFinite(Number(value.verified_voice_count))
+      ))
     },
     listBooks(params = {}) {
       return request(`/api/books${buildQuery(params)}`)
@@ -383,8 +455,8 @@ export function createApiClient(deps = {}) {
     deleteBook(bookId) {
       return request(`/api/books/${bookId}`, { method: 'DELETE' })
     },
-    listChapters(bookId) {
-      return request(`/api/books/${bookId}/chapters`)
+    listChapters(bookId, params = {}) {
+      return request(`/api/books/${bookId}/chapters${buildQuery(params)}`)
     },
     createChapter(bookId, payload) {
       return request(`/api/books/${bookId}/chapters`, {
@@ -508,13 +580,23 @@ export function createApiClient(deps = {}) {
       })
     },
     loadSourceContent(sourceId, { chapterUrl }) {
+      const normalizedUrl = String(chapterUrl || '').trim()
+      if (!normalizedUrl) {
+        throw new Error('章节地址缺失，无法解析正文')
+      }
       return request(`/api/sources/${sourceId}/content`, {
         method: 'POST',
-        data: { chapter_url: chapterUrl }
+        data: { chapter_url: normalizedUrl }
       })
     },
     listTtsVoices() {
-      return request('/api/tts/voices')
+      return request('/api/tts/voices').then(data => validateObjectResponse(
+        '/api/tts/voices',
+        data,
+        value => value.provider === 'volcengine' &&
+          typeof value.available === 'boolean' &&
+          Array.isArray(value.voices)
+      ))
     },
     synthesizeTts({ text, voiceId, voice_id, rate = 1 }) {
       return request('/api/tts/synthesize', {
@@ -524,7 +606,11 @@ export function createApiClient(deps = {}) {
           voice_id: String(voiceId || voice_id || ''),
           rate: Number(rate)
         }
-      })
+      }).then(data => validateObjectResponse(
+        '/api/tts/synthesize',
+        data,
+        value => typeof value.audio_url === 'string' && value.audio_url.length > 0
+      ))
     },
     summarizeChapter({ chapterText, bookId = null, chapterId = null }) {
       return request('/api/ai/summary', {

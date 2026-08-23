@@ -1,0 +1,561 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-12T14:14:21.242Z",
+  "repository": "https://www.yckceo.com/yuedu/shuyuan/index.html",
+  "elapsedMs": 83260,
+  "result": {
+    "status": {
+      "ready": 2530,
+      "partial": 699,
+      "blocked": 1863,
+      "needs_login": 220
+    },
+    "advertisedTotal": 5624,
+    "totalPages": 57,
+    "processedPages": 57,
+    "catalogItems": 5624,
+    "downloaded": 5602,
+    "missing": 22,
+    "imported": 5312,
+    "updated": 290,
+    "skipped": 0,
+    "invalid": 0,
+    "installed": 5312,
+    "identityValid": 5312,
+    "uniqueSourceKeys": 5312,
+    "duplicateSourceKeys": 0,
+    "enabled": 2349,
+    "disabled": 2963,
+    "sourceTypes": {
+      "0": 5057,
+      "1": 49,
+      "2": 173,
+      "3": 27,
+      "4": 1,
+      "NaN": 5
+    },
+    "sourceKeySha256": "a179fbd1bd1e79f42a12efc01d986edfa5e2091a4d78c048dd5574891ee47db3",
+    "nativeChunkCount": 213,
+    "nativeStoredBytes": 39578908
+  },
+  "pages": [
+    {
+      "page": 1,
+      "totalPages": 57,
+      "catalogItems": 100,
+      "downloaded": 100,
+      "missing": 0,
+      "imported": 95,
+      "updated": 5
+    },
+    {
+      "page": 2,
+      "totalPages": 57,
+      "catalogItems": 200,
+      "downloaded": 200,
+      "missing": 0,
+      "imported": 184,
+      "updated": 16
+    },
+    {
+      "page": 3,
+      "totalPages": 57,
+      "catalogItems": 300,
+      "downloaded": 300,
+      "missing": 0,
+      "imported": 269,
+      "updated": 31
+    },
+    {
+      "page": 4,
+      "totalPages": 57,
+      "catalogItems": 400,
+      "downloaded": 400,
+      "missing": 0,
+      "imported": 360,
+      "updated": 40
+    },
+    {
+      "page": 5,
+      "totalPages": 57,
+      "catalogItems": 500,
+      "downloaded": 500,
+      "missing": 0,
+      "imported": 450,
+      "updated": 50
+    },
+    {
+      "page": 6,
+      "totalPages": 57,
+      "catalogItems": 600,
+      "downloaded": 578,
+      "missing": 22,
+      "imported": 527,
+      "updated": 51
+    },
+    {
+      "page": 7,
+      "totalPages": 57,
+      "catalogItems": 700,
+      "downloaded": 678,
+      "missing": 22,
+      "imported": 622,
+      "updated": 56
+    },
+    {
+      "page": 8,
+      "totalPages": 57,
+      "catalogItems": 800,
+      "downloaded": 778,
+      "missing": 22,
+      "imported": 720,
+      "updated": 58
+    },
+    {
+      "page": 9,
+      "totalPages": 57,
+      "catalogItems": 900,
+      "downloaded": 878,
+      "missing": 22,
+      "imported": 810,
+      "updated": 68
+    },
+    {
+      "page": 10,
+      "totalPages": 57,
+      "catalogItems": 1000,
+      "downloaded": 978,
+      "missing": 22,
+      "imported": 901,
+      "updated": 77
+    },
+    {
+      "page": 11,
+      "totalPages": 57,
+      "catalogItems": 1100,
+      "downloaded": 1078,
+      "missing": 22,
+      "imported": 998,
+      "updated": 80
+    },
+    {
+      "page": 12,
+      "totalPages": 57,
+      "catalogItems": 1200,
+      "downloaded": 1178,
+      "missing": 22,
+      "imported": 1092,
+      "updated": 86
+    },
+    {
+      "page": 13,
+      "totalPages": 57,
+      "catalogItems": 1300,
+      "downloaded": 1278,
+      "missing": 22,
+      "imported": 1181,
+      "updated": 97
+    },
+    {
+      "page": 14,
+      "totalPages": 57,
+      "catalogItems": 1400,
+      "downloaded": 1378,
+      "missing": 22,
+      "imported": 1277,
+      "updated": 101
+    },
+    {
+      "page": 15,
+      "totalPages": 57,
+      "catalogItems": 1500,
+      "downloaded": 1478,
+      "missing": 22,
+      "imported": 1365,
+      "updated": 113
+    },
+    {
+      "page": 16,
+      "totalPages": 57,
+      "catalogItems": 1600,
+      "downloaded": 1578,
+      "missing": 22,
+      "imported": 1462,
+      "updated": 116
+    },
+    {
+      "page": 17,
+      "totalPages": 57,
+      "catalogItems": 1700,
+      "downloaded": 1678,
+      "missing": 22,
+      "imported": 1556,
+      "updated": 122
+    },
+    {
+      "page": 18,
+      "totalPages": 57,
+      "catalogItems": 1800,
+      "downloaded": 1778,
+      "missing": 22,
+      "imported": 1650,
+      "updated": 128
+    },
+    {
+      "page": 19,
+      "totalPages": 57,
+      "catalogItems": 1900,
+      "downloaded": 1878,
+      "missing": 22,
+      "imported": 1745,
+      "updated": 133
+    },
+    {
+      "page": 20,
+      "totalPages": 57,
+      "catalogItems": 2000,
+      "downloaded": 1978,
+      "missing": 22,
+      "imported": 1839,
+      "updated": 139
+    },
+    {
+      "page": 21,
+      "totalPages": 57,
+      "catalogItems": 2100,
+      "downloaded": 2078,
+      "missing": 22,
+      "imported": 1931,
+      "updated": 147
+    },
+    {
+      "page": 22,
+      "totalPages": 57,
+      "catalogItems": 2200,
+      "downloaded": 2178,
+      "missing": 22,
+      "imported": 2020,
+      "updated": 158
+    },
+    {
+      "page": 23,
+      "totalPages": 57,
+      "catalogItems": 2300,
+      "downloaded": 2278,
+      "missing": 22,
+      "imported": 2117,
+      "updated": 161
+    },
+    {
+      "page": 24,
+      "totalPages": 57,
+      "catalogItems": 2400,
+      "downloaded": 2378,
+      "missing": 22,
+      "imported": 2209,
+      "updated": 169
+    },
+    {
+      "page": 25,
+      "totalPages": 57,
+      "catalogItems": 2500,
+      "downloaded": 2478,
+      "missing": 22,
+      "imported": 2306,
+      "updated": 172
+    },
+    {
+      "page": 26,
+      "totalPages": 57,
+      "catalogItems": 2600,
+      "downloaded": 2578,
+      "missing": 22,
+      "imported": 2401,
+      "updated": 177
+    },
+    {
+      "page": 27,
+      "totalPages": 57,
+      "catalogItems": 2700,
+      "downloaded": 2678,
+      "missing": 22,
+      "imported": 2499,
+      "updated": 179
+    },
+    {
+      "page": 28,
+      "totalPages": 57,
+      "catalogItems": 2800,
+      "downloaded": 2778,
+      "missing": 22,
+      "imported": 2591,
+      "updated": 187
+    },
+    {
+      "page": 29,
+      "totalPages": 57,
+      "catalogItems": 2900,
+      "downloaded": 2878,
+      "missing": 22,
+      "imported": 2690,
+      "updated": 188
+    },
+    {
+      "page": 30,
+      "totalPages": 57,
+      "catalogItems": 3000,
+      "downloaded": 2978,
+      "missing": 22,
+      "imported": 2785,
+      "updated": 193
+    },
+    {
+      "page": 31,
+      "totalPages": 57,
+      "catalogItems": 3100,
+      "downloaded": 3078,
+      "missing": 22,
+      "imported": 2879,
+      "updated": 199
+    },
+    {
+      "page": 32,
+      "totalPages": 57,
+      "catalogItems": 3200,
+      "downloaded": 3178,
+      "missing": 22,
+      "imported": 2973,
+      "updated": 205
+    },
+    {
+      "page": 33,
+      "totalPages": 57,
+      "catalogItems": 3300,
+      "downloaded": 3278,
+      "missing": 22,
+      "imported": 3068,
+      "updated": 210
+    },
+    {
+      "page": 34,
+      "totalPages": 57,
+      "catalogItems": 3400,
+      "downloaded": 3378,
+      "missing": 22,
+      "imported": 3161,
+      "updated": 217
+    },
+    {
+      "page": 35,
+      "totalPages": 57,
+      "catalogItems": 3500,
+      "downloaded": 3478,
+      "missing": 22,
+      "imported": 3259,
+      "updated": 219
+    },
+    {
+      "page": 36,
+      "totalPages": 57,
+      "catalogItems": 3600,
+      "downloaded": 3578,
+      "missing": 22,
+      "imported": 3355,
+      "updated": 223
+    },
+    {
+      "page": 37,
+      "totalPages": 57,
+      "catalogItems": 3700,
+      "downloaded": 3678,
+      "missing": 22,
+      "imported": 3452,
+      "updated": 226
+    },
+    {
+      "page": 38,
+      "totalPages": 57,
+      "catalogItems": 3800,
+      "downloaded": 3778,
+      "missing": 22,
+      "imported": 3550,
+      "updated": 228
+    },
+    {
+      "page": 39,
+      "totalPages": 57,
+      "catalogItems": 3900,
+      "downloaded": 3878,
+      "missing": 22,
+      "imported": 3645,
+      "updated": 233
+    },
+    {
+      "page": 40,
+      "totalPages": 57,
+      "catalogItems": 4000,
+      "downloaded": 3978,
+      "missing": 22,
+      "imported": 3743,
+      "updated": 235
+    },
+    {
+      "page": 41,
+      "totalPages": 57,
+      "catalogItems": 4100,
+      "downloaded": 4078,
+      "missing": 22,
+      "imported": 3840,
+      "updated": 238
+    },
+    {
+      "page": 42,
+      "totalPages": 57,
+      "catalogItems": 4200,
+      "downloaded": 4178,
+      "missing": 22,
+      "imported": 3937,
+      "updated": 241
+    },
+    {
+      "page": 43,
+      "totalPages": 57,
+      "catalogItems": 4300,
+      "downloaded": 4278,
+      "missing": 22,
+      "imported": 4033,
+      "updated": 245
+    },
+    {
+      "page": 44,
+      "totalPages": 57,
+      "catalogItems": 4400,
+      "downloaded": 4378,
+      "missing": 22,
+      "imported": 4131,
+      "updated": 247
+    },
+    {
+      "page": 45,
+      "totalPages": 57,
+      "catalogItems": 4500,
+      "downloaded": 4478,
+      "missing": 22,
+      "imported": 4227,
+      "updated": 251
+    },
+    {
+      "page": 46,
+      "totalPages": 57,
+      "catalogItems": 4600,
+      "downloaded": 4578,
+      "missing": 22,
+      "imported": 4325,
+      "updated": 253
+    },
+    {
+      "page": 47,
+      "totalPages": 57,
+      "catalogItems": 4700,
+      "downloaded": 4678,
+      "missing": 22,
+      "imported": 4423,
+      "updated": 255
+    },
+    {
+      "page": 48,
+      "totalPages": 57,
+      "catalogItems": 4800,
+      "downloaded": 4778,
+      "missing": 22,
+      "imported": 4520,
+      "updated": 258
+    },
+    {
+      "page": 49,
+      "totalPages": 57,
+      "catalogItems": 4900,
+      "downloaded": 4878,
+      "missing": 22,
+      "imported": 4616,
+      "updated": 262
+    },
+    {
+      "page": 50,
+      "totalPages": 57,
+      "catalogItems": 5000,
+      "downloaded": 4978,
+      "missing": 22,
+      "imported": 4713,
+      "updated": 265
+    },
+    {
+      "page": 51,
+      "totalPages": 57,
+      "catalogItems": 5100,
+      "downloaded": 5078,
+      "missing": 22,
+      "imported": 4808,
+      "updated": 270
+    },
+    {
+      "page": 52,
+      "totalPages": 57,
+      "catalogItems": 5200,
+      "downloaded": 5178,
+      "missing": 22,
+      "imported": 4904,
+      "updated": 274
+    },
+    {
+      "page": 53,
+      "totalPages": 57,
+      "catalogItems": 5300,
+      "downloaded": 5278,
+      "missing": 22,
+      "imported": 5002,
+      "updated": 276
+    },
+    {
+      "page": 54,
+      "totalPages": 57,
+      "catalogItems": 5400,
+      "downloaded": 5378,
+      "missing": 22,
+      "imported": 5097,
+      "updated": 281
+    },
+    {
+      "page": 55,
+      "totalPages": 57,
+      "catalogItems": 5500,
+      "downloaded": 5478,
+      "missing": 22,
+      "imported": 5190,
+      "updated": 288
+    },
+    {
+      "page": 56,
+      "totalPages": 57,
+      "catalogItems": 5600,
+      "downloaded": 5578,
+      "missing": 22,
+      "imported": 5288,
+      "updated": 290
+    },
+    {
+      "page": 57,
+      "totalPages": 57,
+      "catalogItems": 5624,
+      "downloaded": 5602,
+      "missing": 22,
+      "imported": 5312,
+      "updated": 290
+    }
+  ],
+  "privacy": {
+    "storesRawSourceJson": false,
+    "storesContent": false,
+    "storesCookieOrToken": false
+  }
+}

@@ -1,4 +1,5 @@
 import json
+import hashlib
 import re
 from typing import Any
 from urllib.parse import quote, urljoin
@@ -49,6 +50,52 @@ def compatibility_for(raw: dict[str, Any]) -> str:
     return "unsupported: contains js/cookie/login rules" if has_unsupported_rule(raw) else "v1 compatible"
 
 
+def classify_source(raw: dict[str, Any]) -> dict[str, Any]:
+    name = clean_text(raw.get("bookSourceName") or raw.get("name") or raw.get("sourceName"))
+    base_url = trim_trailing_slash(raw.get("bookSourceUrl") or raw.get("sourceUrl") or raw.get("baseUrl"))
+    serialized = json.dumps(raw, ensure_ascii=False)
+    has_js = bool(re.search(r"(?:<js>|@js:|java\.|eval\(|\bFunction\s*\()", serialized, re.IGNORECASE))
+    needs_webview = bool(re.search(r"(?:webview|startBrowserAwait)", serialized, re.IGNORECASE))
+    needs_login = bool(re.search(r'"loginUrl"\s*:|needs[_ -]?login|登录后', serialized, re.IGNORECASE))
+    needs_cookie = bool(re.search(r'"(?:cookie|header)"\s*:|cookie\.', serialized, re.IGNORECASE))
+    has_search = bool(raw.get("searchUrl") and raw.get("ruleSearch"))
+    has_toc = bool(raw.get("ruleToc"))
+    has_content = bool(raw.get("ruleContent"))
+
+    status = "ready"
+    error_code = ""
+    reason = ""
+    if not name or not base_url:
+        status = "invalid"
+        error_code = "INVALID_IDENTITY"
+        reason = "缺少书源名称或基础地址"
+    elif needs_login:
+        status = "needs_login"
+        error_code = "LOGIN_REQUIRED"
+        reason = "书源需要人工登录或有效会话"
+    elif has_js or needs_webview:
+        status = "blocked"
+        error_code = "SCRIPT_UNSUPPORTED"
+        reason = "后端不执行第三方 JS 或 WebView 规则"
+    elif not has_search or not has_toc or not has_content:
+        status = "partial"
+        error_code = "PARTIAL_CAPABILITY"
+        reason = "搜索、目录或正文规则不完整"
+
+    source_key = hashlib.sha256(f"{name.lower()}\n{base_url.lower()}".encode("utf-8")).hexdigest()
+    return {
+        "name": name,
+        "base_url": base_url,
+        "source_key": source_key,
+        "status": status,
+        "reason": reason,
+        "error_code": error_code,
+        "android_supported": status in {"ready", "partial", "needs_login"},
+        "h5_supported": status == "ready" and not needs_cookie,
+        "backend_supported": status == "ready",
+    }
+
+
 def extract_json_payload(text: str) -> str:
     raw = str(text or "").strip()
     if not raw:
@@ -90,17 +137,22 @@ def parse_source_json(text: str) -> list[dict[str, Any]]:
 
 
 def normalize_source_config(raw: dict[str, Any]) -> dict[str, Any]:
-    name = clean_text(raw.get("bookSourceName") or raw.get("name") or raw.get("sourceName") or "未命名书源")
+    classification = classify_source(raw)
+    name = classification["name"]
     base_url = trim_trailing_slash(raw.get("bookSourceUrl") or raw.get("sourceUrl") or raw.get("baseUrl") or "")
+    if not name:
+        raise SourceParseError("Source is missing name")
     if not base_url:
         raise SourceParseError(f"Source {name} is missing base url")
     return {
         "name": name,
         "base_url": base_url,
         "group": clean_text(raw.get("bookSourceGroup") or raw.get("group") or "用户导入"),
-        "enabled": True,
+        "enabled": classification["status"] == "ready",
         "raw": raw,
         "compatibility": compatibility_for(raw),
+        "health_status": classification["status"],
+        "classification": classification,
     }
 
 
@@ -289,7 +341,21 @@ def select_values(input_value: Any, selector: str) -> list[str]:
     results: list[str] = []
     for fragment in as_list(input_value):
         soup = BeautifulSoup(str(fragment or ""), "html.parser")
-        results.extend(str(item) for item in soup.select(selector))
+        text_match = re.fullmatch(r"text\.(.+)", selector.strip(), flags=re.DOTALL)
+        if text_match:
+            expected = clean_text(text_match.group(1))
+            candidates = [
+                item for item in soup.find_all(True)
+                if clean_text(item.get_text(" ", strip=True)) == expected
+            ]
+            results.extend(str(item) for item in candidates)
+            continue
+        normalized_selector = re.sub(
+            r"(?<=[A-Za-z0-9_\-])\.(\d+)(?=\s|$|[>+~])",
+            lambda match: f":nth-of-type({int(match.group(1)) + 1})",
+            selector,
+        )
+        results.extend(str(item) for item in soup.select(normalized_selector))
     return results
 
 

@@ -41,12 +41,12 @@ const incompatible = {
 assert.deepEqual(getSourceConfigs(), [])
 
 const first = importSourcesWithStats(JSON.stringify([source, incompatible]))
-assert.equal(first.imported, 1)
+assert.equal(first.imported, 2)
 assert.equal(first.updated, 0)
-assert.equal(first.skipped, 1)
+assert.equal(first.skipped, 0)
 assert.equal(first.incompatible, 1)
 assert.equal(first.sources.length, 2)
-assert.equal(getSourceConfigs().some(item => item.name === 'Unsupported Source'), false)
+assert.equal(getSourceConfigs().some(item => item.name === 'Unsupported Source' && item.enabled === false), true)
 
 const second = importSourcesWithStats(JSON.stringify([source]))
 assert.equal(second.imported, 0)
@@ -107,7 +107,7 @@ assert.equal(networkPreview.sources[0].name, 'Network Preview Source')
 assert.equal(networkPreview.sourceUrl, 'https://cdn.example.com/bookSources.json')
 assert.equal(getSourceConfigs().length, beforeNetworkPreviewCount)
 assert.ok(proxyRequests.length >= 2)
-assert.ok(proxyRequests.every(call => call.url === 'http://127.0.0.1:8000/api/proxy/fetch'))
+assert.ok(proxyRequests.every(call => call.url === 'http://127.0.0.1:8765/api/proxy/fetch'))
 delete globalThis.uni.request
 
 const imported = getSourceConfigs().find(item => item.name === 'Stats Test Source')
@@ -127,7 +127,7 @@ const preview = previewSourcesImport(JSON.stringify([
   incompatible
 ]))
 assert.equal(preview.imported, 1)
-assert.equal(preview.updated, 1)
+assert.equal(preview.updated, 2)
 assert.equal(preview.incompatible, 1)
 assert.ok(preview.groups.includes('User Import'))
 assert.equal(getSourceConfigs().length, beforePreviewCount)

@@ -73,6 +73,7 @@ assert.equal(defaults.requestIntervalMs, 1500)
 assert.equal(defaults.retryCount, 0)
 assert.equal(defaults.retryIntervalMs, 800)
 assert.equal(defaults.charset, 'auto')
+assert.match(defaults.userAgent, /Android 15.*Chrome\/126/)
 
 const saved = saveSourceAntiCrawlerSettings(source.id, {
   requestIntervalMs: 25,
